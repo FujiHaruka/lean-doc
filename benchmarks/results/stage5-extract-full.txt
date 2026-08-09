@@ -1,0 +1,36 @@
+# stage5-extract-full
+
+date              2026-08-09T21:59:06Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+modules           432 from /private/tmp/claude-502/-Users-haruka-dev-lean-doc/7bc55868-5726-4d65-94d0-cd3e28be1db2/scratchpad/stage5/work/lists/full.txt
+binary            /Users/haruka/dev/lean-doc/experiments/stage4b/build/extract (unchanged from stage 4b)
+args              --equations --refs --write-ir --tagged-code
+order             consecutive series, small working sets first (see script header)
+
+| run | wall | user+sys | (u+s)/wall | major faults | reclaims | peak RSS MB | importModules | analyze | writeIR | total | indexLookup | tactics | moduleDocs | envStats:loadedModules |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 26.2869 | 17.1500 | 0.652 | 98595 | 288173 | 3295.3 | 12.4699 | 11.6600 | 0.6091 | 24.7608 | 0.0024 | 0.0099 | 0.0010 | 6021 |
+| 2 | 16.1919 | 15.7200 | 0.971 | 5102 | 344764 | 3308.6 | 2.7171 | 11.0839 | 0.5942 | 14.4191 | 0.0021 | 0.0099 | 0.0006 | 6021 |
+| 3 | 16.9545 | 16.7000 | 0.985 | 3032 | 345969 | 3328.3 | 2.7464 | 11.8650 | 0.5804 | 15.2121 | 0.0020 | 0.0092 | 0.0006 | 6021 |
+| 4 | 16.1128 | 15.9500 | 0.990 | 2243 | 344583 | 3329.5 | 2.6724 | 11.3040 | 0.6184 | 14.6152 | 0.0020 | 0.0091 | 0.0006 | 6021 |
+| 5 | 16.0150 | 15.8700 | 0.991 | 2194 | 343715 | 3339.5 | 2.7028 | 11.1818 | 0.6302 | 14.5352 | 0.0020 | 0.0094 | 0.0006 | 6021 |
+| 6 | 16.2114 | 16.0400 | 0.989 | 2192 | 347557 | 3332.7 | 2.7813 | 11.2839 | 0.5974 | 14.6842 | 0.0020 | 0.0092 | 0.0006 | 6021 |
+
+median [min-max] over runs 2..6 (run 1 dropped):
+
+| | |
+|---|---:|
+| wall clock | **16.1919 [16.0150-16.9545]** |
+| user+sys | 15.9500 [15.7200-16.7000] |
+| major page faults | 2243 [2192-5102] |
+| page reclaims | 344764 [343715-347557] |
+| peak RSS MB | 3329.5 [3308.6-3339.5] |
+| importModules | 2.7171 [2.6724-2.7813] |
+| analyze | 11.2839 [11.0839-11.8650] |
+| writeIR | 0.5974 [0.5804-0.6302] |
+| total | 14.6152 [14.4191-15.2121] |
+| indexLookup | 0.0020 [0.0020-0.0021] |
+| tactics | 0.0092 [0.0091-0.0099] |
+| moduleDocs | 0.0006 [0.0006-0.0006] |
+| envStats:loadedModules | 6021.0000 [6021.0000-6021.0000] |

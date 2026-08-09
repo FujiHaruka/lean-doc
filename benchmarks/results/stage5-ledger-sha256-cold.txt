@@ -1,0 +1,37 @@
+# stage5-ledger-sha256-cold
+
+date              2026-08-09T22:01:02Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+deno              deno 2.7.14 (stable, release, aarch64-apple-darwin)
+hashed            432 modules / 432 olean files / 237909832 B
+algorithm         sha256, concurrency 1
+cache             cold: olean-evict over the 432 oleans before every run
+runs              8 (run 1 dropped)
+Lean              never started
+
+| run | wall | user+sys | (u+s)/wall | major faults | reclaims | peak RSS MB | readLedgerSeconds | envKeySeconds | hashSeconds | compareSeconds | totalSeconds | changed |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 0.3818 | 0.2800 | 0.733 | 3 | 8729 | 135.2 | 0.0006 | 0.0007 | 0.3520 | 0.0001 | 0.3533 | 0 |
+| 2 | 0.3798 | 0.2700 | 0.711 | 3 | 8660 | 134.3 | 0.0006 | 0.0007 | 0.3497 | 0.0001 | 0.3510 | 0 |
+| 3 | 0.3786 | 0.2600 | 0.687 | 3 | 8641 | 133.8 | 0.0005 | 0.0007 | 0.3487 | 0.0001 | 0.3500 | 0 |
+| 4 | 0.3916 | 0.2900 | 0.741 | 3 | 8926 | 138.4 | 0.0006 | 0.0008 | 0.3592 | 0.0001 | 0.3606 | 0 |
+| 5 | 0.3773 | 0.2800 | 0.742 | 3 | 8936 | 138.6 | 0.0006 | 0.0007 | 0.3477 | 0.0001 | 0.3490 | 0 |
+| 6 | 0.3865 | 0.2800 | 0.724 | 3 | 8643 | 133.6 | 0.0006 | 0.0007 | 0.3561 | 0.0001 | 0.3574 | 0 |
+| 7 | 0.3875 | 0.2800 | 0.723 | 5 | 8608 | 133.3 | 0.0006 | 0.0007 | 0.3564 | 0.0001 | 0.3577 | 0 |
+| 8 | 0.3819 | 0.2900 | 0.759 | 11 | 8696 | 134.2 | 0.0006 | 0.0007 | 0.3506 | 0.0001 | 0.3520 | 0 |
+
+median [min-max] over runs 2..8 (run 1 dropped):
+
+| | |
+|---|---:|
+| wall clock | **0.3819 [0.3773-0.3916]** |
+| user+sys | 0.2800 [0.2600-0.2900] |
+| major page faults | 3 [3-11] |
+| page reclaims | 8660 [8608-8936] |
+| peak RSS MB | 134.2 [133.3-138.6] |
+| readLedgerSeconds | 0.0006 [0.0005-0.0006] |
+| envKeySeconds | 0.0007 [0.0007-0.0008] |
+| hashSeconds | 0.3506 [0.3477-0.3592] |
+| compareSeconds | 0.0001 [0.0001-0.0001] |
+| totalSeconds | 0.3520 [0.3490-0.3606] |
+| changed | 0.0000 [0.0000-0.0000] |

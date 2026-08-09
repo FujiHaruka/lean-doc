@@ -1,0 +1,37 @@
+# stage5-incremental-mid-referrers
+
+date              2026-08-09T22:06:32Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+pipeline          detect (ledger, lake hashes) -> extract (stage4b) -> merge -> render (stage4c)
+injected          the changed module's ledger entry, nothing else. No .lean edit, no lake build.
+state             live IR + 432 rendered pages already on disk; the IR is updated in place
+runs              6 (run 1 dropped)
+
+| run | wall | user+sys | (u+s)/wall | major faults | reclaims | peak RSS MB | detectSeconds | extractSeconds | mergeSeconds | impactSeconds | renderSeconds | totalSeconds | changed | irChanged | pagesRendered |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 7.9747 | 4.8000 | 0.602 | 37778 | 321353 | 3018.6 | 0.0977 | 7.0793 | 0.2078 | 0.1560 | 0.3695 | 7.9102 | 1 | 0 | 81 |
+| 2 | 4.4329 | 4.4700 | 1.008 | 771 | 357529 | 3028.2 | 0.1006 | 3.5762 | 0.1627 | 0.1573 | 0.3695 | 4.3662 | 1 | 0 | 81 |
+| 3 | 4.3726 | 4.3800 | 1.002 | 641 | 357604 | 3028.9 | 0.1029 | 3.4968 | 0.1606 | 0.1574 | 0.3892 | 4.3070 | 1 | 0 | 81 |
+| 4 | 4.4163 | 4.4400 | 1.005 | 773 | 357589 | 3028.9 | 0.1020 | 3.5398 | 0.1628 | 0.1571 | 0.3866 | 4.3482 | 1 | 0 | 81 |
+| 5 | 4.3781 | 4.4200 | 1.010 | 639 | 357703 | 3029.0 | 0.1005 | 3.5099 | 0.1613 | 0.1572 | 0.3784 | 4.3072 | 1 | 0 | 81 |
+| 6 | 4.3893 | 4.4300 | 1.009 | 773 | 357492 | 3028.8 | 0.1000 | 3.5307 | 0.1595 | 0.1601 | 0.3717 | 4.3220 | 1 | 0 | 81 |
+
+median [min-max] over runs 2..6 (run 1 dropped):
+
+| | |
+|---|---:|
+| wall clock | **4.3893 [4.3726-4.4329]** |
+| user+sys | 4.4300 [4.3800-4.4700] |
+| major page faults | 771 [639-773] |
+| page reclaims | 357589 [357492-357703] |
+| peak RSS MB | 3028.9 [3028.2-3029.0] |
+| detectSeconds | 0.1006 [0.1000-0.1029] |
+| extractSeconds | 3.5307 [3.4968-3.5762] |
+| mergeSeconds | 0.1613 [0.1595-0.1628] |
+| impactSeconds | 0.1573 [0.1571-0.1601] |
+| renderSeconds | 0.3784 [0.3695-0.3892] |
+| totalSeconds | 4.3220 [4.3070-4.3662] |
+| changed | 1.0000 [1.0000-1.0000] |
+| irChanged | 0.0000 [0.0000-0.0000] |
+| pagesRendered | 81.0000 [81.0000-81.0000] |

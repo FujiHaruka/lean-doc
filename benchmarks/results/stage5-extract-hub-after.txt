@@ -1,0 +1,33 @@
+# stage5-extract-hub-after
+
+date              2026-08-09T21:59:31Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+modules           1 from /private/tmp/claude-502/-Users-haruka-dev-lean-doc/7bc55868-5726-4d65-94d0-cd3e28be1db2/scratchpad/stage5/work/lists/hub.txt
+binary            /Users/haruka/dev/lean-doc/experiments/stage4b/build/extract (unchanged from stage 4b)
+args              --equations --refs --write-ir --tagged-code
+order             consecutive series, small working sets first (see script header)
+
+| run | wall | user+sys | (u+s)/wall | major faults | reclaims | peak RSS MB | importModules | analyze | writeIR | total | indexLookup | tactics | moduleDocs | envStats:loadedModules |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 2.2270 | 1.8600 | 0.835 | 2185 | 158933 | 1245.0 | 0.8037 | 0.0003 | 0.0009 | 0.8088 | 0.0000 | 0.0038 | 0.0000 | 2259 |
+| 2 | 1.8547 | 1.7500 | 0.944 | 428 | 160627 | 1244.9 | 0.7657 | 0.0003 | 0.0007 | 0.7707 | 0.0000 | 0.0038 | 0.0000 | 2259 |
+| 3 | 1.8328 | 1.7300 | 0.944 | 423 | 160689 | 1244.8 | 0.7604 | 0.0003 | 0.0007 | 0.7654 | 0.0000 | 0.0037 | 0.0000 | 2259 |
+
+median [min-max] over runs 2..3 (run 1 dropped):
+
+| | |
+|---|---:|
+| wall clock | **1.8438 [1.8328-1.8547]** |
+| user+sys | 1.7400 [1.7300-1.7500] |
+| major page faults | 426 [423-428] |
+| page reclaims | 160658 [160627-160689] |
+| peak RSS MB | 1244.8 [1244.8-1244.9] |
+| importModules | 0.7631 [0.7604-0.7657] |
+| analyze | 0.0003 [0.0003-0.0003] |
+| writeIR | 0.0007 [0.0007-0.0007] |
+| total | 0.7680 [0.7654-0.7707] |
+| indexLookup | 0.0000 [0.0000-0.0000] |
+| tactics | 0.0037 [0.0037-0.0038] |
+| moduleDocs | 0.0000 [0.0000-0.0000] |
+| envStats:loadedModules | 2259.0000 [2259.0000-2259.0000] |

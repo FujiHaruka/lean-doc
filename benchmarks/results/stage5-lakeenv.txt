@@ -1,0 +1,27 @@
+# stage5-lakeenv
+
+date              2026-08-09T22:08:08Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+command           lake env /usr/bin/true, run inside /Users/haruka/dev/lean-projects
+why               the extractor is launched as 'lake env extract'; this is the part of its
+                  wall clock that is not the extractor. Nothing is written.
+runs              6 (run 1 dropped)
+
+| run | wall | user+sys | (u+s)/wall | major faults | reclaims | peak RSS MB |  |
+|---|---:|---:|---:|---:|---:|---:|
+| 1 | 1.2878 | 0.9600 | 0.745 | 3251 | 76809 | 668.5 |  |
+| 2 | 0.9594 | 0.8700 | 0.907 | 214 | 79802 | 669.9 |  |
+| 3 | 0.9626 | 0.8900 | 0.925 | 210 | 79755 | 668.5 |  |
+| 4 | 0.9618 | 0.8800 | 0.915 | 210 | 79802 | 669.1 |  |
+| 5 | 0.9619 | 0.8800 | 0.915 | 210 | 79813 | 670.0 |  |
+| 6 | 0.9605 | 0.8800 | 0.916 | 210 | 79811 | 668.6 |  |
+
+median [min-max] over runs 2..6 (run 1 dropped):
+
+| | |
+|---|---:|
+| wall clock | **0.9618 [0.9594-0.9626]** |
+| user+sys | 0.8800 [0.8700-0.8900] |
+| major page faults | 210 [210-214] |
+| page reclaims | 79802 [79755-79813] |
+| peak RSS MB | 669.1 [668.5-670.0] |

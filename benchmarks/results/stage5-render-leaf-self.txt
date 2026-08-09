@@ -1,0 +1,33 @@
+# stage5-render-leaf-self
+
+date              2026-08-09T22:01:35Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+deno              deno 2.7.14 (stable, release, aarch64-apple-darwin)
+ir                /private/tmp/claude-502/-Users-haruka-dev-lean-doc/7bc55868-5726-4d65-94d0-cd3e28be1db2/scratchpad/stage5/ir-full
+pages             1 of 432
+interleave        round-robin with full leaf-self leaf-importers mid-referrers mid-importers hub-importers, 6 rounds
+
+| run | wall | user+sys | (u+s)/wall | major faults | reclaims | peak RSS MB | seconds.readIr | seconds.indexBuild | seconds.renderHeaders | seconds.renderPage | seconds.write | seconds.total |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 0.1967 | 0.3000 | 1.525 | 13 | 11475 | 180.3 | 0.1360 | 0.0095 | 0.0021 | 0.0061 | 0.0011 | 0.1573 |
+| 2 | 0.1909 | 0.3200 | 1.677 | 3 | 11507 | 180.9 | 0.1313 | 0.0095 | 0.0024 | 0.0061 | 0.0007 | 0.1525 |
+| 3 | 0.1937 | 0.3200 | 1.652 | 3 | 11476 | 180.3 | 0.1339 | 0.0097 | 0.0023 | 0.0063 | 0.0010 | 0.1556 |
+| 4 | 0.2327 | 0.3200 | 1.375 | 3 | 11463 | 180.3 | 0.1651 | 0.0111 | 0.0025 | 0.0081 | 0.0010 | 0.1905 |
+| 5 | 0.2032 | 0.3200 | 1.575 | 3 | 11456 | 180.0 | 0.1413 | 0.0099 | 0.0021 | 0.0060 | 0.0008 | 0.1625 |
+| 6 | 0.1952 | 0.3200 | 1.639 | 3 | 11463 | 180.3 | 0.1345 | 0.0098 | 0.0023 | 0.0063 | 0.0008 | 0.1562 |
+
+median [min-max] over runs 2..6 (run 1 dropped):
+
+| | |
+|---|---:|
+| wall clock | **0.1952 [0.1909-0.2327]** |
+| user+sys | 0.3200 [0.3200-0.3200] |
+| major page faults | 3 [3-3] |
+| page reclaims | 11463 [11456-11507] |
+| peak RSS MB | 180.3 [180.0-180.9] |
+| seconds.readIr | 0.1345 [0.1313-0.1651] |
+| seconds.indexBuild | 0.0098 [0.0095-0.0111] |
+| seconds.renderHeaders | 0.0023 [0.0021-0.0025] |
+| seconds.renderPage | 0.0063 [0.0060-0.0081] |
+| seconds.write | 0.0008 [0.0007-0.0010] |
+| seconds.total | 0.1562 [0.1525-0.1905] |

@@ -1,0 +1,36 @@
+# stage5-extract-leaf
+
+date              2026-08-09T21:56:18Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+modules           1 from /private/tmp/claude-502/-Users-haruka-dev-lean-doc/7bc55868-5726-4d65-94d0-cd3e28be1db2/scratchpad/stage5/work/lists/leaf.txt
+binary            /Users/haruka/dev/lean-doc/experiments/stage4b/build/extract (unchanged from stage 4b)
+args              --equations --refs --write-ir --tagged-code
+order             consecutive series, small working sets first (see script header)
+
+| run | wall | user+sys | (u+s)/wall | major faults | reclaims | peak RSS MB | importModules | analyze | writeIR | total | indexLookup | tactics | moduleDocs | envStats:loadedModules |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 8.9598 | 3.6100 | 0.403 | 58112 | 217189 | 2427.4 | 7.7333 | 0.0496 | 0.0039 | 7.7954 | 0.0000 | 0.0079 | 0.0000 | 4258 |
+| 2 | 3.2558 | 3.0500 | 0.937 | 796 | 273718 | 2450.6 | 1.9421 | 0.0419 | 0.0041 | 1.9962 | 0.0000 | 0.0077 | 0.0000 | 4258 |
+| 3 | 3.2041 | 3.0700 | 0.958 | 479 | 275217 | 2429.1 | 1.9993 | 0.0432 | 0.0037 | 2.0549 | 0.0000 | 0.0083 | 0.0000 | 4258 |
+| 4 | 3.1170 | 2.9900 | 0.959 | 630 | 275597 | 2412.8 | 1.8915 | 0.0405 | 0.0033 | 1.9435 | 0.0000 | 0.0077 | 0.0000 | 4258 |
+| 5 | 3.0052 | 2.9000 | 0.965 | 479 | 274020 | 2450.8 | 1.8218 | 0.0413 | 0.0039 | 1.8752 | 0.0000 | 0.0077 | 0.0000 | 4258 |
+| 6 | 3.1613 | 3.0300 | 0.958 | 443 | 276223 | 2427.2 | 1.9644 | 0.0453 | 0.0035 | 2.0218 | 0.0000 | 0.0081 | 0.0000 | 4258 |
+
+median [min-max] over runs 2..6 (run 1 dropped):
+
+| | |
+|---|---:|
+| wall clock | **3.1613 [3.0052-3.2558]** |
+| user+sys | 3.0300 [2.9000-3.0700] |
+| major page faults | 479 [443-796] |
+| page reclaims | 275217 [273718-276223] |
+| peak RSS MB | 2429.1 [2412.8-2450.8] |
+| importModules | 1.9421 [1.8218-1.9993] |
+| analyze | 0.0419 [0.0405-0.0453] |
+| writeIR | 0.0037 [0.0033-0.0041] |
+| total | 1.9962 [1.8752-2.0549] |
+| indexLookup | 0.0000 [0.0000-0.0000] |
+| tactics | 0.0077 [0.0077-0.0083] |
+| moduleDocs | 0.0000 [0.0000-0.0000] |
+| envStats:loadedModules | 4258.0000 [4258.0000-4258.0000] |
