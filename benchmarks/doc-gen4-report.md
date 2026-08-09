@@ -10,6 +10,17 @@
 > 文中のパスは移動後の配置 (`benchmarks/…`) に書き換えてある。
 > 再現するには、対象の Lean プロジェクト側でパッチを当てて実行する。
 
+> **訂正 (2026-08-09、後日の再計測による)** — §4.3 の方式B (`batch`) は
+> **page cache が cold な状態で計測されていた**。同じコマンドを warm な状態で
+> 測り直すと `importModules` は 12.91s → **2.60s**、`batch.total` は
+> 45.93s → **31.50s** になる (`benchmarks/results/batch-rerun.jsonl`、
+> `batch-rerun-2nd.jsonl` で再現確認済み)。
+> `constantLoop` − `ofConstant` の差 (§4.3 で「走査オーバーヘッド」に相当) も
+> 4.45s → 0.36s に縮む。
+> **本文の数字はその日の計測の記録としてそのまま残す**が、方式B の値を
+> 「床」や「最適化後の到達点」の根拠に使うときは warm 側を見ること。
+> 経緯と warm 側の全数字は [`../docs/verification-log.md`](../docs/verification-log.md) 段階 1。
+
 ---
 
 ## 0. 結論サマリ
