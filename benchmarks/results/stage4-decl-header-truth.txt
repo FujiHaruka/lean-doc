@@ -1,0 +1,101 @@
+decl-header-truth — doc-gen4 の decl_header アンカー列 (正解データ)
+========================================================================
+
+benchmarks/tools/decl-header-truth.py の出力。すべて実測
+(このツールを走らせれば再現できる。数字の出所はこのファイル自身)。
+
+[measurement conditions]
+  run at (UTC)                                         2026-08-09T17:24:32Z
+  HTML source                                          /Users/haruka/dev/lean-projects/.lake/build/doc/InformationTheory
+  HTML generated (oldest page)                         2026-08-09T08:40:18Z
+  HTML generated (newest page)                         2026-08-09T08:40:21Z
+  target repo                                          /Users/haruka/dev/lean-projects
+  doc-gen4 rev                                         0bc516c1b9db83658d6475c40d9b1ed71219b921
+  doc-gen4 describe                                    v4.31.0
+  doc-gen4 working tree dirty (instrumentation patch)  True
+  lean-toolchain (target)                              leanprover/lean4:v4.31.0
+  Python                                               3.9.6
+  platform                                             macOS-26.6-arm64-arm-64bit
+  wall clock for this extraction                       4.6 s
+  JSONL output                                         /private/tmp/claude-502/-Users-haruka-dev-lean-doc/3d1d9f1a-f57b-4f1a-b409-9b01d78b9e94/scratchpad/decl-header-truth.jsonl
+  JSONL bytes                                          12,919,595
+
+[cross-check vs benchmarks/results/stage4-html-inventory.txt §A/§B]
+  期待値は既存の実測レポート (html-inventory.py の出力) から引いたもの。
+  食い違ったらこのツールが疑わしい — 数字を合わせに行かないこと。
+
+  item                                              expected    actual  result
+  ----------------------------------------------------------------------------
+  HTML pages                                             348       348  PASS
+  pages with >=1 div.decl                                329       329  PASS
+  div.decl                                             3,477     3,477  PASS
+  decl_header anchors, excluding a.break_within       78,065    78,065  PASS
+  ... links to a declaration (href has '#')           72,421    72,421  PASS
+  ... sort links (foundational_types.html)             5,638     5,638  PASS
+  ... module links (no fragment)                           6         6  PASS
+  ----------------------------------------------------------------------------
+  overall: ALL PASS
+
+  数え方: decl_header 内のアンカーのうち class に break_within を含むもの
+  (= 宣言自身の名前リンク) を除いた列が上の 78,065。残りを href で分類し、
+  '#' を含むものを宣言リンク、foundational_types.html で終わるものを sort
+  リンク、それ以外をモジュールリンクとした (html-inventory.py と同じ規則)。
+
+[newly measured here — 既存値の無い新規の実測]
+
+  a.break_within (decl_header 内)                  3,477
+  decl_header 内アンカー総数 (break_within 込み)     81,542
+  宣言あたりの break_within の個数:
+    1 個 : 3,477 宣言   <- 期待どおり 1 宣言 1 個
+
+  入れ子アンカー (<a> の中の <a>)                    0   (期待値 0)
+  start が単調非減少でない宣言                       0   (期待値 0)
+    ※ このツールはストリーミング解析なので start は構造上非減少になる。
+       独立した証拠ではなく回帰ガードとして記録する。
+  anchor.text != header_text[start:start+len] の件数 0   (期待値 0)
+    ※ こちらは独立な検算 — オフセットの単位を間違えると落ちる。
+
+  独立第二経路 (タグ深さ走査 + 正規表現 strip-tags、html-inventory.py と
+  同じ作り) との突合 — html.parser 側の解釈ミスを共倒れさせないための検算:
+    突合した宣言                                    3,477
+    平文が食い違った宣言                            0   (期待値 0)
+    (href, text) 列が食い違った宣言                  0   (期待値 0)
+    ページ内の宣言名集合が食い違ったページ            0   (期待値 0)
+
+  decl_header 平文の合計長 (UTF-16 code units)      1,528,638
+  decl_header 平文の合計長 (Unicode codepoints)     1,528,585
+  差 = 非 BMP 文字 (サロゲートペア) の個数           53
+  非 BMP 文字を含む decl_header                     4
+    内訳: 𝓧 (U+1D4E7) x31, 𝓨 (U+1D4E8) x22
+    → 数は少ないが、1 宣言内で codepoint 添字と UTF-16 添字は最大
+       16 単位ずれる (末尾のアンカーほど大きくずれる)。単位を
+       取り違えると『ほぼ合っている』出力になり、集計では気づけない。
+  平文が空の decl_header                            0
+  span.impl_arg の合計 (decl_header 内)              22,268
+
+[decl_header 内アンカーの class 内訳]
+  None                     78,065
+  break_within             3,477
+
+[parser sanity counters — すべて 0 が期待値]
+  nested_decl                            0
+  nested_anchor                          0
+  unbalanced_end_tag                     0
+  anchor_unclosed_at_header_end          0
+  anchor_without_href                    0
+  href_not_first_but_not_break_within    0
+
+[除外規則が既存ツールと同じ集合を選んでいることの確認]
+  html-inventory.py は「href が最初の属性であるアンカー」だけを数え、
+  このツールは「class に break_within を含まないアンカー」を数える。
+  href が先頭でない かつ break_within         3,477
+  href が先頭でない が break_within でない     0   (0 なら両規則は同一集合)
+
+[JSONL schema] 1 行 1 宣言、キーはソート済み
+  module, name, page, kind_text, header_text, impl_arg_count,
+  anchors: [{start (UTF-16 code units), text, href, cls}, ...] 文書順
+
+[exit status]
+  cross-check vs stage4-html-inventory.txt : PASS
+  invariants (期待値 0 の項目すべて)        : PASS
+
