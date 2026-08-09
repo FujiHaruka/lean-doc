@@ -94,7 +94,12 @@ leg 1〜3 が終わった時点で **段階 3 だけは完結している**の�
 
 ## 5. CI 軸で切り分けること (leg 6 の中身)
 
-cold 13 秒の内訳は「約 3 GB の olean を mmap でページインする I/O」。
+cold の内訳は **2,588,347,936 B (2.59 GB) の olean のページイン (実測、mincore)**。
+出所は `benchmarks/results/ci-residency-summary.txt`。以前ここに書いていた「約 3 GB」は
+peak RSS からの流用で、1.16 倍の過大だった (差の 0.53 GB は匿名メモリ)。
+**律速は帯域ではなく fault 遅延**: 132,343 回の major fault × 96.2 µs で 12.7 秒。
+同じファイル群を `read(2)` で読むと逐次 679 MB/s・8 並列 1,841 MB/s 出る (実測)。
+
 打ち手の候補を、**効きそうな順ではなく切り分けやすい順**に測る。
 
 1. **CI の cold は本当に cold か。** CI では `lake exe cache get` で olean を展開した直後に

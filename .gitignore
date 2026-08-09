@@ -12,6 +12,10 @@ benchmarks/results/*.log
 # machine-local permission grants
 .claude/settings.local.json
 
+# compiled page-cache measurement tools (the .c sources are committed)
+benchmarks/tools/olean-residency
+benchmarks/tools/olean-evict
+
 # stage-1 experiment build output (native binary + generated C)
 experiments/stage1/build/
 

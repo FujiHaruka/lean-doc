@@ -1,0 +1,175 @@
+### R0  2026-08-09T19:25:06Z
+Mach Virtual Memory Statistics: (page size of 16384 bytes)
+Pages free:                                   151290.
+Pages active:                                 139105.
+Pages inactive:                               136081.
+Pages speculative:                              2377.
+Pages throttled:                                   0.
+Pages wired down:                             119510.
+Pages purgeable:                                 933.
+"Translation faults":                     1862745108.
+Pages copy-on-write:                        35422781.
+Pages zero filled:                         760254464.
+Pages reactivated:                         164533690.
+Pages purged:                               18839301.
+File-backed pages:                             91805.
+Anonymous pages:                              185758.
+Pages stored in compressor:                  2190700.
+Pages occupied by compressor:                 464291.
+Decompressions:                             93001070.
+Compressions:                              117275740.
+Pageins:                                    84862290.
+Pageouts:                                     491975.
+Swapins:                                     3112153.
+Swapouts:                                    6889010.
+
+### R1  2026-08-09T19:25:27Z
+Mach Virtual Memory Statistics: (page size of 16384 bytes)
+Pages free:                                    23941.
+Pages active:                                 167606.
+Pages inactive:                               174345.
+Pages speculative:                              6092.
+Pages throttled:                                   0.
+Pages wired down:                             135566.
+Pages purgeable:                                   2.
+"Translation faults":                     1863155763.
+Pages copy-on-write:                        35431840.
+Pages zero filled:                         760364137.
+Pages reactivated:                         164701505.
+Pages purged:                               18843012.
+File-backed pages:                            264104.
+Anonymous pages:                               83939.
+Pages stored in compressor:                  2283976.
+Pages occupied by compressor:                 505262.
+Decompressions:                             93020808.
+Compressions:                              117392274.
+Pageins:                                    85048314.
+Pageouts:                                     492024.
+Swapins:                                     3112153.
+Swapouts:                                    6889010.
+
+### R2  2026-08-09T19:25:33Z
+Mach Virtual Memory Statistics: (page size of 16384 bytes)
+Pages free:                                    28017.
+Pages active:                                 163606.
+Pages inactive:                               170149.
+Pages speculative:                              8162.
+Pages throttled:                                   0.
+Pages wired down:                             131320.
+Pages purgeable:                                  26.
+"Translation faults":                     1863565237.
+Pages copy-on-write:                        35440922.
+Pages zero filled:                         760454915.
+Pages reactivated:                         164823677.
+Pages purged:                               18843191.
+File-backed pages:                            267056.
+Anonymous pages:                               74861.
+Pages stored in compressor:                  2292403.
+Pages occupied by compressor:                 511481.
+Decompressions:                             93054029.
+Compressions:                              117440978.
+Pageins:                                    85053429.
+Pageouts:                                     492042.
+Swapins:                                     3112153.
+Swapouts:                                    6889010.
+
+### R3  2026-08-09T19:25:38Z
+Mach Virtual Memory Statistics: (page size of 16384 bytes)
+Pages free:                                    38654.
+Pages active:                                 160830.
+Pages inactive:                               171963.
+Pages speculative:                              5378.
+Pages throttled:                                   0.
+Pages wired down:                             124383.
+Pages purgeable:                                   2.
+"Translation faults":                     1863960174.
+Pages copy-on-write:                        35447822.
+Pages zero filled:                         760544449.
+Pages reactivated:                         164883282.
+Pages purged:                               18845789.
+File-backed pages:                            267251.
+Anonymous pages:                               70920.
+Pages stored in compressor:                  2296418.
+Pages occupied by compressor:                 511460.
+Decompressions:                             93091930.
+Compressions:                              117488373.
+Pageins:                                    85054605.
+Pageouts:                                     492042.
+Swapins:                                     3112153.
+Swapouts:                                    6889010.
+
+### R4  2026-08-09T19:25:44Z
+Mach Virtual Memory Statistics: (page size of 16384 bytes)
+Pages free:                                    24175.
+Pages active:                                 162875.
+Pages inactive:                               171298.
+Pages speculative:                              4568.
+Pages throttled:                                   0.
+Pages wired down:                             136115.
+Pages purgeable:                                   2.
+"Translation faults":                     1864365371.
+Pages copy-on-write:                        35455725.
+Pages zero filled:                         760634427.
+Pages reactivated:                         164982013.
+Pages purged:                               18846857.
+File-backed pages:                            267567.
+Anonymous pages:                               71174.
+Pages stored in compressor:                  2296253.
+Pages occupied by compressor:                 513710.
+Decompressions:                             93125474.
+Compressions:                              117527266.
+Pageins:                                    85057541.
+Pageouts:                                     492046.
+Swapins:                                     3112153.
+Swapouts:                                    6889010.
+
+### R5  2026-08-09T19:25:49Z
+Mach Virtual Memory Statistics: (page size of 16384 bytes)
+Pages free:                                    34994.
+Pages active:                                 165441.
+Pages inactive:                               173411.
+Pages speculative:                              3512.
+Pages throttled:                                   0.
+Pages wired down:                             123175.
+Pages purgeable:                                 409.
+"Translation faults":                     1864735536.
+Pages copy-on-write:                        35462634.
+Pages zero filled:                         760721638.
+Pages reactivated:                         165016329.
+Pages purged:                               18847447.
+File-backed pages:                            267150.
+Anonymous pages:                               75214.
+Pages stored in compressor:                  2290909.
+Pages occupied by compressor:                 512203.
+Decompressions:                             93141026.
+Compressions:                              117544843.
+Pageins:                                    85058411.
+Pageouts:                                     492060.
+Swapins:                                     3112153.
+Swapouts:                                    6889010.
+
+### R6  2026-08-09T19:25:55Z
+Mach Virtual Memory Statistics: (page size of 16384 bytes)
+Pages free:                                    34514.
+Pages active:                                 167992.
+Pages inactive:                               167162.
+Pages speculative:                              5684.
+Pages throttled:                                   0.
+Pages wired down:                             125621.
+Pages purgeable:                                  18.
+"Translation faults":                     1865117057.
+Pages copy-on-write:                        35469848.
+Pages zero filled:                         760809585.
+Pages reactivated:                         165057407.
+Pages purged:                               18847518.
+File-backed pages:                            267434.
+Anonymous pages:                               73404.
+Pages stored in compressor:                  2291470.
+Pages occupied by compressor:                 511781.
+Decompressions:                             93167144.
+Compressions:                              117576411.
+Pageins:                                    85059602.
+Pageouts:                                     492066.
+Swapins:                                     3112153.
+Swapouts:                                    6889010.
+
