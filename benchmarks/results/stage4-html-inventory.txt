@@ -1,0 +1,255 @@
+# html-inventory — doc-gen4 の完成 HTML と stage-4 IR の突き合わせ
+
+`benchmarks/tools/html-inventory.py` の出力。**すべて実測** (このレポートの数字はこのツールを走らせれば再現できる)。
+
+## 計測条件
+
+| | |
+|---|---|
+| 実行日時 (UTC) | `2026-08-09T16:26:07Z` |
+| HTML の出所 | `/Users/haruka/dev/lean-projects/.lake/build/doc/InformationTheory` |
+| HTML の生成時点 (最古のページ) | `2026-08-09T08:40:18Z` |
+| HTML の生成時点 (最新のページ) | `2026-08-09T08:40:21Z` |
+| doc-gen4 rev | `0bc516c1b9db83658d6475c40d9b1ed71219b921` |
+| doc-gen4 describe | `v4.31.0` |
+| doc-gen4 作業ツリーが dirty (計装パッチ) | `True` |
+| lean-toolchain (計測対象) | `leanprover/lean4:v4.31.0` |
+| IR の出所 | `/private/tmp/claude-502/-Users-haruka-dev-lean-doc/3db6b213-b50d-48cb-a16b-16df93b5f009/scratchpad/ir` |
+| IR の書き出し時点 | `2026-08-09T15:41:58Z` |
+| IR schemaVersion | `1` |
+| IR generator | `lean-doc/experiments/stage4` |
+| IR leanVersion | `4.31.0` |
+| IR moduleCount | `432` |
+| IR declarationCount | `4750` |
+| Python | `3.9.6` |
+| platform | `macOS-26.6-arm64-arm-64bit` |
+
+母数は **HTML 348 ページ / IR 432 モジュール**。348 ページはすべて IR 側にモジュールがあり、`div.decl` を 1 つ以上持つページは 329。
+
+逆向きには IR の 84 モジュールに HTML ページが無く、うち **77 は宣言を持っている** — 「空だからページが無い」ではなく、**ディスク上の `.lake/build/doc` が 432 モジュール全部を出し切ったビルドではない**。HTML の生成時点と IR の書き出し時点も同日だがずれている。したがって以下の母数はすべて「ディスク上にある 348 ページ」であって、doc-gen4 の全出力ではない。
+
+計装パッチ (`benchmarks/doc-gen4-instrumentation.patch`) は計時ログを足すだけで、出力 HTML は変えない。計測対象には一切書き込んでいない。
+
+## A. 母数
+
+| | |
+|---|---:|
+| HTML ページ | 348 |
+| うち `div.decl` を 1 つ以上持つページ | 329 |
+| `div.decl` | 3,477 |
+| 348 ページの合計バイト | 22,028,728 |
+| IR モジュール | 432 |
+| IR 宣言 (全モジュール) | 4,750 |
+| IR 宣言 (HTML ページのある 348 モジュール) | 3,663 |
+| 突合できた宣言 (名前が両側にある) | 3,477 |
+| IR にあって HTML に無い | 186 |
+| HTML にあって IR に無い | 0 |
+
+## B. `div.decl_header` 内のアンカー内訳
+
+署名 (binder + 結果型 + `extends`) の中のアンカー **78,065 件**。宣言自身の名前リンク (`a.break_within`) は含まない。
+
+| | | |
+|---|---:|---:|
+| 宣言へのリンク | 72,421 | 92.8% |
+| sort リンク (`foundational_types.html`) | 5,638 | 7.2% |
+| モジュールリンク | 6 | 0.0% |
+
+宣言リンク 72,421 件を、**アンカーテキストと対象名の字面の関係**で分けると:
+
+| | | |
+|---|---:|---:|
+| テキスト == 完全名 | 29,042 | 40.1% |
+| テキストが完全名の接尾辞 (`Foo.bar` を `bar` と印字) | 11,514 | 15.9% |
+| **字面の関係なし (記法・省略記号)** | **31,865** | **44.0%** |
+
+字面の関係が無い組は 131 種、接尾辞の組は 827 種。**44% は IR の `refs` (名前の集合) からは再構成できない** — どの記号がどの定数に対応するかは pretty printer の delaborator が持っている情報で、名前の集合には無い。
+
+記法の内訳 (上位 20):
+
+| 件数 | アンカーテキスト | 対象 |
+|---:|---|---|
+| 4,901 | `ℝ` | `Real` |
+| 3,381 | `ℕ` | `Nat` |
+| 2,081 | `*` | `HMul.hMul` |
+| 2,047 | `≤` | `LE.le` |
+| 2,024 | `×` | `Prod` |
+| 1,784 | `=` | `Eq` |
+| 1,574 | `<` | `LT.lt` |
+| 1,503 | `+` | `HAdd.hAdd` |
+| 842 | `-` | `HSub.hSub` |
+| 770 | `MeasureTheory.volume` | `MeasureTheory.MeasureSpace.volume` |
+| 749 | `,` | `Prod.mk` |
+| 743 | `/` | `HDiv.hDiv` |
+| 645 | `(` | `Prod.mk` |
+| 645 | `)` | `Prod.mk` |
+| 629 | `{` | `Singleton.singleton` |
+| 629 | `}` | `Singleton.singleton` |
+| 475 | `∈` | `Membership.mem` |
+| 466 | `^` | `HPow.hPow` |
+| 364 | `≠` | `Ne` |
+| 316 | `∧` | `And` |
+
+## C. ページ内バイト比
+
+領域はバイト (UTF-8) で数えている。`chrome` はファイル先頭から `nav.internal_nav` の終わりまでの連続した前置き。内訳の 3 つを足しても `chrome` にならないのは、その間に挟まる `<html>` / `<body>` / nav-toggle の 24,012 バイト (348 ページ分) が差になるため。
+
+| 領域 | バイト | 比 |
+|---|---:|---:|
+| 合計 | 22,028,728 | 100.0% |
+| `head` + `header` + `internal_nav` (前置き) | 2,065,396 | 9.4% |
+| … うち `head` | 428,608 | 1.9% |
+| … うち `header` | 166,883 | 0.8% |
+| … うち `nav.internal_nav` | 1,445,893 | 6.6% |
+| **`div.decl_header`** | **15,661,530** | **71.1%** |
+| `ul.equations` | 497,903 | 2.3% |
+| 残り (docstring・instances・imported-by・`<main>` の枠) | 3,803,899 | 17.3% |
+
+**HTML の 7 割は署名の描画**。B の 44% はここに乗っている。
+
+## D. 素朴照合 — IR の平文 + `refs` 集合だけでリンクを再構成した上限
+
+アルゴリズム: `binders + type` を識別子形トークンに切る → トークンが `refs` の完全名ならその定数へ link、そうでなくて短縮名が `refs` 中で一意ならその定数へ link、それ以外は素通し。IR が持っているデータだけを使う中でいちばん強い素朴解法。
+
+> **この評価は位置を問わない。** 宣言ごとに (テキスト, 対象) の**多重集合**を比較していて、アンカーがページのどこに出るかも、隣接テキストも見ていない。したがってここの数字は**位置を無視した上限**であり、実際に再現できる率ではない (実際の描画はさらに難しい)。
+
+| | |
+|---|---:|
+| 突合した宣言 | 3,477 |
+| doc-gen4 が出したリンク (正解) | 72,421 |
+| 素朴照合が出したリンク | 37,462 |
+| 一致 | 37,458 |
+| 取りこぼし | 34,963 |
+| 余計に出した | 4 |
+| **recall** | **37,458/72,421 = 51.7%** |
+| precision | 37,458/37,462 = 100.0% |
+| **宣言単位の完全一致** | **140/3,477 = 4.0%** |
+| … うちリンク 0 個の自明例 | 4 |
+
+到達可能な上限: 素朴照合が出せるのは「テキスト == 完全名」か「テキスト == 完全名の接尾辞」のアンカーだけなので、天井は **40,556/72,421 = 56.0%**。(参考: テキストが単に識別子の形をしているアンカーは 43,462 = 60.0% あるが、うち 2,906 件は `MeasureTheory.volume` → `MeasureTheory.MeasureSpace.volume` のように対象名の接尾辞にすらなっていない。)
+
+precision 100.0% は「出したものはほぼ当たる」であって「足りている」ではない。**recall が上限で半分**というのがこの節の結論。
+
+## E. 集合では原理的に決まらないケース
+
+D の上限すら達成できない構造的な理由。名前の**集合**しか持たない限り、以下は情報が足りない (順序や位置を持つ表現が要る)。
+
+| | |
+|---|---:|
+| 同じ印字トークンが 1 署名内で 2 つ以上の別定数を指す | 352 |
+| 1 署名内で同一対象が複数回リンクされる (宣言, 対象) 組 | 15,026 |
+| 1 宣言の `refs` 内で短縮名が衝突 | 118 |
+| binder 名が `refs` の短縮名と一致 (局所束縛が参照名を隠す) | 14 |
+| binder 名が `refs` の完全名と一致 | 12 |
+
+IR 全体 (4,750 宣言) の `binders + type` のトークン census:
+
+| | |
+|---|---:|
+| 識別子形トークン | 223,456 |
+| `refs` の完全名に一致 | 40,148 |
+| `refs` の短縮名に一致 | 12,259 |
+| どれにも当たらない (束縛変数・記号・キーワード) | 171,049 |
+
+## F. あて先解決 — こちらは集合で足りている
+
+B〜E は「どこにリンクを張るか」の話。**張る先の名前を解決できるか**は別問題で、そちらは IR がほぼ完全に持っている、という対照。
+
+348 ページの内部アンカー **80,743 件 / 2,442 種**を、IR から作れる名前集合 (宣言名 4,750 + `refs` 1,446 + `members` 194 + `deps/*.json` 533、和集合 **5,300 エントリ**) に当てる。
+
+| 領域 | アンカー | 種 | 解決できない | 種 |
+|---|---:|---:|---:|---:|
+| `div.decl_header` | 72,421 | 1,062 | 0 | 0 |
+| `ul.equations` | 3,278 | 736 | 0 | 0 |
+| その他 (docstring・instances・structure field) | 5,044 | 1,989 | 293 | 188 |
+| **合計** | **80,743** | **2,442** | **293** | **188** |
+
+取りこぼしは **293 件 / 188 種 = 0.36%** で、その **293 件全部が docstring の `<code>` 内 autolink**。署名 (`decl_header`) と equations の取りこぼしは 0。docstring の autolink は本文中の名前を環境全体から引くもので、その宣言の `refs` には現れない — IR の欠落ではなく、別の索引が要るという話。
+
+数え方: `href` が最初の属性であるアンカーだけを数えている (93,322 件)。`class` が先に来るのは `a.break_within` (宣言自身の名前リンク。`nav.internal_nav` の宣言ジャンプ表にも同じものが出る) と `a.hover-link` (見出しのアンカー) だけで、合わせて 8,771 件 — いずれも自己リンクなので相互参照の数からは外してある。同ページ内アンカー (348 件、すべて `#top`)、外部リンク (3,825 件)、フラグメント無しのモジュールリンク (8,406 件) も除外。
+
+## G. その他の差分 (IR に足りないもの / 規則で埋まるもの)
+
+### 宣言の並び順
+
+IR の `line`,`col` で並べ替えると HTML の並びを **348/348 ページ**で再現する (安定ソート = 入力順を保存)。ただしキーが同値になるページがあり、`(line, col)` だけで順序が**一意に決まる**のは **346/348 ページ**。
+
+タイのあるページ 2 / 宣言 4:
+
+* `InformationTheory.Polymatroid.Basic`: `Combinatorics.Polymatroid.ext`, `Combinatorics.Polymatroid.ext_iff`
+* `InformationTheory.Shannon.EntropyPower.Ext`: `InformationTheory.Shannon.differentialEntropyExt_def`, `InformationTheory.Shannon.differentialEntropyExt`
+
+→ IR に宣言の**出現順**そのもの (または declaration range の終端) を入れないと、この 4 件はコイントスになる。
+
+### Equations
+
+doc-gen4 は `equationLimit = 200` の規則で、描画テキスト長がこの値以上の equation を落とし、落としたときだけ `One or more equations did not get rendered due to their size.` の li を先頭に足す (`DocGen4/Process/Base.lean`, `DocGen4/Output/Definition.lean`)。IR の `equations` 文字列にこの規則を当てると:
+
+| | |
+|---|---:|
+| 省略の通知が出るページ側宣言を当てた | 195/195 |
+| 通知が出ない宣言を当てた | 3,282/3,282 |
+| `ul.equations` の有無を当てた | 653/653 |
+| `li.equation` の個数まで一致 | 3,477/3,477 |
+
+→ ここは IR に追加フィールドは要らない。**規則を消費側に写せば済む**。
+
+### `render := false` 相当 — IR にあって HTML に無い宣言
+
+HTML ページのある 348 モジュールの IR 宣言 3,663 に対し HTML の `div.decl` は 3,477。差 **186** の `kind` 内訳:
+
+| IR の `kind` | 件数 |
+|---|---:|
+| `theorem` | 109 |
+| `definition` | 41 |
+| `constructor` | 36 |
+
+例: `Combinatorics.Polymatroid.mk`, `Combinatorics.Polymatroid.rank`, `Combinatorics.Polymatroid.rank_empty`, `Combinatorics.Polymatroid.rank_mono`, `Combinatorics.Polymatroid.rank_submodular`, `InformationTheory.FiniteJointPMF.mass`
+
+**この 186 件は、IR 側で親 `structure` の `members` に載っている名前と完全に一致する** (186/186)。逆向きも成立していて、`members` に載る名前が単独の `div.decl` として出ることは 0 件。つまり doc-gen4 が親の `structure` に畳む集合は、**IR が既に持っている情報だけで正確に決まる** — 追加フィールドは要らない。
+
+### `decl_kind` の修飾語
+
+IR の `kind` は Lean の宣言種別そのもので、HTML の `span.decl_kind` が出す `noncomputable` / `abbrev` といった修飾語を持っていない。
+
+| IR `kind` | HTML `decl_kind` | 件数 |
+|---|---|---:|
+| `theorem` | `theorem` | 2,734 |
+| `definition` | `noncomputable def` | 443 |
+| `definition` | `def` | 194 |
+| `instance` | `instance` | 55 |
+| `structure` | `structure` | 36 |
+| `definition` | `abbrev` | 12 |
+| `definition` | `noncomputable abbrev` | 1 |
+| `instance` | `noncomputable instance` | 1 |
+| `opaque` | `opaque` | 1 |
+
+def 系 (IR `kind = definition`) 650 件中 **456 件 (70%) が誤ラベルになる**: `noncomputable def` 443 + `abbrev` 12 + `noncomputable abbrev` 1。
+
+instance も同様に 56 件中 1 件が `noncomputable instance`。
+
+### 要素の出現数 (IR に対応フィールドが無いもの)
+
+| 要素 | 件数 |
+|---|---:|
+| `div.attributes` | 89 |
+| `li.structure_field` | 149 |
+| `li.structure_field.inherited_field` | 4 |
+| `div.structure_field_info` | 153 |
+| `div.structure_field_doc` | 114 |
+| `span.decl_extends` | 1 |
+| `span.fn` | 216,838 |
+| `div.decl.sorried` | 0 |
+
+### `gh_link` の終了行
+
+`gh_link` は 3,477 件、全部が `#L<開始>-L<終了>` の範囲リンク。開始行は IR の `line` と 3,477/3,477 一致するが、**終了行に相当するフィールドが IR に無い** → 3,477 リンク全部が再現不能。declaration range の終端を IR に足す必要がある。
+
+### doc-gen4 側のデッドリンク
+
+`<a href="#top">return to top</a>` は 348/348 ページにあるが、`id="top"` を持つページは 0。**348 ページ全部でこのリンクは死んでいる** (doc-gen4 側のバグ)。lean-doc は真似しなくてよい、という意味で差分に数える。
+
+
+---
+
+このレポートの生成にかかった時間: 1.5 s

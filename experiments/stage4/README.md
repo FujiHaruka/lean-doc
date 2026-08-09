@@ -88,9 +88,16 @@ Three properties are conclusions of stage 3, not free choices:
   signature are dropped. doc-gen4 keeps them (its `name_info.type` column is a
   `RenderedCode = TaggedText Tag` blob), and a renderer that wants to turn
   `Real.log` inside a signature into an `<a>` at exactly that offset needs them.
-  **Leg 5 is what finds out whether the set is enough**; if it is not, the IR
-  grows and this measurement has to be redone. Recorded here so the redo is not
-  mistaken for a regression.
+  **The set is not enough — measured, stage 4 increment 1.** 44.0% of doc-gen4's
+  72,421 signature anchors have no textual relation between the printed token and
+  the constant (`ℕ`→`Nat`, `≤`→`LE.le`); reconstructing links from plain text plus
+  the set tops out at 56% recall (51.7% measured, 4.0% of declarations exactly
+  right), and signatures are 71.1% of the rendered bytes. So the IR grows and the
+  write/read numbers below are superseded by whatever the positional variant
+  measures. **That redo is the plan, not a regression** — see
+  `benchmarks/results/stage4-html-inventory.txt` and the verification log.
+  The set *is* enough for resolving link targets (name → module): 0 misses across
+  all 72,421 signature anchors.
 * **`_private.` handling.** Stage 3 measured 8 private names whose naive URL is
   dead. The IR still stores them; the filtering decision belongs to the output
   side and is still open (`approach.md` §8).

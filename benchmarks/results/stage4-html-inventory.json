@@ -1,0 +1,685 @@
+{
+  "bytes": {
+    "chrome": 2065396,
+    "declHeader": 15661530,
+    "equations": 497903,
+    "head": 428608,
+    "header": 166883,
+    "internalNav": 1445893,
+    "rest": 3803899,
+    "total": 22028728
+  },
+  "conditions": {
+    "date": "2026-08-09T16:26:07Z",
+    "docDir": "/Users/haruka/dev/lean-projects/.lake/build/doc/InformationTheory",
+    "docGen4Describe": "v4.31.0",
+    "docGen4Rev": "0bc516c1b9db83658d6475c40d9b1ed71219b921",
+    "docGen4WorkingTreeDirty": true,
+    "docGeneratedNewest": "2026-08-09T08:40:21Z",
+    "docGeneratedOldest": "2026-08-09T08:40:18Z",
+    "irDeclarationCount": 4750,
+    "irDir": "/private/tmp/claude-502/-Users-haruka-dev-lean-doc/3db6b213-b50d-48cb-a16b-16df93b5f009/scratchpad/ir",
+    "irGenerator": "lean-doc/experiments/stage4",
+    "irLeanVersion": "4.31.0",
+    "irModuleCount": 432,
+    "irSchemaVersion": 1,
+    "irWritten": "2026-08-09T15:41:58Z",
+    "leanToolchain": "leanprover/lean4:v4.31.0",
+    "platform": "macOS-26.6-arm64-arm-64bit",
+    "python": "3.9.6",
+    "targetRepo": "/Users/haruka/dev/lean-projects"
+  },
+  "declHeaderAnchors": {
+    "declaration": 72421,
+    "distinctNotationPairs": 131,
+    "distinctSuffixPairs": 827,
+    "module": 6,
+    "sort": 5638,
+    "textExactFullName": 29042,
+    "textIdentifierShaped": 43462,
+    "textNamespaceSuffix": 11514,
+    "textNotation": 31865,
+    "topNotation": [
+      {
+        "count": 4901,
+        "target": "Real",
+        "text": "ℝ"
+      },
+      {
+        "count": 3381,
+        "target": "Nat",
+        "text": "ℕ"
+      },
+      {
+        "count": 2081,
+        "target": "HMul.hMul",
+        "text": "*"
+      },
+      {
+        "count": 2047,
+        "target": "LE.le",
+        "text": "≤"
+      },
+      {
+        "count": 2024,
+        "target": "Prod",
+        "text": "×"
+      },
+      {
+        "count": 1784,
+        "target": "Eq",
+        "text": "="
+      },
+      {
+        "count": 1574,
+        "target": "LT.lt",
+        "text": "<"
+      },
+      {
+        "count": 1503,
+        "target": "HAdd.hAdd",
+        "text": "+"
+      },
+      {
+        "count": 842,
+        "target": "HSub.hSub",
+        "text": "-"
+      },
+      {
+        "count": 770,
+        "target": "MeasureTheory.MeasureSpace.volume",
+        "text": "MeasureTheory.volume"
+      },
+      {
+        "count": 749,
+        "target": "Prod.mk",
+        "text": ","
+      },
+      {
+        "count": 743,
+        "target": "HDiv.hDiv",
+        "text": "/"
+      },
+      {
+        "count": 645,
+        "target": "Prod.mk",
+        "text": "("
+      },
+      {
+        "count": 645,
+        "target": "Prod.mk",
+        "text": ")"
+      },
+      {
+        "count": 629,
+        "target": "Singleton.singleton",
+        "text": "{"
+      },
+      {
+        "count": 629,
+        "target": "Singleton.singleton",
+        "text": "}"
+      },
+      {
+        "count": 475,
+        "target": "Membership.mem",
+        "text": "∈"
+      },
+      {
+        "count": 466,
+        "target": "HPow.hPow",
+        "text": "^"
+      },
+      {
+        "count": 364,
+        "target": "Ne",
+        "text": "≠"
+      },
+      {
+        "count": 316,
+        "target": "And",
+        "text": "∧"
+      }
+    ],
+    "total": 78065
+  },
+  "elapsedSeconds": 1.473,
+  "naiveRelink": {
+    "declarations": 3477,
+    "emittedLinks": 37462,
+    "exactDeclarations": 140,
+    "exactDeclarationsWithZeroLinks": 4,
+    "matched": 37458,
+    "missed": 34963,
+    "note": "multiset comparison per declaration; an upper bound, not an achievable rate",
+    "positionFree": true,
+    "reachableCeiling": 40556,
+    "spurious": 4,
+    "truthLinks": 72421
+  },
+  "other": {
+    "declKindPairs": [
+      {
+        "count": 2734,
+        "htmlDeclKind": "theorem",
+        "irKind": "theorem"
+      },
+      {
+        "count": 443,
+        "htmlDeclKind": "noncomputable def",
+        "irKind": "definition"
+      },
+      {
+        "count": 194,
+        "htmlDeclKind": "def",
+        "irKind": "definition"
+      },
+      {
+        "count": 55,
+        "htmlDeclKind": "instance",
+        "irKind": "instance"
+      },
+      {
+        "count": 36,
+        "htmlDeclKind": "structure",
+        "irKind": "structure"
+      },
+      {
+        "count": 12,
+        "htmlDeclKind": "abbrev",
+        "irKind": "definition"
+      },
+      {
+        "count": 1,
+        "htmlDeclKind": "opaque",
+        "irKind": "opaque"
+      },
+      {
+        "count": 1,
+        "htmlDeclKind": "noncomputable abbrev",
+        "irKind": "definition"
+      },
+      {
+        "count": 1,
+        "htmlDeclKind": "noncomputable instance",
+        "irKind": "instance"
+      }
+    ],
+    "elementCounts": {
+      "div.attributes": 89,
+      "div.decl.sorried": 0,
+      "div.structure_field_doc": 114,
+      "div.structure_field_info": 153,
+      "li.structure_field": 149,
+      "li.structure_field.inherited_field": 4,
+      "span.decl_extends": 1,
+      "span.fn": 216838
+    },
+    "equationLimit": 200,
+    "equationRule": {
+      "liCountExact": 3477,
+      "noNoticeActual": 3282,
+      "noNoticePredicted": 3282,
+      "noticeActual": 195,
+      "noticePredicted": 195,
+      "ulActual": 653,
+      "ulPredicted": 653
+    },
+    "ghLinks": {
+      "links": 3477,
+      "start_line_matches_ir": 3477,
+      "with_end_line": 3477
+    },
+    "orderDeterminedPages": 346,
+    "orderMismatchPages": [],
+    "orderReproducedPages": 348,
+    "orderTies": [
+      {
+        "declarations": [
+          "Combinatorics.Polymatroid.ext",
+          "Combinatorics.Polymatroid.ext_iff"
+        ],
+        "module": "InformationTheory.Polymatroid.Basic"
+      },
+      {
+        "declarations": [
+          "InformationTheory.Shannon.differentialEntropyExt_def",
+          "InformationTheory.Shannon.differentialEntropyExt"
+        ],
+        "module": "InformationTheory.Shannon.EntropyPower.Ext"
+      }
+    ],
+    "pagesWithTopHref": 348,
+    "pagesWithTopId": 0
+  },
+  "population": {
+    "htmlBytes": 22028728,
+    "htmlDecls": 3477,
+    "htmlOnly": 0,
+    "irDeclarations": 4750,
+    "irDeclarationsInPageModules": 3663,
+    "irModules": 432,
+    "irOnly": 186,
+    "irOnlyAreAllStructureMembers": true,
+    "irOnlyInMembers": 186,
+    "irOnlyKinds": {
+      "constructor": 36,
+      "definition": 41,
+      "theorem": 109
+    },
+    "irOnlySample": [
+      "Combinatorics.Polymatroid.mk",
+      "Combinatorics.Polymatroid.rank",
+      "Combinatorics.Polymatroid.rank_empty",
+      "Combinatorics.Polymatroid.rank_mono",
+      "Combinatorics.Polymatroid.rank_submodular",
+      "InformationTheory.FiniteJointPMF.mass"
+    ],
+    "matched": 3477,
+    "membersRenderedStandalone": 0,
+    "pagelessIrModules": 84,
+    "pagelessIrModulesWithDeclarations": 77,
+    "pages": 348,
+    "pagesWithDecls": 329
+  },
+  "targetResolution": {
+    "anchors": 80743,
+    "byRegion": {
+      "decl_header": {
+        "anchors": 72421,
+        "distinct": 1062,
+        "unresolved": 0,
+        "unresolvedDistinct": 0
+      },
+      "equations": {
+        "anchors": 3278,
+        "distinct": 736,
+        "unresolved": 0,
+        "unresolvedDistinct": 0
+      },
+      "other": {
+        "anchors": 5044,
+        "distinct": 1989,
+        "unresolved": 293,
+        "unresolvedDistinct": 188
+      }
+    },
+    "distinct": 2442,
+    "excluded": {
+      "anchorsClassFirst": 8771,
+      "anchorsHrefFirst": 93322,
+      "external": 3825,
+      "noFragment": 8406,
+      "samePage": 348
+    },
+    "nameSet": {
+      "declarations": 4750,
+      "deps": 533,
+      "members": 194,
+      "refs": 1446,
+      "union": 5300
+    },
+    "topUnresolved": [
+      {
+        "count": 9,
+        "target": "tendsto_of_le_liminf_of_limsup_le"
+      },
+      {
+        "count": 8,
+        "target": "rfl"
+      },
+      {
+        "count": 7,
+        "target": "hasDerivAt_integral_of_dominated_loc_of_deriv_le"
+      },
+      {
+        "count": 5,
+        "target": "csInf_le"
+      },
+      {
+        "count": 5,
+        "target": "Nat.lt_pow_succ_log_self"
+      },
+      {
+        "count": 5,
+        "target": "Real.log_prod"
+      },
+      {
+        "count": 4,
+        "target": "MeasurableEquiv.piFinSuccAbove"
+      },
+      {
+        "count": 4,
+        "target": "ge_of_tendsto"
+      },
+      {
+        "count": 4,
+        "target": "EReal.tendsto_coe_nhds_top_iff"
+      },
+      {
+        "count": 4,
+        "target": "Real.tendsto_log_atTop"
+      },
+      {
+        "count": 4,
+        "target": "csInf_le_csInf"
+      },
+      {
+        "count": 3,
+        "target": "Real.log_mul"
+      },
+      {
+        "count": 3,
+        "target": "symm"
+      },
+      {
+        "count": 3,
+        "target": "Fin.sum_univ_castSucc"
+      },
+      {
+        "count": 3,
+        "target": "le_antisymm"
+      },
+      {
+        "count": 3,
+        "target": "HasDerivAt.comp"
+      },
+      {
+        "count": 3,
+        "target": "Real.exp_log"
+      },
+      {
+        "count": 3,
+        "target": "le_csInf"
+      },
+      {
+        "count": 3,
+        "target": "List.ofFn_injective"
+      },
+      {
+        "count": 3,
+        "target": "Real.convexOn_mul_log"
+      }
+    ],
+    "unresolved": 293,
+    "unresolvedDistinct": 188,
+    "unresolvedInsideCodeSpan": 293
+  },
+  "undecidableBySet": {
+    "binderEqualsRefFullName": 12,
+    "binderShadowExamples": [
+      {
+        "binder": "rank",
+        "declaration": "Combinatorics.Polymatroid.ext",
+        "hides": [
+          "Combinatorics.Polymatroid.rank"
+        ]
+      },
+      {
+        "binder": "mem",
+        "declaration": "InformationTheory.Shannon.HoeffdingTilt.IsHoeffdingLagrangeHyp.mk",
+        "hides": [
+          "Membership.mem"
+        ]
+      },
+      {
+        "binder": "Nonempty",
+        "declaration": "InformationTheory.Shannon.wz_sourcePmf_mem_stdSimplex",
+        "hides": [
+          "Nonempty"
+        ]
+      },
+      {
+        "binder": "Nonempty",
+        "declaration": "InformationTheory.Shannon.wz_source_snd_eq_ambient_snd_map",
+        "hides": [
+          "Nonempty"
+        ]
+      },
+      {
+        "binder": "Nonempty",
+        "declaration": "InformationTheory.Shannon.wz_exists_binning_E2_bound",
+        "hides": [
+          "Nonempty"
+        ]
+      },
+      {
+        "binder": "Nonempty",
+        "declaration": "InformationTheory.Shannon.wz_source_codeword_sideInfo_mass_le",
+        "hides": [
+          "Nonempty"
+        ]
+      },
+      {
+        "binder": "Nonempty",
+        "declaration": "InformationTheory.Shannon.wz_covering_strongTypical_indep_mass_ge",
+        "hides": [
+          "Nonempty"
+        ]
+      },
+      {
+        "binder": "Nonempty",
+        "declaration": "InformationTheory.Shannon.wz_jointStrongly_mem_coveringSuccessJoint",
+        "hides": [
+          "Nonempty"
+        ]
+      },
+      {
+        "binder": "Nonempty",
+        "declaration": "InformationTheory.Shannon.wz_covering_SRC_map_Xproj_eq",
+        "hides": [
+          "Nonempty"
+        ]
+      },
+      {
+        "binder": "Fintype",
+        "declaration": "InformationTheory.Shannon.BroadcastChannel.Marton.martonInfo₁_comap_support",
+        "hides": [
+          "Fintype"
+        ]
+      },
+      {
+        "binder": "Nonempty",
+        "declaration": "InformationTheory.Shannon.BroadcastChannel.Marton.martonInfo₁_comap_support",
+        "hides": [
+          "Nonempty"
+        ]
+      },
+      {
+        "binder": "Fintype",
+        "declaration": "InformationTheory.Shannon.BroadcastChannel.Marton.card_support_subtype_le",
+        "hides": [
+          "Fintype"
+        ]
+      },
+      {
+        "binder": "Fintype",
+        "declaration": "InformationTheory.Shannon.BroadcastChannel.Marton.martonInfoV₁V₂_comap_support",
+        "hides": [
+          "Fintype"
+        ]
+      },
+      {
+        "binder": "Nonempty",
+        "declaration": "InformationTheory.Shannon.BroadcastChannel.Marton.martonInfoV₁V₂_comap_support",
+        "hides": [
+          "Nonempty"
+        ]
+      }
+    ],
+    "binderShadowsRefShortName": 14,
+    "sameTextTwoTargetsInOneSignature": 352,
+    "shortNameCollisionExamples": [
+      {
+        "candidates": [
+          "Fin.mk",
+          "Prod.mk"
+        ],
+        "declaration": "InformationTheory.Shannon.mutualInfo_iid_eq_nsmul",
+        "shortName": "mk"
+      },
+      {
+        "candidates": [
+          "InformationTheory.MeasureFano.condEntropy",
+          "InformationTheory.Shannon.condEntropy"
+        ],
+        "declaration": "InformationTheory.Shannon.condEntropy",
+        "shortName": "condEntropy"
+      },
+      {
+        "candidates": [
+          "Fin.mk",
+          "Prod.mk"
+        ],
+        "declaration": "InformationTheory.Shannon.Relay.relay_broadcast_cut_message_telescope",
+        "shortName": "mk"
+      },
+      {
+        "candidates": [
+          "Fin.mk",
+          "Prod.mk"
+        ],
+        "declaration": "InformationTheory.Shannon.Relay.relay_cutset_outer_bound",
+        "shortName": "mk"
+      },
+      {
+        "candidates": [
+          "Fin.mk",
+          "Prod.mk"
+        ],
+        "declaration": "InformationTheory.Shannon.Relay.relay_broadcast_cut_outer_bound",
+        "shortName": "mk"
+      },
+      {
+        "candidates": [
+          "Equiv.piFinsetUnion",
+          "MeasurableEquiv.piFinsetUnion"
+        ],
+        "declaration": "MeasurableEquiv.coe_piFinsetUnion",
+        "shortName": "piFinsetUnion"
+      },
+      {
+        "candidates": [
+          "Prod.mk",
+          "Subtype.mk"
+        ],
+        "declaration": "MeasurableEquiv.piFinsetUnion_apply_right",
+        "shortName": "mk"
+      },
+      {
+        "candidates": [
+          "Prod.mk",
+          "Subtype.mk"
+        ],
+        "declaration": "MeasurableEquiv.piFinsetUnion_apply_left",
+        "shortName": "mk"
+      },
+      {
+        "candidates": [
+          "Fin.mk",
+          "Prod.mk"
+        ],
+        "declaration": "InformationTheory.Shannon.condEntropy_pi_chain_rule",
+        "shortName": "mk"
+      },
+      {
+        "candidates": [
+          "Fin.mk",
+          "Prod.mk"
+        ],
+        "declaration": "InformationTheory.Shannon.condEntropy_pi_chain_rule_aux",
+        "shortName": "mk"
+      },
+      {
+        "candidates": [
+          "Finset.Nonempty",
+          "Nonempty"
+        ],
+        "declaration": "InformationTheory.Shannon.jointEntropySubset_le_log_projectionSubset_card",
+        "shortName": "Nonempty"
+      },
+      {
+        "candidates": [
+          "Finset.Nonempty",
+          "Nonempty"
+        ],
+        "declaration": "InformationTheory.Shannon.hypercube_product_projection_bound",
+        "shortName": "Nonempty"
+      },
+      {
+        "candidates": [
+          "Finset.Nonempty",
+          "Nonempty"
+        ],
+        "declaration": "InformationTheory.Shannon.brascamp_lieb_finset",
+        "shortName": "Nonempty"
+      },
+      {
+        "candidates": [
+          "Equiv.mk",
+          "Fin.mk",
+          "Subtype.mk"
+        ],
+        "declaration": "InformationTheory.Shannon.revSuffixEquiv",
+        "shortName": "mk"
+      },
+      {
+        "candidates": [
+          "Fin.mk",
+          "Prod.mk"
+        ],
+        "declaration": "InformationTheory.Shannon.mutualInfo_prefix_chain_rule_add",
+        "shortName": "mk"
+      },
+      {
+        "candidates": [
+          "Fin.mk",
+          "Prod.mk"
+        ],
+        "declaration": "InformationTheory.Shannon.condMutualInfo_prefix_chain_rule",
+        "shortName": "mk"
+      },
+      {
+        "candidates": [
+          "MeasureTheory.Measure.rnDeriv",
+          "ProbabilityTheory.Kernel.rnDeriv"
+        ],
+        "declaration": "InformationTheory.rnDeriv_compProd_eq_kernel_rnDeriv",
+        "shortName": "rnDeriv"
+      },
+      {
+        "candidates": [
+          "Finset.Nonempty",
+          "Nonempty"
+        ],
+        "declaration": "InformationTheory.Shannon.loomis_whitney",
+        "shortName": "Nonempty"
+      },
+      {
+        "candidates": [
+          "Finset.Nonempty",
+          "Nonempty"
+        ],
+        "declaration": "InformationTheory.Shannon.entropy_uniformOn_eq_log_card",
+        "shortName": "Nonempty"
+      },
+      {
+        "candidates": [
+          "Finset.Nonempty",
+          "Nonempty"
+        ],
+        "declaration": "InformationTheory.Shannon.entropy_le_log_image_card",
+        "shortName": "Nonempty"
+      }
+    ],
+    "shortNameCollisionsInOneDecl": 118,
+    "targetLinkedTwiceInOneSignature": 15026,
+    "tokenCensus": {
+      "declarations": 4750,
+      "fullName": 40148,
+      "shortName": 12259,
+      "tokens": 223456,
+      "unmatched": 171049
+    }
+  }
+}
