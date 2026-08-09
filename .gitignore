@@ -8,3 +8,6 @@ node_modules/
 # raw build output of a benchmark run (large, regenerable); the JSONL timing
 # logs and *-summary.txt next to it are committed
 benchmarks/results/*.log
+
+# machine-local permission grants
+.claude/settings.local.json
