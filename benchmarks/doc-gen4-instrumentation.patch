@@ -1,0 +1,441 @@
+diff --git a/DocGen4/Load.lean b/DocGen4/Load.lean
+index 03d6c27..1334ec9 100644
+--- a/DocGen4/Load.lean
++++ b/DocGen4/Load.lean
+@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
+ Authors: Henrik Böving
+ -/
+ import DocGen4.Process
++import DocGen4.Timing
+ 
+ namespace DocGen4
+ 
+@@ -19,8 +20,13 @@ Load a list of modules from the current Lean search path into an `Environment`
+ to process for documentation.
+ -/
+ def load (task : Process.AnalyzeTask) : IO Process.AnalyzerResult := do
+-  initSearchPath (← findSysroot)
+-  let env ← envOfImports task.getLoad
++  Timing.timed' "load.initSearchPath" do
++    initSearchPath (← findSysroot)
++  let env ← Timing.timed "load.importModules"
++      [("directImports", toString task.getLoad.size)] do
++    envOfImports task.getLoad
++  Timing.emit "load.envStats" 0
++    [("loadedModules", toString env.header.moduleNames.size)]
+   let config := {
+     -- TODO: parameterize maxHeartbeats
+     maxHeartbeats := 100000000,
+@@ -35,6 +41,7 @@ def load (task : Process.AnalyzeTask) : IO Process.AnalyzerResult := do
+     fileMap := default,
+   }
+ 
+-  Prod.fst <$> Meta.MetaM.toIO (Process.process task) config { env := env } {} {}
++  Timing.timed' "load.process" do
++    Prod.fst <$> Meta.MetaM.toIO (Process.process task) config { env := env } {} {}
+ 
+ end DocGen4
+diff --git a/DocGen4/Output.lean b/DocGen4/Output.lean
+index ed6a9c7..797dcbf 100644
+--- a/DocGen4/Output.lean
++++ b/DocGen4/Output.lean
+@@ -19,12 +19,14 @@ import DocGen4.Output.Tactics
+ import DocGen4.Output.ToJson
+ import DocGen4.Output.FoundationalTypes
+ import DocGen4.Helpers
++import DocGen4.Timing
+ 
+ namespace DocGen4
+ 
+ open Lean IO System Output Process DB
+ 
+-def collectBackrefs (buildDir : System.FilePath) : IO (Array BackrefItem) := do
++def collectBackrefs (buildDir : System.FilePath) : IO (Array BackrefItem) := Timing.timed'
++    "index.collectBackrefs" do
+   let mut backrefs : Array BackrefItem := #[]
+   for entry in ← System.FilePath.readDir (declarationsBasePath buildDir) do
+     if entry.fileName.startsWith "backrefs-" && entry.fileName.endsWith ".json" then
+@@ -111,11 +113,21 @@ def htmlOutputResultsParallel (baseConfig : SiteBaseContext) (dbPath : System.Fi
+   for mods in chunked targetModules chunkSize do
+     tasks := tasks.push <| ← IO.asTask do
+       -- Each task opens its own DB connection (SQLite handles concurrent readers well)
++      let tTask0 ← IO.monoNanosNow
+       let db ← openForReading dbPath builtinDocstringValues
++      let tOpen ← IO.monoNanosNow
++      let mut nsLoad := 0
++      let mut nsRenderHtml := 0
++      let mut nsWriteHtml := 0
++      let mut nsRenderJson := 0
++      let mut nsWriteJson := 0
+       let mut results := #[]
+       for modName in mods do
++        let tL0 ← IO.monoNanosNow
+         let module ← db.loadModule modName
+         let containedNames ← db.getContainedNames modName
++        let tL1 ← IO.monoNanosNow
++        nsLoad := nsLoad + (tL1 - tL0)
+ 
+         -- Build a minimal AnalyzerResult with just this module's info
+         let result : AnalyzerResult := {
+@@ -138,27 +150,47 @@ def htmlOutputResultsParallel (baseConfig : SiteBaseContext) (dbPath : System.Fi
+           depthToRoot := modName.components.dropLast.length
+           currentName := some modName
+         }
++        let tR0 ← IO.monoNanosNow
+         let (moduleHtml, cfg) := moduleToHtml module |>.run {} config moduleConfig
+         if not cfg.errors.isEmpty then
+           throw <| IO.userError s!"There are errors when generating HTML for '{modName}': {cfg.errors}"
++        let htmlStr := moduleHtml.toString
++        let tR1 ← IO.monoNanosNow
++        nsRenderHtml := nsRenderHtml + (tR1 - tR0)
+ 
+         -- Write HTML file
+         let relFilePath := basePathComponent / moduleNameToFile modName
+         let filePath := baseConfig.buildDir / relFilePath
+         if let .some d := filePath.parent then
+           FS.createDirAll d
+-        FS.writeFile filePath moduleHtml.toString
++        FS.writeFile filePath htmlStr
+ 
+         -- Write backrefs JSON
+         FS.writeFile (declarationsBasePath baseConfig.buildDir / s!"backrefs-{module.name}.json")
+           (toString (toJson cfg.backrefs))
++        let tW1 ← IO.monoNanosNow
++        nsWriteHtml := nsWriteHtml + (tW1 - tR1)
+ 
+         -- Generate declaration data JSON for search
+         let (jsonModule, _) := moduleToJsonModule module |>.run {} config baseConfig
++        let jsonStr := (ToJson.toJson jsonModule).compress
++        let tJ1 ← IO.monoNanosNow
++        nsRenderJson := nsRenderJson + (tJ1 - tW1)
+         FS.writeFile (declarationsBasePath baseConfig.buildDir / s!"declaration-data-{module.name}.bmp")
+-          (ToJson.toJson jsonModule).compress
++          jsonStr
++        let tJ2 ← IO.monoNanosNow
++        nsWriteJson := nsWriteJson + (tJ2 - tJ1)
+ 
+         results := results.push (relFilePath, jsonModule)
++      let tTask1 ← IO.monoNanosNow
++      Timing.emit "fromDb.htmlTask" (tTask1 - tTask0)
++        [("modules", toString mods.size),
++         ("openDbUs", toString ((tOpen - tTask0) / 1000)),
++         ("loadUs", toString (nsLoad / 1000)),
++         ("renderHtmlUs", toString (nsRenderHtml / 1000)),
++         ("writeHtmlUs", toString (nsWriteHtml / 1000)),
++         ("renderJsonUs", toString (nsRenderJson / 1000)),
++         ("writeJsonUs", toString (nsWriteJson / 1000))]
+       return results
+ 
+   -- Wait for all tasks and collect output paths and modules
+@@ -193,7 +225,9 @@ def getSimpleBaseContext (buildDir : System.FilePath) (hierarchy : Hierarchy) :
+       }
+ 
+ def htmlOutputIndex (baseConfig : SiteBaseContext) (modules : Array JsonModule) (tacticInfo : Array (Process.TacticInfo Html)) : IO Unit := do
+-  htmlOutputSetup baseConfig tacticInfo
++  Timing.timed' "index.htmlOutputSetup" do
++    htmlOutputSetup baseConfig tacticInfo
++  let tScan0 ← IO.monoNanosNow
+ 
+   -- Build a set of module names we just generated (already in memory)
+   let freshModuleNames : Std.HashSet String := modules.foldl (init := {}) fun s m => s.insert m.name
+@@ -220,16 +254,24 @@ def htmlOutputIndex (baseConfig : SiteBaseContext) (modules : Array JsonModule)
+         | .ok (module : JsonModule) =>
+           diskModules := diskModules.push module
+ 
++  let tScan1 ← IO.monoNanosNow
++  Timing.emit "index.readDiskModules" (tScan1 - tScan0)
++    [("diskModules", toString diskModules.size), ("freshModules", toString modules.size)]
++
+   let allModules := modules ++ diskModules
+   let mut index : JsonIndex := {}
+   for module in allModules do
+     index := index.addModule module |>.run baseConfig
+ 
+   let finalJson := toJson index
++  let tBuild ← IO.monoNanosNow
++  Timing.emit "index.buildIndex" (tBuild - tScan1) [("allModules", toString allModules.size)]
+   -- The root JSON for find
+   let declarationDir := basePath  baseConfig.buildDir / "declarations"
+   FS.createDirAll declarationDir
+   FS.writeFile (declarationDir / "declaration-data.bmp") finalJson.compress
++  let tWrite ← IO.monoNanosNow
++  Timing.emit "index.writeIndex" (tWrite - tBuild)
+ 
+ def headerDataOutput (buildDir : System.FilePath) : IO Unit := do
+   let mut headerIndex : JsonHeaderIndex := {}
+@@ -315,7 +357,9 @@ where subsequent builds include HTML modules from previous builds.
+ def updateNavbarFromDisk (buildDir : System.FilePath) : IO Unit := do
+   let docDir := basePath buildDir
+   -- Scan for all existing module HTML files
+-  let existingModules ← scanModuleHtmlFiles docDir
++  let existingModules ← Timing.timed' "navbar.scanHtmlFiles" do
++    scanModuleHtmlFiles docDir
++  Timing.emit "navbar.scanStats" 0 [("existingModules", toString existingModules.size)]
+   -- Load references for base context
+   let contents ← FS.readFile (declarationsBasePath buildDir / "references.json") <|> (pure "[]")
+   let refs : Array BibItem ← match Json.parse contents with
+diff --git a/DocGen4/Process/Analyze.lean b/DocGen4/Process/Analyze.lean
+index 014a254..900351e 100644
+--- a/DocGen4/Process/Analyze.lean
++++ b/DocGen4/Process/Analyze.lean
+@@ -13,6 +13,7 @@ import Std.Data.HashSet
+ import DocGen4.Process.Base
+ import DocGen4.Process.Hierarchy
+ import DocGen4.Process.DocInfo
++import DocGen4.Timing
+ 
+ namespace DocGen4.Process
+ 
+@@ -179,15 +180,26 @@ def process (task : AnalyzeTask) : MetaM AnalyzerResult := do
+     | .analyzeConcreteModules modules =>
+       Std.HashSet.insertMany (Std.HashSet.emptyWithCapacity modules.size) modules
+ 
++  let tDocs0 ← IO.monoNanosNow
+   let mut res ← getAllModuleDocs relevantModules.toArray
++  let tDocs1 ← IO.monoNanosNow
++  Timing.emit "process.getAllModuleDocs" (tDocs1 - tDocs0)
++    [("relevantModules", toString relevantModules.size)]
+ 
+   let options ← liftM mkOptions
+ 
++  let tLoop0 ← IO.monoNanosNow
++  let mut nScanned := 0
++  let mut nRelevant := 0
++  let mut nsOfConstant := 0
+   for (name, cinfo) in env.constants do
++    nScanned := nScanned + 1
+     let some modidx := env.getModuleIdxFor? name | unreachable!
+     let moduleName := allModules[modidx]!
+     if !relevantModules.contains moduleName then
+       continue
++    nRelevant := nRelevant + 1
++    let tC0 ← IO.monoNanosNow
+ 
+     res ← tryCatchRuntimeEx
+       (do
+@@ -213,10 +225,19 @@ def process (task : AnalyzeTask) : MetaM AnalyzerResult := do
+           IO.println s!"WARNING: Failed to obtain information for: {name}: {← e.toMessageData.toString}"
+         return res
+       )
++    let tC1 ← IO.monoNanosNow
++    nsOfConstant := nsOfConstant + (tC1 - tC0)
++  let tLoop1 ← IO.monoNanosNow
++  Timing.emit "process.constantLoop" (tLoop1 - tLoop0)
++    [("scanned", toString nScanned), ("relevant", toString nRelevant),
++     ("ofConstantUs", toString (nsOfConstant / 1000))]
+ 
+   -- TODO: This could probably be faster if we did sorted insert above instead
++  let tSort0 ← IO.monoNanosNow
+   for (moduleName, module) in res.toArray do
+     res := res.insert moduleName {module with members := module.members.qsort ModuleMember.order}
++  let tSort1 ← IO.monoNanosNow
++  Timing.emit "process.sortMembers" (tSort1 - tSort0)
+ 
+   return {
+     name2ModIdx := env.const2ModIdx,
+diff --git a/DocGen4/Timing.lean b/DocGen4/Timing.lean
+new file mode 100644
+index 0000000..2328b56
+--- /dev/null
++++ b/DocGen4/Timing.lean
+@@ -0,0 +1,44 @@
++/-
++Timing instrumentation used to profile the doc-gen4 pipeline.
++
++Enabled only when the environment variable `DOCGEN_TIMING` points at a file; every timed phase
++appends one JSON object per line to that file. Concurrent processes append to the same file, so
++each record carries the PID of the emitting process.
++-/
++import Init.System.IO
++
++namespace DocGen4.Timing
++
++/-- The timing sink, or `none` when instrumentation is disabled. -/
++def sink : IO (Option String) := IO.getEnv "DOCGEN_TIMING"
++
++/-- Appends one record to the timing sink. `extra` values are spliced in as raw JSON. -/
++def emit (phase : String) (nanos : Nat) (extra : List (String × String) := []) : IO Unit := do
++  match ← sink with
++  | none => pure ()
++  | some path =>
++    let pid ← IO.Process.getPID
++    let extraStr := extra.foldl (init := "") fun acc (k, v) => acc ++ s!",\"{k}\":{v}"
++    let line := s!"\{\"phase\":\"{phase}\",\"pid\":{pid},\"us\":{nanos / 1000}{extraStr}}\n"
++    let h ← IO.FS.Handle.mk path .append
++    h.putStr line
++    h.flush
++
++/-- Runs `act`, recording its wall-clock duration under `phase` along with `extra` fields. -/
++@[inline] def timed (phase : String) (extra : List (String × String)) (act : IO α) : IO α := do
++  match ← sink with
++  | none => act
++  | some _ =>
++    let t0 ← IO.monoNanosNow
++    let r ← act
++    let t1 ← IO.monoNanosNow
++    emit phase (t1 - t0) extra
++    return r
++
++/-- `timed` with no extra fields. -/
++@[inline] def timed' (phase : String) (act : IO α) : IO α := timed phase [] act
++
++/-- Quotes a string so it can be spliced into the `extra` field list of `emit`. -/
++def q (s : String) : String := "\"" ++ s ++ "\""
++
++end DocGen4.Timing
+diff --git a/Main.lean b/Main.lean
+index 3bd39f1..888e732 100644
+--- a/Main.lean
++++ b/Main.lean
+@@ -8,7 +8,8 @@ def runHeaderDataCmd (p : Parsed) : IO UInt32 := do
+   let buildDir := match p.flag? "build" with
+     | some dir => dir.as! String
+     | none => ".lake/build"
+-  headerDataOutput buildDir
++  Timing.timed' "headerData.total" do
++    headerDataOutput buildDir
+   return 0
+ 
+ def runSingleCmd (p : Parsed) : IO UInt32 := do
+@@ -18,8 +19,28 @@ def runSingleCmd (p : Parsed) : IO UInt32 := do
+   let dbFile := p.positionalArg! "db" |>.as! String
+   let relevantModules := #[p.positionalArg! "module" |>.as! String |> String.toName]
+   let sourceUri := p.positionalArg! "sourceUri" |>.as! String
+-  let doc ← load <| .analyzeConcreteModules relevantModules
+-  updateModuleDb builtinDocstringValues doc buildDir dbFile (some sourceUri)
++  let modName := relevantModules[0]!.toString
++  Timing.timed "single.total" [("module", Timing.q modName)] do
++    let doc ← load <| .analyzeConcreteModules relevantModules
++    Timing.timed "single.updateModuleDb" [("module", Timing.q modName)] do
++      updateModuleDb builtinDocstringValues doc buildDir dbFile (some sourceUri)
++  return 0
++
++/--
++Like `single`, but analyzes several modules in one process. Used to measure how much of the
++per-module cost is the environment load that `single` repeats for every module.
++-/
++def runBatchCmd (p : Parsed) : IO UInt32 := do
++  let buildDir := match p.flag? "build" with
++    | some dir => dir.as! String
++    | none => ".lake/build"
++  let dbFile := p.positionalArg! "db" |>.as! String
++  let sourceUri := p.positionalArg! "sourceUri" |>.as! String
++  let modules := (p.variableArgsAs! String).map String.toName
++  Timing.timed "batch.total" [("modules", toString modules.size)] do
++    let doc ← load <| .analyzeConcreteModules modules
++    Timing.timed "batch.updateModuleDb" [("modules", toString modules.size)] do
++      updateModuleDb builtinDocstringValues doc buildDir dbFile (some sourceUri)
+   return 0
+ 
+ def runGenCoreCmd (p : Parsed) : IO UInt32 := do
+@@ -28,8 +49,10 @@ def runGenCoreCmd (p : Parsed) : IO UInt32 := do
+     | none => ".lake/build"
+   let dbFile := p.positionalArg! "db" |>.as! String
+   let module := p.positionalArg! "module" |>.as! String |> String.toName
+-  let doc ← load <| .analyzePrefixModules module
+-  updateModuleDb builtinDocstringValues doc buildDir dbFile none
++  Timing.timed "genCore.total" [("module", Timing.q module.toString)] do
++    let doc ← load <| .analyzePrefixModules module
++    Timing.timed "genCore.updateModuleDb" [("module", Timing.q module.toString)] do
++      updateModuleDb builtinDocstringValues doc buildDir dbFile none
+   return 0
+ 
+ def runDocGenCmd (_p : Parsed) : IO UInt32 := do
+@@ -81,31 +104,43 @@ def runFromDbCmd (p : Parsed) : IO UInt32 := do
+   let manifestOutput? := (p.flag? "manifest").map (·.as! String)
+   let moduleRoots := (p.variableArgsAs! String).map String.toName
+ 
++  let tTotal0 ← IO.monoNanosNow
++
+   -- Flush WAL so the database file is self-contained for concurrent readers
+-  walCheckpoint dbPath
++  Timing.timed' "fromDb.walCheckpoint" do
++    walCheckpoint dbPath
+ 
+   -- Load linking context (module names, source URLs, declaration locations)
+-  let db ← openForReading dbPath builtinDocstringValues
+-  let linkCtx ← db.loadLinkingContext
++  let db ← Timing.timed' "fromDb.openForReading" do
++    openForReading dbPath builtinDocstringValues
++  let linkCtx ← Timing.timed' "fromDb.loadLinkingContext" do
++    db.loadLinkingContext
++  Timing.emit "fromDb.linkCtxStats" 0
++    [("moduleNames", toString linkCtx.moduleNames.size),
++     ("name2ModIdx", toString linkCtx.name2ModIdx.size)]
+ 
+   -- Determine which modules to generate HTML for
+-  let targetModules ←
++  let targetModules ← Timing.timed' "fromDb.getTransitiveImports" do
+     if moduleRoots.isEmpty then
+       pure linkCtx.moduleNames
+     else
+       db.getTransitiveImports moduleRoots
++  Timing.emit "fromDb.targetStats" 0 [("targetModules", toString targetModules.size)]
+ 
+-  let baseConfig ← getSimpleBaseContext buildDir (Hierarchy.fromArray targetModules)
++  let baseConfig ← Timing.timed' "fromDb.getSimpleBaseContext" do
++    getSimpleBaseContext buildDir (Hierarchy.fromArray targetModules)
+   -- Add `references` pseudo-module to hierarchy only when bibliography data exists
+   let hierarchy := Hierarchy.fromArray
+     (if baseConfig.refs.isEmpty then targetModules else targetModules.push `references)
+   let baseConfig := { baseConfig with hierarchy }
+ 
+   -- Parallel HTML generation
+-  let (outputs, jsonModules) ← htmlOutputResultsParallel baseConfig dbPath linkCtx targetModules (sourceLinker? := some (dbSourceLinker linkCtx.sourceUrls))
++  let (outputs, jsonModules) ← Timing.timed' "fromDb.htmlOutputResultsParallel" do
++    htmlOutputResultsParallel baseConfig dbPath linkCtx targetModules (sourceLinker? := some (dbSourceLinker linkCtx.sourceUrls))
+ 
+   -- Load all tactics from DB in sorted order and convert markdown docstrings to HTML
+-  let allTacticsRaw ← db.loadAllTactics
++  let allTacticsRaw ← Timing.timed' "fromDb.loadAllTactics" do
++    db.loadAllTactics
+   let refsMap : Std.HashMap String BibItem :=
+     Std.HashMap.emptyWithCapacity baseConfig.refs.size |>.insertMany
+       (baseConfig.refs.iter.map fun x => (x.citekey, x))
+@@ -117,12 +152,16 @@ def runFromDbCmd (p : Parsed) : IO UInt32 := do
+   let (allTactics, _) := allTacticsRaw.mapM Process.TacticInfo.docStringToHtml |>.run {} minimalSiteCtx baseConfig
+ 
+   -- Generate the search index (declaration-data.bmp)
+-  htmlOutputIndex baseConfig jsonModules allTactics
++  Timing.timed "fromDb.htmlOutputIndex" [("freshModules", toString jsonModules.size)] do
++    htmlOutputIndex baseConfig jsonModules allTactics
+ 
+   -- Update navbar to include all modules on disk
+-  updateNavbarFromDisk buildDir
++  Timing.timed' "fromDb.updateNavbarFromDisk" do
++    updateNavbarFromDisk buildDir
+   if let .some manifestOutput := manifestOutput? then
+     IO.FS.writeFile manifestOutput (Lean.toJson outputs).compress
++  let tTotal1 ← IO.monoNanosNow
++  Timing.emit "fromDb.total" (tTotal1 - tTotal0) [("outputs", toString outputs.size)]
+   return 0
+ 
+ def runBibPrepassCmd (p : Parsed) : IO UInt32 := do
+@@ -157,6 +196,19 @@ def singleCmd := `[Cli|
+     sourceUri : String; "The sourceUri as computed by the Lake facet"
+ ]
+ 
++def batchCmd := `[Cli|
++  batch VIA runBatchCmd;
++  "Populate the database with documentation for several modules in a single process."
++
++  FLAGS:
++    b, build : String; "Build directory."
++
++  ARGS:
++    db : String; "Path to the SQLite database (relative to build dir)"
++    sourceUri : String; "The sourceUri as computed by the Lake facet"
++    ...modules : String; "The modules to document."
++]
++
+ def genCoreCmd := `[Cli|
+   genCore VIA runGenCoreCmd;
+   "Populate the database with documentation for the specified Lean core module (Init, Std, Lake, Lean)."
+@@ -212,6 +264,7 @@ def docGenCmd : Cmd := `[Cli|
+ 
+   SUBCOMMANDS:
+     singleCmd;
++    batchCmd;
+     genCoreCmd;
+     bibPrepassCmd;
+     headerDataCmd;

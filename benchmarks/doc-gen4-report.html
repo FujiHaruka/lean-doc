@@ -1,0 +1,1030 @@
+<title>doc-gen4 ボトルネック計測</title>
+
+<style>
+  :root {
+    --ground: #f4f5f7;
+    --surface: #ffffff;
+    --surface-2: #eceef1;
+    --ink: #14181f;
+    --ink-soft: #3d4652;
+    --muted: #5c6672;
+    --rule: #dce0e6;
+    --rule-soft: #e7eaee;
+    --hot: #c2611c;
+    --hot-soft: #f0e0d1;
+    --cool: #2a6b6b;
+    --cool-soft: #d7e5e3;
+    --warn: #9a6a12;
+
+    --f-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --f-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+
+    --measure: 68ch;
+    --page: 940px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0f1216;
+      --surface: #161a20;
+      --surface-2: #1d222a;
+      --ink: #e6e9ed;
+      --ink-soft: #c3cad3;
+      --muted: #94a0ad;
+      --rule: #262c34;
+      --rule-soft: #1f242b;
+      --hot: #e08a45;
+      --hot-soft: #3a2a1c;
+      --cool: #4fa3a3;
+      --cool-soft: #1b2e2e;
+      --warn: #d0a04a;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #0f1216;
+    --surface: #161a20;
+    --surface-2: #1d222a;
+    --ink: #e6e9ed;
+    --ink-soft: #c3cad3;
+    --muted: #94a0ad;
+    --rule: #262c34;
+    --rule-soft: #1f242b;
+    --hot: #e08a45;
+    --hot-soft: #3a2a1c;
+    --cool: #4fa3a3;
+    --cool-soft: #1b2e2e;
+    --warn: #d0a04a;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 16px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: var(--page);
+    margin: 0 auto;
+    padding: 0 24px 96px;
+  }
+
+  /* ---------- header ---------- */
+
+  header.masthead {
+    padding: 64px 0 32px;
+    border-bottom: 2px solid var(--ink);
+    margin-bottom: 40px;
+  }
+
+  .eyebrow {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 14px;
+  }
+
+  h1 {
+    font-size: clamp(30px, 5vw, 46px);
+    line-height: 1.1;
+    letter-spacing: -0.022em;
+    font-weight: 660;
+    margin: 0 0 18px;
+    text-wrap: balance;
+  }
+
+  .standfirst {
+    max-width: var(--measure);
+    font-size: 17px;
+    color: var(--ink-soft);
+    margin: 0 0 28px;
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 28px;
+    font-family: var(--f-mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .meta b { color: var(--ink-soft); font-weight: 500; }
+
+  /* ---------- sections ---------- */
+
+  section { margin: 0 0 56px; }
+
+  h2 {
+    font-size: 13px;
+    font-family: var(--f-mono);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--muted);
+    margin: 0 0 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  h3 {
+    font-size: 21px;
+    letter-spacing: -0.014em;
+    font-weight: 620;
+    margin: 34px 0 12px;
+    text-wrap: balance;
+  }
+
+  h4 {
+    font-size: 16px;
+    font-weight: 620;
+    margin: 26px 0 10px;
+    color: var(--ink);
+  }
+
+  p { max-width: var(--measure); margin: 0 0 14px; }
+  ul, ol { max-width: var(--measure); padding-left: 20px; margin: 0 0 14px; }
+  li { margin-bottom: 7px; }
+
+  strong { font-weight: 640; }
+  code {
+    font-family: var(--f-mono);
+    font-size: 0.875em;
+    background: var(--surface-2);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  a { color: var(--cool); }
+
+  /* ---------- headline stats ---------- */
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin: 0 0 32px;
+  }
+
+  .stat {
+    background: var(--surface);
+    padding: 20px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .stat-n {
+    font-family: var(--f-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 34px;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+    color: var(--hot);
+  }
+  .stat.is-cool .stat-n { color: var(--cool); }
+  .stat-l { font-size: 13px; color: var(--ink-soft); line-height: 1.4; }
+  .stat-s { font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
+
+  /* ---------- bar charts ---------- */
+
+  .chart {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    padding: 20px 20px 16px;
+    margin: 0 0 22px;
+  }
+
+  .chart-title {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 16px;
+  }
+
+  .bars { display: flex; flex-direction: column; gap: 11px; }
+
+  .bar-row {
+    display: grid;
+    grid-template-columns: minmax(120px, 210px) 1fr minmax(74px, auto);
+    gap: 14px;
+    align-items: center;
+  }
+
+  .bar-label { font-size: 13.5px; color: var(--ink-soft); }
+  .bar-label code { background: none; padding: 0; font-size: 0.9em; }
+
+  .bar-track {
+    height: 20px;
+    background: var(--surface-2);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .bar-fill { height: 100%; background: var(--hot); }
+  .bar-fill.cool { background: var(--cool); }
+  .bar-fill.quiet { background: var(--muted); opacity: 0.42; }
+
+  .bar-val {
+    font-family: var(--f-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+    text-align: right;
+    color: var(--ink);
+  }
+  .bar-val span { color: var(--muted); font-size: 11px; }
+
+  .chart-note {
+    margin: 14px 0 0;
+    padding-top: 12px;
+    border-top: 1px solid var(--rule-soft);
+    font-size: 13px;
+    color: var(--muted);
+    max-width: none;
+  }
+
+  /* ---------- tables ---------- */
+
+  .table-scroll { overflow-x: auto; margin: 0 0 22px; }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 13.5px;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+  }
+
+  th, td {
+    padding: 9px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--rule-soft);
+    vertical-align: top;
+  }
+
+  thead th {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--rule);
+    white-space: nowrap;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+  td.num, th.num { text-align: right; font-family: var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.hot { color: var(--hot); font-weight: 600; }
+  td.cool { color: var(--cool); font-weight: 600; }
+  tr.total td { background: var(--surface-2); font-weight: 600; }
+
+  /* ---------- pipeline ---------- */
+
+  .pipeline {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin: 0 0 22px;
+  }
+
+  .stage {
+    display: grid;
+    grid-template-columns: minmax(150px, 220px) 1fr;
+    gap: 16px;
+    align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--muted);
+    padding: 12px 16px;
+  }
+  .stage.is-hot { border-left-color: var(--hot); }
+  .stage.is-warm { border-left-color: var(--warn); }
+
+  .stage-name { font-family: var(--f-mono); font-size: 13px; font-weight: 600; }
+  .stage-name em { font-style: normal; color: var(--hot); }
+  .stage-desc { font-size: 13px; color: var(--muted); }
+
+  /* ---------- callout ---------- */
+
+  .callout {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--hot);
+    padding: 16px 18px;
+    margin: 0 0 22px;
+  }
+  .callout.cool { border-left-color: var(--cool); }
+  .callout.quiet { border-left-color: var(--muted); }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout-h {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 8px;
+  }
+
+  /* ---------- ranked list ---------- */
+
+  .ranked { list-style: none; padding: 0; margin: 0; max-width: none; counter-reset: r; }
+  .ranked > li {
+    counter-increment: r;
+    display: grid;
+    grid-template-columns: 34px 1fr;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--rule-soft);
+    margin: 0;
+  }
+  .ranked > li::before {
+    content: counter(r);
+    font-family: var(--f-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--hot);
+    line-height: 1.5;
+  }
+  .ranked h4 { margin: 0 0 5px; font-size: 15.5px; }
+  .ranked p { margin: 0; font-size: 14px; color: var(--ink-soft); max-width: none; }
+  .ranked .src { font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
+
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-family: var(--f-mono);
+    font-size: 12.5px;
+    line-height: 1.55;
+    margin: 0 0 22px;
+  }
+  pre code { background: none; padding: 0; font-size: 1em; }
+
+  footer {
+    margin-top: 64px;
+    padding-top: 22px;
+    border-top: 1px solid var(--rule);
+    font-family: var(--f-mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  @media (max-width: 620px) {
+    .bar-row { grid-template-columns: 1fr; gap: 4px; }
+    .bar-val { text-align: left; }
+    .stage { grid-template-columns: 1fr; gap: 4px; }
+  }
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <p class="eyebrow">Benchmark report — 2026-08-09</p>
+  <h1>doc-gen4 のどこで時間が消えるか</h1>
+  <p class="standfirst">
+    Mathlib に依存する Lean プロジェクトのドキュメント生成を計装して測った。
+    結果は明快で、コストの大半はドキュメントを作る仕事ではなく、
+    <strong>同じ依存ライブラリを何千回も読み直す仕事</strong>に消えている。
+  </p>
+  <div class="meta">
+    <span>doc-gen4 <b>v4.31.0</b></span>
+    <span>Lean / Mathlib <b>v4.31.0</b></span>
+    <span>対象 <b>InformationTheory</b> (431 モジュール)</span>
+    <span>機材 <b>Apple M1 · 8 core · 16 GB</b></span>
+  </div>
+</header>
+
+<section>
+  <h2>結論</h2>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-n">85.0%</div>
+      <div class="stat-l">抽出フェーズが環境ロードに費やす割合</div>
+      <div class="stat-s">3,590 モジュールの実測</div>
+    </div>
+    <div class="stat is-cool">
+      <div class="stat-n">23×</div>
+      <div class="stat-l">1 プロセスにまとめたときの高速化</div>
+      <div class="stat-s">同一 432 モジュール</div>
+    </div>
+    <div class="stat">
+      <div class="stat-n">0.032%</div>
+      <div class="stat-l">走査した定数のうち実際に処理されたもの</div>
+      <div class="stat-s">8.9 億件中 28 万件</div>
+    </div>
+    <div class="stat">
+      <div class="stat-n">0%</div>
+      <div class="stat-l">HTML 生成フェーズの増分性</div>
+      <div class="stat-s">無変更でも毎回全再生成</div>
+    </div>
+  </div>
+
+  <p>コストは 3 つの層に分かれ、それぞれ別の原因で高価だった。</p>
+
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>層</th><th>何が起きるか</th><th>支配率</th><th>原因</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>A. 環境ロード</strong></td>
+          <td>モジュールごとに 1 プロセスを起動し、その import closure 全体を読み込む</td>
+          <td class="num hot">85.0%</td>
+          <td>プロセス境界ごとに closure を再ロードする設計</td>
+        </tr>
+        <tr>
+          <td><strong>B. 意味解析</strong></td>
+          <td>宣言ごとに型を pretty print し、equation lemma を生成する</td>
+          <td class="num hot">93.9%<br><span style="font-weight:400;color:var(--muted);font-size:11px">(Lean core 抽出時)</span></td>
+          <td><code>getEqnsFor?</code> が実際に elaboration を走らせる</td>
+        </tr>
+        <tr>
+          <td><strong>C. HTML 生成</strong></td>
+          <td>DB からモジュールを読み直して HTML 化する</td>
+          <td class="num hot">66–78%</td>
+          <td>宣言ごとに個別 SQL を発行する N+1 構造</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <p class="callout-h">実ビルドでの姿</p>
+    <p>
+      Mathlib 依存プロジェクトのドキュメント化では、<strong>8.9 億回の定数走査に対して
+      実際に処理されるのは 0.032%</strong> にすぎない。しかも「該当しない定数を素通りするだけ」の
+      コスト (1,195 秒) が、本来の意味解析 (631 秒) の<strong>約 2 倍</strong>を占めていた。
+    </p>
+  </div>
+
+  <p>さらに、計測して初めて見えた事実が 2 つある。</p>
+
+  <ul>
+    <li><strong>HTML 生成には増分性が一切ない。</strong> DB も出力も無変更で 2 回続けて実行しても
+      46.25 秒 → 43.91 秒と変わらない。増分性はビルドシステムのマーカーファイル層にしかなく、
+      しかもそちらは逆に変更を取りこぼす。</li>
+    <li><strong>並列度はメモリで律速される。</strong> 8 並列時の RSS 合計は 21.7 GB (物理 16 GB) に達し、
+      スワップ 17.4 GB をほぼ使い切った。CPU コアを増やしても頭打ちになる。</li>
+  </ul>
+</section>
+
+<section>
+  <h2>計測したパイプライン</h2>
+
+  <p>
+    doc-gen4 は v4.31 で SQLite ベースに再設計されている。ビルドシステムの facet として次の順に走る。
+    赤いレールが、計測でボトルネックと判明した段。
+  </p>
+
+  <div class="pipeline">
+    <div class="stage">
+      <div class="stage-name">bibPrepass</div>
+      <div class="stage-desc">参考文献の前処理。1 回だけ。</div>
+    </div>
+    <div class="stage is-warm">
+      <div class="stage-name">genCore <em>× 4</em></div>
+      <div class="stage-desc">Init / Std / Lake / Lean の宣言を DB へ。最小ケースの wall 265 秒中 240 秒。</div>
+    </div>
+    <div class="stage is-hot">
+      <div class="stage-name">single <em>× N</em></div>
+      <div class="stage-desc">モジュール 1 個につき 1 プロセス。ここが 8,600 回繰り返される。</div>
+    </div>
+    <div class="stage is-hot">
+      <div class="stage-name">fromDb</div>
+      <div class="stage-desc">DB から全対象モジュールの HTML と検索インデックスを生成。増分性なし。</div>
+    </div>
+  </div>
+
+  <h3>コードを読んで分かった構造</h3>
+
+  <p>計測前には見えない、コスト構造を決めている性質が 3 つあった。</p>
+
+  <ol>
+    <li><strong>環境の全定数を走査している。</strong> 1 モジュールを抽出する場合でも、
+      Mathlib 依存プロジェクトでは 49 万定数を舐めて数十件だけ処理する。</li>
+    <li><strong>タクティク収集がモジュールごとに全タクティクを列挙する。</strong>
+      単発では 10–40 ms に埋もれるが、バッチ化すると即座に最大項に浮上する。</li>
+    <li><strong>HTML 生成の後段はモジュール数に比例した固定コストを毎回払う。</strong>
+      検索インデックス生成・navbar 生成・backrefs 収集は、いずれもディスク上の
+      全モジュール分を毎回読み直している。</li>
+  </ol>
+</section>
+
+<section>
+  <h2>計測方法</h2>
+
+  <p>
+    doc-gen4 に計装を入れた。環境変数 <code>DOCGEN_TIMING</code> が設定されているときだけ、
+    各フェーズの実測時間を JSONL で追記する (無効時はゼロコスト)。
+    あわせて、複数モジュールを 1 プロセスで抽出する <code>batch</code> コマンドを追加した
+    — これが方式 B の実証になる。
+  </p>
+
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>ファイル</th><th>入れた計装</th></tr></thead>
+      <tbody>
+        <tr><td><code>DocGen4/Timing.lean</code></td><td>新規。JSONL 追記と計測ヘルパー</td></tr>
+        <tr><td><code>Main.lean</code></td><td>single / genCore / fromDb / headerData の各段、<code>batch</code> コマンド追加</td></tr>
+        <tr><td><code>DocGen4/Load.lean</code></td><td>環境ロードと意味解析の分離計測</td></tr>
+        <tr><td><code>Process/Analyze.lean</code></td><td>定数ループの走査件数・該当件数・解析時間の内訳</td></tr>
+        <tr><td><code>DocGen4/Output.lean</code></td><td>DB ロード / レンダリング / 書き込みの分離、インデックス各段</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>抽出フェーズ</h2>
+
+  <h3>1 モジュールのコストは、ほぼ全部が環境ロード</h3>
+
+  <p>
+    代表モジュールを直接処理して、import closure サイズとの関係を測った。
+    <strong>コストは closure サイズで決まり、パッケージの区別とは無関係</strong>である。
+    「Mathlib に依存しているか」ではなく「何モジュール読み込むか」だけが効く。
+  </p>
+
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>モジュール</th><th class="num">closure</th><th class="num">総時間</th>
+          <th class="num">うち import</th><th class="num">走査 / 該当</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><code>Mathlib.Init</code></td><td class="num">1,161</td><td class="num">0.71s</td><td class="num hot">0.66s (93%)</td><td class="num">123,283 / 6</td></tr>
+        <tr><td><code>Mathlib.Order.Basic</code></td><td class="num">1,285</td><td class="num">1.01s</td><td class="num hot">0.79s (78%)</td><td class="num">132,336 / 431</td></tr>
+        <tr><td><code>…SpecialFunctions.Log.Basic</code></td><td class="num">3,503</td><td class="num">7.64s</td><td class="num hot">7.35s (96%)</td><td class="num">339,540 / 179</td></tr>
+        <tr><td><code>…Integral.Bochner.Basic</code></td><td class="num">4,066</td><td class="num">3.81s</td><td class="num hot">3.32s (87%)</td><td class="num">385,778 / 202</td></tr>
+        <tr><td><code>InformationTheory.Shannon.BirkhoffErgodic</code></td><td class="num">4,777</td><td class="num">4.02s</td><td class="num hot">3.75s (93%)</td><td class="num">429,468 / 65</td></tr>
+        <tr><td><code>InformationTheory</code> (root)</td><td class="num">6,019</td><td class="num">5.48s</td><td class="num hot">5.24s (96%)</td><td class="num">490,037 / <strong>0</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <p>
+      最下行に注目したい。root モジュールは 49 万定数を走査して<strong>該当 0 件</strong> —
+      つまり 5.48 秒かけて何も抽出していない。import 文しか持たないモジュールなので当然だが、
+      現行設計ではこの空振りにも closure 全体のロードが課される。
+    </p>
+  </div>
+
+  <h3>実ビルド 3,590 モジュールの内訳</h3>
+
+  <div class="chart">
+    <p class="chart-title">single の CPU 時間 13,611 秒の行き先</p>
+    <div class="bars">
+      <div class="bar-row">
+        <div class="bar-label">環境ロード <code>importModules</code></div>
+        <div class="bar-track"><div class="bar-fill" style="width:85.0%"></div></div>
+        <div class="bar-val">11,566s <span>85.0%</span></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">定数の走査 (該当しない分)</div>
+        <div class="bar-track"><div class="bar-fill" style="width:8.8%"></div></div>
+        <div class="bar-val">1,195s <span>8.8%</span></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">意味解析 <code>ofConstant</code></div>
+        <div class="bar-track"><div class="bar-fill cool" style="width:4.6%"></div></div>
+        <div class="bar-val">631s <span>4.6%</span></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">タクティク・モジュール docs</div>
+        <div class="bar-track"><div class="bar-fill quiet" style="width:1.0%"></div></div>
+        <div class="bar-val">143s <span>1.0%</span></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">DB 書き込み</div>
+        <div class="bar-track"><div class="bar-fill quiet" style="width:0.5%"></div></div>
+        <div class="bar-val">68s <span>0.5%</span></div>
+      </div>
+    </div>
+    <p class="chart-note">
+      ドキュメントを作る本来の仕事 (青) は全体の 4.6%。
+      走査するだけで捨てられる分 (1,195 秒) がその約 2 倍にあたる。
+    </p>
+  </div>
+
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>指標</th><th class="num">値</th></tr></thead>
+      <tbody>
+        <tr><td>1 モジュールあたり平均</td><td class="num">3.79 秒</td></tr>
+        <tr><td>延べ closure ロード</td><td class="num">9,306,404 <span style="color:var(--muted)">(平均 2,592 / プロセス)</span></td></tr>
+        <tr><td>走査した定数 (延べ)</td><td class="num">888,462,895</td></tr>
+        <tr><td>該当した定数 (延べ)</td><td class="num hot">282,852 &nbsp;(0.032%)</td></tr>
+        <tr><td>import 単価</td><td class="num">1,243 µs / module-load</td></tr>
+        <tr class="total"><td>全体 8,600 モジュールへの外挿</td><td class="num">約 9.1 時間の CPU 時間</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>中心仮説の検証</h2>
+
+  <h3>1 プロセスにまとめると 23 倍速い</h3>
+
+  <p>
+    構想の中心仮説は「意味情報をまとめて抽出すれば、依存ライブラリの規模から切り離せる」だった。
+    <code>batch</code> コマンドを追加して、同一の 432 モジュールを両方式で処理した。
+  </p>
+
+  <div class="chart">
+    <p class="chart-title">同一 432 モジュールの抽出時間</p>
+    <div class="bars">
+      <div class="bar-row">
+        <div class="bar-label">方式 A — モジュールごとに 1 プロセス</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%"></div></div>
+        <div class="bar-val">1,084s</div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">方式 B — 1 プロセスでまとめて</div>
+        <div class="bar-track"><div class="bar-fill cool" style="width:4.4%"></div></div>
+        <div class="bar-val">47.4s</div>
+      </div>
+    </div>
+    <p class="chart-note">
+      方式 A は 112 モジュールの実測 (281.06 秒、うち import 89.6%) からの換算。方式 B は全 432 モジュールの実測。
+    </p>
+  </div>
+
+  <p>
+    方式 B の内訳を見ると、消えた項と<strong>新たに浮上した項</strong>がはっきり分かる。
+  </p>
+
+  <div class="chart">
+    <p class="chart-title">方式 B (47.4 秒) の内訳</p>
+    <div class="bars">
+      <div class="bar-row">
+        <div class="bar-label">タクティク・モジュール docs</div>
+        <div class="bar-track"><div class="bar-fill" style="width:36%"></div></div>
+        <div class="bar-val">16.37s <span>36%</span></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">定数ループ</div>
+        <div class="bar-track"><div class="bar-fill" style="width:35%"></div></div>
+        <div class="bar-val">15.99s <span>35%</span></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">環境ロード (1 回だけ)</div>
+        <div class="bar-track"><div class="bar-fill cool" style="width:28%"></div></div>
+        <div class="bar-val">12.91s <span>28%</span></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">DB 書き込み</div>
+        <div class="bar-track"><div class="bar-fill quiet" style="width:1.4%"></div></div>
+        <div class="bar-val">0.64s <span>1.4%</span></div>
+      </div>
+    </div>
+    <p class="chart-note">
+      環境ロードは 85% から 28% に落ち、代わりにタクティク収集が最大項になった。
+    </p>
+  </div>
+
+  <div class="callout cool">
+    <p class="callout-h">利得は 23 倍で頭打ちではない</p>
+    <p>
+      新たに最大項になったタクティク収集は、モジュールごとに全タクティクを列挙している
+      二重ループが原因で、全体を 1 回列挙してモジュール別に振り分ければ消える。
+      つまりバッチ化した先に、まだ 3 分の 1 が残っている。
+    </p>
+  </div>
+
+  <h3>この構造は closure 分布から予測できる</h3>
+
+  <p>
+    ソースの import ヘッダを解析して、パッケージ内の推移的 closure サイズを求めた。
+    <code>single</code> 方式では、この closure 合計がそのまま「延べモジュールロード回数」になる。
+  </p>
+
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>パッケージ</th><th class="num">モジュール</th><th class="num">closure 合計</th>
+        <th class="num">平均</th><th class="num">p50</th><th class="num">p90</th><th class="num">最大</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Mathlib</td><td class="num">8,169</td><td class="num">7,375,495</td><td class="num">903</td><td class="num">751</td><td class="num">1,999</td><td class="num">3,280</td></tr>
+        <tr><td>Mathlib + InformationTheory</td><td class="num">8,600</td><td class="num hot">8,485,717</td><td class="num">987</td><td class="num">813</td><td class="num">2,194</td><td class="num">3,280</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    これはパッケージ内の closure で、実際にはここに Lean core が乗る (実測の平均は 2,592)。
+    バッチ方式なら、この項はまるごと <strong>1 回分の closure ロード (12.9 秒)</strong> に潰れる。
+  </p>
+</section>
+
+<section>
+  <h2>HTML 生成フェーズ</h2>
+
+  <p>
+    DB に入った 6,072 モジュールに対して HTML 生成を単独実行した。
+    Lean core のみ (2,394 モジュール) の 18.07 秒に対し 44.52 秒 —
+    モジュール数 2.54 倍に対して時間 2.46 倍で、<strong>ほぼ線形</strong>である。
+  </p>
+
+  <div class="chart">
+    <p class="chart-title">HTML 生成の CPU 199.5 秒の行き先</p>
+    <div class="bars">
+      <div class="bar-row">
+        <div class="bar-label">DB からモジュールを読み出す</div>
+        <div class="bar-track"><div class="bar-fill" style="width:66%"></div></div>
+        <div class="bar-val">131.6s <span>66%</span></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">HTML レンダリング</div>
+        <div class="bar-track"><div class="bar-fill cool" style="width:9.2%"></div></div>
+        <div class="bar-val">7.2s <span>9.2%</span></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">HTML 書き込み</div>
+        <div class="bar-track"><div class="bar-fill quiet" style="width:5.2%"></div></div>
+        <div class="bar-val">4.1s <span>5.2%</span></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">検索用 JSON の生成と書き込み</div>
+        <div class="bar-track"><div class="bar-fill quiet" style="width:6.5%"></div></div>
+        <div class="bar-val">5.0s <span>6.5%</span></div>
+      </div>
+    </div>
+    <p class="chart-note">
+      比率は 2,394 モジュール時の内訳。6,072 モジュールでも DB 読み出しが 66% を占める。
+    </p>
+  </div>
+
+  <div class="callout">
+    <p class="callout-h">レンダリングは犯人ではない</p>
+    <p>
+      HTML 生成の実コストは <strong>DB からの読み出し</strong>であって、レンダリング (9.2%) ではない。
+      原因は、モジュールのメンバー一覧を取ったあと宣言ごとに引数・属性・宣言範囲・equation を
+      個別クエリで引く N+1 構造にある。テンプレートエンジンの高速化や別言語での書き直しは、
+      ここでは効果が薄い。
+    </p>
+  </div>
+
+  <h3>増分性がない</h3>
+
+  <p>同じ生成を、DB も出力も一切変えずにもう一度実行した。</p>
+
+  <div class="chart">
+    <p class="chart-title">連続 2 回の実行 (6,072 モジュール)</p>
+    <div class="bars">
+      <div class="bar-row">
+        <div class="bar-label">1 回目</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%"></div></div>
+        <div class="bar-val">46.25s</div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">2 回目 (完全に無変更)</div>
+        <div class="bar-track"><div class="bar-fill" style="width:95%"></div></div>
+        <div class="bar-val">43.91s</div>
+      </div>
+    </div>
+    <p class="chart-note">
+      ほぼ同じ。HTML 生成は呼ばれたら常に全対象モジュールを再生成する。
+    </p>
+  </div>
+
+  <p>
+    一方でビルドシステム側の増分性は正しく効いている。無変更なら doc-gen4 は 1 プロセスも起動しない。
+  </p>
+
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>シナリオ</th><th class="num">wall</th><th>起動されたプロセス</th></tr></thead>
+      <tbody>
+        <tr><td>1 回目 (cold)</td><td class="num">265s</td><td>genCore ×4 + single ×1 + fromDb</td></tr>
+        <tr><td>2 回目 (無変更)</td><td class="num cool">2.33s</td><td>なし</td></tr>
+        <tr><td>3 回目 (1 モジュール変更)</td><td class="num cool">5.21s</td><td>single ×1 のみ (0.86s)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <p class="callout-h">増分性は両方向に壊れている</p>
+    <p>
+      3 回目で HTML 生成が再実行されなかった点は、速度ではなく正しさの問題である。
+      マーカーファイルが空ファイルのため、内容が変わってもハッシュが変わらない。
+      <strong>変更が HTML に伝播しない</strong>可能性がある。
+      そして仮に正しく再実行されたとしても、それは全モジュールの再生成を意味する。
+      現行の増分性は「取りこぼすか、全部やり直すか」の二択になっている。
+    </p>
+  </div>
+</section>
+
+<section>
+  <h2>そのほかに分かったこと</h2>
+
+  <h3>並列度はメモリで律速される</h3>
+
+  <p>
+    プロセスのピーク RSS は closure に比例する (720 MB 〜 3.26 GB)。
+    ビルドシステムは既定で CPU 数だけプロセスを並列に走らせるため、Mathlib の深部で次の状態になった。
+  </p>
+
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>指標</th><th class="num">実測</th></tr></thead>
+      <tbody>
+        <tr><td>同時実行プロセス</td><td class="num">8</td></tr>
+        <tr><td>その RSS 合計</td><td class="num hot">21.7 GB <span style="color:var(--muted)">(物理 16 GB)</span></td></tr>
+        <tr><td>スワップ使用量</td><td class="num hot">16.2 GB / 17.4 GB</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    ビルドが進むにつれ 1 モジュールの環境ロードは 1.34 秒 → 6.88 秒へ悪化した。
+    ただし<strong>悪化の主因はスワップではない</strong> — 同区間で closure 平均も 1,042 → 4,602 と
+    4.4 倍に増えており、1 module-load あたりの単価は 1.27 ms → 1.45 ms (14% 増) にとどまる。
+    コストは closure に線形であり、メモリ圧はその上に 14% 乗るだけだった。
+  </p>
+
+  <p>
+    それでも実運用上の帰結は深刻で、並列度を半減させるとスワップが解放されないまま
+    処理レートが 34 → 7.3 モジュール/分まで落ちた。<strong>1 プロセスに環境を 1 つだけ持つ方式なら、
+    この制約自体が存在しない。</strong>
+  </p>
+
+  <h3>equation 生成を切る効果は、対象次第</h3>
+
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th></th><th class="num">equations あり</th><th class="num">切った場合</th><th class="num">差</th></tr></thead>
+      <tbody>
+        <tr><td>意味解析の累積</td><td class="num">22.72s</td><td class="num">21.11s</td><td class="num">−7.1%</td></tr>
+        <tr><td>バッチ総時間</td><td class="num">98.07s</td><td class="num">96.38s</td><td class="num">−1.7%</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    このプロジェクトの宣言はほぼ定理であり、equation lemma は定義にしか生成されないため効果が薄い。
+    逆に Lean core のような定義中心のコードでは、equation の計算がヒートビート上限に達するほど重い。
+    <strong>「全体で何割」という単一の数字は存在しない</strong>ので、切り替え可能な段階として設計するのが正しい。
+  </p>
+
+  <h3>出力サイズ</h3>
+
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>対象</th><th class="num">DB</th><th class="num">HTML</th><th class="num">中間データ</th><th class="num">合計</th></tr></thead>
+      <tbody>
+        <tr><td>Lean core のみ (2,394)</td><td class="num">129 MB</td><td class="num">223 MB</td><td class="num">198 MB</td><td class="num">550 MB</td></tr>
+        <tr><td>+ Mathlib 一部 (6,072)</td><td class="num">433 MB</td><td class="num">798 MB</td><td class="num">745 MB</td><td class="num">1.98 GB</td></tr>
+        <tr class="total"><td>約 11,000 モジュールへの外挿</td><td class="num" colspan="3"></td><td class="num">約 3.6 GB</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    検索用の中間データが HTML とほぼ同量あることに注意したい。これは中間生成物であり、
+    新設計では中間表現に統合できる。
+  </p>
+</section>
+
+<section>
+  <h2>新設計への指針</h2>
+
+  <p>効果の大きい順。</p>
+
+  <ol class="ranked">
+    <li>
+      <div>
+        <h4>抽出は 1 プロセス 1 環境のバッチにする</h4>
+        <p>最大の一手。実測 23 倍。副次的にメモリ律速も消える。
+        <span class="src">→ 中心仮説の検証</span></p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h4>環境の全定数を走査しない</h4>
+        <p>走査コストが意味解析の約 2 倍。該当率 0.032%。対象モジュールの宣言だけを引くべきで、
+        これはバッチ化とは独立に効く。<span class="src">→ 抽出フェーズ</span></p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h4>依存パッケージからは「宣言名 → モジュール → URL」だけを取る</h4>
+        <p>HTML 生成が実際に必要としているのはこの写像だけで、型も docstring も equation も要らない。
+        依存を外部参照にする構想はそのまま成立する。</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h4>中間表現の粒度はモジュール単位のブロブにする</h4>
+        <p>現行は宣言ごとに行を分割したため、レンダリング時に N+1 クエリで再構築しており、
+        そこに生成 CPU の 66–78% が消えている。読みも書きもモジュール単位なら、
+        モジュール 1 個 = 1 ブロブ + 索引が正しい粒度。</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h4>出力側の増分性を独立に設計する</h4>
+        <p>モジュール単位の内容ハッシュを持ち、変わったページだけ書き直す。
+        現行はキャッシュ無効化とページ再生成を 1 つのマーカーファイルに載せようとして両方失敗している。</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h4>全モジュール横断の後処理をインクリメンタルにする</h4>
+        <p>検索インデックス・navbar・backrefs はいずれも毎回全モジュール分を読み直している。
+        今回の規模では 1–2 秒だが、モジュール数に線形なので短い待ち時間でのプレビューには障害になる。</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h4>タクティク収集を二重ループにしない</h4>
+        <p>バッチ化すると即座に最大項 (36%) に浮上する。全体を 1 回列挙して振り分ければ消える。</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h4>equation 生成は切り替え可能にする</h4>
+        <p>定理中心のライブラリでは 7% しか効かないが、定義中心のコードでは非常に重い。
+        固定の判断をせず段階にする。</p>
+      </div>
+    </li>
+  </ol>
+
+  <div class="callout quiet">
+    <p class="callout-h">あえて優先しなくてよいもの</p>
+    <p>
+      HTML のレンダリング自体は生成 CPU の 9.2% にすぎない。
+      テンプレートエンジンの高速化や別言語での書き直しは、ここでは効果が薄い。
+      「言語選択より責務分離と計測を優先する」という構想の判断は、この計測結果と整合する。
+    </p>
+  </div>
+</section>
+
+<section>
+  <h2>本計測の限界</h2>
+
+  <div class="callout quiet">
+    <ul style="margin-bottom:0">
+      <li><strong>フルビルドは完走させていない。</strong> Mathlib + InformationTheory 8,600 モジュールのうち
+        3,590 モジュール (42%) を抽出した時点で打ち切った。既定の並列度では残り 2.5 時間、
+        並列度を落とすとスワップが解放されず 11 時間相当まで悪化したため。
+        抽出フェーズは 3,590 モジュールの実測、HTML 生成フェーズは DB に入った 6,072 モジュールでの
+        単独実測に分けている。<strong>全体の wall clock は測れていない。</strong></li>
+      <li>equation 比較の 2 本はフルビルドと並行して測ったため絶対値が膨らんでいる。
+        同一条件下の相対比較としてのみ有効。</li>
+      <li>方式 A は 432 モジュール中 112 モジュールの実測で、残りは平均値からの換算。</li>
+      <li>単一マシン (M1 / 8 コア / 16 GB) の結果であり、特にメモリ律速は RAM 量に強く依存する。</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <h2>再現</h2>
+
+  <p>
+    計装パッチ・ベンチスクリプト・生ログは <code>benchmarks/</code> に置いてある。
+  </p>
+
+<pre><code># 計装を有効にしてビルド
+DOCGEN_TIMING=$PWD/benchmarks/results/smoke.jsonl \
+  lake build InformationTheory.Meta.EntryPoint:docs
+
+# 方式 B (1 プロセスでまとめて抽出)
+DOCGEN_TIMING=... lake env .lake/packages/doc-gen4/.lake/build/bin/doc-gen4 \
+  batch --build .lake/build bench.db "file:///tmp/x" $(cat raw/it-modules.txt)
+
+# 方式 A (モジュールごとに 1 プロセス)
+benchmarks/tools/run-serial.sh
+
+# 集計
+deno run -A benchmarks/tools/analyze.ts &lt;file.jsonl&gt; [--by-module]
+deno run -A benchmarks/tools/closure-sizes.ts .lake/packages/mathlib/Mathlib Mathlib</code></pre>
+</section>
+
+<footer>
+  計装は doc-gen4 v4.31.0 (rev 0bc516c) に対するローカルパッチとして適用。
+  <code>doc-gen4-instrumentation.patch</code> に保存済み。
+</footer>
+
+</div>

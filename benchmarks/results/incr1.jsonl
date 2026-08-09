@@ -1,0 +1,9 @@
+{"phase":"load.initSearchPath","pid":74846,"us":20}
+{"phase":"load.importModules","pid":74846,"us":778771,"directImports":1}
+{"phase":"load.envStats","pid":74846,"us":0,"loadedModules":2259}
+{"phase":"process.getAllModuleDocs","pid":74846,"us":7490,"relevantModules":1}
+{"phase":"process.constantLoop","pid":74846,"us":66265,"scanned":203908,"relevant":2,"ofConstantUs":255}
+{"phase":"process.sortMembers","pid":74846,"us":1}
+{"phase":"load.process","pid":74846,"us":74249}
+{"phase":"single.updateModuleDb","pid":74846,"us":8703,"module":"InformationTheory.Meta.EntryPoint"}
+{"phase":"single.total","pid":74846,"us":862459,"module":"InformationTheory.Meta.EntryPoint"}
