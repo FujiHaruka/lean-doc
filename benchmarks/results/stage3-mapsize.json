@@ -1,0 +1,1091 @@
+{
+  "conditions": {
+    "date": "2026-08-09T14:40:04.734Z",
+    "deno": "2.7.14",
+    "target": "aarch64-apple-darwin",
+    "runs": 7,
+    "runsReported": 6,
+    "warm": true,
+    "notes": [
+      "machine             Apple M1 (MacBookAir10,1) / 8 cores / 16 GB, macOS 26.6 (25G72)",
+      "toolchain           Lean / Mathlib / doc-gen4 all v4.31.0 (mathlib fabf563a7c, doc-gen4 0bc516c)",
+      "parallelism         1 (single process)",
+      "input provenance    the .bmp comes from the doc-gen4 HTML build that was stopped at 42%"
+    ]
+  },
+  "inputs": {
+    "bmp": "/Users/haruka/dev/lean-projects/.lake/build/doc/declarations/declaration-data.bmp",
+    "bmpBytes": 37481374,
+    "refs": "/Users/haruka/dev/lean-doc/benchmarks/results/stage3-refs.jsonl",
+    "modules": "/Users/haruka/dev/lean-doc/benchmarks/results/it-modules.txt",
+    "doc": "/Users/haruka/dev/lean-projects/.lake/build/doc"
+  },
+  "coverage": {
+    "all": {
+      "total": 1446,
+      "hit": 1309
+    },
+    "dependency": {
+      "total": 533,
+      "hit": 530
+    },
+    "own": {
+      "total": 913,
+      "hit": 779
+    },
+    "ownFlagMismatches": 0
+  },
+  "misses": [
+    {
+      "name": "_private.InformationTheory.Shannon.ConditionalMethodOfTypes.Core.0.InformationTheory.Shannon.absorberLetterβ",
+      "module": "InformationTheory.Shannon.ConditionalMethodOfTypes.Core",
+      "own": true,
+      "cause": "private name"
+    },
+    {
+      "name": "_private.InformationTheory.Shannon.Sanov.RoundedTypeSequence.0.InformationTheory.Shannon.absorberLetter",
+      "module": "InformationTheory.Shannon.Sanov.RoundedTypeSequence",
+      "own": true,
+      "cause": "private name"
+    },
+    {
+      "name": "_private.InformationTheory.Shannon.Sanov.RoundedTypeSequence.0.InformationTheory.Shannon.roundedFloor",
+      "module": "InformationTheory.Shannon.Sanov.RoundedTypeSequence",
+      "own": true,
+      "cause": "private name"
+    },
+    {
+      "name": "InformationTheory.Shannon.rdPerturb",
+      "module": "InformationTheory.Shannon.RateDistortion.AchievabilityUnconditional",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.rdSupportPmf",
+      "module": "InformationTheory.Shannon.RateDistortion.AchievabilityGeneralSource",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.rdPad",
+      "module": "InformationTheory.Shannon.RateDistortion.AchievabilityGeneralSource",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.rdRestrict",
+      "module": "InformationTheory.Shannon.RateDistortion.AchievabilityGeneralSource",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.rdSupportDist",
+      "module": "InformationTheory.Shannon.RateDistortion.AchievabilityGeneralSource",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.rdRetract",
+      "module": "InformationTheory.Shannon.RateDistortion.AchievabilityGeneralSource",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "_private.InformationTheory.Shannon.Stein.Converse.0.InformationTheory.Shannon.steinTestFn",
+      "module": "InformationTheory.Shannon.Stein.Converse",
+      "own": true,
+      "cause": "private name"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.prolateCount",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Enumeration",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.ShannonHartley.synthSignal",
+      "module": "InformationTheory.Shannon.ShannonHartley.Achievability",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.ShannonHartley.specBoxcar",
+      "module": "InformationTheory.Shannon.ShannonHartley.Achievability",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.E",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Operator",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.testFnLift",
+      "module": "InformationTheory.Shannon.ShannonHartley.ConverseCount",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.bandGramEigenvalues",
+      "module": "InformationTheory.Shannon.ShannonHartley.ConverseCount",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.timeLimitSubspace",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Operator",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.ShannonHartley.contAwgnConverseJoint",
+      "module": "InformationTheory.Shannon.ShannonHartley.Converse",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.ShannonHartley.contAwgnSignalLaw",
+      "module": "InformationTheory.Shannon.ShannonHartley.Converse",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.ShannonHartley.contAwgnConstChannel",
+      "module": "InformationTheory.Shannon.ShannonHartley.Converse",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.prolateEigenspaceSup",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Enumeration",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.ShannonHartley.bandGramRealMatrix",
+      "module": "InformationTheory.Shannon.ShannonHartley.Rotation",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.bandLimitSubspace",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Operator",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.ShannonHartley.ContAwgnCode.rotate",
+      "module": "InformationTheory.Shannon.ShannonHartley.Rotation",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.ShannonHartley.bandGramRealEigenvalues",
+      "module": "InformationTheory.Shannon.ShannonHartley.Rotation",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.ShannonHartley.bandGramRealUnitary",
+      "module": "InformationTheory.Shannon.ShannonHartley.Rotation",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "Eq.rec",
+      "module": "Init.Prelude",
+      "own": false,
+      "cause": "blacklisted by name shape"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.BroadcastCode.coop",
+      "module": "InformationTheory.Shannon.BroadcastChannel.OuterBound",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.bcOuterRegionCoop",
+      "module": "InformationTheory.Shannon.BroadcastChannel.OuterBound",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.bcCapacityRegion",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Operational",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.BroadcastCode.restrict₁",
+      "module": "InformationTheory.Shannon.BroadcastChannel.OuterBound",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.BroadcastCode.restrict₂",
+      "module": "InformationTheory.Shannon.BroadcastChannel.OuterBound",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.BCAchievable",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Operational",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.Marton.bcAuxAlphabet",
+      "module": "InformationTheory.Shannon.BroadcastChannel.MartonUnion",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.Thm7Ambient",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Thm7Region",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.Thm7AuxIdx",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Thm7Region",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.thm7DegenerateLaw",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Thm7Region",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.zeroRateSlice",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Thm7Region",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.thm7Region",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Thm7Region",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.thm7RegionOfInput",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Thm7Region",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.thm7RegionOfAuxReceiver",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Thm7Region",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.thm7Cap",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Thm7Region",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.IsThm7Law",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Thm7Region",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.thm7RegionOfLaw",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Thm7Region",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.InThm7",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Thm7Region",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.thm7RegionSlice",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Thm7Region",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.thm7Slots",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Thm7Region",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.IsThm7Eligible",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Thm7Region",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.Marton.martonRegion",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Operational",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.Marton.martonRegionUnion",
+      "module": "InformationTheory.Shannon.BroadcastChannel.MartonUnion",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.Marton.bcAuxMeasurableEquiv",
+      "module": "InformationTheory.Shannon.BroadcastChannel.MartonUnion",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.Marton.martonRegionUnionFullSupport",
+      "module": "InformationTheory.Shannon.BroadcastChannel.MartonUnion",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.Marton.martonMixKernel",
+      "module": "InformationTheory.Shannon.BroadcastChannel.MartonFullSupport",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "List.recOn",
+      "module": "Init.Prelude",
+      "own": false,
+      "cause": "blacklisted by name shape"
+    },
+    {
+      "name": "Nat.rec",
+      "module": "Init.Prelude",
+      "own": false,
+      "cause": "blacklisted by name shape"
+    },
+    {
+      "name": "InformationTheory.Shannon.EPIDensityForm.isHeatFlowEndpointRegular_of_canonical_rnDeriv._proof_8",
+      "module": "InformationTheory.Shannon.EPI.DensityForm",
+      "own": true,
+      "cause": "blacklisted by name shape"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.realForm",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Count",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.realFormToV",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Count",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.timeBandLimitingOp",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Operator",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.timeBandLimitingComp",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Operator",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.sincConvKernel",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Operator",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.kernelBox",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Operator",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.zeroOnLp",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Operator",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.bandLimitSpec",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Operator",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.starₗE",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Operator",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.star_add_Lp",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Operator",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.star_smul_Lp",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Operator",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.L2Kernel",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Operator",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.l2KernelLin",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Operator",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.l2KernelApply",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Operator",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.l2KernelOp",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Operator",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.l2KernelBilin",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Operator",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.l2KernelOp._proof_3",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Operator",
+      "own": true,
+      "cause": "blacklisted by name shape"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.l2KernelBilin._proof_2",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Operator",
+      "own": true,
+      "cause": "blacklisted by name shape"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.l2KernelBilin._proof_3",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Operator",
+      "own": true,
+      "cause": "blacklisted by name shape"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.bandKernel",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.TraceBound",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.prolateRestrict",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.TraceBound",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.bandKernelLp",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.TraceBound",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.prolateEnd",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Enumeration",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.prolateEigenvalues",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Enumeration",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.bandKernelSq",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.SecondMoment",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.bandKernelTail",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.SecondMoment",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.prolateEigenvalueSet",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Enumeration",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.TimeBandLimiting.timeBox",
+      "module": "InformationTheory.Shannon.TimeBandLimiting.Enumeration",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "_private.InformationTheory.Shannon.AWGN.ConverseMIChainRule.PerLetterMI.0.InformationTheory.Shannon.AWGN.perLetterInputLaw",
+      "module": "InformationTheory.Shannon.AWGN.ConverseMIChainRule.PerLetterMI",
+      "own": true,
+      "cause": "private name"
+    },
+    {
+      "name": "_private.InformationTheory.Shannon.AWGN.ConverseMIChainRule.BlockMI.0.InformationTheory.Shannon.AWGN.msgLawInline",
+      "module": "InformationTheory.Shannon.AWGN.ConverseMIChainRule.BlockMI",
+      "own": true,
+      "cause": "private name"
+    },
+    {
+      "name": "_private.InformationTheory.Shannon.AWGN.ConverseMIChainRule.BlockMI.0.InformationTheory.Shannon.AWGN.blockKernelInline",
+      "module": "InformationTheory.Shannon.AWGN.ConverseMIChainRule.BlockMI",
+      "own": true,
+      "cause": "private name"
+    },
+    {
+      "name": "_private.InformationTheory.Shannon.WynerZiv.Converse.Prelim.0.InformationTheory.Shannon.wzPmfMeasure",
+      "module": "InformationTheory.Shannon.WynerZiv.Converse.Prelim",
+      "own": true,
+      "cause": "private name"
+    },
+    {
+      "name": "InformationTheory.Shannon.wzSideInfoMarginal",
+      "module": "InformationTheory.Shannon.WynerZiv.Achievability.Covering",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.wzCoveringAcceptFailSet",
+      "module": "InformationTheory.Shannon.WynerZiv.Achievability.Covering",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.wzBinTypicalDecoder",
+      "module": "InformationTheory.Shannon.WynerZiv.Achievability.Decomposition",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.wzIndexBinningMeasure",
+      "module": "InformationTheory.Shannon.WynerZiv.Achievability.Decomposition",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.wzLiftSupportCode",
+      "module": "InformationTheory.Shannon.WynerZiv.Achievability.Decomposition",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.wzCodeOfCoveringBinning",
+      "module": "InformationTheory.Shannon.WynerZiv.Achievability.Decomposition",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.wzCoveringSuccessStrong",
+      "module": "InformationTheory.Shannon.WynerZiv.Achievability.Concentration",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.wzCoveringStrongRadius",
+      "module": "InformationTheory.Shannon.WynerZiv.Achievability.Concentration",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "_private.InformationTheory.Shannon.WynerZiv.Achievability.Concentration.0.InformationTheory.Shannon.wzCondMeanKernel",
+      "module": "InformationTheory.Shannon.WynerZiv.Achievability.Concentration",
+      "own": true,
+      "cause": "private name"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.Marton.martonCoveringBandConst",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Marton.Covering",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.Marton.coveringBandConst",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Marton.Covering",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.Marton.codebookEmbed",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Marton.Covering",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.Marton.MartonSubcodebook",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Marton.ErrorAnalysis",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.Marton.martonAux₁",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Marton.ErrorAnalysis",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.Marton.martonSelectRow",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Marton.ErrorAnalysis",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.Marton.martonSubcodebookMeasure",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Marton.ErrorAnalysis",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.Marton.martonCodebookToCode",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Marton.ErrorAnalysis",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.Marton.martonInputCodebookMeasure",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Marton.ErrorAnalysis",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.Marton.martonAux₂",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Marton.ErrorAnalysis",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.Marton.martonMessageDecoder₁",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Marton.ErrorAnalysis",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.Marton.martonMessageDecoder₂",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Marton.ErrorAnalysis",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.Marton.martonAuxBound",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Marton.CardinalityBound",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.Marton.martonRegionUnionBounded",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Marton.RegionCardinality",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.Marton.martonRegionUnionOuterBounded",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Marton.RegionCardinality",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.bcUVTimeShare",
+      "module": "InformationTheory.Shannon.BroadcastChannel.OuterBoundUV.Assembly",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.bcUVLetterIndexLaw",
+      "module": "InformationTheory.Shannon.BroadcastChannel.OuterBoundUV.Assembly",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.bcUVLetterKernel",
+      "module": "InformationTheory.Shannon.BroadcastChannel.OuterBoundUV.Assembly",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.uvRelabel",
+      "module": "InformationTheory.Shannon.BroadcastChannel.OuterBoundUV.Assembly",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.uvQuantizeLaw",
+      "module": "InformationTheory.Shannon.BroadcastChannel.OuterBoundUV.Quantization",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.uvQuantizeSlack",
+      "module": "InformationTheory.Shannon.BroadcastChannel.OuterBoundUV.Quantization",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.uvQuantize",
+      "module": "InformationTheory.Shannon.BroadcastChannel.OuterBoundUV.Quantization",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.Marton.martonAuxSwapLaw",
+      "module": "InformationTheory.Shannon.BroadcastChannel.OuterBoundUV.MartonBridge",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.Marton.martonUVLaw",
+      "module": "InformationTheory.Shannon.BroadcastChannel.OuterBoundUV.MartonBridge",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.Marton.natIndex",
+      "module": "InformationTheory.Shannon.BroadcastChannel.OuterBoundUV.MartonBridge",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.bcSuperpositionRegionSumRate",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Superposition.Region",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.bcSuperpositionRegionNoSumRate",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Superposition.Region",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.uvTagFalse",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Superposition.TimeShare",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.uvMixLaw",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Superposition.TimeShare",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.uvCollapse",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Superposition.TimeShare",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.uvMixKernel",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Superposition.TimeShare",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.uvTagTrue",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Superposition.TimeShare",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.uvCloudLaw",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Superposition.TimeShare",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.uvSatelliteKernel",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Superposition.TimeShare",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.uvTagConst",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Superposition.TimeShare",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.uvTimeShareLaw",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Superposition.TimeShare",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.boolProdAuxEquiv",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Superposition.TimeShare",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.uvPerturbLaw",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Superposition.FullSupport",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.uvUniformLaw",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Superposition.FullSupport",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    },
+    {
+      "name": "InformationTheory.Shannon.BroadcastChannel.uvLawOfPair",
+      "module": "InformationTheory.Shannon.BroadcastChannel.Superposition.FullSupport",
+      "own": true,
+      "cause": "module absent from this .bmp (partial build)"
+    }
+  ],
+  "joinKey": {
+    "agree": 1309,
+    "disagree": []
+  },
+  "occurrences": {
+    "all": 143121,
+    "dependency": 128526,
+    "dependencyUnresolved": 5
+  },
+  "docLinkSample": {
+    "sampled": 530,
+    "fileOk": 530,
+    "anchorOk": 530,
+    "broken": []
+  },
+  "deadLinksInDocGen4": [
+    {
+      "name": "Eq.rec",
+      "hrefs": 1,
+      "anchorPresent": false
+    },
+    {
+      "name": "List.recOn",
+      "hrefs": 2,
+      "anchorPresent": false
+    }
+  ],
+  "sizes": [
+    {
+      "slice": "all",
+      "shape": "docLink + kind (as shipped)",
+      "count": 258760,
+      "raw": 34269816,
+      "gzip": 2663668
+    },
+    {
+      "slice": "all",
+      "shape": "docLink only",
+      "count": 258760,
+      "raw": 26956967,
+      "gzip": 2490175
+    },
+    {
+      "slice": "all",
+      "shape": "name -> module (string)",
+      "count": 258760,
+      "raw": 17305671,
+      "gzip": 1609899
+    },
+    {
+      "slice": "all",
+      "shape": "name -> module (index) + module table",
+      "count": 258760,
+      "raw": 9772359,
+      "gzip": 1439440
+    },
+    {
+      "slice": "dependency only",
+      "shape": "docLink + kind (as shipped)",
+      "count": 254763,
+      "raw": 33403709,
+      "gzip": 2603753
+    },
+    {
+      "slice": "dependency only",
+      "shape": "docLink only",
+      "count": 254763,
+      "raw": 26203902,
+      "gzip": 2431845
+    },
+    {
+      "slice": "dependency only",
+      "shape": "name -> module (string)",
+      "count": 254763,
+      "raw": 16830576,
+      "gzip": 1570598
+    },
+    {
+      "slice": "dependency only",
+      "shape": "name -> module (index) + module table",
+      "count": 254763,
+      "raw": 9474588,
+      "gzip": 1400501
+    },
+    {
+      "slice": "referenced only",
+      "shape": "docLink + kind (as shipped)",
+      "count": 530,
+      "raw": 52985,
+      "gzip": 7885
+    },
+    {
+      "slice": "referenced only",
+      "shape": "docLink only",
+      "count": 530,
+      "raw": 39362,
+      "gzip": 7273
+    },
+    {
+      "slice": "referenced only",
+      "shape": "name -> module (string)",
+      "count": 530,
+      "raw": 26970,
+      "gzip": 5453
+    },
+    {
+      "slice": "referenced only",
+      "shape": "name -> module (index) + module table",
+      "count": 530,
+      "raw": 21107,
+      "gzip": 5964
+    }
+  ],
+  "wholeFile": {
+    "bytes": 37481374
+  },
+  "loadTimes": [
+    {
+      "label": "whole .bmp file (as shipped)",
+      "bytes": 37481374,
+      "times": [
+        0.22163500000000022,
+        0.19558674999999948,
+        0.20845024999999986,
+        0.23299179200000072,
+        0.20043916699999953,
+        0.20516774999999962
+      ],
+      "median": 0.20680899999999974
+    },
+    {
+      "label": "declarations only, all",
+      "bytes": 34269816,
+      "times": [
+        0.211190208,
+        0.19583858299999973,
+        0.19971408300000076,
+        0.19976137500000005,
+        0.20169999999999982,
+        0.2321352080000006
+      ],
+      "median": 0.20073068749999995
+    },
+    {
+      "label": "declarations only, dependency only",
+      "bytes": 33403709,
+      "times": [
+        0.17547420799999963,
+        0.18219791600000007,
+        0.18277054099999987,
+        0.1886175409999996,
+        0.1889931669999987,
+        0.19128187500000057
+      ],
+      "median": 0.18569404099999975
+    },
+    {
+      "label": "declarations only, referenced only",
+      "bytes": 52985,
+      "times": [
+        0.00029799999999886493,
+        0.000306124999999156,
+        0.00029083399999944956,
+        0.0002694169999995211,
+        0.00025595900000007535,
+        0.00024545799999941664
+      ],
+      "median": 0.00028012549999948533
+    }
+  ],
+  "loadTimesStandalone": [
+    {
+      "label": "whole .bmp file (as shipped)",
+      "bytes": 37481374,
+      "times": [
+        0.1954,
+        0.2017,
+        0.1955,
+        0.1919,
+        0.199,
+        0.1952
+      ],
+      "median": 0.19545
+    },
+    {
+      "label": "declarations only, all",
+      "bytes": 34269816,
+      "times": [
+        0.1758,
+        0.1781,
+        0.179,
+        0.1769,
+        0.1777,
+        0.1809
+      ],
+      "median": 0.1779
+    },
+    {
+      "label": "declarations only, dependency only",
+      "bytes": 33403709,
+      "times": [
+        0.1765,
+        0.1729,
+        0.174,
+        0.1766,
+        0.1744,
+        0.1718
+      ],
+      "median": 0.1742
+    },
+    {
+      "label": "declarations only, referenced only",
+      "bytes": 52985,
+      "times": [
+        0.0005,
+        0.0005,
+        0.0005,
+        0.0005,
+        0.0005,
+        0.0005
+      ],
+      "median": 0.0005
+    }
+  ],
+  "moduleCounts": {
+    "all": 5775,
+    "dependency only": 5409,
+    "referenced only": 257
+  }
+}

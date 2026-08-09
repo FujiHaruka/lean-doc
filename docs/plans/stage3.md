@@ -3,9 +3,11 @@
 **位置づけ**: [`three-axes.md`](three-axes.md) の leg 1〜3 の中身。
 判断基準は `docs/approach.md` §7 の 3 行目。結果は `docs/verification-log.md` に書く。
 
-**状態**: **増分 1 完了** (2026-08-09、leg 1)。数字は `verification-log.md`
-「段階 3 — 増分 1」。`experiments/stage3/` と `benchmarks/tools/compare-links.ts` がある。
-次は**増分 2** (供給側 = `declaration-data.bmp` が需要 533 件を満たすか)。
+**状態**: **増分 1・2 完了** (2026-08-09)。数字は `verification-log.md` の
+「段階 3 — 増分 1」「増分 2」。ツールは `experiments/stage3/`、
+`benchmarks/tools/compare-links.ts`、`benchmarks/tools/map-size.ts`。
+**判断基準 (b) は達成** (下限 53 KB / 上限 34.3 MB、647 倍)。
+次は**増分 3** (URL 生成と正しさの照合) → 増分 4 (判断)。
 
 ---
 
@@ -72,7 +74,13 @@ stage2 は `format` した文字列しか持っていない。doc-gen4 の `tagC
 - 落とし穴: タグは pp オプション `pp.tagAppFns` に依存する。段階 2 でここを取り違えて
   「9.5% 速く見えた」事故があるので、doc-gen4 と同じオプションで測る。
 
-### 増分 2 — 写像の実サイズ (需要 ↔ 供給の照合)
+### 増分 2 — 写像の実サイズ (需要 ↔ 供給の照合) — **完了**
+
+結果: 依存側 533 のうち **530 が bmp にある** (99.44%、未ヒットは再帰子 3 件)。
+サイズは上限 34.3 MB / 下限 **53 KB** (2 段正規化なら 27 KB)、ロード時間は
+全体で環境ロードの床の 8%。**`kind` はリンクには不要**なので写像は 2 列。
+**「下限が上限より 2 桁小さいなら必要な分だけ引く設計が成立する」→ 2.8 桁小さく、成立。**
+以下は当初の計画で、実施済み。
 
 増分 1 のユニーク集合を `declaration-data.bmp` に照合する。
 

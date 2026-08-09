@@ -1,0 +1,195 @@
+stage 3 / increment 2 -- demand vs supply, and the real size of the map
+
+conditions
+  date                2026-08-09T14:40:04.295Z
+  runtime             deno 2.7.14 / v8 14.7.173.20-rusty on aarch64-apple-darwin
+  load-time runs      7 per variant, run 1 dropped -> 6 warm runs reported
+  warm/cold           warm by construction (the same file is re-read in-process)
+  machine             Apple M1 (MacBookAir10,1) / 8 cores / 16 GB, macOS 26.6 (25G72)
+  toolchain           Lean / Mathlib / doc-gen4 all v4.31.0 (mathlib fabf563a7c, doc-gen4 0bc516c)
+  parallelism         1 (single process)
+  input provenance    the .bmp comes from the doc-gen4 HTML build that was stopped at 42%
+
+inputs
+  bmp                 /Users/haruka/dev/lean-projects/.lake/build/doc/declarations/declaration-data.bmp
+                      37,481,374 bytes on disk, 37,454,171 UTF-16 code units, 1 line
+                      top-level keys: declarations / instances / instancesFor / modules
+                      declarations 258,760, modules 6,115
+  refs                /Users/haruka/dev/lean-doc/benchmarks/results/stage3-refs.jsonl (1,446 unique constants)
+  target modules      /Users/haruka/dev/lean-doc/benchmarks/results/it-modules.txt (432)
+  doc root            /Users/haruka/dev/lean-projects/.lake/build/doc
+  work dir            /private/tmp/claude-502/-Users-haruka-dev-lean-doc/46ecc997-d6c0-4dd7-8028-ad92831ea412/scratchpad/work
+
+A. coverage -- is the demand in the supply
+
+  set                            total      in .bmp     missing   coverage
+  all referenced constants      1446        1309         137   90.53%
+  dependency side                533         530           3   99.44%
+  own package                    913         779         134   85.32%
+
+  own-flag cross-check          the refs file's `own` disagrees with the module list on 0 of 1446
+  dependency count, 2nd route   533 constants whose defining module is not one of the 432
+  join-key cross-check          defining module agrees between lean-doc (const2ModIdx) and the .bmp
+                                on 1,309 of 1,309 hits, 0 disagreements
+
+  weighted by occurrences (how many link sites would actually break)
+    all referenced         143,121 occurrences
+    dependency side        128,526 occurrences, 5 of them unresolvable (0.00%)
+
+B. what is missing, and why
+
+  dependency side
+    blacklisted by name shape                         3
+      Eq.rec  [Init.Prelude]  blacklisted by name shape
+      List.recOn  [Init.Prelude]  blacklisted by name shape
+      Nat.rec  [Init.Prelude]  blacklisted by name shape
+
+  own package
+    module absent from this .bmp (partial build)    121
+    private name                                      9
+    blacklisted by name shape                         4
+      InformationTheory.Shannon.EPIDensityForm.isHeatFlowEndpointRegular_of_canonical_rnDeriv._proof_8  [InformationTheory.Shannon.EPI.DensityForm]
+      InformationTheory.Shannon.TimeBandLimiting.l2KernelOp._proof_3  [InformationTheory.Shannon.TimeBandLimiting.Operator]
+      InformationTheory.Shannon.TimeBandLimiting.l2KernelBilin._proof_2  [InformationTheory.Shannon.TimeBandLimiting.Operator]
+      InformationTheory.Shannon.TimeBandLimiting.l2KernelBilin._proof_3  [InformationTheory.Shannon.TimeBandLimiting.Operator]
+
+  causes overlap: 3 of the "blacklisted by name shape" misses are also in a module
+  that this .bmp never indexed, so those two causes are not exclusive.
+
+  target-package modules that contributed declarations to this .bmp: 366 of 432
+  (the HTML build was stopped at 42%, so the rest of the package was never indexed --
+   this is a property of the build that produced the .bmp, not of the mapping.)
+
+C. do the docLinks point at real pages (530 of 530 dependency-side hits, i.e. all of them)
+
+  file exists                   530 / 530
+  anchor id="<name>" present    530 / 530
+  no broken links
+
+C2. what doc-gen4 itself does with the names the index does not hold
+
+  doc-gen4's link renderer reads name2ModIdx = env.const2ModIdx (Analyze.lean:243),
+  i.e. every constant in the environment, not the 258,760 it published.
+  Searched /Users/haruka/dev/lean-projects/.lake/build/doc/InformationTheory for the 3 dependency-side misses:
+    Eq.rec                     1 href(s)   anchor on target page: ABSENT -> dead link
+    List.recOn                 2 href(s)   anchor on target page: ABSENT -> dead link
+
+  So doc-gen4 already emits hrefs with no anchor to land on. A map-based
+  resolver that links only names present in the index is strictly better here:
+  those names render as <span class="fn"> instead of a dead link.
+
+D. size of the map
+
+  slice             shape                                   entries        raw       gzip
+  all               docLink + kind (as shipped)             258,760  34,269,816  2,663,668
+  all               docLink only                            258,760  26,956,967  2,490,175
+  all               name -> module (string)                 258,760  17,305,671  1,609,899
+  all               name -> module (index) + module table   258,760   9,772,359  1,439,440
+  dependency only   docLink + kind (as shipped)             254,763  33,403,709  2,603,753
+  dependency only   docLink only                            254,763  26,203,902  2,431,845
+  dependency only   name -> module (string)                 254,763  16,830,576  1,570,598
+  dependency only   name -> module (index) + module table   254,763   9,474,588  1,400,501
+  referenced only   docLink + kind (as shipped)                 530      52,985      7,885
+  referenced only   docLink only                                530      39,362      7,273
+  referenced only   name -> module (string)                     530      26,970      5,453
+  referenced only   name -> module (index) + module table       530      21,107      5,964
+
+  whole .bmp file (declarations + instances + instancesFor + modules): 37,481,374 bytes = 35.75 MiB
+  gzip of the whole file: 3,127,535 bytes
+
+  distinct defining modules, all: 5,775
+  distinct defining modules, dependency only: 5,409
+  distinct defining modules, referenced only: 257
+
+  Reading of the shapes:
+  - `docLink` repeats the module path for every declaration of that module and then
+    repeats the declaration's own name after the `#`. Both are derivable, so
+    `name -> module` is the same information with the duplication removed.
+  - Interning the module into an index pays off at Mathlib scale (raw halves again)
+    but not on a 530-entry slice, where the module table costs more than it saves
+    -- there, gzip on the string form is the smaller of the two.
+  - Turning `module -> URL` back into a path is increment 3's job. Until that is
+    implemented the `name -> module` rows are a measured size, not a working map.
+
+E. load time (read + JSON.parse), seconds
+
+  variant                                        bytes    median      min      max   vs 2.5s env load
+  whole .bmp file (as shipped)             37,481,374    0.2068   0.1956   0.2330   8.27%
+  declarations only, all                   34,269,816    0.2007   0.1958   0.2321   8.03%
+  declarations only, dependency only       33,403,709    0.1857   0.1755   0.1913   7.43%
+  declarations only, referenced only           52,985    0.0003   0.0002   0.0003   0.01%
+
+  runs per variant: 7 (run 1 discarded). All values are wall clock inside one process.
+
+  cross-check, one process per read (7 runs, run 1 discarded):
+  whole .bmp file (as shipped)             37,481,374    0.1955   0.1919   0.2017   7.82%
+  declarations only, all                   34,269,816    0.1779   0.1758   0.1809   7.12%
+  declarations only, dependency only       33,403,709    0.1742   0.1718   0.1766   6.97%
+  declarations only, referenced only           52,985    0.0005   0.0005   0.0005   0.02%
+
+F. is the `kind` column needed for links
+
+  doc-gen4 renders a link in DocGen4/Output/Base.lean:338-381 (`renderedCodeToHtmlAux`,
+  the `.const` case). It consults `name2ModIdx` and emits `<a href=...>` or
+  `<span class="fn">`. `kind` is never read there, and `declNameToLink`
+  (Base.lean:231) builds the href from the module name alone.
+  The only reader of `kind` is static/declaration-data.js:177-191, which feeds
+  the `allowedKinds` filter of the search page (static/search.js:111,181,
+  `.kind_checkbox`). So `kind` is a search-UI column, not a link column.
+  -> a link-resolution map needs 2 columns (name, module), not 3.
+  The size table above measures the `docLink only` shape for exactly this reason.
+
+
+G. how this was produced
+
+  /usr/bin/time -l deno run \
+    --allow-read --allow-write --allow-env --allow-run benchmarks/tools/map-size.ts \
+    --runs 7 --standalone 7 --sample 1000 --work <scratch>/work \
+    --json benchmarks/results/stage3-mapsize.json --note ... > benchmarks/results/stage3-mapsize.txt
+
+  `--sample 1000` exceeds the 530 dependency-side hits, so section C is a full
+  check of all 530, not a sample.
+
+  Machine-readable form of everything above: benchmarks/results/stage3-mapsize.json
+  Inputs are read-only. Nothing was written to /Users/haruka/dev/lean-projects.
+
+  /usr/bin/time -l for the whole tool process (the run that produced this file):
+
+       14.08 real        15.13 user         1.60 sys
+    1947140096  maximum resident set size  (1.81 GiB)
+
+  Wall clock (14.08 s) is below user+sys (16.73 s) because gzip and GC run on
+  other threads; no run in section E waited on disk. Individual `--load-once`
+  processes came out at 0.22-0.24 s real against 0.20-0.23 s user+sys, i.e.
+  wall ~= CPU -- warm, by the stage 1 rule.
+
+H. what these numbers do NOT cover
+
+  - Cold page cache is not measured. Every number in section E is warm. The
+    stage 1 finding that cold/warm differ by 5x was about 3+ GB of olean read
+    through mmap; a single 37 MB sequential read is a different shape, but that
+    is an argument, not a measurement. Treat any cold figure as UNMEASURED.
+  - Load time is `Deno.readTextFile` + `JSON.parse` on V8. It is a property of
+    this runtime as much as of the file. The implementation language of the
+    non-Lean side is not decided (approach.md 5.6), so this is one data point,
+    not the number for whatever ships.
+  - The demand side (533) is signature + equation + structure parents only.
+    Docstring links go through a separate path in doc-gen4
+    (DocGen4/Output/DocString.lean) and are increment 3's material. The lower
+    bound can only grow when they are added.
+  - 533 is *this* package's demand. Nothing here extrapolates it to another
+    package, and the map a resident server must hold is not the per-package
+    demand.
+  - The .bmp is the artifact of a build that was stopped at 42%. That affects
+    the own-package rows of the coverage table and the count of target modules
+    that contributed declarations (366 of 432). The dependency side is not
+    visibly affected: 5,716 dependency .html pages exist under
+    .lake/build/doc (6,080 total, minus 348 InformationTheory, 15 top-level
+    namespace pages and find/find.html), and all 530 dependency docLinks
+    resolved to a file with the right anchor.
+  - The blacklist classification in section B is by *name shape*. doc-gen4's
+    `isBlackListed` (DocGen4/Process/DocInfo.lean:151) also asks the
+    environment (isAuxRecursor / isRec / isMatcher / isProjFn), which cannot be
+    reproduced from a name alone. The three dependency-side misses are all
+    recursors, where the two agree; a name-shape rule is not proven equivalent
+    in general.
