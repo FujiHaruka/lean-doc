@@ -1,0 +1,60 @@
+# stage4c-render-limit-324
+
+date              2026-08-09T18:43:09Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+deno              deno 2.7.14 (stable, release, aarch64-apple-darwin) / v8 14.7.173.20-rusty
+measured          render.ts --pages (one HTML page per IR module; 324 modules)
+ir                /private/tmp/claude-502/-Users-haruka-dev-lean-doc/2dbcb565-edbc-4bd9-846b-574772a9c30c/scratchpad/ir-tagged
+pages out         /private/tmp/claude-502/-Users-haruka-dev-lean-doc/3d1d9f1a-f57b-4f1a-b409-9b01d78b9e94/scratchpad/work/pages-stage4c-render-limit-324
+parallelism       1 (one process, no workers, no --jobs)
+cache             warm-up run before run 1: yes
+limit             324
+extra             (none)
+runs              9 (run 1 dropped; median over runs 2..9)
+
+## per run (実測)
+
+| run | wall | user+sys | (user+sys)/wall | preMain | read IR | index | render hdr | render page | flatten | write | docstr* | in-proc total | peak RSS MB | page faults |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 0.5554 | 0.7300 | 1.314 | 0.0018 | 0.0812 | 0.0068 | 0.1290 | 0.1780 | 0.0307 | 0.0891 | 0.1311 | 0.5181 | 187.1 | 3 |
+| 2 | 0.6061 | 0.7800 | 1.287 | 0.0018 | 0.0798 | 0.0071 | 0.1592 | 0.1975 | 0.0310 | 0.0904 | 0.1411 | 0.5683 | 187.2 | 3 |
+| 3 | 0.5605 | 0.7300 | 1.302 | 0.0018 | 0.0825 | 0.0068 | 0.1303 | 0.1778 | 0.0307 | 0.0912 | 0.1309 | 0.5227 | 187.1 | 3 |
+| 4 | 0.5586 | 0.7300 | 1.307 | 0.0019 | 0.0817 | 0.0069 | 0.1305 | 0.1781 | 0.0305 | 0.0896 | 0.1311 | 0.5206 | 187.1 | 3 |
+| 5 | 0.5597 | 0.7300 | 1.304 | 0.0018 | 0.0804 | 0.0067 | 0.1306 | 0.1789 | 0.0311 | 0.0912 | 0.1315 | 0.5222 | 187.2 | 3 |
+| 6 | 0.5599 | 0.7300 | 1.304 | 0.0018 | 0.0815 | 0.0069 | 0.1309 | 0.1789 | 0.0308 | 0.0900 | 0.1317 | 0.5222 | 186.9 | 3 |
+| 7 | 0.5628 | 0.7500 | 1.333 | 0.0018 | 0.0797 | 0.0067 | 0.1310 | 0.1807 | 0.0310 | 0.0927 | 0.1332 | 0.5251 | 187.2 | 3 |
+| 8 | 0.5637 | 0.7300 | 1.295 | 0.0018 | 0.0802 | 0.0066 | 0.1301 | 0.1779 | 0.0305 | 0.0971 | 0.1311 | 0.5258 | 187.0 | 3 |
+| 9 | 0.5676 | 0.7400 | 1.304 | 0.0019 | 0.0809 | 0.0068 | 0.1314 | 0.1794 | 0.0308 | 0.0965 | 0.1319 | 0.5293 | 187.0 | 3 |
+
+## median [min-max] over runs 2..9 (run 1 dropped)
+
+| | seconds |
+|---|---:|
+| wall clock | **0.5616 [0.5586-0.6061]** |
+| user+sys | 0.7300 [0.7300-0.7800] |
+| preMain (module init, not deno start-up) | 0.0018 [0.0018-0.0019] |
+| read IR | 0.0807 [0.0797-0.0825] |
+| index build | 0.0068 [0.0066-0.0071] |
+| render decl_header | 0.1307 [0.1301-0.1592] |
+| render page | 0.1789 [0.1778-0.1975] |
+| flatten probe | 0.0308 [0.0305-0.0311] |
+| write pages | 0.0912 [0.0896-0.0971] |
+|   of "render page": docstrings | 0.1316 [0.1309-0.1411] |
+| in-process total | 0.5239 [0.5206-0.5683] |
+| sum of phases | 0.5224 [0.5191-0.5668] |
+| unaccounted (total - sum) | 0.0015 [0.0015-0.0016] |
+| process teardown (wall - in-process total) | 0.0378 [0.0375-0.0383] |
+
+| | |
+|---|---:|
+| modules read | 324 |
+| pages written | 324 |
+| declarations rendered | 3,286 |
+| page UTF-16 code units | 18,721,091 |
+| IR bytes read | 9,984,674 |
+| flatten probe | on |
+
+`docstr*` is a **slice of `render page`**, not a phase: it is not in the sum.
+
+peak RSS (median [min-max]): 187.1 [186.9-187.2] MB
+(user+sys)/wall: 1.304 [1.287-1.333]  -- >= ~0.95 means warm

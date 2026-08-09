@@ -1,0 +1,36 @@
+# stage4c-deno-startup
+
+date              2026-08-09T18:37:02Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+deno              deno 2.7.14 (stable, release, aarch64-apple-darwin) / v8 14.7.173.20-rusty
+measured          empty script (Deno start-up floor)
+ir                /private/tmp/claude-502/-Users-haruka-dev-lean-doc/2dbcb565-edbc-4bd9-846b-574772a9c30c/scratchpad/ir-tagged
+pages out         /private/tmp/claude-502/-Users-haruka-dev-lean-doc/3d1d9f1a-f57b-4f1a-b409-9b01d78b9e94/scratchpad/work/pages-stage4c-deno-startup
+parallelism       1 (one process, no workers, no --jobs)
+cache             warm-up run before run 1: yes
+limit             (none: all modules)
+extra             (none)
+runs              6 (run 1 dropped; median over runs 2..6)
+
+## per run (実測)
+
+| run | wall | boot (in-process) | user | sys | user+sys | (user+sys)/wall | peak RSS MB | page faults |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 0.0266 | 0.0015 | 0.0100 | 0.0000 | 0.0100 | 0.376 | 55.1 | 3 |
+| 2 | 0.0268 | 0.0018 | 0.0100 | 0.0000 | 0.0100 | 0.374 | 55.0 | 3 |
+| 3 | 0.0261 | 0.0016 | 0.0100 | 0.0000 | 0.0100 | 0.383 | 55.3 | 3 |
+| 4 | 0.0260 | 0.0015 | 0.0100 | 0.0000 | 0.0100 | 0.384 | 55.4 | 3 |
+| 5 | 0.0262 | 0.0016 | 0.0100 | 0.0000 | 0.0100 | 0.382 | 55.0 | 3 |
+| 6 | 0.0273 | 0.0016 | 0.0100 | 0.0000 | 0.0100 | 0.366 | 54.9 | 3 |
+
+## median [min-max] over runs 2..6 (run 1 dropped)
+
+| | seconds |
+|---|---:|
+| wall clock | **0.0262 [0.0260-0.0273]** |
+| user+sys | 0.0100 [0.0100-0.0100] |
+| boot (in-process: start -> first line) | 0.0016 [0.0015-0.0018] |
+| exec + teardown (wall - boot) | 0.0246 [0.0245-0.0257] |
+
+peak RSS (median [min-max]): 55.0 [54.9-55.4] MB
+(user+sys)/wall: 0.382 [0.366-0.384]  -- >= ~0.95 means warm

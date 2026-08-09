@@ -9,9 +9,10 @@ alone, with Lean never started?*
 * **Increment 4** extends the generator to the **whole module page** and adds
   the **byte accounting**: for each region of doc-gen4's output, how many bytes
   can be reproduced exactly, and for the rest, why not.
-
-**Nothing here is timed.** Timing is the next task, and it needs its own
-measurement conditions (warm/cold, five runs or more, `/usr/bin/time -l`).
+* **Increment 4, second half** is the **timing**: how long the whole thing
+  takes, decomposed, warm and cold, with the conditions recorded. That is the
+  conclusion of judgement point 2 and it replaces `approach.md` §6.2's 1.28 s
+  **assumption** with 0.82 s **measured**.
 
 Everything is Deno/TypeScript because §6 pre-decision #1 says the throwaway
 consumer-side tooling is Deno/TS. **This is not the implementation-language
@@ -21,13 +22,16 @@ decision for the product** (§5.6 is still open).
 
 | | |
 |---|---|
-| `render.ts` | reads the schema-2 IR and writes either one `div.decl_header` per declaration as JSONL (`--out`, increment 3) or one full HTML page per module (`--pages`, increment 4). Never reads doc-gen4's output. |
+| `render.ts` | reads the schema-2 IR and writes either one `div.decl_header` per declaration as JSONL (`--out`, increment 3) or one full HTML page per module (`--pages`, increment 4). Never reads doc-gen4's output. Carries the phase timers (`--timings`) and `--limit` for the second half. |
 | `compare.ts` | scores the generated headers against `decl-header-truth.jsonl` as **ordered anchor sequences**. Has its own HTML extractor, and a `--self-test` that injects faults to prove it can report a failure. |
 | `bytes.ts` | diffs the generated headers **byte for byte** against the `div.decl_header` substrings of doc-gen4's own pages. |
 | `coverage.ts` | cuts both sides' **whole pages** into regions that tile the file, and counts bytes: reproduced (byte identical) vs not, with every unreproduced byte attributed to a cause by rule. |
+| `time-render.sh` | runs `render.ts --pages` N times under `/usr/bin/time -l`, one process per run, and writes `benchmarks/results/stage4c-render-*.{jsonl,txt}`. `--empty` times an empty script instead (the Deno start-up floor). |
+| `merge-timing.py` | launches one measured process, merges its `/usr/bin/time -l` block with `render.ts --timings`, and summarises a series (median [min-max] over runs 2..N). |
+| `read-retain-probe.ts` | why `render.ts`'s IR read costs more than `benchmarks/tools/read-ir.ts`'s: same files, one fresh process each, the only difference being whether the parsed module stays reachable. |
 
-Four programs rather than one because each is a different kind of evidence and
-a bug in one must not be able to hide behind another:
+The first four are four programs rather than one because each is a different
+kind of evidence and a bug in one must not be able to hide behind another:
 
 * `compare.ts` measures what the task asks for — the `(offset, text, href)`
   sequence — but both it and the ground-truth extractor turn markup into
@@ -39,7 +43,8 @@ a bug in one must not be able to hide behind another:
   "copying";
 * `coverage.ts` answers a different question again — not "is the header right"
   but "of everything doc-gen4 writes, what fraction can exist at all", which is
-  the denominator the timing task needs.
+  the denominator the timing needs — it is what makes the measured 0.82 s a
+  **lower bound** rather than a result.
 
 ## The specification, and where each rule comes from
 
@@ -529,35 +534,190 @@ between this table and a denominator that quietly shrinks to whatever is
 convenient. It has already caught one real bug — `div.attributes`'s trailing
 newline was being counted twice, in 42 pages.
 
-## For the timing task
+---
 
-**Nothing in this directory has been timed and no timing claim is made.** What
-the next task needs to know before it starts:
+# Increment 4, second half — the timing
 
-* **What is being timed is not what doc-gen4 does.** This generator writes 432
-  module pages (29,671,173 bytes) and nothing else. doc-gen4's run also writes
-  `declaration-data-*.bmp` and `backrefs-*.json` per module, plus the site-wide
-  `search.html`, `index.html`, `navbar.html`, `foundational_types.html`,
-  `declaration-data.bmp` and the static assets, and it builds and reads a SQLite
-  DB. Comparing wall clocks without saying so is the "1,251×" mistake
-  `CLAUDE.md` warns about: state the denominator, and prefer "same work" over
-  "whole site".
-* **This generator is not feature-complete**, and the two heaviest missing
-  pieces are not free. CommonMark and the docstring autolink index would both go
-  on the hot path. A time measured now is a **lower bound on the consumer side**,
-  and must be labelled as one.
-* **`render.ts` reads the whole IR into memory before rendering** (432 module
-  files plus `deps/`, then builds the global name map). That is one design among
-  several, not a measured optimum. Time the read and the render separately —
-  `benchmarks/tools/read-ir.ts` already measures the read alone (schema-2 median
-  0.100 s, `docs/verification-log.md`), so the two are comparable.
-* **Deno start-up is in the wall clock.** For a run this short it is not
-  negligible; measure it separately (`deno run` on an empty script) rather than
-  subtracting a guess.
-* **Page cache.** The IR is ~15.9 MB and the doc tree ~22 MB; both fit in RAM
-  easily, so the cold/warm spread here is nothing like the olean mmap case. Still
-  measure both, and still take five runs or more — `CLAUDE.md` is not asking for
-  a ritual, it is asking because this project has already been bitten once.
-* **Do not write into `/Users/haruka/dev/lean-projects`.** `--pages` goes to a
-  scratch directory; the doc tree is opened read-only, and
-  `.lake/packages/doc-gen4` carries the instrumentation patch.
+**All 実測.** Conditions: Apple M1 / 8 cores / 16 GB (Darwin 25.6.0 arm64),
+Deno 2.7.14 / V8 14.7.173.20-rusty, parallelism 1 (one process, no workers),
+**Lean never started**. Input: the schema-2 IR, 432 modules / 4,750 declarations
+/ 15,867,059 bytes. Output: **432 files / 29,671,173 bytes** into a scratch
+directory — never into `/Users/haruka/dev/lean-projects`.
+
+One run is one process. The wall clock is a µs-precision monotonic clock taken
+from outside (macOS `/usr/bin/time -l` prints `real` to two decimals, i.e. 10 ms
+granularity, which is 40% of the Deno start-up measurement); `/usr/bin/time -l`
+still runs, for the CPU split, peak RSS and page faults.
+
+Logs: `benchmarks/results/stage4c-render-*.{jsonl,txt}`, conditions and every
+table in `stage4c-render-summary.txt`. Reproduce with:
+
+```sh
+export IR_DIR=<schema-2 IR>  WORK_DIR=<scratch>
+./time-render.sh stage4c-render-cold  --cold  --runs 1     # the session's FIRST run
+./time-render.sh stage4c-render-warm  --warmup --runs 6
+./time-render.sh stage4c-deno-startup --empty --warmup --runs 6
+./time-render.sh stage4c-render-noflatten --warmup --runs 6 --no-flatten-probe
+for n in 108 216 324 432; do ./time-render.sh stage4c-render-limit-$n --warmup --runs 9 --limit $n; done
+```
+
+## The answer
+
+| | wall | user+sys | page faults |
+|---|---:|---:|---:|
+| **cold** (the session's first run) | **0.9331** | 1.1600 | 148 |
+| **warm** (median [min-max] of runs 2-6) | **0.8239** [0.8229-0.8360] | 1.1100 | 3 |
+| warm, 20-run series (runs 2-20) | 0.8368 [0.8176-0.9155] | 1.1300 | 3 |
+
+cold / warm = 1.13. **Nothing like the 5x olean mmap swing.** The cold run is
+cold in the IR and the output directory only: Deno's binary and transpile cache
+were already warm, and no page cache was purged (no sudo, plan §6 pre-decision
+#6).
+
+`(user+sys)/wall` is **above 1** here (~1.35). That is not a cold signature, it
+is V8's and tokio's helper threads: `CLAUDE.md`'s "wall ~ user+sys means warm"
+assumes a single thread. Warm is established by the page faults (148 -> 3) and
+by the cold/warm wall difference instead.
+
+The 20-run series is **bimodal**: 4 of 19 runs are ~9% slower on the render
+timers only (`renderHeaders` 0.214 -> 0.260). Six runs can sample that badly, so
+the long series is reported next to the six-run rule rather than instead of it.
+
+## The decomposition (warm, median [min-max] of runs 2-6)
+
+| phase | seconds | of wall |
+|---|---:|---:|
+| Deno start-up (empty script, **measured separately**) | 0.0262 [0.0260-0.0273] | 3.2% |
+| read the IR (`readTextFile` + `JSON.parse`) | 0.1297 [0.1287-0.1322] | 15.7% |
+| build the name map and the suppressed set | 0.0089 [0.0088-0.0091] | 1.1% |
+| render `decl_header` (4,560 declarations) | 0.2131 [0.2115-0.2196] | 25.9% |
+| render the page body (432 pages) | 0.2494 [0.2480-0.2497] | 30.3% |
+| … of which the docstring renderer (**a slice, not a phase**) | 0.1780 [0.1762-0.1781] | 21.6% |
+| materialise the strings (rope flattening) | 0.0484 [0.0480-0.0490] | 5.9% |
+| write (`mkdir` + `writeTextFile` x432) | 0.1341 [0.1311-0.1356] | 16.3% |
+| **sum of the phases** | **0.7839** [0.7832-0.7954] | 95.1% |
+| in-process total (`timeOrigin` -> end) | 0.7859 [0.7853-0.7974] | 95.4% |
+| process start-up and teardown (wall - in-process) | 0.0380 [0.0376-0.0386] | 4.6% |
+| **wall clock** | **0.8239** [0.8229-0.8360] | 100% |
+
+The phases sum to 0.7839 against an in-process total of 0.7859 — 0.0020 s of
+timer overhead and loop glue, 0.25%.
+
+Throughput: 36.0 MB/s end to end, 58.1 MB/s for rendering alone, 221.2 MB/s for
+writing alone, 121.6 MB/s reading the IR. 1.91 ms per page, 181 µs per
+declaration.
+
+**Deno start-up is measured, not subtracted.** `performance.timeOrigin` is set
+partway through Deno's own initialisation, not at `exec`: an empty script reads
+0.0016 s inside while its wall clock is 0.0262 s. Quote the wall clock.
+
+## The rope trap, and why the split is believable
+
+`pageHtml` builds its result with `+=`, so V8 returns a **cons string** and the
+characters are not copied until something reads them. `Deno.writeTextFile` is
+what reads them. Without a probe, the whole flattening cost lands in `write` and
+`render` looks faster than it is — the same shape of mistake as the 0 µs timers
+in stage 4 increment 2 (the consumer of the value sitting outside the timer).
+
+Measured, not assumed:
+
+| | flatten | write | wall |
+|---|---:|---:|---:|
+| default (flattening forced on the render side) | 0.0484 | 0.1341 | 0.8239 |
+| `--no-flatten-probe` | 0.0000 | 0.1827 | 0.8374 |
+| difference | **-0.0484** | **+0.0486** | +0.0134 |
+
+**The cost moves, it does not disappear** (-0.0484 against +0.0486), and the
+total stays inside the 20-run spread. Keep the probe on when quoting the split.
+
+## Every timer moves with the input
+
+108 / 216 / 324 / 432 modules, 9 runs each, run 1 dropped:
+
+| modules | decls | IR bytes | read IR | index | render hdr | render page | … docstring | flatten | write | wall |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 108 | 906 | 2,695,289 | 0.0276 | 0.0028 | 0.0419 | 0.0616 | 0.0441 | 0.0088 | 0.0302 | 0.2149 |
+| 216 | 1,902 | 5,846,337 | 0.0526 | 0.0046 | 0.0784 | 0.1089 | 0.0799 | 0.0182 | 0.0604 | 0.3632 |
+| 324 | 3,286 | 9,984,674 | 0.0807 | 0.0068 | 0.1307 | 0.1789 | 0.1316 | 0.0308 | 0.0912 | 0.5616 |
+| 432 | 4,560 | 15,778,518 | 0.1304 | 0.0094 | 0.2142 | 0.2510 | 0.1783 | 0.0485 | 0.1302 | 0.8270 |
+
+**No timer returns 0.** Module count is a poor proxy for input size on this
+target (the later modules are bigger), so read the ratios against declarations
+(x5.03) and IR bytes (x5.85), not against 4x: read IR x4.72, render hdr x5.11,
+render page x4.07, write x4.31, flatten x5.49. Only the wall clock is low
+(x3.85), because start-up plus teardown is a fixed 0.064 s — subtract it and it
+is x5.05, matching the declarations. Per-unit rates stay in one band throughout
+(read IR 97 -> 121 MB/s, render hdr 46 -> 47 µs/decl, write 172 -> 226 MB/s).
+
+## The IR read: 0.130 s here, 0.100 s in `read-ir.ts`, both right
+
+| | seconds | source |
+|---|---:|---|
+| increment 2's committed schema-2 median | 0.1004 | `stage4b-readir-tag.txt` |
+| … fresh process per read | 0.1042 | same |
+| **re-run in this session** (in-process, runs 2-7) | **0.1014** | `stage4c-readir-recheck.txt` |
+| **re-run in this session** (fresh process, runs 2-6) | **0.1049** | same |
+| `render.ts`'s read-IR phase | **0.1297** | the table above |
+
+The committed number reproduces. The gap is not cold cache and not a
+mis-measurement: **`render.ts` keeps every parsed module** (a renderer needs the
+whole IR) while `read-ir.ts` tallies and drops it. `read-retain-probe.ts` changes
+nothing but that, one fresh process per measurement, 7 each:
+**0.0973 -> 0.1167 s (+0.0194, +20%)** — the whole of the difference.
+`benchmarks/results/stage4c-read-retain.txt`.
+
+**"Reading the IR costs 0.100 s" is true only for a consumer that streams.**
+
+## What this timing is not
+
+**It is a lower bound.** The generator reproduces **63.6%** of doc-gen4's page
+bytes (increment 4, first half) and writes nothing else at all: no
+`declaration-data-*.bmp`, no `backrefs-*.json`, no `search.html` / `index.html` /
+`navbar.html` / `foundational_types.html`, no static assets, and it reads JSON
+rather than SQLite. doc-gen4's 44.52 s for 6,072 modules includes all of that.
+
+**Do not write "3.8x" without the scope.** 44.516 s scaled 6,072 -> 432 modules
+is 3.17 s (**extrapolation**, and one biased upward: `loadLinkingContext` 2.20 s
+and `htmlOutputIndex` 1.07 s are site-wide work that does not scale with module
+count, yet proportional scaling divides them too). 3.17 / 0.8239 = 3.8, over the
+work scopes in the table above — not "3.8x on the same work".
+
+**doc-gen4 was not re-measured warm, deliberately.** Re-running `fromDb` would
+overwrite the 798 MB of `.lake/build/doc` that increments 3 and 4 score against.
+Instead the existing logs were re-read, and they turn out to carry the page-cache
+information after all: `fromdb-6k.jsonl` has `fromDb.total` = 44.516 s and
+`fromdb-6k-2nd.jsonl` (a second run with nothing changed) 42.311 s, which are the
+inside view of the 46.25 s / 43.91 s wall clocks in `doc-gen4-report.md` §4.6.3.
+**A 5.0% difference** — the same order as this generator's 13% cold/warm spread,
+and nothing like §6.1's 5x olean swing. n=2 with no CPU or page-fault record, so
+"within 5%" is as far as it goes.
+
+## How much could the missing work add? (**extrapolation**)
+
+The docstring renderer is **0.178 s, 21.6% of the wall clock** (measured). The
+two heaviest unimplemented pieces — real CommonMark (md4c) and the docstring
+autolink index — both land on that term. **If a real CommonMark implementation
+made it 3x, the total would be about 1.2 s.** md4c's actual speed was not
+measured, so the 3x has no evidential basis: the claim is only that this term is
+0.178 s today and would have to grow by more than 20x to move the §6.3 total by a
+factor of two. Building a search index is not "the missing 36.4%" — it is **new
+work in this phase** and needs its own measurement.
+
+## Nothing here writes to the measurement target
+
+`--pages` goes to a scratch directory; `time-render.sh` refuses a `--work` under
+`/Users/haruka/dev/lean-projects`; the doc tree is opened read-only; and
+`.lake/packages/doc-gen4` still carries the instrumentation patch.
+
+## The instrumentation does not move the output
+
+`render.ts` gained phase timers, `--limit`, `--timings` and
+`--no-flatten-probe`. Checked against the pre-instrumentation `render.ts` (all
+PASS): 432 pages byte identical; two `--pages` runs identical; increment 3's
+`--out` JSONL byte identical; `--pages` does not move that JSONL; the
+`## decl_header path` block of `--stats` character identical. The output's real
+size, 29,671,173 bytes in 432 files, matches the first half's independent count.
+
+**Re-run those five whenever `render.ts` changes** — the previous section's
+"`--pages` must not be able to move increment 3's numbers" now has a sixth
+member, and the timers are inside the same file.

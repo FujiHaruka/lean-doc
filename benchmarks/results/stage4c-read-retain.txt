@@ -1,0 +1,30 @@
+# stage4c-read-retain — why render.ts's IR read costs more than benchmarks/tools/read-ir.ts's
+
+date              2026-08-09T18:45:35Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+deno              deno 2.7.14 (stable, release, aarch64-apple-darwin) / v8 14.7.173.20-rusty
+ir                /private/tmp/claude-502/-Users-haruka-dev-lean-doc/2dbcb565-edbc-4bd9-846b-574772a9c30c/scratchpad/ir-tagged (schema 2, 432 modules)
+program           experiments/stage4c/read-retain-probe.ts
+parallelism       1; page cache warm (the IR had just been read many times)
+
+One fresh process per measurement, 7 each. The ONLY difference between the two
+series is whether the parsed module object stays reachable after it is counted.
+read-ir.ts drops it; render.ts keeps it, because a renderer needs the whole IR.
+
+| run | drop (s) | retain (s) |
+|---|---:|---:|
+| 1 | 0.0999 | 0.1204 |
+| 2 | 0.0972 | 0.1187 |
+| 3 | 0.0971 | 0.1165 |
+| 4 | 0.0978 | 0.1175 |
+| 5 | 0.0974 | 0.1168 |
+| 6 | 0.0983 | 0.1165 |
+| 7 | 0.0966 | 0.1162 |
+
+| **median of runs 2-7** | **0.0973** | **0.1167** |
+| spread (min-max) | 0.0966-0.0983 | 0.1162-0.1187 |
+
+Retaining the parsed IR costs **+0.0194 s (+20%)**, which is the whole of the gap between
+`benchmarks/tools/read-ir.ts`'s 0.105 s (fresh process, drops each module) and
+`render.ts`'s 0.130 s read-IR phase. Neither number is wrong; they measure
+different consumers. **Quote 0.100 s only for a consumer that streams.**

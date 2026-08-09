@@ -26,6 +26,16 @@
 //             extractor never saw it. Required by `--pages`.
 //   --only    render just this module (repeatable), for the small loop
 //   --stats   also write the counter block here
+//   --limit N render only the first N modules of the index (increment 4's
+//             timing task, for the linearity check: a timer that does not move
+//             with the input is a timer that returns 0). Reading is limited
+//             too, so every phase scales. Links still resolve, because `known`
+//             is filled from `refs` as well as from the module list.
+//   --timings <path>  write the phase timers as JSON. The timers themselves are
+//             always on -- they are ~1,300 `performance.now()` calls, which is
+//             microseconds -- so a timed run and an untimed run take the same
+//             code path and produce the same bytes.
+//   --no-flatten-probe  turn off the rope-flattening probe (see TIMERS below).
 //   --ws-heuristic  guess back doc-gen4's `splitWhitespaces` whitespace rewrite
 //             (see "The splitWhitespaces gap" below). **Off by default**: the
 //             default run is the faithful one, and the honest number is the one
@@ -35,6 +45,33 @@
 // The `stats` counters below are split in two on purpose: `stats` counts only
 // what the `decl_header` path does, so a `--pages` run leaves increment 3's
 // numbers untouched, and `pageStats` counts everything the page adds.
+//
+// TIMERS (increment 4, second half -- the judgement-point-2 timing)
+//   Five phases, all inside this process:
+//     preMain   `performance.timeOrigin` -> the first line of this module.
+//               **This is NOT Deno's start-up**: measured against an empty
+//               script it comes out at 0.002 s while the empty script's wall
+//               clock is 0.027 s, so `timeOrigin` is set well after `exec`.
+//               The start-up floor is the empty script's wall clock, measured
+//               from outside (`time-render.sh --empty`); this timer only says
+//               how much of it is this file's own module initialisation.
+//     readIr    `Deno.readTextFile` + `JSON.parse` of index.json, deps/*.json
+//               and modules/*.json. Comparable with `benchmarks/tools/read-ir.ts`
+//               (schema-2 median 0.100 s) -- same files, same parser, a little
+//               less walking.
+//     indexBuild  the name map, the suppressed set and the module set.
+//     render    `declHeader` for every declaration plus `pageHtml` per module.
+//     write     `Deno.mkdir` + `Deno.writeTextFile` per module page.
+//
+//   THE ROPE TRAP. `pageHtml` builds its result with `+=` and a final
+//   concatenation, so V8 hands back a **cons string**: the characters have not
+//   been copied anywhere yet. `Deno.writeTextFile` is what forces the copy, so
+//   without a probe the flattening cost would be billed to `write` and `render`
+//   would look faster than it is. `flattenProbe` does an `indexOf` on the page,
+//   which requires flat contents, and is timed on its own line. This is the same
+//   class of mistake as the 0 us timers in stage 4 increment 2 -- a consumer of
+//   the value sitting outside the timer -- so it is measured, not assumed:
+//   `--no-flatten-probe` moves the cost to `write` and leaves the total alone.
 //
 // THE splitWhitespaces GAP
 //   `renderTagged` (RenderedCode.lean:249-256) pushes a `.const` tag's leading
@@ -130,8 +167,10 @@ type ModuleFile = {
   moduleDocs: ModuleDoc[];
 };
 
-type IndexEntry = { module: string; file: string };
-type DepEntry = { file: string };
+/** `bytes` is the writer's `String.utf8ByteSize`; read only for the timing
+ *  report's throughput line, never to size a buffer. */
+type IndexEntry = { module: string; file: string; bytes: number };
+type DepEntry = { file: string; bytes: number };
 type Index = {
   schemaVersion: number;
   generator: string;
@@ -140,6 +179,29 @@ type Index = {
 };
 
 // ---------------------------------------------------------------- CLI
+
+/** Time from `performance.timeOrigin` to here. Deno sets `timeOrigin` partway
+ *  through its own initialisation, **not** at `exec`, so this is the tail of
+ *  start-up plus this module's initialisation -- not the start-up floor. The
+ *  floor is measured from outside, by timing an empty script. */
+const T_PRE_MAIN = performance.now();
+
+/** Phase accumulators, in milliseconds. See "TIMERS" at the top. */
+const T = {
+  preMain: T_PRE_MAIN,
+  readIr: 0,
+  indexBuild: 0,
+  renderHeaders: 0,
+  renderPage: 0,
+  flatten: 0,
+  write: 0,
+  total: 0,
+  /** A slice of `renderPage`, not a phase of its own: how much of the page
+   *  render is the docstring renderer. Recorded because the docstring path is
+   *  the biggest **unimplemented** piece (CommonMark + the autolink index), so
+   *  any statement about how far the measured time could grow needs its size. */
+  docstring: 0,
+};
 
 const argv = Deno.args.slice();
 const opt = (name: string, dflt = "") => {
@@ -158,6 +220,9 @@ const PAGES = opt("--pages");
 const SOURCE_URL = opt("--source-url").replace(/\/+$/, "");
 const ONLY = opts("--only");
 const STATS = opt("--stats");
+const LIMIT = opt("--limit") ? Number(opt("--limit")) : 0;
+const TIMINGS = opt("--timings");
+const FLATTEN_PROBE = !argv.includes("--no-flatten-probe");
 if (!IR || (!OUT && !PAGES)) {
   console.error(
     "usage: render.ts --ir <dir> [--out <path.jsonl>] [--pages <dir> --source-url <base>]" +
@@ -337,6 +402,8 @@ const stats = {
 /** Increment 4 only. Zero unless `--pages` is given. */
 const pageStats = {
   pagesWritten: 0,
+  /** UTF-16 code units handed to `writeTextFile`, NOT bytes on disk. */
+  pageCodeUnits: 0,
   moduleDocs: 0,
   navLinks: 0,
   importListItems: 0,
@@ -853,6 +920,17 @@ type DocCtx = { root: string; moduleDeclNames: string[]; knownModules: Set<strin
  * coverage accounting has something to compare; `coverage.ts` counts these
  * bytes as reproduced only when they are byte-identical.
  */
+/** The two top-level entry points into the docstring renderer, timed.
+ *  `renderDocString` recurses (blockquotes), so the timer goes here and not
+ *  inside it. Like every render timer this one under-counts by whatever rope
+ *  flattening it defers -- see "THE ROPE TRAP". */
+function renderDocStringTimed(md: string, ctx: DocCtx): string {
+  const t = performance.now();
+  const html = renderDocString(md, ctx);
+  T.docstring += performance.now() - t;
+  return html;
+}
+
 function renderDocString(md: string, ctx: DocCtx): string {
   // doc-gen4 parses `docString ++ refsMarkdown`, and `refsMarkdown` is "\n\n"
   // plus one line per bibliography key found. This target has no bibliography
@@ -1134,7 +1212,7 @@ function declHtml(
   if (d.doc) {
     pageStats.docstringsRendered++;
     pageStats.docstringChars += d.doc.length;
-    doc = renderDocString(d.doc, ctx);
+    doc = renderDocStringTimed(d.doc, ctx);
   }
 
   let body = "";
@@ -1192,7 +1270,7 @@ function pageHtml(mod: ModuleFile, headers: Map<string, string>, r: Renderer): s
       col: md.col,
       seq: seq++,
       name: null,
-      html: `<div class="mod_doc">${renderDocString(md.text, ctx)}</div>`,
+      html: `<div class="mod_doc">${renderDocStringTimed(md.text, ctx)}</div>`,
     });
   }
   const rendered = mod.declarations.filter((d) => !suppressed.has(d.name));
@@ -1233,7 +1311,13 @@ function pageHtml(mod: ModuleFile, headers: Map<string, string>, r: Renderer): s
 
 // ---------------------------------------------------------------- main
 
+/** Kept alive so the flatten probe cannot be optimised away. */
+let flattenSink = 0;
+let irBytes = 0;
+
+const T_MAIN = performance.now();
 const index: Index = JSON.parse(await Deno.readTextFile(`${IR}/index.json`));
+T.readIr += performance.now() - T_MAIN;
 if (index.schemaVersion < 2) {
   console.error(`schemaVersion ${index.schemaVersion}: need a --tagged-code IR (schema 2)`);
   Deno.exit(2);
@@ -1248,21 +1332,34 @@ if (index.schemaVersion < 2) {
 //                    above for the names that actually get linked)
 const known = new Map<string, string>();
 for (const dep of index.dependencyMaps) {
+  const a = performance.now();
   const map = JSON.parse(await Deno.readTextFile(`${IR}/${dep.file}`));
+  const b = performance.now();
   for (const [n, m] of Object.entries(map.declarations as Record<string, string>)) known.set(n, m);
+  T.readIr += b - a;
+  T.indexBuild += performance.now() - b;
+  irBytes += dep.bytes;
 }
 
+// `--limit N` cuts the module list, for the timing task's linearity check.
+const entries = LIMIT > 0 ? index.modules.slice(0, LIMIT) : index.modules;
 const modules: ModuleFile[] = [];
-for (const entry of index.modules) {
+for (const entry of entries) {
+  const a = performance.now();
   const mod: ModuleFile = JSON.parse(await Deno.readTextFile(`${IR}/${entry.file}`));
+  const b = performance.now();
   modules.push(mod);
   stats.modulesRead++;
+  irBytes += entry.bytes;
   for (const d of mod.declarations) {
     stats.declarationsInIr++;
     known.set(d.name, mod.module);
     for (const [m, n] of d.refs) if (!known.has(n)) known.set(n, m);
   }
+  T.readIr += b - a;
+  T.indexBuild += performance.now() - b;
 }
+const T_SETS = performance.now();
 
 // `DocInfo.ofConstant` sets `render := false` for projection functions and for
 // constructors (Process/DocInfo.lean:176/186/207), i.e. exactly the names that
@@ -1278,6 +1375,7 @@ for (const mod of modules) {
 /** Every module name a link can point at: the package's own plus its dependencies'. */
 const knownModules = new Set<string>(modules.map((m) => m.module));
 for (const m of known.values()) knownModules.add(m);
+T.indexBuild += performance.now() - T_SETS;
 
 const renderer = new Renderer(known);
 const wanted = ONLY.length > 0 ? new Set(ONLY) : null;
@@ -1295,26 +1393,66 @@ for (const mod of modules) {
     .sort((a, b) => a.line - b.line || a.col - b.col || a.index - b.index);
   const headers = new Map<string, string>();
   sink = stats;
+  const tH0 = performance.now();
   for (const d of decls) {
     stats.declarationsRendered++;
     const html = declHeader(d, mod.module, renderer);
     headers.set(d.name, html);
     if (OUT) lines.push(JSON.stringify({ module: mod.module, name: d.name, html }));
   }
+  T.renderHeaders += performance.now() - tH0;
   if (PAGES) {
     // Everything below this line counts into `pageStats`, so that increment 3's
     // counters above are the same whether or not `--pages` was given.
     sink = pageStats;
+    const tP0 = performance.now();
     const page = pageHtml(mod, headers, renderer);
+    const tP1 = performance.now();
+    // The rope trap: `page` is a cons string until something reads it. See
+    // "TIMERS" at the top -- this is billed to render, not to write.
+    if (FLATTEN_PROBE) flattenSink += page.indexOf(" ") + page.length;
+    const tP2 = performance.now();
     const rel = mod.module.split(".").join("/") + ".html";
     const path = `${PAGES}/${rel}`;
     const dir = path.slice(0, path.lastIndexOf("/"));
     await Deno.mkdir(dir, { recursive: true });
     await Deno.writeTextFile(path, page);
+    T.renderPage += tP1 - tP0;
+    T.flatten += tP2 - tP1;
+    T.write += performance.now() - tP2;
+    pageStats.pageCodeUnits += page.length;
     sink = stats;
   }
 }
+const tOut0 = performance.now();
 if (OUT) await Deno.writeTextFile(OUT, lines.join("\n") + "\n");
+T.write += performance.now() - tOut0;
+T.total = performance.now();
+
+const secs = (ms: number) => (ms / 1000).toFixed(4);
+// `docstring` is NOT added: it is a slice of `renderPage`, already counted.
+const accounted = T.preMain + T.readIr + T.indexBuild + T.renderHeaders + T.renderPage +
+  T.flatten + T.write;
+const timingBlock = [
+  `## phases (seconds, in-process; \`total\` is timeOrigin -> here)`,
+  ``,
+  `preMain (module init; see TIMERS) ${secs(T.preMain)}`,
+  `read IR (readTextFile + parse)   ${secs(T.readIr)}`,
+  `index build (name map + sets)    ${secs(T.indexBuild)}`,
+  `render decl_header               ${secs(T.renderHeaders)}`,
+  `render page                      ${secs(T.renderPage)}`,
+  `flatten probe                    ${secs(T.flatten)}${FLATTEN_PROBE ? "" : "   (disabled)"}`,
+  `write (mkdir + writeTextFile)    ${secs(T.write)}`,
+  `  of "render page": docstrings   ${secs(T.docstring)}`,
+  `--------------------------------`,
+  `sum of the above                 ${secs(accounted)}`,
+  `total (timeOrigin -> here)       ${secs(T.total)}`,
+  `unaccounted                      ${secs(T.total - accounted)}`,
+  ``,
+  `ir bytes read                    ${irBytes.toLocaleString("en-US")}`,
+  `flatten sink (keeps the probe alive) ${flattenSink}`,
+  ``,
+];
 
 const report = [
   `# render — doc-gen4 HTML rebuilt from the IR (no Lean)`,
@@ -1339,6 +1477,30 @@ const report = [
       ``,
     ]
     : []),
+  ...timingBlock,
 ].join("\n");
 console.log(report);
 if (STATS) await Deno.writeTextFile(STATS, report);
+if (TIMINGS) {
+  await Deno.writeTextFile(
+    TIMINGS,
+    JSON.stringify({
+      deno: Deno.version.deno,
+      v8: Deno.version.v8,
+      ir: IR,
+      pages: PAGES || null,
+      limit: LIMIT || null,
+      flattenProbe: FLATTEN_PROBE,
+      modulesRead: stats.modulesRead,
+      modulesRendered: stats.modulesRendered,
+      declarationsRendered: stats.declarationsRendered,
+      pagesWritten: pageStats.pagesWritten,
+      pageCodeUnits: pageStats.pageCodeUnits,
+      irBytes,
+      seconds: Object.fromEntries(
+        Object.entries(T).map(([k, v]) => [k, Number((v / 1000).toFixed(6))]),
+      ),
+      secondsAccounted: Number((accounted / 1000).toFixed(6)),
+    }) + "\n",
+  );
+}
