@@ -1,0 +1,7 @@
+# evict verification for the ci-prefetch session (R0 must be 0)
+2026-08-09T21:25:40Z
+olean-evict: evicted=34304 (7875989864 bytes) skipped=0 failed=0
+after evict: files=34304 apparent=7875989864 resident_file_bytes=0 touched_files=0
+# then prefetch the closure set and re-measure (must be > 0)
+{"mode":"madvise","jobs":16,"files":17199,"bytes":4140727992,"elapsed_s":1.792,"mb_per_s":2310.1,"failed":0}
+after prefetch: files=34304 apparent=7875989864 resident_file_bytes=2556988152 touched_files=8653

@@ -15,6 +15,7 @@ benchmarks/results/*.log
 # compiled page-cache measurement tools (the .c sources are committed)
 benchmarks/tools/olean-residency
 benchmarks/tools/olean-evict
+benchmarks/tools/olean-prefetch
 
 # stage-1 experiment build output (native binary + generated C)
 experiments/stage1/build/

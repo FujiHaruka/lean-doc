@@ -1,0 +1,6 @@
+seed modules      432
+closure modules   6021
+unresolved names  0
+olean files       17199
+olean bytes       4140727992 (3.856 GiB)
+wrote /private/tmp/claude-502/-Users-haruka-dev-lean-doc/7bc55868-5726-4d65-94d0-cd3e28be1db2/scratchpad/closure-recheck.txt
