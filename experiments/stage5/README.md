@@ -6,6 +6,15 @@ of one module, and re-rendering the pages that change reach. The other half —
 proving that no stale page survives — is leg 8 (judgement point 3), and the
 concrete holes this increment found for it are listed at the bottom.
 
+> **Outcome of leg 8 (2026-08-10): REFUTED.** All five propositions behind
+> "no stale page survives" were refuted by measurement; see
+> `experiments/stage5b/README.md` and
+> `benchmarks/results/stage5b-stale-summary.txt`. Criterion 3 below therefore
+> ends up **failed**, not merely undecided, and `approach.md` §5.5 was reworked
+> into three layers. The *speed* numbers in this README still stand.
+> One claim below is now known to be **wrong**: the reverse transitive import
+> closure is **not** a sound upper bound on the impact set.
+
 Everything here is throwaway experiment code (CLAUDE.md), and it deliberately
 does not modify `experiments/stage4b` or `experiments/stage4c`: the extractor
 is run unchanged with a one-line module list, and the renderer is run unchanged

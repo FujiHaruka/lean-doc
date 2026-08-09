@@ -29,7 +29,7 @@ lakefile も Mathlib も置かない。
 ## ベンチマーク
 
 **計測対象は常に `/Users/haruka/dev/lean-projects`** (Lean 4 + Mathlib の
-`InformationTheory` プロジェクト、431 モジュール、Mathlib 全体に依存)。
+`InformationTheory` プロジェクト、432 モジュール、Mathlib 全体に依存)。
 
 対象を固定するのは、**比較が同一ワークロード上でのみ意味を持つ**ため。
 このリポジトリの数字はすべてこの対象で取られていて、ベースラインが既にある。

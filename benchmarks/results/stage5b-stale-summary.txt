@@ -357,6 +357,10 @@ stale ではない。混ぜないこと。
 
 `declaration-data.bmp` の中身: modules 6,115 / declarations 258,760 / instances 1,281 /
 instancesFor 3,190。うち `InformationTheory` は **391 モジュール / 4,079 宣言**
+(391 − 348 = 43 は §(h) の「git rev が古い 43 ページ」とは**別集合**。
+両者の重なりは **0** で、数が一致するのは偶然だった (leg 9 で実測して仮説を否定)。
+bmp 側の 43 は per-module の `.doc` マーカーを持たない = **打ち切りで HTML まで
+到達しなかったモジュール**)
 (= 全体の 6.4% / 1.6%)。
 
 **時間は測っていない (この処理は lean-doc に実装が無い)。** 規模だけの数字である。

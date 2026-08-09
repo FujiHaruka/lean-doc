@@ -16,7 +16,8 @@ lean-doc の設計判断はすべてここの数字に紐づいている。
 ## 計測条件
 
 - doc-gen4 `v4.31.0` (rev `0bc516c`) / Lean `v4.31.0` / Mathlib `v4.31.0`
-- 対象: `InformationTheory` (431 モジュール、Mathlib 全体に依存)
+- 対象: `InformationTheory` (**432 モジュール** = `InformationTheory/**.lean` の 431 +
+  ルートモジュール `InformationTheory`、Mathlib 全体に依存)
 - 機材: Apple M1 / 8 コア / 16 GB
 - olean はビルド済み。**ページキャッシュの状態は計測ごとに違う** (下記)
 
@@ -69,5 +70,7 @@ deno run -A tools/analyze.ts results/<name>.jsonl
 
 - **フルビルドは完走していない** (8,600 モジュール中 3,590 = 42% で打ち切り)。
   抽出フェーズと HTML 生成フェーズを分けて計測している。全体の壁時計は測れていない。
-- 方式A は 432 モジュール中 112 モジュールの実測で、残りは換算。
+- 方式A は**レポート本文の時点では** 432 モジュール中 112 モジュールの実測で、残りは換算。
+  その後 warm 条件で 432 全数を測り直してある (1,076s、`results/serial-warm.jsonl`
+  → `docs/verification-log.md` 段階 1 の「判明したこと 1b」)。
 - 単一マシンの結果。特にメモリ律速の議論は RAM 量に強く依存する。
