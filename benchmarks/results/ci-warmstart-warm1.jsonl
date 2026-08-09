@@ -1,0 +1,14 @@
+{"phase":"stage1.initSearchPath","pid":72653,"us":18}
+{"phase":"stage1.importModules","pid":72653,"us":9639993,"directImports":432}
+{"phase":"stage1.envStats","pid":72653,"us":0,"loadedModules":6021}
+{"phase":"stage1.indexLookup","pid":72653,"us":2465,"targetModules":432,"enumerated":8849,"kept":5123}
+{"phase":"stage1.scanLookup","pid":72653,"us":818360,"scanned":490171,"relevant":8824,"kept":5123}
+{"phase":"stage1.compare","pid":72653,"us":0,"onlyIndex":0,"onlyScan":0,"agree":true}
+{"phase":"stage1.total","pid":72653,"us":10467025,"modules":432}
+{"phase":"stage1.initSearchPath","pid":72782,"us":17}
+{"phase":"stage1.importModules","pid":72782,"us":12547306,"directImports":432}
+{"phase":"stage1.envStats","pid":72782,"us":0,"loadedModules":6021}
+{"phase":"stage1.indexLookup","pid":72782,"us":2235,"targetModules":432,"enumerated":8849,"kept":5123}
+{"phase":"stage1.scanLookup","pid":72782,"us":656463,"scanned":490171,"relevant":8824,"kept":5123}
+{"phase":"stage1.compare","pid":72782,"us":0,"onlyIndex":0,"onlyScan":0,"agree":true}
+{"phase":"stage1.total","pid":72782,"us":13210927,"modules":432}

@@ -1,0 +1,27 @@
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+target modules       432
+loaded modules       6021
+initSearchPath       0.000s
+importModules        12.547s
+indexLookup          0.002s  enumerated 8849, kept 5123
+scanLookup           0.656s  scanned 490171, in target modules 8824, kept 5123
+total                13.210s
+declaration sets agree (5123 declarations)
+       13.30 real         2.09 user         2.12 sys
+          3248095232  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              149951  page reclaims
+              103682  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                9455  voluntary context switches
+               93372  involuntary context switches
+         34167456531  instructions retired
+         13031185062  cycles elapsed
+           532115328  peak memory footprint

@@ -1,0 +1,18 @@
+       18.04 real        17.35 user        30.79 sys
+           111525888  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               12430  page reclaims
+                   0  page faults
+                   0  swaps
+                   0  block input operations
+                   8  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+               31785  voluntary context switches
+              276975  involuntary context switches
+        435345771399  instructions retired
+        133566070262  cycles elapsed
+           105071872  peak memory footprint
