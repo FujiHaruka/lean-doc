@@ -47,8 +47,15 @@ const NESTED = new Set([
   "stage2.importModules",
   "stage2.envStats",
   "stage2.indexLookup",
+  "stage2.moduleDocs",
+  "stage2.tactics",
   "stage2.analyze",
   "stage2.dump",
+  "stage2.dumpModules",
+  // Diagnosis only (`--tactics-emulate` / `--tactics-probe`): doc-gen4's shape and
+  // the breakdown of one `allTacticDocs` call. Inside `stage2.total` as well.
+  "stage2.tacticsPerModule",
+  "stage2.tacticsProbe",
 ]);
 
 const byPhase = new Map<string, { n: number; us: number; max: number }>();

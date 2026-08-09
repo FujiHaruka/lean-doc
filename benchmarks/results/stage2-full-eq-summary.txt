@@ -1,0 +1,46 @@
+date              2026-08-09T11:41:12Z .. 11:42:19Z (runs 1-6 back to back)
+host              Darwin 25.6.0 arm64 / Apple M1 / 8 cores / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0 (mathlib fabf563a7c, doc-gen4 0bc516c)
+LEAN_NUM_THREADS  unset (Lean default)
+parallelism       1 (single process, no other measurement running)
+page cache        warm for runs 2-6; run 1 is the first process after a rebuild and
+                  still pays the binary page-in (importModules 3.78s vs 2.51s after)
+oleans            prebuilt (`lake build` done long before), nothing rebuilt during the runs
+target            /Users/haruka/dev/lean-projects, 432 modules from results/it-modules.txt
+binary            experiments/stage2/build/extract (native, leanc -rdynamic; not `lean --run`)
+command           experiments/stage2/run.sh stage2-full-eq-N -- --equations
+files             stage2-full-eq-{1..6}.jsonl + matching -summary.txt
+
+purpose           The full extraction pipeline of verification stage 2, now including
+                  the per-module collection (module docstrings, direct imports,
+                  tactic docs) that doc-gen4 does in `getAllModuleDocs`.
+                  Directly comparable with stage2-eq-{1..5} (same flags, same
+                  binary shape); the only difference is the two added phases.
+
+warm medians (runs 2-6, all 実測)
+
+  stage2.importModules   2.512s
+  stage2.indexLookup     0.002s
+  stage2.moduleDocs      0.001s   1,515 module docstrings in 424 modules, 3,935 imports
+  stage2.tactics         0.010s   421 tactics in the environment, 0 in the target modules
+  stage2.analyze         9.261s   8,824 considered, 4,750 produced, 863 equations, 0 failed
+  stage2.total          11.815s
+
+  wall 11.82-11.97s vs user+sys 12.04-12.17s  -> wall ~= CPU, i.e. warm
+  peak RSS 3.29-3.30 GB
+
+  Not included: IR persistence. doc-gen4's `batch.updateModuleDb` is 0.68s on this
+  target; lean-doc has no equivalent yet, so 11.815s is a *lower* bound against
+  approach.md §6.1's 14.5s, not a like-for-like total.
+
+related           stage2-tacdiag.jsonl / -summary.txt  diagnosis of the 16.7s
+                  stage2-modcmp.txt                    output equivalence vs doc-gen4
+                  stage2-eq-{1..5}.jsonl               same runs before this increment
+
+deferred work     Lean builds structure fields lazily, so `moduleDocs` / `tactics`
+                  do not force `ModuleOut.docs` (an Array.map) or
+                  `TacticOut.docString` (a string concat). `--dump-modules` forces
+                  all of them plus JSON serialisation: stage2.dumpModules is
+                  0.009s for the 432 modules and 0.015s for the 573-module list
+                  with all 421 tactics assigned (stage2-modcmp-*.jsonl). Worst
+                  case for the whole per-module collection is therefore 0.02s.

@@ -1,0 +1,10 @@
+{"phase":"stage2.initSearchPath","pid":5711,"us":13}
+{"phase":"stage2.importModules","pid":5711,"us":2563716,"directImports":432}
+{"phase":"stage2.envStats","pid":5711,"us":0,"loadedModules":6021}
+{"phase":"stage2.indexLookup","pid":5711,"us":1975,"targetModules":432,"enumerated":8849,"candidates":8824}
+{"phase":"stage2.moduleDocs","pid":5711,"us":565,"modules":432,"moduleDocs":1515,"modulesWithDocs":424,"imports":3935}
+{"phase":"stage2.tactics","pid":5711,"us":9236,"tacticsInEnv":421,"tacticsAssigned":0}
+{"phase":"stage2.tacticsPerModule","pid":5711,"us":16913306,"calls":432,"tacticsAssigned":0,"allTacticDocsUs":3759920,"filterLoopUs":13153268}
+{"phase":"stage2.tacticsProbe","pid":5711,"us":512650,"tagFoldUs":517,"nameExtFoldUs":138,"leadingTableUs":3394,"trailingTableUs":9,"kindLoopUs":6167,"docStringUs":4540,"extensionsUs":37,"extStrings":3,"tagsSeen":0,"kinds":509,"produced":421,"leadingToks":444,"trailingToks":2,"collectKindsCalls":510,"firstTokens":508,"direct5Us":39979,"bucket5Us":151057,"forceExt5Us":118,"idxOnly5Us":157,"hoisted5Us":141,"bucket5bUs":149845,"touch5Us":73,"lookup5Us":162,"full5Us":151366,"fullHoisted5Us":335}
+{"phase":"stage2.analyze","pid":5711,"us":9269497,"considered":8824,"produced":4750,"blacklisted":4074,"failed":0,"ppUs":8087798,"eqUs":958732,"docUs":45860,"equations":863,"eqFailures":0,"genEquations":true,"tagCode":false}
+{"phase":"stage2.total","pid":5711,"us":29273377,"modules":432}

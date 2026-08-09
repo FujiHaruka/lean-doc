@@ -1,0 +1,92 @@
+date              2026-08-09T11:42:36Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+LEAN_NUM_THREADS  unset (Lean default)
+target            /Users/haruka/dev/lean-projects
+modules           432 from /Users/haruka/dev/lean-doc/benchmarks/results/it-modules.txt
+binary            /Users/haruka/dev/lean-doc/experiments/stage2/build/extract
+args              --equations --tactics-emulate --tactics-probe
+
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+target modules       432
+loaded modules       6021
+importModules        2.563s
+indexLookup          0.001s  enumerated 8849, unique 8824
+moduleDocs           0.000s  1515 docs in 424 modules, 3935 imports
+tactics              0.009s  421 in env, 0 in target modules
+tacticsPerModule     16.913s  (doc-gen4's shape: 432 × allTacticDocs)
+  of which allTactic 3.759s
+  of which filter    13.153s
+tacticsProbe         one allTacticDocs, broken down:
+  tagFold            0.000s
+  nameExtFold        0.000s
+  leadingTable       0.003s  (444 tokens)
+  trailingTable      0.000s  (2 tokens)
+  kindLoop           0.006s  (509 kinds, 421 produced)
+    of which docstr  0.004s
+    of which extens  0.000s  (3 extension strings, 0 tags)
+  collectKinds calls 510, firstTokens 508
+  5x allTacticDocs   0.039s  (0.007s each)
+  5x filter loop     0.151s  (0.030s each)
+  5x filter again    0.149s  (0.029s each)
+  5x touch name      0.000s
+  5x + getModuleIdx  0.000s
+  5x + moduleNames[] 0.151s
+  5x moduleNames hoisted 0.000s
+  5x force extDocs   0.000s  (0.000s each)
+  5x getModuleIdxFor 0.000s  (0.000s each)
+  5x hoisted const2ModIdx 0.000s  (0.000s each)
+analyze              9.269s  considered 8824, produced 4750, blacklisted 4074, failed 0
+  of which signature 8.087s
+  of which equations 0.958s  (863 lemmas, 0 failed)
+  of which docstring 0.045s
+total                29.273s
+genEquations         true   tagCode false   open []
+kinds                theorem=3742 definition=842 instance=91 structure=37 constructor=37 opaque=1
+       29.35 real        28.19 user         1.31 sys
+          3302998016  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              258438  page reclaims
+                 569  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 152  voluntary context switches
+                3337  involuntary context switches
+        225479737140  instructions retired
+         92453420732  cycles elapsed
+           533262208  peak memory footprint
+
+--- conditions and reading -------------------------------------------------
+parallelism       1 (single process, nothing else running)
+page cache        warm (importModules 2.563s; run right after stage2-full-eq-6)
+purpose           Diagnosis of doc-gen4's `process.getAllModuleDocs` (16.64s warm,
+                  54% of batch.total). `--tactics-emulate` runs the collection
+                  doc-gen4's way *inside this process*, split into the
+                  `allTacticDocs` calls and the filter loop over their results.
+                  `--tactics-probe` breaks one `allTacticDocs` call down further.
+                  Diagnosis flags inflate stage2.total; do not use this run's
+                  total for anything.
+
+  tacticsPerModule  16.913s  <- reproduces doc-gen4's 16.64s within 1.6%
+    allTacticDocs    3.759s  (22.2%)  432 calls, 8.7ms each
+    filter loop     13.153s  (77.8%)  432 x 421 iterations, 72us each
+
+  The filter loop is doc-gen4's `collectTactics` body:
+      let definingModule := env.header.moduleNames[modIdx]!
+  `EnvironmentHeader.moduleNames` is a *def*, not a field: it is
+  `header.modules.map (·.module)` and allocates a fresh 6,021-element array on
+  every call. The probe isolates it:
+    5x touch name        0.000s
+    5x + getModuleIdxFor 0.000s
+    5x + moduleNames[]   0.151s   <- all of it
+    5x moduleNames hoisted 0.000s <- the fix
+  So the real complexity is O(target modules x tactics x imported modules)
+  = 432 x 421 x 6,021 ~ 1.1e9, not O(modules x tactics).
+
+  lean-doc's equivalent (stage2.moduleDocs + stage2.tactics) is 0.009s.
