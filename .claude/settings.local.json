@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tmux new-session:*)",
+      "Bash(tmux ls *)",
+      "Bash(tmux capture-pane *)",
+      "Bash(tmux send-keys *)",
+      "Bash(deno run -A benchmarks/tools/*)"
+    ]
+  }
+}

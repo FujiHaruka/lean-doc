@@ -20,6 +20,15 @@ lean-doc の設計判断はすべてここの数字に紐づいている。
 - 機材: Apple M1 / 8 コア / 16 GB
 - olean はビルド済み・ページキャッシュ暖機済み
 
+## 計測対象は固定
+
+計測は**常に同じリポジトリ** (`/Users/haruka/dev/lean-projects`) に対して行う。
+比較は同一ワークロード上でのみ意味を持ち、ここの数字はすべてこの対象で取られている。
+別の対象を測りたくなったら、置き換えるのではなく追加し、既存の数字は残す。
+
+対象リポジトリで触るのは `.lake/packages/doc-gen4` (ビルド生成物) だけで、対象側にはコミットしない。
+パスは `TARGET_REPO` 環境変数で上書きできる (`tools/env.sh`)。
+
 ## 計装の考え方
 
 環境変数 `DOCGEN_TIMING` が設定されているときだけ、各フェーズの実測時間を
@@ -31,8 +40,16 @@ JSONL で追記する (無効時はゼロコスト)。並列プロセスが同�
 
 ## 再現
 
-パッチを doc-gen4 に当ててビルドし、`tools/` のスクリプトを使う。
-詳細な手順はレポート末尾の「再現」節にある。
+```bash
+tools/apply-instrumentation.sh --check   # 計装が当たっているか
+tools/apply-instrumentation.sh           # 当て直してビルド
+tools/run-serial.sh                      # 方式A (モジュールごとに 1 プロセス)
+tools/run-full.sh 4 full-build           # フルビルド (LEAN_NUM_THREADS=4、再開可能)
+deno run -A tools/analyze.ts results/<name>.jsonl
+```
+
+`.lake` は対象リポジトリの生成物なので `lake update` で消える。消えたら
+`apply-instrumentation.sh` で当て直す。個別コマンドの詳細はレポート末尾の「再現」節にある。
 
 ## 注意 — この計測の限界
 

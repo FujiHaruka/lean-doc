@@ -1,17 +1,26 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Method A: one doc-gen4 process per module, the way Lake drives `single` today.
+# This is the baseline that the batch method (23x) is measured against.
+#
+# Usage: run-serial.sh [timing-log-basename]
 set -u
-cd /Users/haruka/dev/lean-projects
-export LEAN_PATH=$(cat /tmp/leanpath.txt)
-BENCH=$PWD/docs/doc-gen-bench/raw
-export DOCGEN_TIMING=$BENCH/serial.jsonl
+
+. "$(dirname "${BASH_SOURCE[0]}")/env.sh"
+
+NAME=${1:-serial}
+MODULES="$RESULTS_DIR/it-modules.txt"
+[ -f "$MODULES" ] || { echo "module list not found: $MODULES" >&2; exit 1; }
+
+cd "$TARGET_REPO"
+export LEAN_PATH=$(lake env printenv LEAN_PATH)
+export DOCGEN_TIMING="$RESULTS_DIR/$NAME.jsonl"
 rm -f "$DOCGEN_TIMING" .lake/build/bench-a.db*
-DG=.lake/packages/doc-gen4/.lake/build/bin/doc-gen4
+
 start=$(date +%s)
 n=0
 while read -r m; do
-  "$DG" single --build .lake/build "$m" bench-a.db "file:///tmp/x" > /dev/null 2>&1
+  "$DOCGEN_BIN" single --build .lake/build "$m" bench-a.db "file:///tmp/x" > /dev/null 2>&1
   n=$((n+1))
-done < "$BENCH/it-modules.txt"
+done < "$MODULES"
 end=$(date +%s)
-echo "modules=$n wall_seconds=$((end-start))" > "$BENCH/serial-summary.txt"
+echo "modules=$n wall_seconds=$((end-start))" > "$RESULTS_DIR/$NAME-summary.txt"

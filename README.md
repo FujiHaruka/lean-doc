@@ -50,7 +50,9 @@ doc-gen4 (v4.31.0) を計装して、Mathlib 依存プロジェクト 431 モジ
 ## リポジトリの構成
 
 ```
+CLAUDE.md                   プロジェクト規則 (計測対象の固定、計測の誠実性)
 docs/approach.md            アプローチ計画
+docs/verification-log.md    検証段階の結果。数字の SoT
 benchmarks/
   doc-gen4-report.md        計測レポート (本文)
   doc-gen4-report.html      同・ブラウザ表示用
@@ -59,4 +61,6 @@ benchmarks/
   results/                  計測の生ログ (JSONL)
 ```
 
-計測は Apple M1 / 8 コア / 16 GB、Lean・Mathlib・doc-gen4 いずれも v4.31.0 で実施。
+計測対象は常に同じ Lean プロジェクト (`InformationTheory`、431 モジュール、Mathlib 全体に依存) に固定している。
+比較は同一ワークロード上でのみ意味を持つため。機材は Apple M1 / 8 コア / 16 GB、
+Lean・Mathlib・doc-gen4 いずれも v4.31.0。
