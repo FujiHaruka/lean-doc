@@ -1,0 +1,26 @@
+# stage5b E6 — the actual HTML of a referring page after the declaration moved
+# referring module N = InformationTheory.Shannon.AEP.Rate
+# moved declaration  = InformationTheory.Shannon.entropy
+#   base   pages rendered from the unmodified IR
+#   stale  pages rendered from the IR where only M and M' were re-extracted
+#          (= what the incremental pipeline publishes)
+#   fixed  pages rendered from a fully re-extracted IR (the ground truth)
+
+--- [base] first link to InformationTheory.Shannon.entropy in InformationTheory/Shannon/AEP/Rate.html
+    <a href="../../.././InformationTheory/Shannon/Bridge.html#InformationTheory.Shannon.entropy">entropy</a> <span class="fn">μ</span> <span class="fn">(<span class="fn">Xs</
+
+--- [stale] first link to InformationTheory.Shannon.entropy in InformationTheory/Shannon/AEP/Rate.html
+    <a href="../../.././InformationTheory/Shannon/Bridge.html#InformationTheory.Shannon.entropy">entropy</a> <span class="fn">μ</span> <span class="fn">(<span class="fn">Xs</
+
+--- [fixed] first link to InformationTheory.Shannon.entropy in InformationTheory/Shannon/AEP/Rate.html
+    <a href="../../.././InformationTheory/Probability/TwoSidedExtension/CondExpMeasurePreserving.html#InformationTheory.Shannon.entropy">entropy</a> <span class="fn">μ</span> <span class="fn">(<span class="fn">Xs</
+
+--- the anchor the link points at (id="InformationTheory.Shannon.entropy")
+    [base ] present in InformationTheory/Shannon/Bridge.html: True
+    [stale] present in InformationTheory/Shannon/Bridge.html: False
+    [stale] present in InformationTheory/Probability/TwoSidedExtension/CondExpMeasurePreserving.html: True
+    [fixed] present in InformationTheory/Probability/TwoSidedExtension/CondExpMeasurePreserving.html: True
+
+--- byte identity of the 48 referring pages
+    identical between base and stale: 48/48
+    identical between fixed and stale: 0/48

@@ -49,9 +49,15 @@ with the prediction is called out explicitly.
 | **E3** | S3 | yes | full extraction with `--open`, and single-module extraction with `--open`, byte-compared against each other and against the `--open`-off IR |
 | **E4** | S4 | no | run the pipeline against a module tree with one olean removed (a copy; the target is untouched) |
 | **E5** | S5 | no | enumerate the artifacts doc-gen4 produces that the pipeline does not, and classify each by what it is a function of |
+| **E6** | (the ownership channel, `experiments/stage5/README.md` §4.2) | no | move one declaration from M to M′ inside a copy of the IR, render before/after, and check where the referring pages' links end up |
 
-E1, E2, E4, E5 do not start Lean and cost seconds. E3 costs one full extraction
-(~16 s) plus a few single-module runs (~3 s each).
+E1, E2, E4, E5, E6 do not start Lean and cost seconds. E3 costs one full
+extraction plus three single-module runs.
+
+E6 does not carry a proposition of its own: leg 7 named the ownership channel
+alongside the printing channel, and S2's refutation is about docstrings, not
+about ownership. It is here because judgement point 3 cannot be closed while one
+of the two named channels is unmeasured.
 
 ## 3. Results
 
@@ -63,14 +69,14 @@ they rest on: `benchmarks/results/stage5b-stale-summary.txt`.
 |---|---|---|---|
 | **S1** | **REFUTED** | `--source-url`'s revision changes **432 / 432 pages** (4,992 occurrences) while `ledger check` reports **0 changed** | yes |
 | **S2** | **REFUTED** | injecting one declaration named `log` changes **142 pages**; `--mode importers` leaves **141 stale** (leaf N) / **3 stale + 276 gratuitous** (hub N) | yes |
-| **S3** | **not run** | E3 starts Lean; out of this leg's scope | — |
+| **S3** | **REFUTED** | under `--open`, re-extracting one module gives **12,694 B** where the full extraction gives **12,961 B** for the same module — the single-module IR is byte-identical to the `--open`-*off* baseline, i.e. the flag had no effect at all | yes, including the reason (the notation-declaring module is not in a single-module run's import closure) |
 | **S4** | **REFUTED** | one olean removed → `ledger check` **throws** (`ledger.ts:121`, exit 1); one added → **invisible**; the deleted module's page **survives byte-identical** and 4 live pages keep linking to it | yes |
 | **S5** | **REFUTED** | **23 / 23** non-module artifacts are never written; 5 of them are a function of every module, **38,581,208 B** | yes |
 
-**Judgement point 3 is not met.** It required all five to hold; four are refuted
-and one is undecided. That is outcome (B) of `docs/plans/three-axes.md` §3.
+**Judgement point 3 is not met.** It required all five to hold; **all five are
+refuted**. That is outcome (B) of `docs/plans/three-axes.md` §3.
 
-All four measured rows agree with the predictions declared in §1. Five things
+All five measured rows agree with the predictions declared in §1. Seven things
 inside those rows did not, and they are the part worth carrying forward:
 
 1. `--mode importers` is not merely incomplete, it is **both** incomplete and
@@ -89,6 +95,16 @@ inside those rows did not, and they are the part worth carrying forward:
 5. For the largest candidate (`log`), **no** choice of module to inject into
    avoids stale pages (0 / 432), even though across all 1,095 candidates the
    luckiest module would avoid them 94.5% of the time.
+6. `--open` turns out to be **two** mechanisms, not one, and only one of them
+   fails to reproduce in a single-module run. `activateScoped` needs the
+   notation-declaring module in the import closure; `openDecls` is a printer
+   option and needs nothing. 97 of the 263 changed modules are the first, 166
+   the second. Whoever reads S3's refutation as "`--open` is unreproducible"
+   is reading it too broadly.
+7. E6's ownership channel is invisible to a byte comparison of the site: the 48
+   referring pages come out **byte-identical**, and what is broken is the anchor
+   at the far end of their links. Widening `--mode` fixes **0** of them, because
+   `--mode` selects pages to re-render and the fix requires re-*extraction*.
 
 ## 3a. Running it
 
@@ -98,6 +114,15 @@ outside them and nothing into the measurement target.
 
 ```
 experiments/stage5b/run-all.sh --ir <schema-2 ir> --work <scratch> [--out <results>]
+```
+
+`E3` and `E6` are one script each. `run-e3.sh` is the only one that starts Lean;
+it reuses any IR tree already present under `--work`, so a second run costs no
+Lean time.
+
+```
+experiments/stage5b/run-e3.sh --ir <schema-2 ir, --open OFF> --work <scratch>
+experiments/stage5b/run-e6.sh --ir <schema-2 ir>             --work <scratch>
 ```
 
 The pieces, if one is wanted on its own:
@@ -112,7 +137,13 @@ The pieces, if one is wanted on its own:
 | `autolink-analysis.py` | the candidate census, and the extension of the two measured injections to all 432 modules and all 1,095 candidates |
 | `site-inventory.py` | doc-gen4's output classified by what each file is a function of, and the broken links our pages emit (E5) |
 | `revdep.py` | leg 7's reverse-dependency check over a rendered tree (kept; not used by `run-all.sh`) |
-| `notation-surface.py` | leg 7's syntactic count of printing-channel constructs (kept; feeds E3) |
+| `notation-surface.py` | leg 7's syntactic count of printing-channel constructs (kept; superseded by `notation-reach.py`) |
+| `extract-open.sh` | `stage5/extract-once.sh` plus a `--open` flag. A copy rather than an edit, because increment 1's numbers were taken with that script (E3) |
+| `notation-reach.py` | the notation declarations in the target's sources, their *heads*, who names a head in `refs`, and the IMPORTERS closures they are supposed to be bounded by (E3) |
+| `open-diff.py` | `classify`: which modules the `--open` IR differs in, split into "a scoped notation fired" and "names got shorter"; `bytecmp`: the byte comparison that decides S3 (E3) |
+| `pick-move.py` | the declaration to move and the two destinations, by the rule stated in its docstring (E6) |
+| `move-decl.py` | copies an IR tree twice: once with the move and stale `refs`, once with the move and the `refs` a full re-extraction would have written (E6) |
+| `link-target.py` | where the referring pages' links point after the move, and whether the anchor at the other end still exists (E6) |
 
 ## 4. Correction to increment 1
 
@@ -128,3 +159,11 @@ whole environment, which is not restricted to the importing modules. The
 correction is measured in E2 and recorded in `docs/verification-log.md`; the
 increment-1 README keeps its original text with a pointer here, because it is
 the record of what was believed at that time.
+
+E3 refutes the same sentence a second time and for an unrelated reason. The
+printing channel §4.1 names is bounded by `IMPORTERS(the module that declares
+the notation)`, and on this target that closure has **one** member. The
+notation's *heads* — the constants it prints instead of — live in three other
+modules, and 95 modules name a head without importing the notation's module at
+all. When the extractor runs with `--open`, those 95 modules' IR changes.
+`IMPORTERS` is not an upper bound for the printing channel either.

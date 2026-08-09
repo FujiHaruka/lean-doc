@@ -1,0 +1,78 @@
+# stage5b E6 raw log — the ownership channel (experiments/stage5/README.md §4.2)
+# date 2026-08-10 / Darwin 25.6.0 arm64 (MacBookAir10,1, Apple M1, 16 GB)
+# Lean is NOT started: the move is injected into a copy of the IR.
+# target /Users/haruka/dev/lean-projects — not read from and not written to by this experiment
+# reproduce: experiments/stage5b/run-e6.sh --ir <base ir> --work <scratch>
+
+===================== step 0 — the choice of D, M, M' (rule fixed in advance) =====================
+most-referenced declarations of this package (distinct other modules):
+    49  InformationTheory.Shannon.entropy   <- InformationTheory.Shannon.Bridge
+    46  InformationTheory.Shannon.mutualInfo   <- InformationTheory.Shannon.MutualInfo
+    38  InformationTheory.Shannon.EPIConvDensity.convDensityAdd   <- InformationTheory.Shannon.EPI.Conv.Density
+    34  InformationTheory.Shannon.ChannelCoding.jointSequence   <- InformationTheory.Shannon.ChannelCoding.Basic
+    34  InformationTheory.Shannon.differentialEntropy   <- InformationTheory.Shannon.DifferentialEntropy
+    33  InformationTheory.Shannon.condMutualInfo   <- InformationTheory.Shannon.CondMutualInfo
+
+D  = InformationTheory.Shannon.entropy
+M  = InformationTheory.Shannon.Bridge   (|IMPORTERS(M)| = 261, refs from 49 other modules)
+M' down = InformationTheory.Probability.TwoSidedExtension.CondExpMeasurePreserving  (declarations 1; next [(1, 'InformationTheory.Shannon.AWGN.Achievability'), (1, 'InformationTheory.Shannon.AWGN.ConverseMIChainRule.Markov'), (1, 'InformationTheory.Shannon.AWGN.MIClosedForm')])
+M' far  = InformationTheory.Meta.EntryPoint  (declarations 1; next [(1, 'InformationTheory.Shannon.EPI.Case1.TwoTime.Paths'), (1, 'InformationTheory.Shannon.EPI.Conv.DensityNormalization'), (1, 'InformationTheory.Shannon.EPI.InfiniteVariance.Truncation')])
+
+===================== step 1 — the injected move =====================
+[down] InformationTheory.Shannon.entropy: InformationTheory.Shannon.Bridge -> InformationTheory.Probability.TwoSidedExtension.CondExpMeasurePreserving
+     modules whose refs name it: 51
+     refs rewritten in the *fixed* tree: 111
+[far] InformationTheory.Shannon.entropy: InformationTheory.Shannon.Bridge -> InformationTheory.Meta.EntryPoint
+     modules whose refs name it: 51
+     refs rewritten in the *fixed* tree: 111
+
+===================== step 3 — the impact sets, scored =====================
+=== variant down : M' = InformationTheory.Probability.TwoSidedExtension.CondExpMeasurePreserving ===
+-- (1) ground truth: base vs a full re-extraction (moved-down-fixed) --
+true changed pages          50
+  mode self       set=   2  stale=  48  gratuitous=   0
+  mode referrers  set=  51  stale=   0  gratuitous=   1
+  mode importers  set= 262  stale=   0  gratuitous= 212
+-- (2) what the pipeline publishes (moved-down, refs stale) vs the truth --
+true changed pages          50
+  mode self       set=   2  stale=  48  gratuitous=   0
+  mode referrers  set=  51  stale=   0  gratuitous=   1
+  mode importers  set= 262  stale=   0  gratuitous= 212
+-- (3) base vs moved-down: what a byte comparison of the published site sees --
+true changed pages          2
+  mode self       set=   2  stale=   0  gratuitous=   0
+
+=== variant far : M' = InformationTheory.Meta.EntryPoint ===
+-- (1) ground truth: base vs a full re-extraction (moved-far-fixed) --
+true changed pages          50
+  mode self       set=   2  stale=  48  gratuitous=   0
+  mode referrers  set=  51  stale=   0  gratuitous=   1
+  mode importers  set= 415  stale=   0  gratuitous= 365
+-- (2) what the pipeline publishes (moved-far, refs stale) vs the truth --
+true changed pages          50
+  mode self       set=   2  stale=  48  gratuitous=   0
+  mode referrers  set=  51  stale=   0  gratuitous=   1
+  mode importers  set= 415  stale=   0  gratuitous= 365
+-- (3) base vs moved-far: what a byte comparison of the published site sees --
+true changed pages          2
+  mode self       set=   2  stale=   0  gratuitous=   0
+
+===================== step 4 — where the referring pages' links point =====================
+declaration           InformationTheory.Shannon.entropy
+originally declared in InformationTheory.Shannon.Bridge
+referring pages        48
+
+[base]  pages containing a link to InformationTheory.Shannon.entropy: 48/48
+    -> Bridge.html   (171 links)
+    e.g. InformationTheory.Shannon.AEP.Basic.Achievability -> ../../../.././InformationTheory/Shannon/Bridge.html#InformationTheory.Shannon.entropy
+    anchor id="InformationTheory.Shannon.entropy" present in Bridge.html: True
+
+[stale]  pages containing a link to InformationTheory.Shannon.entropy: 48/48
+    -> Bridge.html   (171 links)
+    e.g. InformationTheory.Shannon.AEP.Basic.Achievability -> ../../../.././InformationTheory/Shannon/Bridge.html#InformationTheory.Shannon.entropy
+    anchor id="InformationTheory.Shannon.entropy" present in Bridge.html: False
+
+[fixed]  pages containing a link to InformationTheory.Shannon.entropy: 48/48
+    -> CondExpMeasurePreserving.html   (171 links)
+    e.g. InformationTheory.Shannon.AEP.Basic.Achievability -> ../../../.././InformationTheory/Probability/TwoSidedExtension/CondExpMeasurePreserving.html#InformationTheory.Shannon.entropy
+    anchor id="InformationTheory.Shannon.entropy" present in CondExpMeasurePreserving.html: True

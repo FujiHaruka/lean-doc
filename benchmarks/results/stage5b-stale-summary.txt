@@ -22,6 +22,8 @@ page cache / 並列度 / warm-cold は結果を動かさない。** 秒数は本
   stage5b-e2-stale-hub-importers.txt / stage5b-e2-unresolved.jsonl.gz               E2
   stage5b-e4-deletion.txt                                                           E4
   stage5b-e5-inventory.txt                                                          E5
+  stage5b-e3-open.txt / stage5b-e3-changed-modules.txt              E3 (leg 8 追記、§8)
+  stage5b-e6-move.txt / stage5b-e6-links.txt                        E6 (leg 8 追記、§9)
 判断基準の宣言と設計 → experiments/stage5b/README.md
 
 ---
@@ -46,6 +48,10 @@ page cache / 並列度 / warm-cold は結果を動かさない。** 秒数は本
 E3 (S3 / `--open` の抽出) は Lean を起動するのでこの leg では実施していない。
 **S3 は「未実施」であって「満たした」でも「否定された」でもない。**
 
+> **(leg 8 追記)** E3 はその後 §8 で実施し、S3 は**否定された**。E6 (所有モジュールの
+> 経路) も §9 で実施した。§0〜§7 の本文は leg 7 の記録として残してあるので、
+> S3 と 2 つの経路については §8・§9 が SoT。
+
 ---
 
 ## 1. 結論 (先に書く)
@@ -54,15 +60,17 @@ E3 (S3 / `--open` の抽出) は Lean を起動するのでこの leg では実�
 |---|---|---|---|
 | **S1** | ページを変える入力はすべて台帳が見ている | **否定された** | `ledger check` が 0 changed のまま 432/432 ページのバイトが変わる (§2) |
 | **S2** | 影響集合は実際に変わるページを全部含む | **否定された** | 最も広い `--mode importers` でも stale 3 ページ (hub) / 141 ページ (leaf) (§3) |
-| **S3** | 1 モジュール再抽出の IR がフル抽出と一致する (全構成で) | **未実施** | E3 は Lean を起動する。この leg の範囲外 |
+| **S3** | 1 モジュール再抽出の IR がフル抽出と一致する (全構成で) | **否定された** (leg 8 で更新) | `--open` 構成で 1 モジュール再抽出がフル抽出と 12,694 vs 12,961 B で不一致 (§8) |
 | **S4** | 消えたモジュールは何も残さない | **否定された** | `ledger check` が例外で落ちる / ページが残る / 新規モジュールは不可視 (§4) |
 | **S5** | パイプラインが保守する成果物がサイト全体である | **否定された** | 非モジュール成果物 23/23 が未生成。うち 5 個は全モジュールの関数 (§5) |
 
 **【判断点 3】は満たされない。** 基準は「S1〜S5 が**全部**満たされたときだけ満たす」で、
-4 つが否定され 1 つが未判定。`docs/plans/three-axes.md` §3 の outcome (B)。
+**5 つとも否定された** (leg 8 で更新。leg 7 の時点では 4 否定・1 未判定)。
+`docs/plans/three-axes.md` §3 の outcome (B)。
 
-事前予測 (README §1、計測前に宣言) は S1/S2/S4/S5 の 4 行すべてで「refuted」だった。
-**4 行とも予測どおり否定された。行レベルで予測と食い違ったものは無い。**
+事前予測 (README §1、計測前に宣言) は S1〜S5 の 5 行すべてで「refuted」だった。
+**5 行とも予測どおり否定された。行レベルで予測と食い違ったものは無い** (S3 は §8f、
+所有モジュールの経路は §9 — leg 8 で更新)。
 食い違ったのは行の中身のほう — §6 に列挙する。
 
 ---
@@ -387,12 +395,283 @@ navbar は既存の HTML を走査して作り直す (`Output.lean:357-383`)。
 
 ## 7. この計測が答えていないこと
 
-1. **S3 (E3)。** `--open` を有効にした抽出の一致は未実施 (Lean を起動する)。
-2. **所有モジュールの経路** (増分 1 README §4.2)。宣言をモジュール間で移動したときの
-   `refs` の腐り方は、この leg では触っていない。
-3. **印字の経路** (同 §4.1)。notation / delab は E3 の側。
+1. ~~**S3 (E3)。**~~ **leg 8 で実施した → §8。判定は「否定された」。**
+   残っているのは「notation を宣言したモジュール**自体を編集**したときに何が伝播するか」で、
+   §8 が動かしたのは抽出器のフラグであってモジュールではない。
+2. ~~**所有モジュールの経路** (増分 1 README §4.2)。~~ **leg 8 で実施した → §9。**
+   参照側 48 ページのリンクが「消えたアンカー」を指し続けることを実測した。
+   残っているのは**「移動しても N の olean は変わらない」という仮定の検証** (§9f) —
+   対象のフルビルド 2 回が要るので、この leg でも測れていない。
+3. ~~**印字の経路** (同 §4.1)。~~ **leg 8 で実施した → §8b–§8d。**
+   `--open` ON で 263/432 モジュールの IR が変わり、うち 250 が
+   `IMPORTERS(notation 宣言モジュール)` の外。残っているのは
+   **既定構成 (`--open` OFF) を将来変えるかどうかの判断**で、変えなければこの経路は休眠する。
 4. **class a を増分更新したときの時間。** 実装が無いので規模しか出していない (§5e)。
 5. **依存パッケージ (Mathlib 等) のページをどう扱うか。** §5d の 96,061 件のリンク切れは
    生成範囲の問題で、stale の問題ではない。範囲の決定はこの leg の外。
 6. **doc-gen4 側が同じ 5 つの命題を満たすか。** 比較はしていない。E5 で読んだのは
    doc-gen4 が「何を作るか」だけで、「stale を出さないか」は測っていない。
+
+---
+
+# leg 8 追記 — E3 (§8) と E6 (§9)
+
+date              2026-08-10 (同日、別セッション)
+host              Darwin 25.6.0 arm64 (macOS 26.6) / MacBookAir10,1 (Apple M1) / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0   ※ **§8 は Lean を起動する。§9 は起動しない。**
+target            /Users/haruka/dev/lean-projects — **読むだけ。1 バイトも書いていない**
+                  (`lake env` で環境を借りただけ。`lake build` / `lake update` / `cache get` / `fromDb` は 1 度も実行していない)
+抽出器            experiments/stage4b/build/extract — **無改造**
+生成器・影響集合  experiments/stage4c/render.ts / experiments/stage5/impact.ts — **無改造**
+実験プログラム    experiments/stage5b/run-e3.sh (E3) / run-e6.sh (E6)
+生ログ            stage5b-e3-open.txt / stage5b-e3-changed-modules.txt        E3
+                  stage5b-e6-move.txt / stage5b-e6-links.txt                  E6
+
+**§8・§9 の比較もすべて決定的 (バイト比較・集合演算)。** 秒数は §8a に 1 か所だけ出し、
+「抽出が落ちなかった」ことの傍証としてしか使わない (1 回ずつしか回していない)。
+
+---
+
+## 8. E3 — S3「1 モジュール再抽出の IR がフル抽出と一致する (全構成で)」
+
+既定でない構成は `--open <ns>` (抽出器の scoped notation プローブ) ただ 1 つ。
+`--open InformationTheory.Shannon,InformationTheory.Asymptotic` を使った。
+この 2 つは**モジュール名ではなく名前空間**で、パッケージの scoped notation 6 個
+(2 モジュール) が属する先。`notation-reach.py` がソースから拾い直している。
+
+### 8a. 抽出 (実測、各 1 回)
+
+| run | wall | user | sys | peak RSS | page faults |
+|---|---:|---:|---:|---:|---:|
+| フル 432 モジュール `--open` ON | 45.33 s | 14.84 | 5.30 | 2,833,334,272 B | 244,152 |
+| 1 モジュール A `--open` ON | 19.38 s | 1.86 | 3.27 | 2,989,047,808 B | 152,450 |
+| 1 モジュール B `--open` ON | 3.70 s | 1.62 | 1.68 | 2,705,227,776 B | 2,309 |
+| 1 モジュール A `--open` OFF | 12.54 s | 1.82 | 2.47 | 3,006,267,392 B | 81,504 |
+| 1 モジュール B `--open` ON (再実行) | 19.82 s | 1.76 | 3.29 | 2,618,851,328 B | 156,784 |
+
+**この 5 行を性能の主張に使わない。** 各 1 回で、page fault 数が示すとおり
+暖機状態も揃っていない。「完走した」以上のことは読めない
+(同じ B が 3.70 s と 19.82 s で、差は 5.4 倍だが中身は同じ仕事)。
+最後の行は**決定性の確認**で入れた: 独立した 2 回目の Lean プロセスが
+**バイト一致する module JSON を出した** (6,119 B、sha256 先頭 96b6627475b64bce)。
+8d のバイト比較が 1 回きりの偶然でないことの担保。
+
+### 8b. `--open` を入れると IR がどれだけ変わるか (実測)
+
+`ir-base` (`--open` OFF) とフル `--open` ON を `modules/*.json` でバイト比較:
+
+| | |
+|---|---:|
+| 比較したモジュール | 432 |
+| **IR のバイトが変わったモジュール** | **263 (60.9%)** |
+| うち scoped notation が発火したため | **97** |
+| うち名前の短縮だけ (`openDecls`) | **166** |
+
+`--open` は 2 つの別々の機構を同時に入れる (`Extract.lean:1517-1524` と `:1562`):
+
+1. **`Lean.activateScoped`** — その名前空間**の中で宣言された** scoped notation を有効にする。
+   `mutualInfo μ X Y` が `I(μ; X ; Y)` に、`DotEq a a` が `a ≐ a` に変わる。
+   notation を宣言したモジュールが**その実行の import closure に入っていないと何も起きない**。
+2. **`Core.Context.openDecls`** — プリティプリンタが名前を短縮する。
+   `Shannon.typeCount` → `typeCount`、`InformationTheory.Shannon.Superlinear` → `Superlinear`。
+   **特定のモジュールを必要としない** (プリンタのオプションでしかない)。
+
+分類は印字テキスト (`type` / `binders` / `equations` / `members[].text`) だけを見て、
+notation の記号 (`H(` / `I(` / `D(` / `≐`) の出現が増えたかで切った。
+
+**追加確認:** 「notation が発火した 97 モジュール」の集合は、
+**`refs` が 6 個の notation の頭のどれかを名指しするモジュールの集合 (97) と完全一致した**
+(両方向とも差 0)。都合が良い一致なので両方向を突き合わせて確かめている。
+
+### 8c. IMPORTERS は印字の経路の上界か (実測)
+
+| | |
+|---|---:|
+| `IMPORTERS(…Shannon.TypedRV)` (推移、自パッケージ) | **1** (ルート `InformationTheory` のみ) |
+| `IMPORTERS(InformationTheory.Asymptotic)` | 15 |
+| 上の和 + 宣言元 2 モジュール | **17** |
+| IR が変わった 263 のうちこの 17 の外 | **250** |
+| notation が原因の 97 のうちこの 17 の外 | **95** |
+
+**「IMPORTERS は健全な上界」は印字の経路については偽**、が実測で確定した。
+notation の「頭」の定義モジュールが notation の宣言モジュールと別だからで、
+`entropy` は `…Shannon.Bridge`、`mutualInfo` は `…Shannon.MutualInfo`、
+`condMutualInfo` は `…Shannon.CondMutualInfo` にある。これらを参照するモジュールは
+TypedRV を推移的に import していない (`IMPORTERS(TypedRV)` = 1)。
+
+### 8d. S3 を決めるバイト比較 (実測)
+
+**選定規則は結果を見る前に固定した**: 「変わった 263 の各クラス (notation / shorten) で
+**宣言数が最小**のモジュール、同数ならモジュール名の昇順」。宣言数最小 = 印字が最短。
+→ A = `InformationTheory.Shannon.ChannelCoding.Converse` (notation クラス、宣言 1)
+  B = `InformationTheory.Shannon.DeLaValleePoussin` (shorten クラス、宣言 2)
+
+| 比較 | 結果 | バイト |
+|---|---|---:|
+| **A: 1 モジュール `--open` ON vs フル `--open` ON** | **一致しない** | 12,694 vs 12,961 |
+| A: 1 モジュール `--open` ON vs `ir-base` (`--open` OFF) | **バイト一致** | 12,694 vs 12,694 |
+| B: 1 モジュール `--open` ON vs フル `--open` ON | バイト一致 | 6,119 vs 6,119 |
+| B: 1 モジュール `--open` ON vs `ir-base` | 一致しない | 6,119 vs 6,168 |
+| A: 1 モジュール `--open` OFF vs `ir-base` | バイト一致 | 12,694 vs 12,694 |
+
+2 行目が決定的で、**A の単独実行では `--open` が何の効果も持たなかった** —
+A は TypedRV を import しないので `activateScoped` が activate するものが無い。
+実物 (`stage5b-e3-open.txt` の "the same diff, as printed text"):
+
+    フル --open ON:  ↑n * I(μ; fun (ω : Ω) => encoder (Msg ω) ⟨0, hn⟩ ; Ys ⟨0, hn⟩).toReal
+    A 単独 --open ON: ↑n * (mutualInfo μ (fun (ω : Ω) => encoder (Msg ω) ⟨0, hn⟩) (Ys ⟨0, hn⟩)).toReal
+
+4 行目は逆で、**`openDecls` の側は単独実行でも効く** (プリンタのオプションだから)。
+つまり `--open` の 2 つの機構のうち**片方だけが 1 モジュール再抽出で再現しない**。
+
+5 行目は増分 1 の判断基準 1 (「1 モジュール再抽出の IR はフル抽出と同一」PASS) の再現で、
+既定構成では 4 つ目のモジュールでも成り立った。**壊れているのは `--open` 構成だけ。**
+
+### 8e. ページ側 (実測、参考)
+
+`ir-base` と `ir-open-full` から 432 ページずつ生成してバイト比較:
+
+| | |
+|---|---:|
+| バイトが変わったページ | **247 / 432** |
+| IR が変わったモジュール (263) に対する stale | **0** |
+| 同 gratuitous | **16** |
+
+16 は「IR は変わったがページは変わらない」で、**全 16 件とも差分が `equations` /
+`equationCode` だけ**。`render.ts` の `equationsHtml` は 200 文字以上の等式を落とすので
+(`render.ts:1120-1121`)、その等式はページに出ない。IR ⊇ ページ の向きは保たれている。
+
+### 8f. 判定
+
+**S3 は否定された。** 否定条件 (「1 モジュール再抽出とフル抽出が同じモジュールで
+バイト一致しない構成が 1 つでもある」) を、`--open` 構成の A で満たしている。
+**事前予測 (README §1: 「`--open` 下で refuted。単独実行の import closure に
+notation 宣言モジュールが入らないから」) と一致**、理由まで一致した。
+
+**この判定の射程を狭く書いておく。** 否定したのは「**全構成で**一致する」であって、
+「既定構成 (`--open` OFF) で一致する」は 8d 5 行目のとおり今回も成り立っている。
+`docs/plans/three-axes.md` の事前決定 #4 が `--open` OFF を選んでいる限り、
+この経路は**この対象・この構成では休眠している**。休眠していることと閉じていることは別で、
+S3 は「全構成で」と書かれているので否定である。
+
+---
+
+## 9. E6 — 所有モジュールの経路 (増分 1 README §4.2)
+
+主張は「IR は参照を (定義モジュール, 名前) で持つので、宣言を M から M′ に移すと
+参照側 N の IR が古くなるのに N の olean は変わらない」。
+対象を再ビルドできないので、**移動は IR のコピーに注入した** (Lean は起動していない)。
+
+1 回の移動から 2 本の木を作る:
+
+| 木 | 中身 | 何を表すか |
+|---|---|---|
+| `ir-moved-<v>` | D を移動、**`refs` はそのまま** | M と M′ だけを再抽出したときにパイプラインが出すもの |
+| `ir-moved-<v>-fixed` | D を移動し、`["M","D"]` の refs を `["M′","D"]` に書き換え | **フル再抽出が出すもの (正解)** |
+
+### 9a. 何を動かしたか (選定規則は先に固定、実測)
+
+規則: **D = 自パッケージの宣言のうち、他モジュールの `refs` に最も多く現れるもの** (同数なら名前昇順)。
+M′ は 2 つ取る (行き先のグラフ上の位置で結果が変わらないことを見るため):
+**「M を推移的に import する / しない」それぞれの中で、D を参照せず宣言数 1 以上の
+モジュールのうち宣言数最小、同数なら名前昇順**。
+
+| | |
+|---|---|
+| D | `InformationTheory.Shannon.entropy` (他 49 モジュールの `refs` に出現。次点 `mutualInfo` 46) |
+| M | `InformationTheory.Shannon.Bridge` (`IMPORTERS(M)` = 261) |
+| M′ down | `InformationTheory.Probability.TwoSidedExtension.CondExpMeasurePreserving` (M を推移 import する) |
+| M′ far | `InformationTheory.Meta.EntryPoint` (M を推移 import しない。`IMPORTERS` 414 のハブ) |
+| 書き換えた `refs` エントリ (fixed 側) | 111 個 / 51 モジュール |
+
+### 9b. 真の変更集合と機構の集合 (実測)
+
+変更モジュールを `{M, M′}` として `impact.ts` を 3 mode で回した。
+
+| M′ | 真の変更ページ | mode | 機構の集合 | **stale** | gratuitous |
+|---|---:|---|---:|---:|---:|
+| down | 50 | `self` | 2 | **48** | 0 |
+| down | 50 | `referrers` | 51 | **0** | 1 |
+| down | 50 | `importers` | 262 | **0** | 212 |
+| far | 50 | `self` | 2 | **48** | 0 |
+| far | 50 | `referrers` | 51 | **0** | 1 |
+| far | 50 | `importers` | 415 | **0** | 365 |
+
+50 = M + M′ + 参照側 48。`--mode referrers` が (この 1 例では) ちょうど覆う。
+gratuitous 1 は `…BroadcastChannel.Achievability.ErrorAnalysis`。**`entropy` は参照している**が、
+その参照が 553 文字の等式の中にあり、`render.ts` の 200 文字の等式上限
+(`render.ts:1120-1121`) で落ちるのでページに出ない。§8e の 16 件と同じ機構。
+
+### 9c. **mode は救いにならない** (実測、仮定に依存しない)
+
+上の表は「再生成するページの集合」の話でしかない。`incremental.sh` は
+**再抽出を台帳の `$CHANGED` に限る** (`incremental.sh:81-83`) 一方、`--mode` が決めるのは
+**ステップ 4 の描画対象**だけ (`incremental.sh:99-108`)。N を古い IR から描き直しても何も直らない:
+
+| | |
+|---|---:|
+| 参照側 48 ページ: `base` と `stale` (M・M′ だけ再抽出) がバイト一致 | **48 / 48** |
+| 参照側 48 ページ: `fixed` (正解) と `stale` がバイト一致 | **0 / 48** |
+
+**`--mode referrers` でも `--mode importers` でも、直るページは 0。**
+51 モジュールの集合は**抽出**を駆動しなければ意味がない。これは olean の仮定に依存しない。
+
+### 9d. リンクは (a) 古い M を指し続ける / (b) 新しい M′ を指す / (c) 消える — のどれか (実測)
+
+**(a)。** しかも「古いが生きている」ではなく**壊れている**。
+
+| 木 | 参照側 48 ページ中リンクを持つもの | リンク先 | 本数 | リンク先に `id="…entropy"` はあるか |
+|---|---:|---|---:|---|
+| base | 48 | `Bridge.html` | 171 | **ある** |
+| **stale** | 48 | **`Bridge.html`** | 171 | **無い** |
+| fixed | 48 | `CondExpMeasurePreserving.html` | 171 | ある |
+
+実物 (`…Shannon/AEP/Rate.html`、全文は `stage5b-e6-links.txt`):
+
+    base :  <a href="../../.././InformationTheory/Shannon/Bridge.html#InformationTheory.Shannon.entropy">entropy</a>
+    stale:  <a href="../../.././InformationTheory/Shannon/Bridge.html#InformationTheory.Shannon.entropy">entropy</a>
+    fixed:  <a href="../../.././InformationTheory/Probability/TwoSidedExtension/CondExpMeasurePreserving.html#InformationTheory.Shannon.entropy">entropy</a>
+
+理由は `render.ts:561` の `refs.get(name) ?? this.known.get(name)` — **宣言ごとの `refs` が
+グローバルな `known` より優先される**。`known` の側は移動に追従している (`known` は
+`modules/*.json` から作るので `entropy` → M′) が、`refs` があるかぎり使われない。
+**つまり (b) にはならない。N の IR そのものを作り直す必要がある。**
+
+なお docstring の autolink は `known` を引く (§3 の経路) ので (b) になりうるが、
+この対象では `entropy` を autolink する docstring が無く、**この例では 0 件**。
+(a) と (b) が 1 つのページに同居しうることは残る — この対象での実測は「(b) は 0」。
+
+### 9e. サイトのバイト比較では見えない (実測)
+
+`base` と `stale` の 432 ページをバイト比較すると、**差は 2 ページ (M と M′) だけ**。
+参照側 48 ページは 1 バイトも変わらない。**「前回と同じバイトなら正しい」は成立しない** —
+壊れているのはリンク先のアンカーであって、リンク元のバイトではない。
+
+### 9f. 「N の olean は変わらない」は**この leg でも検証されていない** (仮定)
+
+| ラベル | 主張 |
+|---|---|
+| **仮定** | 宣言 D を M から M′ に移しても、参照側 N の olean は変わらない (leg 7 の主張) |
+
+対象を再ビルドできない (規約上も、この leg の制約上も) ので測っていない。**依存関係を書く:**
+
+- 仮定が**真**なら: 台帳の `$CHANGED` は `{M, M′}` だけ → N は再抽出されない →
+  **48 ページが壊れたまま公開される** (9c・9d が実測したとおり)。
+- 仮定が**偽** (N の olean も変わる) なら: 台帳が N を検出 → N が再抽出される → 直る。
+  この経路は台帳だけで閉じる。
+
+**したがって §9 の結論は仮定に依存する。** 依存しないのは 9c だけ:
+**仮定の真偽によらず、`--mode` を広げることでは 1 ページも直らない。**
+仮定を決めるには対象のフルビルドが 2 回 (移動前・移動後) 要る。この leg の外。
+
+### 9g. 判定
+
+所有モジュールの経路は、**現在の機構では捕まらない** (仮定が真の場合)。
+打ち手は「移動した名前を `refs` に持つモジュールを**再抽出**する」。
+この 1 例ではその集合が **50 モジュール** (移動前の IR で `(Bridge, entropy)` を
+`refs` に持つもの。M 自身を含む) + 行き先 M′ = **51**、stale 0 / gratuitous 1。
+`impact.ts --mode referrers` の 51 と**集合として完全一致した** (差 0)。
+ただし `--mode referrers` は Bridge の**すべての**宣言への参照を拾うので、
+一致は「Bridge を参照する = entropy を参照する」がこの対象で成り立ったから。
+名前単位に絞る規則のほうが小さくなりうる。**どちらも未実装・未計測。**
+51/432 = 11.8% の再抽出コストがかかる (規模のみ。時間は測っていない)。

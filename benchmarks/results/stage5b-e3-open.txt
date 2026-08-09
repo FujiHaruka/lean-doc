@@ -1,0 +1,119 @@
+# stage5b E3 raw log — S3: does a one-module re-extraction equal a full extraction under every extractor configuration?
+# date 2026-08-10 / Darwin 25.6.0 arm64 (MacBookAir10,1, Apple M1, 16 GB) / lean4 v4.31.0
+# target /Users/haruka/dev/lean-projects (read only; lake env borrows the environment, nothing written)
+# extractor experiments/stage4b/build/extract, unchanged
+# reproduce: experiments/stage5b/run-e3.sh --ir <base ir> --work <scratch>
+
+===================== extraction wall clock (one run each; NOT a performance claim) =====================
+# order of execution: full-open, one-A-open, one-B-open, (one-A-noopen re-run after a script fix).
+# The page-fault counts show the runs are not in the same cache state; they are here only as
+# evidence that each run completed.
+full-open     45.33 real  14.84 user   5.30 sys   peak RSS 2,833,334,272 B   page faults 244,152
+one-A-open    19.38 real   1.86 user   3.27 sys   peak RSS 2,989,047,808 B   page faults 152,450
+one-B-open     3.70 real   1.62 user   1.68 sys   peak RSS 2,705,227,776 B   page faults   2,309
+one-A-noopen  12.54 real   1.82 user   2.47 sys   peak RSS 3,006,267,392 B   page faults  81,504
+one-B-open    19.82 real   1.76 user   3.29 sys   peak RSS 2,618,851,328 B   page faults 156,784   (re-run)
+# The re-run of one-B-open is a determinism check, not a timing one: a second, independent
+# Lean process produced a byte-identical module JSON (6,119 B, sha256 prefix 96b6627475b64bce).
+
+===================== step 2 — the printing channel's reach, on the IR graphs =====================
+package modules in the IR      432
+
+## notation-ish declarations in the package's sources: 6
+  InformationTheory/Asymptotic.lean:54  notation  scoped=True  scope=None  rhs=DotEq a b
+  InformationTheory/Shannon/TypedRV.lean:109  notation3  scoped=True  scope=InformationTheory.Shannon  rhs=entropy X
+  InformationTheory/Shannon/TypedRV.lean:111  notation3  scoped=True  scope=InformationTheory.Shannon  rhs=InformationTheory.Shannon.condEntropy X Y
+  InformationTheory/Shannon/TypedRV.lean:113  notation3  scoped=True  scope=InformationTheory.Shannon  rhs=mutualInfo X Y
+  InformationTheory/Shannon/TypedRV.lean:115  notation3  scoped=True  scope=InformationTheory.Shannon  rhs=condMutualInfo X Y Z
+  InformationTheory/Shannon/TypedRV.lean:118  notation3  scoped=True  scope=InformationTheory.Shannon  rhs=klDivRV X Y
+declaring modules: ['InformationTheory.Asymptotic', 'InformationTheory.Shannon.TypedRV']
+
+## notation heads that are declarations of this package: 6
+  InformationTheory.Asymptotic.DotEq  <- InformationTheory.Asymptotic
+  InformationTheory.Shannon.condEntropy  <- InformationTheory.Shannon.TypedRV
+  InformationTheory.Shannon.condMutualInfo  <- InformationTheory.Shannon.CondMutualInfo
+  InformationTheory.Shannon.entropy  <- InformationTheory.Shannon.Bridge
+  InformationTheory.Shannon.klDivRV  <- InformationTheory.Shannon.TypedRV
+  InformationTheory.Shannon.mutualInfo  <- InformationTheory.Shannon.MutualInfo
+
+## modules whose `refs` name a head
+    50  InformationTheory.Shannon.entropy
+    47  InformationTheory.Shannon.mutualInfo
+    34  InformationTheory.Shannon.condMutualInfo
+     1  InformationTheory.Asymptotic.DotEq
+     1  InformationTheory.Shannon.condEntropy
+     1  InformationTheory.Shannon.klDivRV
+  union: 97
+
+IMPORTERS(InformationTheory.Asymptotic) = 15  
+
+IMPORTERS(InformationTheory.Shannon.TypedRV) = 1  ['InformationTheory']
+union of the IMPORTERS closures: 15
+
+modules that name a head but are NOT in any IMPORTERS closure: 95
+  InformationTheory.Shannon.AEP.Basic.Achievability
+  InformationTheory.Shannon.AEP.Basic.Converse
+  InformationTheory.Shannon.AEP.Basic.Core
+  InformationTheory.Shannon.AEP.Rate
+  InformationTheory.Shannon.AWGN.ConverseMIChainRule.BlockMI
+  InformationTheory.Shannon.AWGN.ConverseMIChainRule.PerLetterMI
+  InformationTheory.Shannon.AWGN.ConverseMutualInfoFiniteness
+  InformationTheory.Shannon.BoolLaw
+  InformationTheory.Shannon.Bridge
+  InformationTheory.Shannon.BroadcastChannel.Achievability.ErrorAnalysis
+  ... and 85 more
+
+===================== step 3 — which modules changed under --open, and why =====================
+modules compared                       432
+modules whose IR bytes changed         263
+  cause: a scoped notation now fires   97
+  cause: name shortening only          166
+
+modules whose `refs` name a notation head           97
+  == the set changed by the notation mechanism?     True
+IMPORTERS(notation modules) + the modules themselves 17
+  changed modules outside that bound                250
+  notation-caused modules outside that bound        95
+
+pick[notation] = InformationTheory.Shannon.ChannelCoding.Converse  (declarations: 1)
+  next four: [(1, 'InformationTheory.Shannon.ChannelCoding.ConverseGeneral'), (1, 'InformationTheory.Shannon.ConditionalMethodOfTypes.Mass.SliceMass'), (1, 'InformationTheory.Shannon.WynerZiv.ConverseGateway'), (2, 'InformationTheory.Shannon.AWGN.ConverseMIChainRule.PerLetterMI')]
+
+pick[shorten] = InformationTheory.Shannon.DeLaValleePoussin  (declarations: 2)
+  next four: [(2, 'InformationTheory.Shannon.TypeClassLowerBound'), (3, 'InformationTheory.Shannon.AWGN.Converse'), (3, 'InformationTheory.Shannon.AWGN.MutualInfoBridge'), (3, 'InformationTheory.Shannon.EPI.NoiseExtension')]
+
+===================== step 4 — the byte comparison that decides S3 =====================
+A --open: single vs full --open              DIFFER       12694 vs   12961   bf3b5e843b9d32a8 8b9f1eb3fb7127e3
+A --open: single vs base (--open off)        IDENTICAL    12694 vs   12694   bf3b5e843b9d32a8 bf3b5e843b9d32a8
+B --open: single vs full --open              IDENTICAL     6119 vs    6119   96b6627475b64bce 96b6627475b64bce
+B --open: single vs base (--open off)        DIFFER        6119 vs    6168   96b6627475b64bce c7b4054048bf31c0
+A --open off: single vs base                 IDENTICAL    12694 vs   12694   bf3b5e843b9d32a8 bf3b5e843b9d32a8
+
+===================== the same diff, as printed text =====================
+--- [notation] InformationTheory.Shannon.ChannelCoding.Converse: base (--open off)  vs  full extraction with --open
+  decl InformationTheory.Shannon.channel_coding_converse_iid
+    A(type): "Real.log ↑(Fintype.card M) ≤\n  ↑n * (mutualInfo μ (fun (ω : Ω) => encoder (Msg ω) ⟨0, hn⟩) (Ys ⟨0, hn⟩)).toReal +\n      Real.binEntropy (MeasureFano.errorProb μ Msg (fun (ω : Ω) (i : Fin n) => Ys i ω) decoder) +\n    MeasureFano.errorProb μ Msg (fun (ω : Ω) (i : Fin n) => Ys i ω) decoder * Real.log (↑(Fintype.card M) - 1)"
+    B(type): "Real.log ↑(Fintype.card M) ≤\n  ↑n * I(μ; fun (ω : Ω) => encoder (Msg ω) ⟨0, hn⟩ ; Ys ⟨0, hn⟩).toReal +\n      Real.binEntropy (MeasureFano.errorProb μ Msg (fun (ω : Ω) (i : Fin n) => Ys i ω) decoder) +\n    MeasureFano.errorProb μ Msg (fun (ω : Ω) (i : Fin n) => Ys i ω) decoder * Real.log (↑(Fintype.card M) - 1)"
+    A(binders): ["{Ω : Type u_1}", "[MeasurableSpace Ω]", "{M : Type u_2}", "[Fintype M]", "[Nonempty M]", "[MeasurableSpace M]", "[MeasurableSingletonClass M]", "{α : Type u_3}", "{β : Type u_4}", "[Fintype α]", "[Nonempty α]", "[MeasurableSpace α]", "[MeasurableSingletonClass α]", "[Fintype β]", "[Nonempty β]", "[MeasurableSpace β]", "[MeasurableSingletonClass β]", "{n : ℕ}", "(hn : 0 < n)", "(μ : MeasureTheory.Measure Ω)", "[Meas
+    B(binders): ["{Ω : Type u_1}", "[MeasurableSpace Ω]", "{M : Type u_2}", "[Fintype M]", "[Nonempty M]", "[MeasurableSpace M]", "[MeasurableSingletonClass M]", "{α : Type u_3}", "{β : Type u_4}", "[Fintype α]", "[Nonempty α]", "[MeasurableSpace α]", "[MeasurableSingletonClass α]", "[Fintype β]", "[Nonempty β]", "[MeasurableSpace β]", "[MeasurableSingletonClass β]", "{n : ℕ}", "(hn : 0 < n)", "(μ : MeasureTheory.Measure Ω)", "[Meas
+
+--- [notation] InformationTheory.Shannon.ChannelCoding.Converse: single-module run with --open  vs  full run with --open
+  decl InformationTheory.Shannon.channel_coding_converse_iid
+    A(type): "Real.log ↑(Fintype.card M) ≤\n  ↑n * (mutualInfo μ (fun (ω : Ω) => encoder (Msg ω) ⟨0, hn⟩) (Ys ⟨0, hn⟩)).toReal +\n      Real.binEntropy (MeasureFano.errorProb μ Msg (fun (ω : Ω) (i : Fin n) => Ys i ω) decoder) +\n    MeasureFano.errorProb μ Msg (fun (ω : Ω) (i : Fin n) => Ys i ω) decoder * Real.log (↑(Fintype.card M) - 1)"
+    B(type): "Real.log ↑(Fintype.card M) ≤\n  ↑n * I(μ; fun (ω : Ω) => encoder (Msg ω) ⟨0, hn⟩ ; Ys ⟨0, hn⟩).toReal +\n      Real.binEntropy (MeasureFano.errorProb μ Msg (fun (ω : Ω) (i : Fin n) => Ys i ω) decoder) +\n    MeasureFano.errorProb μ Msg (fun (ω : Ω) (i : Fin n) => Ys i ω) decoder * Real.log (↑(Fintype.card M) - 1)"
+    A(binders): ["{Ω : Type u_1}", "[MeasurableSpace Ω]", "{M : Type u_2}", "[Fintype M]", "[Nonempty M]", "[MeasurableSpace M]", "[MeasurableSingletonClass M]", "{α : Type u_3}", "{β : Type u_4}", "[Fintype α]", "[Nonempty α]", "[MeasurableSpace α]", "[MeasurableSingletonClass α]", "[Fintype β]", "[Nonempty β]", "[MeasurableSpace β]", "[MeasurableSingletonClass β]", "{n : ℕ}", "(hn : 0 < n)", "(μ : MeasureTheory.Measure Ω)", "[Meas
+    B(binders): ["{Ω : Type u_1}", "[MeasurableSpace Ω]", "{M : Type u_2}", "[Fintype M]", "[Nonempty M]", "[MeasurableSpace M]", "[MeasurableSingletonClass M]", "{α : Type u_3}", "{β : Type u_4}", "[Fintype α]", "[Nonempty α]", "[MeasurableSpace α]", "[MeasurableSingletonClass α]", "[Fintype β]", "[Nonempty β]", "[MeasurableSpace β]", "[MeasurableSingletonClass β]", "{n : ℕ}", "(hn : 0 < n)", "(μ : MeasureTheory.Measure Ω)", "[Meas
+
+--- [shorten]  InformationTheory.Shannon.DeLaValleePoussin: base (--open off)  vs  full extraction with --open
+  decl InformationTheory.Shannon.Superlinear
+    A(equations): ["InformationTheory.Shannon.Superlinear G = ∀ (K : ENNReal), ∃ (M : NNReal), ∀ (t : ENNReal), ↑M ≤ t → K * t ≤ G t"]
+    B(equations): ["Superlinear G = ∀ (K : ENNReal), ∃ (M : NNReal), ∀ (t : ENNReal), ↑M ≤ t → K * t ≤ G t"]
+
+--- [notation] InformationTheory.Asymptotic: base vs full --open
+  decl InformationTheory.Asymptotic.DotEq.refl
+    A(type): "DotEq a a"
+    B(type): "a ≐ a"
+
+===================== step 5 — the page-level effect =====================
+true changed pages          247
+  mode irchanged  set= 263  stale=   0  gratuitous=  16
+  mode notation   set=  97  stale= 150  gratuitous=   0
