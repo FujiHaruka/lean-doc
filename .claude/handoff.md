@@ -1,13 +1,12 @@
-# Handoff — 2026-08-09 (3)
+# Handoff — 2026-08-09 (4)
 
 ## State
 
-- Branch: main / Uncommitted: clean (最新 `45fed92`)
-- Active phase: **relay leg 1 の開始点**。検証段階 1・2 完了、段階 3 に着手するところ。
+- Branch: main / Uncommitted: clean / push 済み
+- Active phase: 段階 3 の**増分 3 (URL 生成と正しさの照合)** に入るところ。増分 1・2 は完了。
 - 計測環境: 対象リポジトリ `/Users/haruka/dev/lean-projects` の doc-gen4 (v4.31.0) に
-  計装パッチが当たったまま (`benchmarks/tools/apply-instrumentation.sh --check` で確認)。
-  olean 暖機済み。対象リポジトリは clean。同リポジトリには doc-gen4 の完成 HTML 出力
-  (`.lake/build/doc`、876 MB) があり、段階 3 の突き合わせ先になる。**読むだけ。**
+  計装パッチが当たったまま (`benchmarks/tools/apply-instrumentation.sh --check`)。
+  olean 暖機済み・対象リポジトリ clean。`.lake/build/doc` は**読むだけ**。
 
 ## Relay control
 
@@ -15,50 +14,55 @@
 - Goal: `docs/plans/three-axes.md` を完遂する。初回・CI・増分の 3 軸それぞれに実測を 1 つ入れる。
   段階 3 → IR 永続化 → 段階 4 / cold 節 / 段階 5 の順。**判断基準を満たさなければそこで停止し、
   否定を `docs/verification-log.md` に記録して `approach.md` の見直し案を書いて終了 — それも完遂。**
-- Leg: 1 / cap 10
-- Predecessor: none  # leg 1 はユーザーの元セッション由来。kill しない
+- Leg: 2 / cap 10
+- Predecessor: three-axes-r1
 - Stop-on: completion | user-decision | no-progress×2 | leg-cap
 - Progress ledger:
-  - (まだ無し)
+  - r1: 段階 3 増分 1・2 完了。`experiments/stage3/` + `compare-links.ts` + `map-size.ts`。
+    `7380856` / `b0da5a0` / `da91c89`
 
 ## Tasks
 
-なし。leg 1 の最初に `docs/plans/stage3.md` の増分 1〜4 から立てる。
+- #6 [pending] 写像の実サイズを 3 通り実測 — **実質完了**。増分 2 で出たので閉じてよい
 
 ## Where we are
 
-段階 1・2 が完了し、抽出フェーズは warm 11.82 秒の実測になっている (環境ロード 21% /
-意味解析 78%)。ただし署名は文字列に落としているだけで、依存へのリンクは 1 本も張っていない。
-今セッションでは計測をせず、3 軸 (初回・CI・増分) のゴールと段階 3 の実行計画を書いた。
+増分 1: 署名+equation+structure 親型から参照定数を回収し、ユニーク 1,446 (自 913 / 依存 533)。
+doc-gen4 が HTML に出したリンク 1,154 件を**取りこぼし 0** で包含 (ただし HTML は 348/432 モジュール)。
+増分 2: 依存側 533 のうち 530 が `declaration-data.bmp` にある (未ヒットは再帰子 3 件)。
+写像は上限 34.3 MB / **下限 53 KB**、ロードは環境ロードの床の 8%、`kind` はリンクに不要。
+**判断基準 (b) は達成。(a) は「取りこぼし 0」までで、URL の一致はまだ見ていない。**
 
 ## Next step
 
-`docs/plans/stage3.md` の**増分 1** から入る。`experiments/stage3/` を新設し
-(`experiments/stage2/` をコピーして起点にする。stage1/2 は壊さない)、doc-gen4 の
-`tagCodeInfos` 相当を入れて**署名中に現れる定数名**を回収する。出す数字は参照定数の
-ユニーク数と自パッケージ/依存側の内訳、そしてタグ付けの追加コスト (段階 2 の `--tag`
-+0.4 秒と整合するか)。
+`docs/plans/stage3.md` の**増分 3**。モジュール名 → URL の規則を実装して、生成した URL が
+doc-gen4 の `<a href>` と**同じ場所を指すか**を照合する。今あるのは「名前の集合が一致する」
+ところまでで、**href 文字列の一致は未検証**。`benchmarks/tools/compare-links.ts` を
+「名前の集合の比較」から「(宣言, 参照名) → href の比較」に広げるのが素直。
+IR には絶対的な識別子 (モジュール名 + 宣言名) を持ち、相対化は出力時 (§5.6 の境界)。
+その後**増分 4 = 判断**: `verification-log.md` に段階 3 の総括、`approach.md` §5.3 / §6.4(b) を結果に合わせる。
 
 ## Files to read first
 
-- `docs/plans/three-axes.md` — relay のゴール本体。leg 構成・完遂の定義・**事前決定の表**
-- `docs/plans/stage3.md` — leg 1〜3 の中身。増分・落とし穴・撤退ライン
-- `docs/verification-log.md` — 段階 1・2 の結果。**数字の SoT**。計測条件もここ
-- `experiments/stage2/README.md` — 現役プロトタイプの構造と実行方法。段階 3 の出発点
-- `CLAUDE.md` — 計測の誠実性 / オーケストレーション規律
+- `docs/plans/stage3.md` — 増分 3 の中身。**落とし穴が増分 1 の実地知見で更新済み**
+- `docs/verification-log.md` の「段階 3 — 増分 1 / 増分 2」 — 数字の SoT
+- `benchmarks/tools/compare-links.ts` — 突き合わせツール。増分 3 で拡張する本体
+- `experiments/stage3/README.md` — `--refs` / `--dump-refs` の意味と実測値
+- `docs/plans/three-axes.md` §6 — **事前決定の表**。蒸し返すと relay が PAUSED で止まる
 
 ## Load-bearing context
 
-- **事前決定は `three-axes.md` §6 にある。** 段階 4 は Deno/TS の使い捨て (製品言語の決定ではない)、
-  所有モジュールは doc-gen4 踏襲、IR は 1 モジュール 1 JSON、`--open` 既定 OFF、
-  **ネットワーク不使用**、**cold 計測で sudo を使わない**。ここを蒸し返すと relay が PAUSED で止まる。
-- **このリポジトリでは `lake` が使えない** (toolchain 未設定・意図的)。Lean は対象リポジトリ側で
-  `lake env`。`--root=<experiments/stageN>` が必要、`leanc` には `-rdynamic` が必須。
-  計測はネイティブビルドで (`lean --run` は不可)。
-- **タグ付けは pp オプション `pp.tagAppFns` に依存する。** doc-gen4 と同じオプションで測ること。
-  段階 2 でここを取り違えて「9.5% 速く見えた」事故がある。
-- **1 回だけ測った数字を信じない。** 連続 5 回以上、壁時計 ≒ user+sys なら warm。
-  時間を比べる前に doc-gen4 と同じ仕事をしていることを (件数ではなく集合で) 先に確認する。
-- 段階 3 の成果物は**バイト数と一致率であって秒ではない**。新しい時間の数字は 1 つだけ。
-- 未検証の残: `experiments/stage2` は属性収集・instance 索引・`renderTagged`・本物の IR 永続化を
-  出していない。**11.82 秒を「完成品の値」として引用しない。**
+- **突き合わせ先の HTML は 432 モジュール中 348 しかない** (フルビルド 42% 打ち切りの影響)。
+  一致率はこの範囲でしか出せない。**「何モジュール分か」を必ず併記する。**
+- **署名ブロックの切り出しは 2 段階の除外が要る**: `div.decl_header` / `ul.equations` /
+  `li.structure_field` に限定し、さらに**自己リンク** (`span.decl_name` と
+  `div.structure_field_info` 内の先頭 `<a>` = フィールド名) を外す。これで初めて取りこぼし 0 になった。
+- **structure のフィールドは親のブロック内にレンダリングされる。** 「宣言 → HTML ブロック」の
+  対応は親子関係込みで解く必要がある。
+- **doc-gen4 は dead link を出す** (`Eq.rec` など、環境の全定数を見てリンクするため)。
+  一致率が 100% にならないのは lean-doc 側の欠陥とは限らない。**不一致は必ず原因ごとに分類する。**
+- **`refUs` の計時は遅延評価で 0 になる罠がある** (`experiments/stage3/README.md` に記録)。
+  Lean 側で新しい計時を足すときは、値が出現数と一緒に動くかを確認すること。
+- 未検証で残っているもの: **上流の公開サイトに `declaration-data.bmp` 相当があるか**
+  (ネットワーク不使用のため未確認、`approach.md` §8 に記録済み)。
+- 段階 3 の成果物は**バイト数と一致率であって秒ではない**。`11.82 秒` を完成品の値として引用しない。
