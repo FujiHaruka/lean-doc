@@ -1,0 +1,7 @@
+{"phase":"stage1.initSearchPath","pid":93992,"us":14}
+{"phase":"stage1.importModules","pid":93992,"us":2499054,"directImports":432}
+{"phase":"stage1.envStats","pid":93992,"us":0,"loadedModules":6021}
+{"phase":"stage1.indexLookup","pid":93992,"us":2180,"targetModules":432,"enumerated":8849,"kept":5123}
+{"phase":"stage1.scanLookup","pid":93992,"us":630414,"scanned":490171,"relevant":8824,"kept":5123}
+{"phase":"stage1.compare","pid":93992,"us":0,"onlyIndex":0,"onlyScan":0,"agree":true}
+{"phase":"stage1.total","pid":93992,"us":3136068,"modules":432}

@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Runs the stage-1 extractor over the fixed measurement target and records both
+# the timing JSONL and the conditions the numbers were taken under.
+#
+# usage: run.sh [name]      name defaults to `stage1-extract`
+#                           (use `stage1-extract-2nd` for the warm re-run)
+#
+# Writes:
+#   benchmarks/results/<name>.jsonl          raw timing records (committed)
+#   benchmarks/results/<name>-summary.txt    conditions + stdout + peak RSS
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../../benchmarks/tools/env.sh
+source "$HERE/../../benchmarks/tools/env.sh"
+
+LAKE="${LAKE:-$HOME/.elan/bin/lake}"
+NAME="${1:-stage1-extract}"
+MODULES="${MODULES:-$RESULTS_DIR/it-modules.txt}"
+BIN="$HERE/build/extract"
+OUT="$RESULTS_DIR/$NAME.jsonl"
+SUMMARY="$RESULTS_DIR/$NAME-summary.txt"
+
+[ -x "$BIN" ] || { echo "not built: run $HERE/build.sh first" >&2; exit 1; }
+[ -f "$MODULES" ] || { echo "module list not found: $MODULES" >&2; exit 1; }
+rm -f "$OUT"
+
+{
+  echo "date              $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  echo "host              $(uname -srm) / $(sysctl -n machdep.cpu.brand_string 2>/dev/null || echo '?') / $(($(sysctl -n hw.memsize) / 1024 / 1024 / 1024)) GB"
+  echo "lean-toolchain    $(cat "$TARGET_REPO/lean-toolchain")"
+  echo "LEAN_NUM_THREADS  ${LEAN_NUM_THREADS:-unset (Lean default)}"
+  echo "target            $TARGET_REPO"
+  echo "modules           $(grep -c . "$MODULES") from $MODULES"
+  echo "binary            $BIN"
+  echo
+} | tee "$SUMMARY"
+
+cd "$TARGET_REPO"
+# `/usr/bin/time -l` reports peak RSS ("maximum resident set size", bytes).
+"$LAKE" env /usr/bin/time -l "$BIN" "$MODULES" "$OUT" 2>&1 | tee -a "$SUMMARY"
+
+echo
+echo "timings -> $OUT"
+echo "summary -> $SUMMARY"

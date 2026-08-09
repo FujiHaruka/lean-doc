@@ -11,3 +11,6 @@ benchmarks/results/*.log
 
 # machine-local permission grants
 .claude/settings.local.json
+
+# stage-1 experiment build output (native binary + generated C)
+experiments/stage1/build/

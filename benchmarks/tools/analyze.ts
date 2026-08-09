@@ -35,6 +35,13 @@ const NESTED = new Set([
   "index.buildIndex",
   "index.writeIndex",
   "navbar.scanHtmlFiles",
+  // lean-doc's own extractor (experiments/stage1): everything below is inside `stage1.total`.
+  "stage1.initSearchPath",
+  "stage1.importModules",
+  "stage1.envStats",
+  "stage1.indexLookup",
+  "stage1.scanLookup",
+  "stage1.compare",
 ]);
 
 const byPhase = new Map<string, { n: number; us: number; max: number }>();
