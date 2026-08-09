@@ -3,11 +3,12 @@
 **位置づけ**: [`three-axes.md`](three-axes.md) の leg 1〜3 の中身。
 判断基準は `docs/approach.md` §7 の 3 行目。結果は `docs/verification-log.md` に書く。
 
-**状態**: **増分 1・2 完了** (2026-08-09)。数字は `verification-log.md` の
-「段階 3 — 増分 1」「増分 2」。ツールは `experiments/stage3/`、
+**状態**: **増分 1・2・3 完了** (2026-08-09 / 10)。数字は `verification-log.md` の
+「段階 3 — 増分 1 / 2 / 3」。ツールは `experiments/stage3/`、
 `benchmarks/tools/compare-links.ts`、`benchmarks/tools/map-size.ts`。
 **判断基準 (b) は達成** (下限 53 KB / 上限 34.3 MB、647 倍)。
-次は**増分 3** (URL 生成と正しさの照合) → 増分 4 (判断)。
+**(a) も達成** (写像だけで href 一致 99.992%、取りこぼし 0、348/432 モジュール範囲)。
+次は**増分 4** (判断・docs 反映)。
 
 ---
 
@@ -102,7 +103,13 @@ stage2 は `format` した文字列しか持っていない。doc-gen4 の `tagC
 「必要な分だけ引く」設計が成立し、同程度なら「37 MB を丸ごと持つ」しかない。
 どちらでも設計は成立するが、**常駐・CI・配布の形が変わる。**
 
-### 増分 3 — URL 生成と正しさの照合
+### 増分 3 — URL 生成と正しさの照合 — **完了**
+
+結果: 共通ペア 39,298 に対し href 完全一致は **env 由来 100.000% / 写像 (bmp) 由来 99.992%**、
+**HTML にあって lean-doc に無いペアは 0**。未一致 3 はリンクしてはいけない再帰子。
+撤退ライン「blacklist が写像から復元できない」は**否定された**。
+副産物として増分 1 の `li.structure_field` 正規表現の欠陥 (属性順依存で 153 本中 4 本しか
+拾えていなかった) を発見・訂正。以下は当初の計画で、実施済み。
 
 - モジュール名 → URL の規則を実装
   (`Mathlib.Analysis.Asymptotics.Defs` → `.././Mathlib/Analysis/Asymptotics/Defs.html#<decl>`)。

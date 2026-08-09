@@ -195,22 +195,88 @@ above `--tag`: it skips `tagCodeInfos` but walks every tag and accumulates names
 
 `../../benchmarks/tools/compare-links.ts` diffs the collected set against the
 links doc-gen4 actually emitted, restricted to signature blocks. Output:
-`../../benchmarks/results/stage3-linkcmp.txt`.
+`../../benchmarks/results/stage3-linkcmp.txt` (increment 1) and
+`../../benchmarks/results/stage3-urlcmp.txt` (increment 3).
 
-| | |
-|---|---:|
-| HTML link targets, unique | 1,154 |
-| collected constants, unique | 1,446 |
-| **in the HTML, missing here** | **0** |
-| collected but not linked in the HTML | 292 |
+| | increment 1 | increment 3 |
+|---|---:|---:|
+| HTML link targets, unique | 1,154 | **1,161** |
+| collected constants, unique | 1,446 | 1,446 |
+| **in the HTML, missing here** | **0** | **0** |
+| collected but not linked in the HTML | 292 | 285 |
+
+The two columns differ because increment 3 **fixed a defect in the tool, not in
+the extractor**: increment 1 matched structure fields as
+`<li class="structure_field...">`, but `DocGen4/Output/Structure.lean` writes
+`<li id={name} class="structure_field">` for a direct field, so that regex saw 4
+of the 157 field blocks in this corpus. Increment 3 matches
+`div.structure_field_info`, which is order-independent and also excludes the
+sibling `div.structure_field_doc` (a docstring, out of scope). This *adds* 7
+target names and 615 `<a>` occurrences and leaves "missing here" at 0, i.e. it
+widens what lean-doc is checked against and lean-doc still contains all of it.
+Increment 1's numbers stay reproducible with `--legacy-blocks`
+(`../../benchmarks/results/stage3-urlcmp-legacy.txt`).
 
 Containment in this direction is what to expect: doc-gen4 only emits an `<a>` for
-names it can resolve. The 292 are increment 3's material, not a result.
+names it can resolve. The 285 are increment 3's material, not a result.
 
 **This covers 348 of the 432 target modules.** The HTML tree in
 `.lake/build/doc/InformationTheory` has 348 pages (3,477 declarations); 84 target
 modules have no page, because that doc build was cut short. The zero above is a
 zero over those 348 modules, not over the whole target.
+
+## Increment 3 — URL generation
+
+The per-declaration dump is 7.3 MB, so it is **not committed**. Regenerate it
+with:
+
+```sh
+MODULES=$PWD/benchmarks/results/it-modules.txt RESULTS_DIR=<dir> \
+  ./experiments/stage3/run.sh stage3-decls -- \
+  --equations --refs --dump <dir>/stage3-decls-dump.jsonl
+```
+
+then compare (from the repository root):
+
+```sh
+deno run --allow-read --allow-write --allow-env \
+  benchmarks/tools/compare-links.ts benchmarks/results/stage3-refs.jsonl \
+  --decls <dir>/stage3-decls-dump.jsonl \
+  --mismatches benchmarks/results/stage3-urlcmp-mismatches.jsonl \
+  > benchmarks/results/stage3-urlcmp.txt
+```
+
+The rule implemented, read off `DocGen4/Output/Base.lean` (`getRoot`,
+`moduleNameToLink`, `declNameToLink`):
+
+```
+href = "../" * (components(page module) - 1) + "./"
+     + module(target).replace(".", "/") + ".html#" + target
+```
+
+All 実測, **348 of 432 modules**, population = the 3,477 declarations that are
+both in the dump and rendered as a `div.decl`:
+
+| | |
+|---|---:|
+| (declaration, reference) pairs, HTML | 39,298 |
+| (declaration, reference) pairs, lean-doc | 40,936 |
+| common | 39,298 (100% of HTML) |
+| **exact href match, A. env** | **39,298 / 39,298 = 100.000%** |
+| **exact href match, B. map (`.bmp`)** | **39,295 / 39,298 = 99.992%** |
+| in the HTML, not in lean-doc | **0** |
+| in lean-doc, not linked by doc-gen4 | 1,638 |
+
+A and B are not equally strong evidence. doc-gen4's `name2ModIdx` **is**
+`env.const2ModIdx` (`DocGen4/Process/Analyze.lean:243`), the same map the
+extractor read with `getModuleIdxFor?`, so A tests the path rule and nothing
+else. **B is the independent one**: it never touches the dependency's
+environment.
+
+B's 3 misses are `Eq.rec` (×1) and `List.recOn` (×2) — recursors, which doc-gen4
+blacklists and therefore never puts in the `.bmp`. `Init/Prelude.html` exists and
+has no `id="Eq.rec"`, so **those three links doc-gen4 emitted are dead** (実測).
+Strategy B emits nothing there instead of a dead link.
 
 ## Baseline identity
 

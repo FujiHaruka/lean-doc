@@ -1,0 +1,132 @@
+doc-gen4 HTML       /Users/haruka/dev/lean-projects/.lake/build/doc/InformationTheory
+lean-doc refs       benchmarks/results/stage3-refs.jsonl
+
+module coverage     348 of 432 target modules have a page (80.6%)
+                    the comparison below only covers those 348
+
+HTML link targets   1161 unique, 76318 occurrences
+  decl_header       1062 unique
+  equations         736 unique
+  structure_field   118 unique
+lean-doc constants  1446 unique (913 own, 533 dependency)
+
+in HTML, missing from lean-doc   0   <- defects
+in lean-doc, not linked in HTML  285   <- unresolved / not yet classified
+containment                      100.0% of HTML targets are collected
+
+=== increment 3: per-(declaration, reference) URL comparison ===
+
+self-check (the per-decl attribution must lose nothing)
+  block matching                       fixed; rerun with --legacy-blocks for increment 1's
+    increment 1 matched structure fields as <li class="structure_field...">,
+    which DocGen4/Output/Structure.lean only emits for one branch: it saw 4
+    of the 157 field blocks here. Matching div.structure_field_info instead
+    is order-independent and excludes the sibling field docstring.
+  div.decl blocks in the HTML          3,477 (3,477 distinct ids, 0 nested, 0 duplicate)
+  link targets, page-wide union        1,161
+  link targets, per-decl union         1,161   (same set)
+  links in a signature block that is
+    outside every div.decl             0
+  in HTML, missing from lean-doc       0
+
+population (in the dump AND rendered as a div.decl; 348 of 432 modules)
+  declarations in the dump             4,750
+  declarations with a div.decl         3,477   <- the population
+  dump only, rendered as a member of
+    their parent (field / ctor)        190
+  dump only, module has no page        1,083
+  dump only, module has a page         0
+  div.decl with no dump record         0
+  member refs also in the parent record  1,404 of 1,448 (97.0%)
+      only in the member record: InformationTheory.Shannon.Relay.RelayCode.relay -> Eq
+      only in the member record: InformationTheory.Shannon.Relay.RelayCode.relay -> InformationTheory.Shannon.Relay.RelayCode.relay
+      only in the member record: InformationTheory.Shannon.Relay.RelayCode.decoder -> Eq
+      only in the member record: InformationTheory.Shannon.Relay.RelayCode.decoder -> InformationTheory.Shannon.Relay.RelayCode.decoder
+      only in the member record: InformationTheory.Shannon.Relay.RelayCode.encoder -> Eq
+    (the rest are refs of the member's own *signature*, which the parent
+     block does not render -- what matters is that section 4 stays at 0.)
+  page module disagreements            0
+
+1. pairs
+  HTML       39,298 distinct (declaration, reference) pairs, 76,318 <a> occurrences
+  lean-doc   40,936 distinct pairs
+  common     39,298   (100.0% of HTML, 96.0% of lean-doc)
+  pairs whose <a> occurrences do not all share one href: 0
+  page depths exercised: .././ 27 decls, ../.././ 430 decls, ../../.././ 1,993 decls, ../../../.././ 950 decls, ../../../../.././ 77 decls
+
+2. exact href match on the common pairs
+  A. env  (refs.jsonl module + path rule)
+      exact match   39,298 of 39,298   100.000%   (miss 0)
+  B. map  (declaration-data.bmp docLink + prefix)
+      exact match   39,295 of 39,298   99.992%   (miss 3)
+  Read strategy A for what it is: doc-gen4's own name2ModIdx *is*
+  env.const2ModIdx (DocGen4/Process/Analyze.lean:243), the map lean-doc read
+  with getModuleIdxFor?. A therefore tests the path rule, not the module
+  lookup -- the two sides share that input. B is the independent one.
+
+3. mismatch classification (common pairs only)
+  strategy A
+      (none)
+  strategy B
+           3  not in the .bmp
+        InformationTheory.Shannon.MAC.MACCode.averageErrorProb_congr_length -> Eq.rec   HTML ../../.././Init/Prelude.html#Eq.rec
+        InformationTheory.Kolmogorov.parseUnary_eq_rec -> List.recOn   HTML ../../.././Init/Prelude.html#List.recOn
+        InformationTheory.Kolmogorov.decodeNat_eq_rec -> List.recOn   HTML ../../.././Init/Prelude.html#List.recOn
+
+4. in the HTML, not in lean-doc: 0 pairs   <- defect candidates
+
+5. in lean-doc, not linked in the HTML: 1,638 pairs
+       1,063  no <a> at all (dependency, in the .bmp)
+        InformationTheory.Asymptotic.«term_≐_» -> Eq   module Init.Prelude, live
+        InformationTheory.Asymptotic.«term_≐_» -> Lean.ParserDescr.trailingNode   module Init.Prelude, live
+        InformationTheory.Asymptotic.«term_≐_» -> Lean.ParserDescr.binary   module Init.Prelude, live
+         340  no <a> at all (own package, in the .bmp)
+        InformationTheory.Shannon.entropyPolymatroid -> Combinatorics.Polymatroid.mk   module InformationTheory.Polymatroid.Basic, live
+        InformationTheory.Shannon.entropyPolymatroid -> InformationTheory.Shannon.jointEntropySubset   module InformationTheory.Shannon.Han.D, live
+        InformationTheory.Shannon.TwoSided.pmfLogCondPast -> InformationTheory.Shannon.TwoSided.coord0   module InformationTheory.Probability.TwoSidedExtension.Backward, live
+         226  rendered, but as the declaration's own name link (dropped by this tool)
+        InformationTheory.Asymptotic.«term_≐_» -> InformationTheory.Asymptotic.«term_≐_»   module InformationTheory.Asymptotic, live
+        InformationTheory.FiniteJointPMF -> InformationTheory.FiniteJointPMF   module InformationTheory.Fano, live
+        Combinatorics.Polymatroid -> Combinatorics.Polymatroid   module InformationTheory.Polymatroid.Basic, live
+           8  private name (doc-gen4 links these to the module page or gives up)
+        InformationTheory.Shannon.floorMatrix -> _private.InformationTheory.Shannon.ConditionalMethodOfTypes.Core.0.InformationTheory.Shannon.absorberLetterβ   module InformationTheory.Shannon.ConditionalMethodOfTypes.Core, dead
+        InformationTheory.Shannon.roundedTypeIndexNat -> _private.InformationTheory.Shannon.Sanov.RoundedTypeSequence.0.InformationTheory.Shannon.absorberLetter   module InformationTheory.Shannon.Sanov.RoundedTypeSequence, dead
+        InformationTheory.Shannon.roundedTypeIndexNat -> _private.InformationTheory.Shannon.Sanov.RoundedTypeSequence.0.InformationTheory.Shannon.roundedFloor   module InformationTheory.Shannon.Sanov.RoundedTypeSequence, dead
+           1  no <a> at all (dependency, NOT in the .bmp)
+        InformationTheory.Kolmogorov.enumWords -> Nat.rec   module Init.Prelude, dead
+   note: of the "no <a> at all" pairs, 266 have an ancestor of the name
+   anchored in the same block. Suggestive of findLinkableParent, not proof.
+
+5b. dead-link exposure -- would the URL lean-doc emits resolve?
+    (anchor = any id= on the target page. Pages absent from this 42%-cut
+    doc build are 'not built', which is a property of the build, not of the map.)
+  all pairs lean-doc would emit (population): 40,936 pairs
+      40,924 pairs / 1,209 names   live
+          12 pairs /   11 names   dead
+    of those, the ones doc-gen4 also linked: 39,298 pairs
+      39,295 pairs / 1,159 names   live
+           3 pairs /    2 names   dead
+    of those, the ones doc-gen4 did not link: 1,638 pairs
+       1,629 pairs /  531 names   live
+           9 pairs /    9 names   dead
+  dead names, dependency side: 3
+      Eq.rec   in .bmp: no, doc-gen4 links it: yes
+      List.recOn   in .bmp: no, doc-gen4 links it: yes
+      Nat.rec   in .bmp: no, doc-gen4 links it: no
+  dead names, own package:     8 (8 private)
+      _private.InformationTheory.Shannon.ConditionalMethodOfTypes.Core.0.InformationTheory.Shannon.absorberLetterβ
+      _private.InformationTheory.Shannon.Sanov.RoundedTypeSequence.0.InformationTheory.Shannon.absorberLetter
+      _private.InformationTheory.Shannon.Sanov.RoundedTypeSequence.0.InformationTheory.Shannon.roundedFloor
+      _private.InformationTheory.Shannon.Stein.Converse.0.InformationTheory.Shannon.steinTestFn
+  dependency names referenced from the population: 469
+  of those absent from the .bmp: 3  Eq.rec List.recOn Nat.rec
+  -> with strategy B those simply produce no link; with strategy A they
+     produce doc-gen4's link, whatever its fate above says. Absence from
+     the .bmp is exactly doc-gen4's own blacklist: a name it refuses to
+     give a page also never enters the index it ships.
+
+mismatch records -> benchmarks/results/stage3-urlcmp-mismatches.jsonl
+  72 of 1,641 records, capped at 20 per (strategy, class)
+    truncated: leandoc-only/no <a> at all (dependency, in the .bmp) (1,063 total)
+    truncated: leandoc-only/no <a> at all (own package, in the .bmp) (340 total)
+    truncated: leandoc-only/rendered, but as the declaration's own name link (dropped by this tool) (226 total)
