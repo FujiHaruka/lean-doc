@@ -1,0 +1,49 @@
+date              2026-08-09T17:04:38Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+LEAN_NUM_THREADS  unset (Lean default)
+target            /Users/haruka/dev/lean-projects
+modules           432 from /Users/haruka/dev/lean-doc/benchmarks/results/it-modules.txt
+binary            /Users/haruka/dev/lean-doc/experiments/stage4b/build/extract
+args              --equations --refs --tagged-code --write-ir --ir-dir /private/tmp/claude-502/-Users-haruka-dev-lean-doc/2dbcb565-edbc-4bd9-846b-574772a9c30c/scratchpad/ir-tagged
+
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+target modules       432
+loaded modules       6021
+importModules        2.523s
+indexLookup          0.001s  enumerated 8849, unique 8824
+moduleDocs           0.000s  1515 docs in 424 modules, 3935 imports
+tactics              0.009s  421 in env, 0 in target modules
+analyze              10.583s  considered 8824, produced 4750, blacklisted 4074, failed 0
+  of which signature 9.318s
+  of which equations 1.056s  (863 lemmas, 0 failed)
+  of which docstring 0.044s
+  of which refs      1.297s  (143121 occurrences; inside the two above)
+writeIR              0.489s serialize + 0.003s hash + 0.053s write
+  files              432 modules + 3 dep maps + 1 index
+  bytes              15867059 (15751310 modules, 27208 deps, 88541 index)
+  content            4750 declarations, 56552 ref pairs, 533 dep map entries, 0 unresolved refs
+  schema             2  (taggedCode true)
+  spans              408804 in 55465 fragments — 142181 const, 7550 sort, 259073 other
+  dir                /private/tmp/claude-502/-Users-haruka-dev-lean-doc/2dbcb565-edbc-4bd9-846b-574772a9c30c/scratchpad/ir-tagged
+total                13.675s
+genEquations         true   tagCode false   refs true   open []
+kinds                theorem=3742 definition=842 instance=91 structure=37 constructor=37 opaque=1
+       13.76 real        12.63 user         1.32 sys
+          3334307840  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              260013  page reclaims
+                 373  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 181  voluntary context switches
+                2042  involuntary context switches
+        137755799994  instructions retired
+         43640572682  cycles elapsed
+           558166336  peak memory footprint

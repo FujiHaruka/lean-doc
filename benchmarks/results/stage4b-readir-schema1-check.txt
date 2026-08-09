@@ -1,0 +1,66 @@
+# read-ir — reading the stage-4 IR without starting Lean
+
+date              2026-08-09T17:07:03Z
+ir                /private/tmp/claude-502/-Users-haruka-dev-lean-doc/3db6b213-b50d-48cb-a16b-16df93b5f009/scratchpad/ir
+written           2026-08-09T15:41:58Z
+deno              2.7.14 / V8 14.7.173.20-rusty
+schemaVersion     1
+generator         lean-doc/experiments/stage4
+leanVersion       4.31.0
+hashAlgorithm     lean-string-hash-64/hex16
+runs              7 (run 1 dropped as cold)
+note              ADDITIVITY CHECK for the schema-2 extension of read-ir.ts: this is stage 4's own IR
+note              (experiments/stage4, schema 1, generator lean-doc/experiments/stage4), re-read with the
+note              extended tool. Every count must equal stage4-readir.txt, which the un-extended tool produced.
+
+## What was read (実測)
+
+| | |
+|---|---:|
+| module files | 432 |
+| declarations | 4,750 |
+| (declaration, reference) pairs | 56,552 |
+| distinct (module, name) references | 1,446 |
+| equations | 863 |
+| structure members | 194 |
+| module docstrings | 1,515 |
+| direct imports | 3,935 |
+| dependency map packages | 3 |
+| dependency map entries | 533 |
+| index.json bytes | 88,452 |
+| bytes read | 8,743,395 (8.34 MiB) |
+
+## Read time (実測, warm — run 1 dropped)
+
+| | seconds |
+|---|---:|
+| run 1 (cold-ish, discarded) | 0.0628 |
+| run 2 | 0.0579 |
+| run 3 | 0.0570 |
+| run 4 | 0.0579 |
+| run 5 | 0.0576 |
+| run 6 | 0.0564 |
+| run 7 | 0.0546 |
+| **median of runs 2-7** | **0.0573** |
+| spread (min-max, warm) | 0.0546-0.0579 |
+
+Against the warm `importModules` floor (2.5 s, stage 1): **2.3%**.
+Throughput: 145.60 MiB/s.
+
+## Cross-check: one fresh process per read (実測)
+
+In-process repetition can be flattered by a warm V8 heap, so the same read
+was repeated with a new process each time (the process start itself is not
+counted; the timer is inside the child).
+
+| | seconds |
+|---|---:|
+| run 1 (discarded) | 0.0594 |
+| run 2 | 0.0594 |
+| run 3 | 0.0586 |
+| run 4 | 0.0593 |
+| run 5 | 0.0588 |
+| run 6 | 0.0586 |
+| **median of runs 2-6** | **0.0588** |
+
+

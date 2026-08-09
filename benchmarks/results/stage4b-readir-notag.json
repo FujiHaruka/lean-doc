@@ -1,0 +1,40 @@
+{
+  "ir": "/private/tmp/claude-502/-Users-haruka-dev-lean-doc/2dbcb565-edbc-4bd9-846b-574772a9c30c/scratchpad/ir-notag",
+  "deno": "2.7.14",
+  "v8": "14.7.173.20-rusty",
+  "schemaVersion": 1,
+  "leanVersion": "4.31.0",
+  "runs": 7,
+  "times": [
+    0.10039912499999999,
+    0.05686337500000001,
+    0.056789791000000006,
+    0.05913312500000001,
+    0.058330916000000003,
+    0.05650858299999999,
+    0.05592425000000003
+  ],
+  "warmMedian": 0.05682658300000001,
+  "warmMin": 0.05592425000000003,
+  "warmMax": 0.05913312500000001,
+  "indexBytes": 88453,
+  "totals": {
+    "modules": 432,
+    "declarations": 4750,
+    "refPairs": 56552,
+    "refsUnique": 1446,
+    "moduleDocs": 1515,
+    "imports": 3935,
+    "equations": 863,
+    "members": 194,
+    "bytesRead": 8654943,
+    "depPackages": 3,
+    "depEntries": 533,
+    "spanFragments": 0,
+    "spans": 0,
+    "spansConst": 0,
+    "spansSort": 0,
+    "spansOther": 0,
+    "spansNamed": 0
+  }
+}

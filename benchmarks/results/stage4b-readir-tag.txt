@@ -1,0 +1,77 @@
+# read-ir — reading the stage-4 IR without starting Lean
+
+date              2026-08-09T17:06:07Z
+ir                /private/tmp/claude-502/-Users-haruka-dev-lean-doc/2dbcb565-edbc-4bd9-846b-574772a9c30c/scratchpad/ir-tagged
+written           2026-08-09T17:04:53Z
+deno              2.7.14 / V8 14.7.173.20-rusty
+schemaVersion     2
+generator         lean-doc/experiments/stage4b
+leanVersion       4.31.0
+hashAlgorithm     lean-string-hash-64/hex16
+runs              7 (run 1 dropped as cold)
+note              written by experiments/stage4b run stage4b-alt-tag-6 (--equations --refs --tagged-code --write-ir)
+note              machine: Apple M1 / 8 cores / 16 GB; page cache warm (the IR was written minutes earlier)
+note              same session as stage4b-alt-{notag,tag}-{1..6}; the schema-1 counterpart is stage4b-readir-notag.txt
+
+## What was read (実測)
+
+| | |
+|---|---:|
+| module files | 432 |
+| declarations | 4,750 |
+| (declaration, reference) pairs | 56,552 |
+| distinct (module, name) references | 1,446 |
+| equations | 863 |
+| structure members | 194 |
+| module docstrings | 1,515 |
+| direct imports | 3,935 |
+| dependency map packages | 3 |
+| dependency map entries | 533 |
+| index.json bytes | 88,541 |
+| bytes read | 15,867,059 (15.13 MiB) |
+
+## Spans read back (実測, schema 2)
+
+| | |
+|---|---:|
+| fragments (binders + type + equations + members) | 55,465 |
+| spans | 408,804 |
+| of which kind 1 (const) | 142,181 |
+| of which kind 2 (sort) | 7,550 |
+| of which kind 0 (other) | 259,073 |
+| const spans carrying a name | 142,181 |
+
+## Read time (実測, warm — run 1 dropped)
+
+| | seconds |
+|---|---:|
+| run 1 (cold-ish, discarded) | 0.1559 |
+| run 2 | 0.1004 |
+| run 3 | 0.1005 |
+| run 4 | 0.1008 |
+| run 5 | 0.0990 |
+| run 6 | 0.1047 |
+| run 7 | 0.0994 |
+| **median of runs 2-7** | **0.1004** |
+| spread (min-max, warm) | 0.0990-0.1047 |
+
+Against the warm `importModules` floor (2.5 s, stage 1): **4.0%**.
+Throughput: 150.66 MiB/s.
+
+## Cross-check: one fresh process per read (実測)
+
+In-process repetition can be flattered by a warm V8 heap, so the same read
+was repeated with a new process each time (the process start itself is not
+counted; the timer is inside the child).
+
+| | seconds |
+|---|---:|
+| run 1 (discarded) | 0.1047 |
+| run 2 | 0.1058 |
+| run 3 | 0.1041 |
+| run 4 | 0.1042 |
+| run 5 | 0.1048 |
+| run 6 | 0.1041 |
+| **median of runs 2-6** | **0.1042** |
+
+

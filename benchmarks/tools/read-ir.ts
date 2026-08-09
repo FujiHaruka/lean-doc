@@ -1,7 +1,8 @@
 #!/usr/bin/env -S deno run --allow-read --allow-env --allow-run
 //
 // Stage 4 preparation: reads the module-granular IR `experiments/stage4` writes
-// and measures how long that takes.
+// and measures how long that takes. Schema 2 (`experiments/stage4b`, the
+// positional span lists) is read by the same code path — see "Schema 2" below.
 //
 // This is the stand-in for the stage-4 consumer (`approach.md` §5.6: HTML,
 // search index, cross references are all built outside Lean from the IR). The
@@ -31,6 +32,14 @@
 // warm by construction. The spread of the remaining runs is printed so that a
 // single-run number is never what gets quoted. Nothing is written to the
 // measurement target.
+//
+// Schema 2: the tagged IR adds a flat span list per printed fragment
+// (`binderCode` / `typeCode` / `equationCode` / `members[].code`, see
+// `experiments/stage4b/README.md`). This reader walks those lists and tallies
+// them by kind, for the same reason it sums references: to force the parsed
+// objects to be touched rather than dropped. The extension is **additive** — the
+// span walk is behind `schemaVersion >= 2`, so a schema-1 IR takes exactly the
+// code path it took before and must produce exactly the same counts.
 
 const args = Deno.args.slice();
 const opt = (name: string, dflt: string) => {
@@ -93,12 +102,41 @@ type Totals = {
   bytesRead: number;
   depPackages: number;
   depEntries: number;
+  /** Schema 2 only; stays 0 on a schema-1 IR. */
+  spanFragments: number;
+  spans: number;
+  spansConst: number;
+  spansSort: number;
+  spansOther: number;
+  spansNamed: number;
 };
+
+/** `[start, stop, kind]`, or `[start, stop, 1, name]` when kind is 1. */
+type Span = [number, number, number] | [number, number, 1, string];
+
+/** Tally one fragment's span list. Counts the fragment even when it has no
+ *  spans, which is how the writer counts `spanFragments` — so the two numbers
+ *  are comparable (`experiments/stage4b/Extract.lean`, `IrStats.spanFragments`). */
+function tallySpans(t: Totals, spans: Span[]): void {
+  t.spanFragments++;
+  for (const s of spans) {
+    t.spans++;
+    const kind = s[2];
+    if (kind === 1) {
+      t.spansConst++;
+      // Touch the name: it is the half of a const span a link renderer needs,
+      // and leaving it unread would time a parse whose result is thrown away.
+      if (s.length > 3) t.spansNamed++;
+    } else if (kind === 2) t.spansSort++;
+    else t.spansOther++;
+  }
+}
 
 /** One full pass over the IR: index, every module file, every dependency map. */
 async function readAll(): Promise<Totals> {
   const indexText = await Deno.readTextFile(`${IR}/index.json`);
   const index: Index = JSON.parse(indexText);
+  const tagged = index.schemaVersion >= 2;
   // Byte counts come from the index, which the writer filled in with
   // `String.utf8ByteSize`. Re-encoding the text here to measure it would be work
   // a real consumer never does, and it would land inside the timer.
@@ -114,6 +152,12 @@ async function readAll(): Promise<Totals> {
     bytesRead: 0, // filled from the index below (UTF-8 bytes recorded by the writer)
     depPackages: 0,
     depEntries: 0,
+    spanFragments: 0,
+    spans: 0,
+    spansConst: 0,
+    spansSort: 0,
+    spansOther: 0,
+    spansNamed: 0,
   };
   const uniqueRefs = new Set<string>();
   for (const entry of index.modules) {
@@ -130,6 +174,12 @@ async function readAll(): Promise<Totals> {
         t.refPairs++;
         // Forces both halves of the pair; also what a link resolver would key on.
         uniqueRefs.add(`${refModule} ${refName}`);
+      }
+      if (tagged) {
+        for (const spans of d.binderCode) tallySpans(t, spans);
+        tallySpans(t, d.typeCode);
+        for (const spans of d.equationCode) tallySpans(t, spans);
+        for (const m of d.members) tallySpans(t, m.code);
       }
     }
   }
@@ -214,6 +264,22 @@ say(`| dependency map entries | ${num(t.depEntries)} |`);
 say(`| index.json bytes | ${num(indexStat.size)} |`);
 say(`| bytes read | ${num(t.bytesRead + indexStat.size)} (${mib(t.bytesRead + indexStat.size)}) |`);
 say();
+
+if (index.schemaVersion >= 2) {
+  // Rows only a schema-2 IR has. Kept in their own table so the table above
+  // stays byte-comparable with the schema-1 runs.
+  say(`## Spans read back (実測, schema ${index.schemaVersion})`);
+  say();
+  say(`| | |`);
+  say(`|---|---:|`);
+  say(`| fragments (binders + type + equations + members) | ${num(t.spanFragments)} |`);
+  say(`| spans | ${num(t.spans)} |`);
+  say(`| of which kind 1 (const) | ${num(t.spansConst)} |`);
+  say(`| of which kind 2 (sort) | ${num(t.spansSort)} |`);
+  say(`| of which kind 0 (other) | ${num(t.spansOther)} |`);
+  say(`| const spans carrying a name | ${num(t.spansNamed)} |`);
+  say();
+}
 
 const med = median(warm);
 say(`## Read time (実測, warm — run 1 dropped)`);
