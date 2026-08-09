@@ -17,3 +17,6 @@ experiments/stage1/build/
 
 # stage-2 experiment build output (native binary + generated C)
 experiments/stage2/build/
+
+# stage-3 experiment build output (native binary + generated C)
+experiments/stage3/build/

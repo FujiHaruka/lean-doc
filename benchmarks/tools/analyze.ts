@@ -56,6 +56,20 @@ const NESTED = new Set([
   // the breakdown of one `allTacticDocs` call. Inside `stage2.total` as well.
   "stage2.tacticsPerModule",
   "stage2.tacticsProbe",
+  // experiments/stage3: everything below is inside `stage3.total`.
+  "stage3.initSearchPath",
+  "stage3.importModules",
+  "stage3.envStats",
+  "stage3.indexLookup",
+  "stage3.moduleDocs",
+  "stage3.tactics",
+  "stage3.analyze",
+  "stage3.dump",
+  "stage3.dumpModules",
+  "stage3.dumpRefs",
+  // Diagnosis only (`--tactics-emulate` / `--tactics-probe`), as in stage 2.
+  "stage3.tacticsPerModule",
+  "stage3.tacticsProbe",
 ]);
 
 const byPhase = new Map<string, { n: number; us: number; max: number }>();
