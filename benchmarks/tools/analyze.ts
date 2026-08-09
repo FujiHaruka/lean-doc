@@ -42,6 +42,13 @@ const NESTED = new Set([
   "stage1.indexLookup",
   "stage1.scanLookup",
   "stage1.compare",
+  // experiments/stage2: everything below is inside `stage2.total`.
+  "stage2.initSearchPath",
+  "stage2.importModules",
+  "stage2.envStats",
+  "stage2.indexLookup",
+  "stage2.analyze",
+  "stage2.dump",
 ]);
 
 const byPhase = new Map<string, { n: number; us: number; max: number }>();

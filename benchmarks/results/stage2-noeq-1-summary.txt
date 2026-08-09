@@ -1,0 +1,39 @@
+date              2026-08-09T11:08:26Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+LEAN_NUM_THREADS  unset (Lean default)
+target            /Users/haruka/dev/lean-projects
+modules           432 from /Users/haruka/dev/lean-doc/benchmarks/results/it-modules.txt
+binary            /Users/haruka/dev/lean-doc/experiments/stage2/build/extract
+args              (none)
+
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+target modules       432
+loaded modules       6021
+importModules        2.492s
+indexLookup          0.001s  enumerated 8849, unique 8824
+analyze              8.123s  considered 8824, produced 4750, blacklisted 4074, failed 0
+  of which signature 7.935s
+  of which equations 0.000s  (0 lemmas, 0 failed)
+  of which docstring 0.043s
+total                10.620s
+genEquations         false   tagCode false   open []
+kinds                theorem=3742 definition=842 instance=91 structure=37 constructor=37 opaque=1
+       10.69 real         9.41 user         1.25 sys
+          3339124736  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              255847  page reclaims
+                 185  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  41  voluntary context switches
+                1086  involuntary context switches
+        104350489639  instructions retired
+         33425185544  cycles elapsed
+           541404928  peak memory footprint

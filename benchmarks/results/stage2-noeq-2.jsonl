@@ -1,0 +1,6 @@
+{"phase":"stage2.initSearchPath","pid":1183,"us":14}
+{"phase":"stage2.importModules","pid":1183,"us":2519692,"directImports":432}
+{"phase":"stage2.envStats","pid":1183,"us":0,"loadedModules":6021}
+{"phase":"stage2.indexLookup","pid":1183,"us":1954,"targetModules":432,"enumerated":8849,"candidates":8824}
+{"phase":"stage2.analyze","pid":1183,"us":8080553,"considered":8824,"produced":4750,"blacklisted":4074,"failed":0,"ppUs":7894588,"eqUs":0,"docUs":43010,"equations":0,"eqFailures":0,"genEquations":false,"tagCode":false}
+{"phase":"stage2.total","pid":1183,"us":10603182,"modules":432}

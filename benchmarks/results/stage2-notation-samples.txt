@@ -1,0 +1,73 @@
+# stage 2 -- custom notation in the pretty printed signature
+
+Raw evidence for verification stage 1 (b) "does custom syntax survive?".
+Produced by experiments/stage2 over the fixed target (432 modules), same binary
+and same run conditions as stage2-noeq-*.jsonl / stage2-open.jsonl.
+
+  default : no scoped namespace activated. This is what doc-gen4 does, and the
+            strings below match doc-gen4's own HTML output byte for byte.
+  --open  : extract ... --open InformationTheory.Shannon,InformationTheory.Asymptotic
+            (Lean.activateScoped on the environment + Core.Context.openDecls)
+
+294 of the 4750 declarations print differently between the two modes.
+Neither mode fails, throws, or produces an empty signature.
+
+## InformationTheory.Asymptotic.DotEq.refl
+   default : DotEq a a
+   --open  : a ≐ a
+
+## InformationTheory.Asymptotic.DotEq.symm
+   default : DotEq b a
+   --open  : b ≐ a
+
+## InformationTheory.Asymptotic.DotEq.mul
+   default : DotEq (fun (n : ℕ) => a₁ n * a₂ n) fun (n : ℕ) => b₁ n * b₂ n
+   --open  : (fun (n : ℕ) => a₁ n * a₂ n) ≐ fun (n : ℕ) => b₁ n * b₂ n
+
+## InformationTheory.Shannon.entropy_nonneg_rv
+   default : 0 ≤ entropy μ X
+   --open  : 0 ≤ H(μ; X)
+
+## InformationTheory.Shannon.mutualInfo_comm_rv
+   default : mutualInfo μ X Y = mutualInfo μ Y X
+   --open  : I(μ; X ; Y) = I(μ; Y ; X)
+
+## InformationTheory.Shannon.klDivRV_def
+   default : klDivRV μ X Y = klDiv (MeasureTheory.Measure.map X μ) (MeasureTheory.Measure.map Y μ)
+   --open  : D(μ; X ∥ Y) = klDiv (MeasureTheory.Measure.map X μ) (MeasureTheory.Measure.map Y μ)
+
+## InformationTheory.Shannon.mutualInfo_eq_entropy_add_entropy_sub_jointEntropy
+   default : (mutualInfo joint Prod.fst Prod.snd).toReal = entropy joint Prod.fst + entropy joint Prod.snd - entropy joint id
+   --open  : I(joint; Prod.fst ; Prod.snd).toReal = H(joint; Prod.fst) + H(joint; Prod.snd) - H(joint; id)
+
+## InformationTheory.Shannon.condMutualInfo_comm
+   default : condMutualInfo μ Xs Yo Zc = condMutualInfo μ Yo Xs Zc
+   --open  : I(μ; Xs ; Yo | Zc) = I(μ; Yo ; Xs | Zc)
+
+## InformationTheory.Shannon.mutualInfo_chain_rule
+   default : mutualInfo μ (fun (ω : Ω) => (Zc ω, Xs ω)) Yo = mutualInfo μ Zc Yo + condMutualInfo μ Xs Yo Zc
+   --open  : I(μ; fun (ω : Ω) => (Zc ω, Xs ω) ; Yo) = I(μ; Zc ; Yo) + I(μ; Xs ; Yo | Zc)
+
+## InformationTheory.Shannon.condMutualInfo_compProd_snd_eq_lintegral
+   default : (condMutualInfo (μ.compProd κ) (fun (p : T × S) => f p.2) (fun (p : T × S) => g p.2) fun (p : T × S) => h p.2) = ∫⁻ (t : T), condMutualInfo (κ t) f g h ∂μ
+   --open  : I(μ.compProd κ; fun (p : T × S) => f p.2 ; fun (p : T × S) => g p.2 | fun (p : T × S) => h p.2) = ∫⁻ (t : T), I(κ t; f ; g | h) ∂μ
+
+## InformationTheory.Shannon.stronglyTypical_implies_weakly_typical_bound
+   default : |(∑ i : Fin n, pmfLog μ Xs (x i)) / ↑n - entropy μ (Xs 0)| ≤ ε * logSumAbs μ Xs
+   --open  : |(∑ i : Fin n, pmfLog μ Xs (x i)) / ↑n - H(μ; Xs 0)| ≤ ε * logSumAbs μ Xs
+
+## Counts over all 4750 declarations (--open mode)
+
+  H(...)          96 declarations
+  I(...)         179 declarations
+  D(... U+2225 ...)     1 declarations
+  U+2250 (doteq)        6 declarations
+
+## H(mu; X | Y) never appears -- and that is correct
+
+The notation is declared over Shannon.condEntropy, which is a [reducible] alias of
+MeasureFano.condEntropy. Elaborated terms therefore hold MeasureFano.condEntropy,
+which the notation3 delaborator does not match, so the conditional-entropy notation
+can never fire. 34 declarations mention condEntropy in their type; all of them print
+MeasureFano.condEntropy ... in both modes, and doc-gen4 prints the same. This is a
+property of how the alias was declared, not of the extractor.

@@ -1,0 +1,9 @@
+{"phase":"load.initSearchPath","pid":259,"us":13}
+{"phase":"load.importModules","pid":259,"us":2506979,"directImports":432}
+{"phase":"load.envStats","pid":259,"us":0,"loadedModules":6021}
+{"phase":"process.getAllModuleDocs","pid":259,"us":16618852,"relevantModules":432}
+{"phase":"process.constantLoop","pid":259,"us":10829057,"scanned":490171,"relevant":8824,"ofConstantUs":10506316}
+{"phase":"process.sortMembers","pid":259,"us":4641}
+{"phase":"load.process","pid":259,"us":27461238}
+{"phase":"batch.updateModuleDb","pid":259,"us":1023561,"modules":432}
+{"phase":"batch.total","pid":259,"us":30992644,"modules":432}

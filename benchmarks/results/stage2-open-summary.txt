@@ -1,0 +1,39 @@
+date              2026-08-09T11:11:22Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+LEAN_NUM_THREADS  unset (Lean default)
+target            /Users/haruka/dev/lean-projects
+modules           432 from /Users/haruka/dev/lean-doc/benchmarks/results/it-modules.txt
+binary            /Users/haruka/dev/lean-doc/experiments/stage2/build/extract
+args              --dump /private/tmp/claude-502/-Users-haruka-dev-lean-doc/11d5a07c-7b61-4cda-a063-9baf6233190a/scratchpad/full-open-dump.jsonl --open InformationTheory.Shannon,InformationTheory.Asymptotic
+
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+target modules       432
+loaded modules       6021
+importModules        2.470s
+indexLookup          0.002s  enumerated 8849, unique 8824
+analyze              8.673s  considered 8824, produced 4750, blacklisted 4074, failed 0
+  of which signature 8.476s
+  of which equations 0.000s  (0 lemmas, 0 failed)
+  of which docstring 0.046s
+total                11.207s
+genEquations         false   tagCode false   open [InformationTheory.Shannon, InformationTheory.Asymptotic]
+kinds                theorem=3742 definition=842 instance=91 structure=37 constructor=37 opaque=1
+       11.28 real         9.97 user         1.26 sys
+          3308093440  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              258270  page reclaims
+                 195  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  25  voluntary context switches
+                1920  involuntary context switches
+        110001883133  instructions retired
+         35065658801  cycles elapsed
+           541175680  peak memory footprint

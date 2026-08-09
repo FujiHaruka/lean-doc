@@ -1,0 +1,19 @@
+date              2026-08-09T11:13:54Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+doc-gen4          v4.31.0 rev 0bc516c + benchmarks/doc-gen4-instrumentation.patch
+LEAN_NUM_THREADS  unset (Lean default)
+parallelism       1 (single batch process)
+page cache        warm (runs 2-3 of each mode; dg4-eq-1 is the first process of
+                  the session and still pays the binary page-in, see its
+                  load.importModules 4.96s vs 2.49s afterwards)
+target            /Users/haruka/dev/lean-projects, 432 modules from results/it-modules.txt
+command           lake env <doc-gen4> batch --build .lake/build bench-stage2cmp.db "file:///tmp/x" $(cat it-modules.txt)
+                  DISABLE_EQUATIONS=1 for the *-noeq-* runs
+files             stage2-dg4-eq-{1,2,3}.jsonl, stage2-dg4-noeq-{1,2,3}.jsonl
+purpose           same-session, same-warm-state baseline for experiments/stage2.
+                  The stage-1 baseline (batch-rerun*.jsonl) did not record whether
+                  equations were on; these runs pin both sides down.
+note              bench-stage2cmp.db was written under the target's .lake/build
+                  (gitignored build output) and deleted afterwards; the pre-existing
+                  bench.db / bench-a.db were left untouched.
