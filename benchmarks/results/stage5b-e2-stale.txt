@@ -1,0 +1,12 @@
+=== N = InformationTheory.Shannon.Kolmogorov.OmegaNoncomputable (leaf), injected declaration `log` ===
+true changed pages          142
+  mode self       set=   1  stale= 141  gratuitous=   0
+  mode referrers  set=   1  stale= 141  gratuitous=   0
+  mode importers  set=   2  stale= 141  gratuitous=   1
+
+=== N = InformationTheory.Meta.EntryPoint (hub), injected declaration `log` ===
+true changed pages          142
+  mode self       set=   1  stale= 141  gratuitous=   0
+  mode referrers  set=   1  stale= 141  gratuitous=   0
+  mode importers  set= 415  stale=   3  gratuitous= 276
+

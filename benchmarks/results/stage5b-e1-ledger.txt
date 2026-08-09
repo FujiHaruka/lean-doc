@@ -1,0 +1,4 @@
+build 432 modules, 0 B hashed in 0.0459 s -> /private/tmp/claude-502/-Users-haruka-dev-lean-doc/2617b558-b5bb-4dca-9acc-ada2b80d3c1e/scratchpad/leg8run/e1-ledger.json
+check 432 modules (lake, concurrency 8): 0 changed — 0.0417 s
+check 432 modules (lake, concurrency 8): 0 changed, env key changed: leanToolchain,manifestSha256,irSchemaVersion — 0.0409 s
+changed-out lines after the envKey change: 0

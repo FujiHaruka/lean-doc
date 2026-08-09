@@ -1,0 +1,3 @@
+InformationTheory.Fano.BinaryJensen
+InformationTheory.Shannon.EPI.G2.KLVariationalLower
+InformationTheory.Shannon.Kolmogorov.EntropyRateUpper

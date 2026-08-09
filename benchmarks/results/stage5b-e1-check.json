@@ -1,0 +1,1 @@
+{"command":"check","algorithm":"lake","concurrency":8,"modules":432,"files":432,"hashedBytes":0,"envChanged":[],"changed":0,"changedModules":[],"readLedgerSeconds":0.000517916,"envKeySeconds":0.0007254170000000002,"hashSeconds":0.040435708,"compareSeconds":0.000054375000000000285,"totalSeconds":0.041746583}

@@ -55,7 +55,64 @@ E1, E2, E4, E5 do not start Lean and cost seconds. E3 costs one full extraction
 
 ## 3. Results
 
-(filled in by the measurements; see `benchmarks/results/stage5b-stale-summary.txt`)
+Measured 2026-08-10, one session, no Lean started, nothing in
+`/Users/haruka/dev/lean-projects` written. Numbers and the five kinds of faking
+they rest on: `benchmarks/results/stage5b-stale-summary.txt`.
+
+| # | verdict | the observation | agrees with the prediction? |
+|---|---|---|---|
+| **S1** | **REFUTED** | `--source-url`'s revision changes **432 / 432 pages** (4,992 occurrences) while `ledger check` reports **0 changed** | yes |
+| **S2** | **REFUTED** | injecting one declaration named `log` changes **142 pages**; `--mode importers` leaves **141 stale** (leaf N) / **3 stale + 276 gratuitous** (hub N) | yes |
+| **S3** | **not run** | E3 starts Lean; out of this leg's scope | — |
+| **S4** | **REFUTED** | one olean removed → `ledger check` **throws** (`ledger.ts:121`, exit 1); one added → **invisible**; the deleted module's page **survives byte-identical** and 4 live pages keep linking to it | yes |
+| **S5** | **REFUTED** | **23 / 23** non-module artifacts are never written; 5 of them are a function of every module, **38,581,208 B** | yes |
+
+**Judgement point 3 is not met.** It required all five to hold; four are refuted
+and one is undecided. That is outcome (B) of `docs/plans/three-axes.md` §3.
+
+All four measured rows agree with the predictions declared in §1. Five things
+inside those rows did not, and they are the part worth carrying forward:
+
+1. `--mode importers` is not merely incomplete, it is **both** incomplete and
+   wasteful — 3 stale and 276 gratuitous on the same run.
+2. Deleting a module leaves **0 other pages changed**: `render.ts` fills `known`
+   from `refs` too (`render.ts:1357`), so links into the deleted module keep
+   being generated. The damage is not "an old page lingers" but "live pages point
+   at a module that no longer exists".
+3. `envChanged` is not only computed-and-discarded (`ledger.ts:222-224` vs
+   `231-234`); `incremental.sh:75-76` also omits `--ir`, so `irSchemaVersion`
+   and `irGenerator` are never compared at all.
+4. The per-module class-b artifacts (`declaration-data-<module>.bmp`,
+   `backrefs-<module>.json`) are **absent from this doc tree** although doc-gen4's
+   source writes them (`Output.lean:169,179`). "0 files" here is a property of
+   how this tree was built, not of doc-gen4.
+5. For the largest candidate (`log`), **no** choice of module to inject into
+   avoids stale pages (0 / 432), even though across all 1,095 candidates the
+   luckiest module would avoid them 94.5% of the time.
+
+## 3a. Running it
+
+`E1`, `E2`, `E4`, `E5` are one script. It needs a schema-2 IR tree (the one
+`experiments/stage5` produced) and a scratch directory; it writes nothing
+outside them and nothing into the measurement target.
+
+```
+experiments/stage5b/run-all.sh --ir <schema-2 ir> --work <scratch> [--out <results>]
+```
+
+The pieces, if one is wanted on its own:
+
+| file | what it does |
+|---|---|
+| `instrument-render.py` | writes an instrumented copy of `stage4c/render.ts` that dumps every failing docstring autolink token. The copy's 432 pages are byte-identical to the pristine renderer's — that is the check that it changed nothing |
+| `inject-decl.py` | copies an IR tree and adds one declaration to one module (E2) |
+| `drop-module.py` | copies an IR tree with one module removed (E4) |
+| `fake-target.py` | a symlink stand-in for the target's olean tree, so a module can be made to disappear without touching the target (E4) |
+| `compare-pages.py` | byte-diff two page trees; score an impact set against the difference (`stale` / `gratuitous`); print a diff excerpt |
+| `autolink-analysis.py` | the candidate census, and the extension of the two measured injections to all 432 modules and all 1,095 candidates |
+| `site-inventory.py` | doc-gen4's output classified by what each file is a function of, and the broken links our pages emit (E5) |
+| `revdep.py` | leg 7's reverse-dependency check over a rendered tree (kept; not used by `run-all.sh`) |
+| `notation-surface.py` | leg 7's syntactic count of printing-channel constructs (kept; feeds E3) |
 
 ## 4. Correction to increment 1
 

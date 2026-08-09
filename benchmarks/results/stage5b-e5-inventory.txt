@@ -1,0 +1,144 @@
+=== 1. doc-gen4's output tree ===
+root                        /Users/haruka/dev/lean-projects/.lake/build/doc
+files total                 6095   759,121,622 B
+  module pages              6072   720,484,464 B
+  everything else           23   38,637,158 B
+  of the module pages, InformationTheory: 348
+
+=== 2. the non-module artifacts, classified ===
+class         bytes  file / doc-gen4 source line / function of
+    a    37,481,374  declarations/declaration-data.bmp
+                     Output.lean:227-272 htmlOutputIndex  |  every module's JsonModule (merged search index)
+    a       646,438  navbar.html
+                     Output.lean:78 / Navbar.lean; rebuilt by Output.lean:357-383  |  Hierarchy over EVERY module name
+    a       451,823  tactics.html
+                     Output.lean:60,80 / Tactics.lean  |  tacticInfo gathered from every module
+    a         1,573  references.html
+                     Output.lean:59,79 / Output.lean:28-42 collectBackrefs  |  every declarations/backrefs-<module>.json
+    a             0  references.bib
+                     user input read by References.lean  |  the project's bibliography
+    c        18,677  style.css
+                     Output.lean:62 / Base.lean:212  |  include_str static/style.css
+    c         7,589  declaration-data.js
+                     Output.lean:64 / Base.lean:214  |  include_str static/declaration-data.js
+    c         6,783  search.js
+                     Output.lean:71  |  include_str static/search.js
+    c         4,021  find/find.js
+                     Output.lean:88 / Base.lean:223  |  include_str static/find/find.js
+    c         3,742  foundational_types.html
+                     Output.lean:76 / FoundationalTypes.lean  |  template only
+    c         3,042  search.html
+                     Output.lean:70 / Search.lean  |  template only (navbar is an iframe)
+    c         1,715  index.html
+                     Output.lean:75 / Index.lean:13-21  |  template + Lean version
+    c         1,633  404.html
+                     Output.lean:77 / NotFound.lean  |  template only
+    c         1,550  instances.js
+                     Output.lean:73  |  include_str static/instances.js
+    c         1,476  how-about.js
+                     Output.lean:69  |  include_str static/how-about.js
+    c         1,236  expand-nav.js
+                     Output.lean:68  |  include_str static/expand-nav.js
+    c         1,163  color-scheme.js
+                     Output.lean:65  |  include_str static/color-scheme.js
+    c         1,040  nav.js
+                     Output.lean:66  |  include_str static/nav.js
+    c           861  mathjax-config.js
+                     Output.lean:72  |  include_str static/mathjax-config.js
+    c           640  importedBy.js
+                     Output.lean:74  |  include_str static/importedBy.js
+    c           381  jump-src.js
+                     Output.lean:67  |  include_str static/jump-src.js
+    c           235  find/index.html
+                     Output.lean:87 / Find.lean  |  template only
+    c           166  favicon.svg
+                     Output.lean:63 / Base.lean:213  |  include_str static/favicon.svg
+
+  class a (every module    ): 5 files, 38,581,208 B
+  class b (some modules    ): 0 files, 0 B
+  class c (doc-gen4 version): 18 files, 55,950 B
+
+  per-module artifacts named in the source but absent from this tree:
+    class b  declarations/declaration-data-<module>.bmp  (Output.lean:179, one per module)
+    class b  declarations/backrefs-<module>.json  (Output.lean:169, one per module)
+
+=== 3. what render.ts writes ===
+root                        /private/tmp/claude-502/-Users-haruka-dev-lean-doc/2617b558-b5bb-4dca-9acc-ada2b80d3c1e/scratchpad/leg8run/pages-rev-a
+files                       432   29,671,173 B
+  module pages              432
+  anything else             0
+non-module artifacts render.ts does not write: 23 / 23
+
+=== 4. links our pages emit that resolve to nothing in our own tree ===
+distinct missing targets    555
+broken link occurrences     108599
+ occurrences   pages  target
+       42272     412  Init/Prelude.html
+       10341     313  Mathlib/MeasureTheory/MeasurableSpace/Defs.html
+        7354     331  foundational_types.html
+        7072     329  Mathlib/Data/Real/Basic.html
+        4828     316  Mathlib/MeasureTheory/Measure/MeasureSpaceDef.html
+        3670     223  Mathlib/Data/Fintype/Defs.html
+        2783     269  Init/Core.html
+        1797     159  Mathlib/MeasureTheory/Measure/Map.html
+        1768     139  Mathlib/Data/Set/Defs.html
+        1586     254  Mathlib/MeasureTheory/Measure/Typeclasses/Probability.html
+        1250     190  Mathlib/Data/ENNReal/Basic.html
+        1094      73  Mathlib/Probability/Kernel/Defs.html
+        1078     109  Mathlib/MeasureTheory/Integral/Bochner/Basic.html
+        1065     126  Mathlib/Order/Filter/Defs.html
+         923     180  Mathlib/Analysis/SpecialFunctions/Log/Basic.html
+         872      41  Mathlib/MeasureTheory/Constructions/Polish/Basic.html
+         864     432  favicon.svg
+         718      92  Mathlib/MeasureTheory/Function/L1Space/Integrable.html
+         642      84  Mathlib/Probability/Distributions/Gaussian/Real.html
+         466      74  Mathlib/Data/NNReal/Defs.html
+         440      42  Mathlib/MeasureTheory/Measure/Decomposition/Lebesgue.html
+         432     432  style.css
+         432     432  declarations/declaration-data.bmp
+         432     432  mathjax-config.js
+         432     432  jump-src.js
+         432     432  search.js
+         432     432  expand-nav.js
+         432     432  how-about.js
+         432     432  instances.js
+         432     432  importedBy.js
+         432     432  Init.html
+         432     432  navbar.html
+         398      88  Mathlib/Probability/Independence/Basic.html
+         378      76  Mathlib/MeasureTheory/Constructions/Pi.html
+         350      49  Mathlib/MeasureTheory/Measure/AbsolutelyContinuous.html
+         346      46  Mathlib/Algebra/Order/Group/Unbundled/Abs.html
+         338      47  Mathlib/Analysis/Convex/StdSimplex.html
+         334      83  Mathlib/Data/Fintype/Card.html
+         329      95  Mathlib/Analysis/Complex/Exponential.html
+         316      91  Mathlib/Order/Filter/AtTopBot/Defs.html
+
+=== 5. the same broken links, split by why they are missing ===
+  own package                  targets    0  occurrences        0
+  site artifact (class a/c)    targets   12  occurrences   12,538
+  dependency module page       targets  543  occurrences   96,061
+  site artifacts referenced but never written:
+    class c    7,354 occurrences on  331 pages  foundational_types.html
+    class c      864 occurrences on  432 pages  favicon.svg
+    class c      432 occurrences on  432 pages  style.css
+    class a      432 occurrences on  432 pages  declarations/declaration-data.bmp
+    class c      432 occurrences on  432 pages  mathjax-config.js
+    class c      432 occurrences on  432 pages  jump-src.js
+    class c      432 occurrences on  432 pages  search.js
+    class c      432 occurrences on  432 pages  expand-nav.js
+    class c      432 occurrences on  432 pages  how-about.js
+    class c      432 occurrences on  432 pages  instances.js
+    class c      432 occurrences on  432 pages  importedBy.js
+    class a      432 occurrences on  432 pages  navbar.html
+
+=== 6. scale of the class-a artifacts a one-module change invalidates ===
+  declarations/declaration-data.bmp          37,481,374 B
+  navbar.html                                   646,438 B
+  tactics.html                                  451,823 B
+  references.html                                 1,573 B
+  declaration-data.bmp .modules            6,115 entries
+  declaration-data.bmp .declarations     258,760 entries
+  declaration-data.bmp .instances          1,281 entries
+  declaration-data.bmp .instancesFor       3,190 entries
+    of which InformationTheory: 391 modules, 4,079 declarations

@@ -1,0 +1,40 @@
+--- InformationTheory.Fano.BinaryJensen
+    A 12625 chars, B 12690 chars, delta +65
+    [insert] A[9658:9658] -> B[9658:9714]
+      A: ...MulLog</code> to <code>binEntropy</code>:
+<code>m * negMulLog (x / m) = negMulLog x + x * log m</code> whenever <code>m ≠ 0</code>.</p></div></div><div class="decl" id="Information...
+      B: ...MulLog</code> to <code>binEntropy</code>:
+<code>m * negMulLog (x / m) = negMulLog x + x * <a href="../.././InformationTheory/Meta/EntryPoint.html#log">log</a> m</code> whenever <code>m ≠ 0</code>.</p></div></div><div class="decl" id="In...
+    [insert] A[9661:9661] -> B[9717:9726]
+      A: ...Log</code> to <code>binEntropy</code>:
+<code>m * negMulLog (x / m) = negMulLog x + x * log m</code> whenever <code>m ≠ 0</code>.</p></div></div><div class="decl" id="InformationThe...
+      B: ...og (x / m) = negMulLog x + x * <a href="../.././InformationTheory/Meta/EntryPoint.html#log">log</a> m</code> whenever <code>m ≠ 0</code>.</p></div></div><div class="decl" id="InformationThe...
+    diff hunks: 2
+
+--- InformationTheory.Shannon.EPI.G2.KLVariationalLower
+    A 16523 chars, B 16736 chars, delta +213
+    [insert] A[4040:4040] -> B[4040:4102]
+      A: ...on">#</a></h1><p>The variational lower bound on KL divergence:
+<code>KL(μ ‖ ν) ≥ ∫ g dμ − log (∫ exp(g) dν)</code> for all bounded measurable <code>g</code>.</p><h2 id="Main-statem...
+      B: ...on">#</a></h1><p>The variational lower bound on KL divergence:
+<code>KL(μ ‖ ν) ≥ ∫ g dμ − <a href="../../../.././InformationTheory/Meta/EntryPoint.html#log">log</a> (∫ exp(g) dν)</code> for all bounded measurable <code>g</code>.</p><h2 id="Ma...
+    [insert] A[4043:4043] -> B[4105:4114]
+      A: ...>#</a></h1><p>The variational lower bound on KL divergence:
+<code>KL(μ ‖ ν) ≥ ∫ g dμ − log (∫ exp(g) dν)</code> for all bounded measurable <code>g</code>.</p><h2 id="Main-statement...
+      B: ...ode>KL(μ ‖ ν) ≥ ∫ g dμ − <a href="../../../.././InformationTheory/Meta/EntryPoint.html#log">log</a> (∫ exp(g) dν)</code> for all bounded measurable <code>g</code>.</p><h2 id="Main-statement...
+    diff hunks: 6
+
+--- InformationTheory.Shannon.Kolmogorov.EntropyRateUpper
+    A 32781 chars, B 32849 chars, delta +68
+    [insert] A[7422:7422] -> B[7422:7481]
+      A: ...de>/<code>mod</code> packing is length-additive (<code>natLen m ≈ natLen index + card α · log (n + 1)</code>),
+unlike <code><a href="../../.././Mathlib/Data/Nat/Pairing.html#Nat.pa...
+      B: ...de>/<code>mod</code> packing is length-additive (<code>natLen m ≈ natLen index + card α · <a href="../../.././InformationTheory/Meta/EntryPoint.html#log">log</a> (n + 1)</code>),
+unlike <code><a href="../../.././Mathlib/Data/Nat/Pairing.ht...
+    [insert] A[7425:7425] -> B[7484:7493]
+      A: .../<code>mod</code> packing is length-additive (<code>natLen m ≈ natLen index + card α · log (n + 1)</code>),
+unlike <code><a href="../../.././Mathlib/Data/Nat/Pairing.html#Nat.pair"...
+      B: ...m ≈ natLen index + card α · <a href="../../.././InformationTheory/Meta/EntryPoint.html#log">log</a> (n + 1)</code>),
+unlike <code><a href="../../.././Mathlib/Data/Nat/Pairing.html#Nat.pair"...
+    diff hunks: 2
+

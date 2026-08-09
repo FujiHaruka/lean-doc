@@ -1,0 +1,398 @@
+# stage5b-stale — stale ページが残らないか (段階 5 増分 2 /【判断点 3】)
+
+date              2026-08-10 (UTC 2026-08-09T22:44Z 〜 23:05Z、すべて同一セッション)
+host              Darwin 25.6.0 arm64 (macOS 26.6) / MacBookAir10,1 (Apple M1) / 16 GB
+deno              2.7.14 (v8 14.7.173.20)
+lean-toolchain    leanprover/lean4:v4.31.0   ※ **Lean は 1 度も起動していない**
+target            /Users/haruka/dev/lean-projects (読むだけ。1 バイトも書いていない)
+入力 IR           scratch の ir-base (432 モジュール / schema 2 / tagged / 段階 4b 抽出)
+生成器            experiments/stage4c/render.ts — **無改造**
+台帳・影響集合    experiments/stage5/{ledger,impact}.ts — **無改造**
+正解データ        /Users/haruka/dev/lean-projects/.lake/build/doc (doc-gen4 v4.31.0、読むだけ)
+実験プログラム    experiments/stage5b/run-all.sh (E1/E2/E4/E5 を 1 回で回す)
+並列度            ledger だけ 8 並列。それ以外は逐次
+
+**この leg の出力はすべて決定的な比較 (バイト比較・集合演算・ファイル列挙) なので、
+page cache / 並列度 / warm-cold は結果を動かさない。** 秒数は本文に 2 箇所しか出さず、
+どちらも「その操作が落ちなかった」ことの傍証でしかない。
+
+**すべて実測 (別ラベルのものはその都度明記)。** 生ログ →
+  stage5b-e1-pages.txt / stage5b-e1-ledger.txt / stage5b-e1-check{,-envfake}.json   E1
+  stage5b-e2-autolink.txt / -stale.txt / -excerpt.txt / -truth-{leaf,hub}.txt
+  stage5b-e2-stale-hub-importers.txt / stage5b-e2-unresolved.jsonl.gz               E2
+  stage5b-e4-deletion.txt                                                           E4
+  stage5b-e5-inventory.txt                                                          E5
+判断基準の宣言と設計 → experiments/stage5b/README.md
+
+---
+
+## 0. 何を偽装したか (先に書く)
+
+対象リポジトリを書き換えられないので、5 種類の偽装を使った。**偽装したのは
+「入力が変わった」という事実だけで、それ以外はすべて本物のプログラムが本物の
+入力に対して動いている。**
+
+| # | 何を | どうやって | 何が本物でなくなるか |
+|---|---|---|---|
+| 1 | git revision の変更 | `render.ts --source-url` の 40 桁 hex を `573793b2…` → `deadbeef…` に差し替え | 何も。対象の commit は触っていない |
+| 2 | 宣言が 1 個増えた | `inject-decl.py` が IR を複製して `modules/<N>.json` に宣言 `log` を 1 個足す | **`index.json` の `contentHash` が古いまま。** Lean の `String.hash` なので外から計算できない。`render.ts` はこの値を読まないので E2 には影響しないが、`merge-ir.ts --changed-out` (irChanged) はこの木に対して走らせていない |
+| 3 | olean ツリー | 432 モジュール分をシンボリックリンクで複製 (864 本、実体コピー 0 バイト)。`lean-toolchain` / `lake-manifest.json` もリンク | 何も。`ledger.ts` から見たファイルの内容は本物 |
+| 4 | モジュールが消えた / 増えた | 3 のリンクを消す / 別名のリンクを 1 本足す | 何も |
+| 5 | 環境キーが変わった | scratch にある**台帳 JSON 側**の `envKey` の記録値を書き換え | 何も。対象の `lean-toolchain` は読むだけ |
+
+**注入する宣言に必要なフィールドが足りているかは、生成が成功することで確認した**
+(`declarationsRendered` 4,560 → 4,561、`pagesWritten` 432、エラーなし)。
+
+E3 (S3 / `--open` の抽出) は Lean を起動するのでこの leg では実施していない。
+**S3 は「未実施」であって「満たした」でも「否定された」でもない。**
+
+---
+
+## 1. 結論 (先に書く)
+
+| # | 命題 | 判定 | 決め手 |
+|---|---|---|---|
+| **S1** | ページを変える入力はすべて台帳が見ている | **否定された** | `ledger check` が 0 changed のまま 432/432 ページのバイトが変わる (§2) |
+| **S2** | 影響集合は実際に変わるページを全部含む | **否定された** | 最も広い `--mode importers` でも stale 3 ページ (hub) / 141 ページ (leaf) (§3) |
+| **S3** | 1 モジュール再抽出の IR がフル抽出と一致する (全構成で) | **未実施** | E3 は Lean を起動する。この leg の範囲外 |
+| **S4** | 消えたモジュールは何も残さない | **否定された** | `ledger check` が例外で落ちる / ページが残る / 新規モジュールは不可視 (§4) |
+| **S5** | パイプラインが保守する成果物がサイト全体である | **否定された** | 非モジュール成果物 23/23 が未生成。うち 5 個は全モジュールの関数 (§5) |
+
+**【判断点 3】は満たされない。** 基準は「S1〜S5 が**全部**満たされたときだけ満たす」で、
+4 つが否定され 1 つが未判定。`docs/plans/three-axes.md` §3 の outcome (B)。
+
+事前予測 (README §1、計測前に宣言) は S1/S2/S4/S5 の 4 行すべてで「refuted」だった。
+**4 行とも予測どおり否定された。行レベルで予測と食い違ったものは無い。**
+食い違ったのは行の中身のほう — §6 に列挙する。
+
+---
+
+## 2. E1 — S1「ページを変える入力はすべて台帳が見ている」
+
+### 2a. `--source-url` だけを変えて 432 ページを 2 回生成した (実測)
+
+`--source-url` 以外の引数は 1 文字も変えていない。
+
+| | |
+|---|---:|
+| 生成したページ | 432 |
+| **バイトが変わったページ** | **432 (100%)** |
+| revision 文字列の出現 (変わったページ合計) | **4,992** |
+| 同・置換後の文字列の出現 | 4,992 (一致) |
+| ページあたりの出現 | min 1 / median 9 / max 73 / mean 11.56 |
+
+4,992 = `gh_link` の 4,560 + ページごとの nav の "source" リンク 432。
+生ログ: `stage5b-e1-pages.txt` (432 行の per-page カウント付き)。
+
+### 2b. 同じ状況で台帳は何と言うか (実測)
+
+| 実行 | 結果 |
+|---|---|
+| `ledger check` (何も触らず) | **0 changed** (`--algorithm lake`、432 モジュール、0.0417 s) |
+| `ledger check` (`envKey` を 3 項目偽装) | **0 changed**、`env key changed: leanToolchain,manifestSha256,irSchemaVersion`、`--changed-out` は **0 行**、**exit 0** |
+
+### 2c. なぜそうなるか (コード、行番号つき)
+
+`envKey` に入っているのは 5 項目だけ (`experiments/stage5/ledger.ts:146-157`):
+
+    148  key.leanToolchain    = lean-toolchain のテキスト
+    149  key.manifestSha256   = lake-manifest.json の SHA-256
+    150  key.extractor        = "lean-doc/experiments/stage4b" (文字列リテラル)
+    153  key.irSchemaVersion  = index.json の schemaVersion   (--ir を渡したときだけ)
+    154  key.irGenerator      = index.json の generator        (同上)
+
+- **`--source-url` は `ledger.ts` に 1 度も現れない** (`rg 'source-url|SOURCE_URL|sourceUrl' ledger.ts` → 0 件)。
+  実際の値は `experiments/stage5/incremental.sh:40` にハードコードされた文字列で、
+  台帳の外にある。
+- **`envChanged` は計算されるが `changed` に入らない。** `ledger.ts:222-224` で env の差分を
+  出し、`245`/`256` で timings とコンソールに載せるが、`changed` を作るのは
+  `231-234` の per-module ハッシュ比較だけ。**追加確認として実際に走らせた結果が 2b の
+  2 行目** — 0 changed のまま exit 0。
+- **さらに**、`incremental.sh:75-76` の `check` は `--ir` を渡していない。`ledger.ts:223` の
+  フィルタは `key[k] !== undefined` なので、**実パイプラインでは `irSchemaVersion` と
+  `irGenerator` は比較対象にすらならない。**
+- `incremental.sh:78` は `changed.txt` の行数しか見ないので、この状況では
+  **抽出 0 モジュール・再生成 0 ページ**で「完了」する。
+
+### 2d. 判定
+
+**S1 は否定された。** 否定条件 (「`ledger check` が 0 changed を報告しつつ 1 ページ以上の
+バイトが変わる」) を、432 ページで満たしている。
+
+---
+
+## 3. E2 — S2「影響集合は実際に変わるページを全部含む」
+
+docstring の autolink は「名前 → 定義モジュール」の**全域写像** (`render.ts` の `known`) を
+引くので、import と無関係にページが変わりうる、という仮説を実測で決めた。
+
+### 3a. 何を注入するかを決めるための候補の分布 (実測、選定より先)
+
+無改造の `render.ts` に計装コピーを作り (`instrument-render.py`)、
+**autolink が失敗しているトークンを全部数えた**。計装コピーが出力を変えていないことは
+432 ページのバイト一致と `autolinkAttempts` / `autolinkResolved` の一致で確認済み。
+
+| | distinct | occurrences |
+|---|---:|---:|
+| autolink の試行 (全体) | — | 122,403 |
+| うち解決した | — | 5,080 |
+| **失敗したトークン** | **8,965** | **117,323** |
+| うち `render.ts` の `isNameLit` を通る | 4,241 | 47,547 |
+| うち宣言名の形をしている (全ドット成分が識別子、3 文字以上) | 2,930 | 10,745 |
+| **うち 2 ページ以上に出る** | **997** | **8,070** |
+
+宣言名形の候補の出現ページ数: median 1 / p90 3 / **max 138**。
+
+**選定規則を先に決めた: 宣言名形の候補を出現ページ数で並べ、最大のものを機械的に採る。**
+→ **`log`** (138 ページ / 638 回)。次点は `volume` 44、`Measure.pi` 44、`μ.map` 39。
+「たまたま効いたものを選んだ」を避けるため、(i) 規則は分布を見る前に決め、
+(ii) §3d で 432 通りの N すべてと 1,095 候補すべてに広げて確かめている。
+
+注入先 N は**増分 1 で選んだ 2 モジュールをそのまま使った** (今回の結果を見て選んでいない):
+
+| | モジュール | 推移 importers |
+|---|---|---:|
+| leaf | `…Shannon.Kolmogorov.OmegaNoncomputable` | 1 |
+| hub | `InformationTheory.Meta.EntryPoint` | 414 (パッケージの 95.8%) |
+
+### 3b. 真の変更集合と機構の集合 (実測)
+
+`ir-base` と `ir-after-*` からそれぞれ 432 ページをフル生成し、バイト比較した。
+`autolinkResolved` は 5,080 → **5,730** (+650)。
+
+| 注入先 N | 真の変更ページ | mode | 機構の集合 | **stale** | gratuitous |
+|---|---:|---|---:|---:|---:|
+| leaf | 142 | `self` | 1 | **141** | 0 |
+| leaf | 142 | `referrers` | 1 | **141** | 0 |
+| leaf | 142 | `importers` | 2 | **141** | 1 |
+| hub | 142 | `self` | 1 | **141** | 0 |
+| hub | 142 | `referrers` | 1 | **141** | 0 |
+| hub | 142 | **`importers`** | 415 | **3** | **276** |
+
+142 = 新たにリンクになる 141 ページ + N 自身のページ。
+**`--mode importers` は「健全な上界」として増分 1 の README §4 が宣言したものだが、
+hub でも 3 ページを取りこぼし、同時に 276 ページを無駄に書き直している。**
+
+### 3c. stale なページの実物 (実測)
+
+hub の `--mode importers` でも stale な 3 ページ:
+`InformationTheory.Fano.BinaryJensen` / `…Shannon.EPI.G2.KLVariationalLower` /
+`…Shannon.Kolmogorov.EntropyRateUpper` (いずれも `Meta.EntryPoint` を推移的に import しない)。
+
+`Fano.BinaryJensen` の docstring:
+
+    変更前: <code>m * negMulLog (x / m) = negMulLog x + x * log m</code>
+    変更後: <code>m * negMulLog (x / m) = negMulLog x + x * <a href=
+            "../.././InformationTheory/Meta/EntryPoint.html#log">log</a> m</code>
+
+`x * log m` の `log` が、import していないモジュールのページへのリンクになる。
+ページは 12,625 → 12,690 バイト。全文は `stage5b-e2-excerpt.txt`。
+
+### 3d. 「たまたまか」を潰す — 全 N・全候補への外挿 (**導出**、実測 2 点で検証済み)
+
+外挿のモデル: 名前 X をモジュール N に足すと、「X がトークンそのもの」または
+「最後のドット以降が X」(= `autoLinkInline` の 2 回目の試行) として失敗していたページが
+新たにリンクになる。**このモデルは上の 2 つの実測に対して EXACT に一致した**
+(leaf 142 対 142、hub 142 対 142)。以降はそのモデルの計算値。
+
+| | |
+|---|---|
+| `log` を 432 通りの N すべてに順に注入したときの `--mode importers` の stale | **min 3 / median 137 / max 141** |
+| stale が 0 になる N | **0 / 432** |
+| 候補 1,095 個 × N 432 通り = 473,040 組のうち stale ≥ 1 | **446,333 (94.4%)** |
+| 候補ごとの「N を変えたときの stale の中央値」 | median 2 / p90 7 / max 137 |
+| 最も都合の良い N を選べたとして stale 0 になる候補 | 1,035 / 1,095 (94.5%) |
+
+最後の行は「N を選べるなら閉じることが多い」を意味するが、**N は編集する人が決めるので
+選べない。** 実際に起きる組の 94.4% で取りこぼしが出る。
+
+### 3e. 判定
+
+**S2 は否定された。** 否定条件 (「どの mode でも stale が 1 ページ以上残る」) を、
+2 つの注入先いずれでも満たしている。増分 1 の README §4 の
+
+> **The sound bound is the reverse transitive import closure.**
+
+は**elaboration については正しく、生成されるページについては偽**。
+`render.ts` の `known` も doc-gen4 の `name2ModIdx` も import で閉じていない。
+
+---
+
+## 4. E4 — S4「消えたモジュールは何も残さない」
+
+対象の olean は消していない。432 モジュールのシンボリックリンクツリーを作り、
+そこから 1 本消した。生ログ: `stage5b-e4-deletion.txt`。
+
+### 4a. 台帳側 (実測)
+
+| 操作 | 結果 |
+|---|---|
+| リンクツリーで `check` (基準) | 0 changed |
+| **olean を 1 個消して `check`** | **例外で落ちる。** `Error: no olean for InformationTheory.Fano under …` (`ledger.ts:121`)、**exit 1**、`--changed-out` は書かれない |
+| 戻して、**新規モジュールのリンクを 1 本足して** `check` | ディスク上 433 個。**`check` は 432 モジュールを見て 0 changed。新規は不可視** |
+
+`incremental.sh` は `set -euo pipefail` (36 行目) なので、削除ケースでは
+**パイプライン全体がその場で停止する** (「deleted と報告する」でも「無視する」でもない)。
+新規ケースが見えないのは、台帳のモジュール一覧が `build` 時の `--modules`
+ファイルで凍結されるため (`ledger.ts:174`)。ディスクを走査する経路は無い。
+
+### 4b. IR とページ側 (コード + 実測)
+
+- 削除経路をコードで探すと、`Deno.remove` は `merge-ir.ts:208` の
+  **`deps/*.json` の掃除 1 箇所だけ**。`render.ts` にも `ledger.ts` にも
+  モジュールを消す経路は無い。`merge-ir.ts` の `order` は base の index から作られ、
+  inc に無いモジュールは**そのまま残る**。
+- 実測: IR から `InformationTheory.Fano` (22 宣言) を消して 431 モジュールを再生成した。
+
+| | |
+|---|---:|
+| 再生成したページ | 431 |
+| ディスク上のページ | **432 (減らない)** |
+| 消えたモジュールのページ | **残る。削除前とバイト一致** (56,385 B) |
+| そのページへリンクし続ける生きたページ | **4** |
+| 残り 431 ページのうちバイトが変わったもの | **0** |
+
+最後の 0 は事前の想定と違う: `render.ts` は `known` を `refs` からも埋めるので
+(`render.ts:1357`)、他モジュールの `refs` が消えたモジュールを指し続ける限り
+リンクは**生成され続ける**。つまり削除は「古いページが残る」だけでなく
+**「生きているページが、消えたはずのページを指し続ける」**形で現れる。
+リンク先のファイルも残っているので、この木の中では 404 にすらならない。
+
+### 4c. 判定
+
+**S4 は否定された。** 否定条件 3 つ (ページが残る / 台帳エントリが残る /
+パイプラインが例外で落ちる) のすべてを満たしている。
+
+---
+
+## 5. E5 — S5「パイプラインが保守する成果物がサイト全体である」
+
+生ログ: `stage5b-e5-inventory.txt`。分類の根拠は doc-gen4 v4.31.0 のソース行
+(`/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4/DocGen4/`、読むだけ)。
+
+### 5a. doc-gen4 の出力の内訳 (実測)
+
+| | ファイル数 | バイト |
+|---|---:|---:|
+| 全体 | 6,095 | 759,121,622 |
+| モジュールページ | 6,072 | 720,484,464 |
+| **それ以外** | **23** | **38,637,158** |
+
+「モジュールページ」の定義は doc-gen4 自身が自分の出力を読み直すときのもの
+(`Output.lean:322-351 scanModuleHtmlFiles`: 7 個のファイル名と 3 個のディレクトリを除く全 `.html`)。
+このうち `InformationTheory` のページは 348。
+
+### 5b. 非モジュール成果物 23 個の分類 (根拠つき)
+
+| class | 意味 | ファイル | バイト |
+|---|---|---:|---:|
+| **a** | **全モジュールの関数** | **5** | **38,581,208** |
+| b | 一部モジュールの関数 (1 モジュール 1 個) | 0 (この木には無い。ソース上は存在) | — |
+| c | doc-gen4 のバージョンだけの関数 (静的) | 18 | 55,950 |
+
+class a の内訳:
+
+| ファイル | バイト | 何の関数か | doc-gen4 のソース |
+|---|---:|---|---|
+| `declarations/declaration-data.bmp` | 37,481,374 | 全モジュールの `JsonModule` を統合した検索索引 | `Output.lean:227-272` |
+| `navbar.html` | 646,438 | 全モジュール名から作る `Hierarchy` | `Output.lean:78` / `Navbar.lean`、再構築は `Output.lean:357-383` |
+| `tactics.html` | 451,823 | 全モジュールから集めた `tacticInfo` | `Output.lean:60,80` |
+| `references.html` | 1,573 | 全 `declarations/backrefs-<module>.json` | `Output.lean:59,79` + `Output.lean:28-42` |
+| `references.bib` | 0 | プロジェクトの文献データ (この対象では空) | `References.lean` |
+
+class b は**この木には 1 つも無い**が、doc-gen4 のソースは 1 モジュールにつき
+`declarations/declaration-data-<module>.bmp` (`Output.lean:179`) と
+`declarations/backrefs-<module>.json` (`Output.lean:169`) を書く。
+この木でそれらが無いのは、この doc ツリーの作られ方の性質であって
+doc-gen4 の性質ではない — **「class b は 0 個」と読まないこと。**
+
+class c は 18 個 55,950 B。13 個は doc-gen4 の `static/` の `include_str`
+(`Output.lean:62-74,88` / `Base.lean:212-223`)、5 個
+(`search.html` / `index.html` / `foundational_types.html` / `404.html` / `find/index.html`)
+はテンプレートだけから作られ、モジュール集合に依存しない。
+
+### 5c. `render.ts` が生成するもの / しないもの (実測)
+
+| | |
+|---|---:|
+| `render.ts` が書くファイル | 432 (すべてモジュールページ)、29,671,173 B |
+| **非モジュール成果物のうち未生成** | **23 / 23** |
+
+### 5d. 生成したページが参照しているのに存在しないもの (実測)
+
+| 内訳 | ターゲット数 | 出現回数 |
+|---|---:|---:|
+| 全体 | 555 | 108,599 |
+| 自パッケージのモジュールページ | **0** | **0** |
+| **サイト成果物 (class a / c)** | **12** | **12,538** |
+| 依存パッケージのモジュールページ | 543 | 96,061 |
+
+サイト成果物 12 件の内訳 (出現順): `foundational_types.html` 7,354 / `favicon.svg` 864 /
+`style.css` 432 / **`declarations/declaration-data.bmp` 432** / `mathjax-config.js` 432 /
+`jump-src.js` 432 / `search.js` 432 / `expand-nav.js` 432 / `how-about.js` 432 /
+`instances.js` 432 / `importedBy.js` 432 / **`navbar.html` 432**。
+
+**自パッケージのモジュールページへのリンク切れは 0** — 432 ページの内部整合は取れている。
+壊れているのは「サイトの器」と「依存パッケージのページ」の 2 種類で、後者 96,061 件は
+**生成範囲の差** (lean-doc は自パッケージ 432 モジュールしか作らない) であって
+stale ではない。混ぜないこと。
+
+### 5e. 1 モジュール変更で作り直しが要る class a の規模 (実測、時間は測っていない)
+
+| | バイト |
+|---|---:|
+| `declarations/declaration-data.bmp` | 37,481,374 |
+| `navbar.html` | 646,438 |
+| `tactics.html` | 451,823 |
+| `references.html` | 1,573 |
+| **合計** | **38,581,208** |
+
+`declaration-data.bmp` の中身: modules 6,115 / declarations 258,760 / instances 1,281 /
+instancesFor 3,190。うち `InformationTheory` は **391 モジュール / 4,079 宣言**
+(= 全体の 6.4% / 1.6%)。
+
+**時間は測っていない (この処理は lean-doc に実装が無い)。** 規模だけの数字である。
+なお doc-gen4 自身は class a を毎回ゼロから作り直してはいない —
+検索索引はディスク上の per-module `.bmp` を読み直して統合し (`Output.lean:236-243`)、
+navbar は既存の HTML を走査して作り直す (`Output.lean:357-383`)。
+**増分の設計はここにある。lean-doc にはどちらも無い。**
+
+### 5f. 判定
+
+**S5 は否定された。** 否定条件 (「(a) または (b) に分類される成果物が 1 つでも未生成で残る」)
+を、class a の 5 個すべてで満たしている。
+
+---
+
+## 6. 事前予測と食い違ったもの
+
+行レベルでは 4/4 が予測どおり (すべて refuted)。中身で食い違ったのは 5 点。
+
+1. **`--mode importers` は「取りこぼすか否か」ではなく「取りこぼしつつ無駄も出す」だった。**
+   hub で stale 3・gratuitous 276。健全な上界のつもりだったものが、
+   上界でもなければ精度も低い。
+2. **削除で他のページは変わらない** (§4b)。`render.ts` が `refs` からも `known` を埋めるため、
+   消えたモジュールを指すリンクは生成され続ける。「消えたページが残る」より
+   「生きたページが消えたページを指す」ほうが実害が近い。
+3. **`envChanged` は計算されているのに使われていないだけでなく、実パイプラインでは
+   IR スキーマの 2 項目がそもそも比較されない** (`incremental.sh` が `--ir` を渡さない)。
+   予測は「`--source-url` が `envKey` に無い」までしか言っていなかった。
+4. **class b の成果物がこの doc ツリーに 1 つも無い** (per-module の `.bmp` と
+   `backrefs-*.json`)。ソース上は存在するので、「0 個だから考えなくてよい」ではない。
+5. **`log` は 432 通りの N すべてで stale ≥ 3。** 「N の選び方次第で閉じることがある」
+   (候補全体では 94.5% が最良 N で stale 0) のに、最も影響の大きい候補では
+   逃げ道が 1 つも無い。
+
+---
+
+## 7. この計測が答えていないこと
+
+1. **S3 (E3)。** `--open` を有効にした抽出の一致は未実施 (Lean を起動する)。
+2. **所有モジュールの経路** (増分 1 README §4.2)。宣言をモジュール間で移動したときの
+   `refs` の腐り方は、この leg では触っていない。
+3. **印字の経路** (同 §4.1)。notation / delab は E3 の側。
+4. **class a を増分更新したときの時間。** 実装が無いので規模しか出していない (§5e)。
+5. **依存パッケージ (Mathlib 等) のページをどう扱うか。** §5d の 96,061 件のリンク切れは
+   生成範囲の問題で、stale の問題ではない。範囲の決定はこの leg の外。
+6. **doc-gen4 側が同じ 5 つの命題を満たすか。** 比較はしていない。E5 で読んだのは
+   doc-gen4 が「何を作るか」だけで、「stale を出さないか」は測っていない。

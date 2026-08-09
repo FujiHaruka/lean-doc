@@ -1,0 +1,68 @@
+modules 432;  |{M} ∪ IMPORTERS(M)|: min 1 median 14.0 max 415
+
+=== A. census of unresolved docstring autolink tokens (measured) ===
+distinct tokens                        8,965
+failing attempts                       117,323
+  passing render.ts's isNameLit        4,241 distinct / 47,547 occurrences
+  and shaped like a declaration name   2,930 distinct / 10,745 occurrences
+  ... on >= 2 pages                    997 distinct / 8,070 occurrences
+  pages per token: median 1.0  p90 3  max 138
+
+  top 20 by page count (the injection candidate is the top row):
+   pages    occ  token
+     138    638  log
+      44    168  volume
+      44    105  Measure.pi
+      39     91  μ.map
+      38     60  fun
+      37     98  negMulLog
+      28     68  gaussianReal
+      27     84  convDensityAdd
+      27     58  gaussianPDFReal
+      26     71  klDiv
+      22    110  lam
+      21     56  P.map
+      21     45  condDistrib
+      21     41  liminf
+      21     39  exp
+      21     35  Measure
+      20     32  Integrable
+      19     74  g_t
+      19     36  entropy
+      19     31  Tendsto
+
+=== B. validation of the all-N model against the measured renders ===
+  leaf   N=InformationTheory.Shannon.Kolmogorov.OmegaNoncomputable
+         model 142 pages vs measured 142 -> EXACT
+  hub    N=InformationTheory.Meta.EntryPoint
+         model 142 pages vs measured 142 -> EXACT
+
+=== C. `log` injected into each of the 432 modules in turn (derived) ===
+  affected pages                       141
+  stale under --mode importers: min 3  median 137.0  max 141
+  modules N for which stale == 0:      0 / 432
+
+=== D. every name-shaped candidate on >= 2 pages, over every N (derived) ===
+  candidates                            1,095
+  (candidate, N) pairs                  473,040
+    pairs leaving >= 1 stale page       446,333 (94.4%)
+  best case over N (the luckiest module to have edited):
+    stale == 0                          1,035 (94.5%)
+    stale >= 1                          60 (5.5%)
+  per-candidate median stale over N: median 2.0  p90 7.0  max 137.0
+  top 15 candidates by best-case stale:
+       4 stale (of    9 affected pages)  `eval`
+       3 stale (of  141 affected pages)  `log`
+       3 stale (of    9 affected pages)  `false`
+       2 stale (of   10 affected pages)  `true`
+       2 stale (of   71 affected pages)  `toReal`
+       2 stale (of   14 affected pages)  `length`
+       2 stale (of    5 affected pages)  `MemLp`
+       1 stale (of    4 affected pages)  `μ.real`
+       1 stale (of    2 affected pages)  `η.withDensity`
+       1 stale (of    2 affected pages)  `δᵢⱼ`
+       1 stale (of    5 affected pages)  `withDensity_rnDeriv_eq`
+       1 stale (of   18 affected pages)  `withDensity`
+       1 stale (of   44 affected pages)  `volume`
+       1 stale (of    2 affected pages)  `variance_sum_pi`
+       1 stale (of    3 affected pages)  `testFn_support`
