@@ -1,0 +1,15 @@
+doc-gen4 HTML       /Users/haruka/dev/lean-projects/.lake/build/doc/InformationTheory
+lean-doc refs       benchmarks/results/stage3-refs.jsonl
+
+module coverage     348 of 432 target modules have a page (80.6%)
+                    the comparison below only covers those 348
+
+HTML link targets   1154 unique, 75703 occurrences
+  decl_header       1062 unique
+  equations         736 unique
+  structure_field   4 unique
+lean-doc constants  1446 unique (913 own, 533 dependency)
+
+in HTML, missing from lean-doc   0   <- defects
+in lean-doc, not linked in HTML  292   <- unresolved / not yet classified
+containment                      100.0% of HTML targets are collected

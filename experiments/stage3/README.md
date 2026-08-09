@@ -151,20 +151,66 @@ MODULES=/tmp/smoke-modules.txt RESULTS_DIR=/tmp ./run.sh smoke -- --refs --dump-
 
 ## Numbers
 
-**未計測.** Nothing here has been measured under the conditions this repository
-requires (warm, five or more consecutive runs, full 432-module target). The only
-numbers that exist so far are single-run smoke values on a 10-module list, which
-are not admissible and are therefore not written down here. Fill this section in
-from `benchmarks/results/stage3-*` once the real runs exist, and keep the 実測 /
-外挿 / 仮定 / 理論値 label on every entry.
+Conditions: Apple M1 / 8 cores / 16 GB, Lean, Mathlib and doc-gen4 all v4.31.0,
+`LEAN_NUM_THREADS` unset, oleans built, one process, **warm** (wall ≈ user+sys on
+every run). 432 target modules, 4,750 declarations. Five configurations measured
+back to back in one session, six runs each; run 1 is discarded as page-cache cold
+and the **median of runs 2-6** is reported. Logs:
+`../../benchmarks/results/stage3-{noeq,noeq-tag,noeq-refs,eq,eq-refs}-{1..6}.jsonl`
+with conditions in the matching `*-summary.txt`. All 実測.
 
-What has to go in it:
+### Referenced constants
 
 | | |
-|---|---|
-| unique referenced constants | own vs. dependency split |
-| occurrences, mean per declaration | |
-| cost of `--refs` | whole `stage3.analyze` with vs. without, against stage 2's `--tag` +0.4 s |
+|---|---:|
+| occurrences (equations on) | 143,121 |
+| occurrences (equations off) | 130,898 |
+| mean per declaration (on) | 30.1 |
+| **unique** | **1,446** |
+| of those, defined in a target module | 913 |
+| **of those, in a dependency** | **533** |
+| without a defining module | 0 |
+
+The unique set is `../../benchmarks/results/stage3-refs.jsonl`. For scale, the map
+doc-gen4 ships (`declaration-data.bmp`) has 258,760 entries in 37,481,374 bytes
+(実測), so the dependency-side demand of this package is 0.21% of it. Whether
+that supply actually resolves this demand is increment 2, not measured here.
+
+### What `--refs` costs
+
+| configuration | `stage3.analyze` | vs. baseline |
+|---|---:|---:|
+| equations off, baseline | 8.058s | — |
+| equations off, `--tag` | 8.510s | +0.452s |
+| equations off, `--refs` | 8.612s | **+0.554s** |
+| equations on, baseline | 9.175s | — |
+| equations on, `--refs` | 9.675s | **+0.500s** |
+
+`stage3.total` goes 11.775s → 12.259s (+0.484s); `refUs` (contained in the two
+above) is 0.468s. Stage 2 measured `--tag` at +0.405s in a different session; the
+same-session re-measurement here is +0.452s, i.e. consistent. `--refs` is 0.10s
+above `--tag`: it skips `tagCodeInfos` but walks every tag and accumulates names.
+
+### Against doc-gen4's HTML
+
+`../../benchmarks/tools/compare-links.ts` diffs the collected set against the
+links doc-gen4 actually emitted, restricted to signature blocks. Output:
+`../../benchmarks/results/stage3-linkcmp.txt`.
+
+| | |
+|---|---:|
+| HTML link targets, unique | 1,154 |
+| collected constants, unique | 1,446 |
+| **in the HTML, missing here** | **0** |
+| collected but not linked in the HTML | 292 |
+
+Containment in this direction is what to expect: doc-gen4 only emits an `<a>` for
+names it can resolve. The 292 are increment 3's material, not a result.
+
+**This covers 348 of the 432 target modules.** The HTML tree in
+`.lake/build/doc/InformationTheory` has 348 pages (3,477 declarations); 84 target
+modules have no page, because that doc build was cut short. The zero above is a
+zero over those 348 modules, not over the whole target.
 
 ## Baseline identity
 
