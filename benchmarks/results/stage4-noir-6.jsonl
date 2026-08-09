@@ -1,0 +1,8 @@
+{"phase":"stage4.initSearchPath","pid":25063,"us":18}
+{"phase":"stage4.importModules","pid":25063,"us":2551337,"directImports":432}
+{"phase":"stage4.envStats","pid":25063,"us":0,"loadedModules":6021}
+{"phase":"stage4.indexLookup","pid":25063,"us":1961,"targetModules":432,"enumerated":8849,"candidates":8824}
+{"phase":"stage4.moduleDocs","pid":25063,"us":563,"modules":432,"moduleDocs":1515,"modulesWithDocs":424,"imports":3935}
+{"phase":"stage4.tactics","pid":25063,"us":8991,"tacticsInEnv":421,"tacticsAssigned":0}
+{"phase":"stage4.analyze","pid":25063,"us":9894995,"considered":8824,"produced":4750,"blacklisted":4074,"failed":0,"ppUs":8653025,"eqUs":1014458,"docUs":46724,"equations":863,"eqFailures":0,"genEquations":true,"tagCode":false,"refUs":473290,"refOccurrences":143121,"collectRefs":true}
+{"phase":"stage4.total","pid":25063,"us":12465787,"modules":432}

@@ -1,0 +1,42 @@
+date              2026-08-09T15:32:41Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+LEAN_NUM_THREADS  unset (Lean default)
+target            /Users/haruka/dev/lean-projects
+modules           432 from /Users/haruka/dev/lean-doc/benchmarks/results/it-modules.txt
+binary            /Users/haruka/dev/lean-doc/experiments/stage3/build/extract
+args              --equations --refs
+
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+target modules       432
+loaded modules       6021
+importModules        11.160s
+indexLookup          0.002s  enumerated 8849, unique 8824
+moduleDocs           0.000s  1515 docs in 424 modules, 3935 imports
+tactics              0.010s  421 in env, 0 in target modules
+analyze              10.265s  considered 8824, produced 4750, blacklisted 4074, failed 0
+  of which signature 8.785s
+  of which equations 1.086s  (863 lemmas, 0 failed)
+  of which docstring 0.047s
+  of which refs      0.476s  (143121 occurrences; inside the two above)
+total                21.448s
+genEquations         true   tagCode false   refs true   open []
+kinds                theorem=3742 definition=842 instance=91 structure=37 constructor=37 opaque=1
+       21.73 real        11.59 user         2.12 sys
+          3270033408  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              184845  page reclaims
+               80872  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+               18965  voluntary context switches
+               74278  involuntary context switches
+        124787031334  instructions retired
+         42490972061  cycles elapsed
+           540160256  peak memory footprint

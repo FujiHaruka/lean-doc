@@ -1,0 +1,65 @@
+# read-ir — reading the stage-4 IR without starting Lean
+
+date              2026-08-09T15:38:56Z
+ir                /private/tmp/claude-502/-Users-haruka-dev-lean-doc/3db6b213-b50d-48cb-a16b-16df93b5f009/scratchpad/ir
+written           2026-08-09T15:37:20Z
+deno              2.7.14 / V8 14.7.173.20-rusty
+schemaVersion     1
+generator         lean-doc/experiments/stage4
+leanVersion       4.31.0
+hashAlgorithm     lean-string-hash-64/hex16
+runs              7 (run 1 dropped as cold)
+note              written by experiments/stage4 run stage4-alt-ir-6
+note              machine: Apple M1 / 8 cores / 16 GB; page cache warm (the IR was written seconds earlier)
+
+## What was read (実測)
+
+| | |
+|---|---:|
+| module files | 432 |
+| declarations | 4,750 |
+| (declaration, reference) pairs | 56,552 |
+| distinct (module, name) references | 1,446 |
+| equations | 863 |
+| structure members | 194 |
+| module docstrings | 1,515 |
+| direct imports | 3,935 |
+| dependency map packages | 3 |
+| dependency map entries | 533 |
+| index.json bytes | 88,452 |
+| bytes read | 8,743,395 (8.34 MiB) |
+
+## Read time (実測, warm — run 1 dropped)
+
+| | seconds |
+|---|---:|
+| run 1 (cold-ish, discarded) | 0.1006 |
+| run 2 | 0.0567 |
+| run 3 | 0.0564 |
+| run 4 | 0.0643 |
+| run 5 | 0.0552 |
+| run 6 | 0.0562 |
+| run 7 | 0.0548 |
+| **median of runs 2-7** | **0.0563** |
+| spread (min-max, warm) | 0.0548-0.0643 |
+
+Against the warm `importModules` floor (2.5 s, stage 1): **2.3%**.
+Throughput: 148.14 MiB/s.
+
+## Cross-check: one fresh process per read (実測)
+
+In-process repetition can be flattered by a warm V8 heap, so the same read
+was repeated with a new process each time (the process start itself is not
+counted; the timer is inside the child).
+
+| | seconds |
+|---|---:|
+| run 1 (discarded) | 0.0591 |
+| run 2 | 0.0588 |
+| run 3 | 0.0589 |
+| run 4 | 0.0588 |
+| run 5 | 0.0588 |
+| run 6 | 0.0590 |
+| **median of runs 2-6** | **0.0588** |
+
+

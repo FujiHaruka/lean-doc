@@ -1,0 +1,47 @@
+date              2026-08-09T15:40:19Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+LEAN_NUM_THREADS  unset (Lean default)
+target            /Users/haruka/dev/lean-projects
+modules           432 from /Users/haruka/dev/lean-doc/benchmarks/results/it-modules.txt
+binary            /Users/haruka/dev/lean-doc/experiments/stage4/build/extract
+args              --equations --refs --write-ir --ir-dir /private/tmp/claude-502/-Users-haruka-dev-lean-doc/3db6b213-b50d-48cb-a16b-16df93b5f009/scratchpad/ir
+
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+target modules       432
+loaded modules       6021
+importModules        13.011s
+indexLookup          0.002s  enumerated 8849, unique 8824
+moduleDocs           0.001s  1515 docs in 424 modules, 3935 imports
+tactics              0.009s  421 in env, 0 in target modules
+analyze              10.206s  considered 8824, produced 4750, blacklisted 4074, failed 0
+  of which signature 8.759s
+  of which equations 1.058s  (863 lemmas, 0 failed)
+  of which docstring 0.045s
+  of which refs      0.471s  (143121 occurrences; inside the two above)
+writeIR              0.147s serialize + 0.002s hash + 0.059s write
+  files              432 modules + 3 dep maps + 1 index
+  bytes              8743395 (8627735 modules, 27208 deps, 88452 index)
+  content            4750 declarations, 56552 ref pairs, 533 dep map entries, 0 unresolved refs
+  dir                /private/tmp/claude-502/-Users-haruka-dev-lean-doc/3db6b213-b50d-48cb-a16b-16df93b5f009/scratchpad/ir
+total                23.452s
+genEquations         true   tagCode false   refs true   open []
+kinds                theorem=3742 definition=842 instance=91 structure=37 constructor=37 opaque=1
+       23.54 real        11.62 user         2.26 sys
+          3283697664  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              156077  page reclaims
+              106263  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+               20528  voluntary context switches
+               92306  involuntary context switches
+        127915761489  instructions retired
+         43368196479  cycles elapsed
+           533704832  peak memory footprint

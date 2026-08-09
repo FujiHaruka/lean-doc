@@ -20,3 +20,6 @@ experiments/stage2/build/
 
 # stage-3 experiment build output (native binary + generated C)
 experiments/stage3/build/
+
+# stage-4 experiment build output (native binary + generated C)
+experiments/stage4/build/

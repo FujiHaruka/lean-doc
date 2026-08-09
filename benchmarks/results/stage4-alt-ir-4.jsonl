@@ -1,0 +1,9 @@
+{"phase":"stage4.initSearchPath","pid":26719,"us":17}
+{"phase":"stage4.importModules","pid":26719,"us":2574073,"directImports":432}
+{"phase":"stage4.envStats","pid":26719,"us":0,"loadedModules":6021}
+{"phase":"stage4.indexLookup","pid":26719,"us":2078,"targetModules":432,"enumerated":8849,"candidates":8824}
+{"phase":"stage4.moduleDocs","pid":26719,"us":588,"modules":432,"moduleDocs":1515,"modulesWithDocs":424,"imports":3935}
+{"phase":"stage4.tactics","pid":26719,"us":9378,"tacticsInEnv":421,"tacticsAssigned":0}
+{"phase":"stage4.analyze","pid":26719,"us":9758938,"considered":8824,"produced":4750,"blacklisted":4074,"failed":0,"ppUs":8559536,"eqUs":992378,"docUs":45124,"equations":863,"eqFailures":0,"genEquations":true,"tagCode":false,"refUs":470094,"refOccurrences":143121,"collectRefs":true}
+{"phase":"stage4.writeIR","pid":26719,"us":199016,"moduleFiles":432,"moduleBytes":8627735,"declarations":4750,"refPairs":56552,"refsUnresolved":0,"depFiles":3,"depEntries":533,"depBytes":27208,"indexBytes":88452,"serializeUs":146504,"hashUs":2268,"writeUs":47939}
+{"phase":"stage4.total","pid":26719,"us":12550386,"modules":432}
