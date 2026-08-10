@@ -1,0 +1,22 @@
+## runner
+date        2026-08-10T13:53:11Z
+kernel      Linux 6.17.0-1020-azure x86_64
+nproc       2
+pagesize    4096
+runner      Linux / X64 / image ubuntu24 20260720.247.2
+
+## /proc/meminfo (the number that decides whether 5-6 GB can stay resident)
+MemTotal:        8128888 kB
+MemFree:         4651300 kB
+MemAvailable:    6914548 kB
+Buffers:           74768 kB
+Cached:          2411392 kB
+SwapTotal:       3145724 kB
+
+## df
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root        72G   58G   15G  80% /
+/dev/root        72G   58G   15G  80% /
+
+## toolchain requested by the target
+leanprover/lean4:v4.31.0

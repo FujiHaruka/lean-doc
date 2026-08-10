@@ -1,0 +1,52 @@
+# CI olean residency on ubuntu-latest — straight after `lake exe cache get`
+
+date              2026-08-10T13:53:11Z (run 31395165118, workflow_dispatch)
+runner            Linux 6.17.0-1020-azure x86_64 / ubuntu24 image 20260720.247.2
+cores / RAM       2 / 8,128,888 kB = 7.75 GiB       page size 4096
+target            FujiHaruka/information-theory (public) checked out fresh; nothing written to it
+tool              benchmarks/tools/olean-residency.c (mincore), unchanged
+raw               benchmarks/results/ci-residency-ubuntu-latest.jsonl.gz (51,278 records)
+
+## the number
+
+  olean files found                 51,278   (0 before `cache get`)
+  apparent bytes             5,576,027,709   = 5.19 GiB
+  resident (file bytes)      3,480,558,540   = **62.42%**
+  resident (pages)            873,492 / 1,399,761 = 62.40%
+  page-cache bytes           3,577,823,232   (resident pages x 4096)
+
+## /proc/meminfo, before and after
+
+  |            | before cache get | after cache get |
+  |------------|-----------------:|----------------:|
+  | MemTotal   |      8,128,888 kB |     8,128,888 kB |
+  | MemFree    |      4,651,300 kB |       469,972 kB |
+  | MemAvailable|     6,914,548 kB |     7,152,096 kB |
+  | Cached     |      2,411,392 kB |     6,500,556 kB |
+  | Buffers    |         74,768 kB |        80,212 kB |
+
+## drift
+
+Two further snapshots at +20 s and +40 s idle came out **byte-identical** to
+the first (`cmp` on the JSONL). Residency did not move; MemAvailable stayed
+at 6.8 GiB, so there was no pressure to evict under.
+
+## the macOS comparison this was run to settle
+
+  macOS / M1 / 16 GiB, same question:   4.7-20.2% resident  -> importModules 14.96/15.66 s
+  ubuntu-latest / 2 core / 7.75 GiB:    **62.4% resident**   -> importModules NOT MEASURED
+
+## what this does not say
+
+1. **It does not measure `importModules`.** Residency is a proxy. The macOS
+   number came with an import time; this one does not, because building the
+   extractor in CI was deliberately out of scope.
+2. **It does not say *which* 62.4%.** A cold import reads ~2.59 GB (macOS,
+   measured). If the resident set covers that hot set, the import is nearly
+   warm; if residency is spread evenly, ~37% of what the import needs still
+   faults. mincore cannot distinguish these without the extractor's read set.
+3. **n=1**, one runner size, one image.
+4. **62.4% may be capacity-limited rather than characteristic.** 5.19 GiB of
+   oleans on a 7.75 GiB runner that already had 2.3 GiB cached: the cache
+   ended at 6.20 GiB of 7.75 GiB total. A larger runner may do better, which
+   makes the runner size a variable rather than a constant.
