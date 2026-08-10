@@ -3077,6 +3077,107 @@ run 1 回ごとにサーバを立てる設計は、起動を run の中で払う
 
 ---
 
+### 段階 6c — L3-1 の一般性と、ラウンド数の上限 (2026-08-10)
+
+段階 5e が L3-1 を検証したのは**移動 1 例**だけで、動いた名前は「署名に出る普通の定理」
+だった。残っていた 2 つ (他の宣言種別 / 3 ラウンド以上) を閉じる節。
+判断基準は計測前に commit。判定は段階 5e/5f と同じ**フルビルドとの byte 一致** (439 ファイル)。
+生ログ `benchmarks/results/stage6c-l31-generality.txt` (+ `-abbrev-strong.txt`)。
+
+**計測条件。** Darwin 25.6.0 arm64 / Apple M1 / 16 GB / `lean4:v4.31.0`。
+**シナリオごとに複製をリセットし、base を再抽出して台帳が不動点であることを確認してから**
+移動を当てた (再ビルドした olean が前と byte 一致するとは仮定しない — 段階 5e が 1 run 失った罠)。
+
+#### (a) N0 — 3 種のうち 2 種にしか witness が無い【実測】
+
+| 種別 | witness |
+|---|---|
+| `instance` | **有** (9 instance を定義する `…Superposition.TimeShare`) |
+| `@[simp]` | **無 — この対象では検証不能** |
+| `abbrev` | **有** (`…Fano`、さらに強い witness で再走) |
+
+**instance について census が対象全体で言っていること** — 候補行の 2 列目が結果そのもの:
+
+```
+…Superposition.TimeShare      9 instance(s), 0 of them named in a signature elsewhere, 2 referring module(s)
+…OuterBoundUV.Region          7 instance(s), 0 of them named in a signature elsewhere, 8 referring module(s)
+…OuterBoundUV.Bridge          5 instance(s), 0 of them named in a signature elsewhere, 9 referring module(s)
+…TimeSharingConverse.Bridge   4 instance(s), 0 of them named in a signature elsewhere, 1 referring module(s)
+…TimeBandLimiting.Operator    4 instance(s), 0 of them named in a signature elsewhere, 7 referring module(s)
+```
+
+**この対象で、他モジュールの印字署名に名前が出る instance は 1 つも無い。**
+instance は typeclass 解決が見つけるもので、pretty printer は印字しない。
+だから `refs` に載らず、**L3-1 は instance の移動を原理的に見られない。**
+
+**`@[simp]` に witness が無い理由も同じ構造**:
+
+| | |
+|---|---:|
+| 自パッケージ 432 ファイル中の `@[…simp…]` 出現 | **76** |
+| うち宣言名まで解決できたもの | **73** |
+| IR の宣言に接尾辞照合で対応付けられたもの | **70** |
+| **うち他モジュールの印字署名に名前が出るもの** | **0** |
+
+**`@[simp]` 補題は証明側の事実で、印字署名は型**だから。**「通った」ではなく「検証不能」**と
+記録する — この対象は L3-1 が simp を扱えるかを示せない。示せたのは「この対象には L3-1 が
+見る形で simp 補題を参照しているものが無い」こと。
+なお **census の名前照合は最初まちがっていた** (ソース名は namespace 相対、IR 名は完全修飾)。
+接尾辞照合に直して 70 件を同定し、**それでも参照は 0** — 結論はバグに依っていなかった
+(直す前に別途確認した)。
+
+#### (b) N1/N2 — instance の移動を救っているのは L3-1 ではない【実測】
+
+| | `--l3-1 on` | `--l3-1 off` |
+|---|---|---|
+| 結果 | **439/439 byte 一致** | **439/439 byte 一致** |
+| ラウンド / 変更 / stale | 1 / 4 / **0** | 1 / 4 / 0 |
+
+L3-1 は**名前を 46 個 lost・46 個 gained と見ながら stale 0** を報告した。L2 が 4 モジュール
+(参照側 2 つを含む) を全部拾っていた。**では何が救ったか** — instance 一覧は**ページのバイトに
+無い**。`render.ts:1142` は空の `<details class="instances-for-list">` を出し、ブラウザが
+`declarations/declaration-data.bmp` から埋める。そのファイルは `global.ts` が**毎回**
+作り直す (L3-3)。**3 層でいちばん安い層が、L3-1 の仕事だと思われていたものをやっていた。**
+
+#### (c) N4 — abbrev は L3-1 が必須で、5e より難しいケースだった【実測】
+
+| | `--l3-1 on` | `--l3-1 off` |
+|---|---|---|
+| 結果 | **439/439 byte 一致** | **誤り — 3 ページが相違** |
+| ラウンド / 変更 / stale / ページ | 2 / 2 / **3** / 5 | 1 / 2 / 0 / 2 |
+| 誤ったページ | — | `Fano/Core.html` `Fano/DPI.html` `Fano/Measure.html` |
+
+段階 5e の移動は stale **1**・誤り **1 ページ**だった。こちらは **3 と 3** で、
+**L3-1 が作られた元のケースより強く効かせて、なお完全一致。**
+**reducible な定義でも `(モジュール, 名前)` の鍵は壊れない** — delaborator は展開形ではなく
+abbrev 自身の名前を印字する (少なくともここでは)。
+
+#### (d) N5/N6 — 2 ラウンドは構造的な上限【実測】
+
+ラウンド 2 に到達したのは abbrev だけで、その ownership 報告は **`lostNames 0, gainedNames 0`**。
+これは構造的な議論が予測するとおり: **ラウンド 2 以降のモジュールは olean が動いていない**
+(だから L2 が見逃した) ので、**宣言集合も動かない** (集合はそのモジュール自身の olean の
+`constNames` から来る)。だから `lost`/`gained` に何も足さず、ループは止まる。
+**偶然ではなく理由があって止まっている。**
+
+**それでも `--max-rounds` は残す。** 議論には穴が 1 つある — 宣言集合は `constNames` を
+`isBlackListed` で濾したもので、この述語は環境を参照する (`isAuxRecursor env` /
+`isNoConfusion env` / `getStructureInfo? env parent` / `findDeclarationRanges?`、
+`Extract.lean:168-189`)。**それを反転させる変更があればラウンド 3 が出る。**
+今回のどの変更も反転させなかったが、それは定理ではない。
+
+#### 判断
+
+**L3-1 の一般性は「移動する名前が印字署名に出るかどうか」で決まる**と確定した。
+出る種別 (定理・`abbrev`) には必須、出ない種別 (`instance`、この対象の `@[simp]`) には無関係で、
+**そちらを救っているのは L3-3 (全域成果物を毎回作り直す)**。
+**3 層の分担は偶然ではなく、いちばん安い層が最も広い網だった。**
+
+**直した文書**: `approach.md` §5.5 の L3-1 (種別ごとの効き方 + ラウンド上限とその穴) と
+L3-3 (正しさにも効いていること)。
+
+---
+
 ## 書き方
 
 段階ごとに 1 節を足す。各節に必ず入れるもの:
