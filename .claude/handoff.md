@@ -1,7 +1,7 @@
 # Handoff — 2026-08-10 (8)
 
 ## Relay control
-- Mode: PAUSED
+- Mode: ON
 - Goal: handoff (7) の「次にやるなら」1〜5 を全部完遂する
 - Leg: 1 / cap 8
 - Predecessor: none
@@ -92,9 +92,13 @@ renderKey からも rev が外れる。取り分【全部実測】: **再生成 
 
 なし。**ユーザー判断が 1 点だけ残っている。**
 
-## ユーザー判断が要る 1 点 (item 4)
+## item 4 — ユーザー承認済み、実行中
 
-**`ubuntu-latest` で `lake exe cache get` 直後の olean 常駐率を測る workflow を回してよいか。**
+**承認された** (2026-08-10)。run: https://github.com/FujiHaruka/lean-doc/actions/runs/31395165118
+結果が出たら `docs/verification-log.md` に節を足し、`approach.md` §3 の
+「`ubuntu-latest` で `cache get` 直後の常駐率を測る = 未着手」と §8 の cold の行を直す。
+
+**`ubuntu-latest` で `lake exe cache get` 直後の olean 常駐率を測る。**
 
 - 用意したもの: `.github/workflows/ci-olean-residency.yml` (**push 済み・`workflow_dispatch` のみ**
   なので勝手には走らない)。lean-doc (private) 側で回し、対象は public な
