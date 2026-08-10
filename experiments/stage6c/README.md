@@ -199,3 +199,32 @@ the environment. Nothing here flipped that predicate. `--max-rounds` therefore
 stays — it costs nothing and it is the only thing standing between an unforeseen
 blacklist flip and an unbounded loop — but the round loop can be *documented* as
 "extract, then extract the referrers, done", which is what it has always done.
+
+### The stronger abbrev witness — 30× the blast radius, same exactness
+
+The first run's census had no sort for `abbrev` and picked whatever came first
+(`InformationTheory.Fano`, 1 abbrev, 2 referring modules). Fixed, and re-run
+against the strongest witness on this target
+(`…BroadcastChannel.Basic`, 4 abbrevs, **33** referring modules). Source:
+`benchmarks/results/stage6c-l31-generality-abbrev-strong.txt`.
+
+| | L3-1 on | L3-1 off |
+|---|---|---|
+| result | **439/439 byte-identical** | **WRONG — 30 pages differ** |
+| rounds | 2 | 1 |
+| changed / staleFound / globalStale | 5 / **30** / 1 | 5 / 0 / 1 |
+| pages rendered | 36 | 6 |
+| round-2 ownership | `lostNames 0, gainedNames 0` | — |
+
+**L3-1 found 30 stale modules and every one of them mattered**: without it, exactly
+those 30 pages are wrong. Against stage 5e's 1 stale / 1 wrong page, this is 30×
+the blast radius and still exact.
+
+Two things this adds beyond the weaker witness:
+
+* **L3-2 fired too** (`globalStale 1`), so this run exercises L3-1 and L3-2
+  together rather than L3-1 alone — and the composition is still byte-exact.
+* **The two-round bound survives 30 modules in round 2.** `lostNames 0,
+  gainedNames 0` is not an artefact of a small round; it is what the structural
+  argument says, and 30 modules is where a counterexample would have shown up if
+  the bound depended on size.

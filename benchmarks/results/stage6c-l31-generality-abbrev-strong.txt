@@ -1,0 +1,40 @@
+# stage6c — how general is L3-1?
+
+date              2026-08-10T13:49:24Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+target            APFS clone of /Users/haruka/dev/lean-projects, reset before each scenario
+oracle            byte equality of the whole page tree with a from-scratch post-move build
+
+## N0 — the census
+N0 kinds with a witness: abbrev, instance
+
+### instance
+  InformationTheory.Shannon.BroadcastChannel.Superposition.TimeShare     9 instance(s), 0 of them named in a signature elsewhere, 2 referring module(s) overall
+  InformationTheory.Shannon.BroadcastChannel.OuterBoundUV.Region         7 instance(s), 0 of them named in a signature elsewhere, 8 referring module(s) overall
+  InformationTheory.Shannon.BroadcastChannel.OuterBoundUV.Bridge         5 instance(s), 0 of them named in a signature elsewhere, 9 referring module(s) overall
+  InformationTheory.Shannon.MultipleAccess.TimeSharingConverse.Bridge    4 instance(s), 0 of them named in a signature elsewhere, 1 referring module(s) overall
+  InformationTheory.Shannon.TimeBandLimiting.Operator                    4 instance(s), 0 of them named in a signature elsewhere, 7 referring module(s) overall
+  chosen: InformationTheory.Shannon.BroadcastChannel.Superposition.TimeShare
+
+### simp
+  NO WITNESS on this target — no @[simp] declaration is named in another module's signature. Reported as untestable.
+
+### abbrev
+  InformationTheory.Shannon.BroadcastChannel.Basic                       4 abbrev(s), referenced from 33 module(s), e.g. InformationTheory.Shannon.BroadcastChannel.BroadcastCode.decoder₁
+  InformationTheory.Shannon.ChannelCoding.Basic                          3 abbrev(s), referenced from 23 module(s), e.g. InformationTheory.Shannon.ChannelCoding.Code.encoder
+  InformationTheory.Shannon.RateDistortion.Achievability                 3 abbrev(s), referenced from 20 module(s), e.g. InformationTheory.Shannon.LossyCode.decoder
+  InformationTheory.Shannon.FisherInfo.DeBruijn                          3 abbrev(s), referenced from 12 module(s), e.g. InformationTheory.Shannon.FisherInfo.IsRegularDeBruijnHypV2.density_t
+  InformationTheory.Shannon.Stationary.Basic                             3 abbrev(s), referenced from 10 module(s), e.g. InformationTheory.Shannon.ErgodicProcess.toStationaryProcess
+  chosen: InformationTheory.Shannon.BroadcastChannel.Basic
+
+## N1..N6 — one scenario per kind
+
+## abbrev — moved InformationTheory.Shannon.BroadcastChannel.Basic (REFERENCE: 439 files)
+  --l3-1 on  : 439 files, missing 0, extra 0, differing 0 -> byte-identical
+             rounds 2, changed 5, staleFound 30, globalStale 1, pages 36
+             ownership round 2: lostNames 0, gainedNames 0, stale 0 (the structural bound holds)
+  --l3-1 off : 439 files, missing 0, extra 0, differing 30 -> WRONG
+             rounds 1, changed 5, staleFound 0, globalStale 1, pages 6
+             differing: InformationTheory/Shannon/BroadcastChannel/Achievability/Assembly.html, InformationTheory/Shannon/BroadcastChannel/Achievability/Setup.html, InformationTheory/Shannon/BroadcastChannel/Classes.html, InformationTheory/Shannon/BroadcastChannel/Converse.html, InformationTheory/Shannon/BroadcastChannel/DegradedFromCode.html, InformationTheory/Shannon/BroadcastChannel/Marton/Achievability.html ...
+  N-verdict: L3-1 on is correct; L3-1 off is wrong -> L3-1 is necessary for this kind
