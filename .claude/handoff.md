@@ -18,12 +18,12 @@
   - r1: **7a/7b/7c/7d/7f を完遂。** byte 再現率 **63.587% → 99.506% (到達上限)**、
     完全一致ページ **34 → 304/348**。意味解析を割って**並列化で 3.23 倍 (IR は byte 一致)**。
     CI 軸は Linux で `importModules` を実測し **◐ → ✅**。訂正 2 件 (先読みの結論・cold のレンジ)。
-    `dcaa8b8`〜`b19843d`、全部 push 済み。
+    最後に approach.md を **593 行**に圧縮 (§6 冒頭の古い cold 合計を §6.3 と整合させた)。
+    `dcaa8b8`〜`HEAD`、全部 push 済み。**作業ツリーは clean。**
 
 ## State
 
-- Branch: main / clean / push 済み。**`docs/approach.md` の圧縮 (606 → 600 行) が
-  着地しているか確認すること** (未コミットなら内容を見てからコミット)。
+- Branch: main / clean / push 済み。`docs/approach.md` は **593 行**で圧縮済み。
 - 計測対象 `/Users/haruka/dev/lean-projects` は **clean・無傷**、計装 APPLIED。
 - ディスク空き **13 GiB**。作業ディレクトリ `/private/tmp/lean-doc-relay/w7a`〜`w7d` は
   それぞれの段階の再現に要るので**消さない**。`clone` は
