@@ -1,0 +1,39 @@
+# stage6b — keeping the revision out of the page bytes
+
+date              2026-08-10T13:25:38Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+target            APFS clone of /Users/haruka/dev/lean-projects (post-move state, 433 modules)
+contract A        --source-url https://github.com/FujiHaruka/information-theory/blob/<40 hex>   (today)
+contract B        --source-url {{SOURCE_URL}}            (proposed)
+runs              6 per variant, interleaved, run 1 discarded
+note              the IR is reused across both; no Lean runs in the measured loop
+
+## V2/V5 — the bytes
+A (revision in the bytes): 439 files, 31552093 bytes
+  occurrences of the 40-hex revision: 4993 across 433 files (per file min 1 max 73)
+  occurrences of the token: 0
+B (token in the bytes): 439 files, 31152653 bytes
+  occurrences of the 40-hex revision: 0  <- V2
+  occurrences of the token: 4993 across 433 files (per file min 1 max 73)
+V5 size delta B - A: -399440 bytes (-1.27%)
+
+## V4/V6 — the inverse substitution
+V4 A-at-REV2 vs B-with-token-substituted: 439 files, missing 0, extra 0, differing 0 -> byte-identical
+V6 substitution cost: 0.1893 s for 439 files
+
+## V0 — an empty render set meant 'render everything'
+V0 render.ts with no --only wrote 433 HTML pages
+V0 -> an empty render set therefore meant 'render everything'.
+     Pre-fix incremental.sh built --only from the render set and passed none
+     when it was empty (see the commit that added the guard). Fixed: the
+     renderer is now skipped instead.
+
+## V1/V3 — the pipeline on a commit
+var  changed    pages      total              [min-max]     render
+A          0      433     1.6227        [1.4635-2.1515]     0.9017
+B          0        0     0.6441        [0.6414-0.6998]     0.0256
+
+modes seen: A ['all'] ; B ['self']
+V1 -> B renders 0 pages (A renders 433)
+V3 -> total 1.6227 s -> 0.6441 s (-0.9786 s, -60.3%); render stage 0.9017 -> 0.0256 s

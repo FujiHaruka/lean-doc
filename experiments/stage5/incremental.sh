@@ -275,9 +275,20 @@ sort -u "$WORK/impact-set.txt" "$GLOBALSET" | grep . > "$RENDERSET" || : > "$REN
 T5=$(now)
 ONLY=()
 while read -r m; do [ -n "$m" ] && ONLY+=(--only "$m"); done < "$RENDERSET"
-deno run --allow-read --allow-write "$LD/experiments/stage4c/render.ts" \
-  --ir "$IR" --pages "$PAGES" --source-url "$SOURCE_URL" \
-  --timings "$WORK/render-timings.json" ${ONLY[@]+"${ONLY[@]}"} > "$WORK/render.log"
+# An empty render set must skip the renderer, not run it bare. `render.ts` treats
+# "no --only" as "every module" (`render.ts:1381`), so an empty set would have
+# re-rendered all 432 pages — the exact opposite of what it means. Nothing
+# reached this path while the revision was in the page bytes, because a real
+# commit always forced `all`; stage 6b takes the revision out and lands here on
+# every run.
+if [ "${#ONLY[@]}" -eq 0 ]; then
+  echo '{"skipped":"empty render set"}' > "$WORK/render-timings.json"
+  echo "render: nothing to render" > "$WORK/render.log"
+else
+  deno run --allow-read --allow-write "$LD/experiments/stage4c/render.ts" \
+    --ir "$IR" --pages "$PAGES" --source-url "$SOURCE_URL" \
+    --timings "$WORK/render-timings.json" ${ONLY[@]+"${ONLY[@]}"} > "$WORK/render.log"
+fi
 T6=$(now)
 
 NPAGES=$(grep -c . "$RENDERSET" || true)

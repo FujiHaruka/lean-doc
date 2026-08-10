@@ -63,7 +63,7 @@ gives the injection two implementations with the same target:
 | **V2** | The 40-hex revision occurs **0 times** in the rendered tree (against 4,992). | true |
 | **V3** | The pipeline total for a revision-only commit drops from **1.34 s** to **≲0.6 s**, and the render stage from 0.87 s to ≈0. | true — the 0.87 s is 82% page-proportional (`stage5d/README.md`, corrected), so removing the pages removes most of it |
 | **V4** | Substituting the token back reproduces the rev-embedded tree **byte for byte** — no information is lost by the change. | true by construction; measured so that a dropped line range cannot hide |
-| **V5** | The rendered tree gets **smaller**: `{{SOURCE_URL}}` is 16 bytes against the 74-byte prefix it replaces, 4,992 times. | true, ≈ −290 KB |
+| **V5** | The rendered tree gets **smaller**: the token replaces a longer prefix at every occurrence. | true, ≈ −290 KB【この見積もりの算術は後で外れる — 下の結果参照】|
 | **V6** | The deploy-time substitution over 432 files costs more than the JS injection but far less than a re-render. | true, ≲0.3 s |
 
 **Retreat lines.**
@@ -83,6 +83,97 @@ gives the injection two implementations with the same target:
 
 | | |
 |---|---|
-| `render.ts` | a copy of `stage4c/render.ts` with `--source-url-token` | 
-| `inject.ts` | both injections (JS asset, deploy-time substitution) + the inverse used by V4 |
 | `run.sh` | V0–V6 |
+
+**No `render.ts` copy and no `inject.ts` exist**, which this section originally
+planned for. They turned out to be unnecessary: `--source-url` is a plain prefix
+string, so the whole change is passing a constant token as that argument, and the
+inverse substitution is four lines of the harness. Recorded here rather than
+quietly deleted, because "the design needed no code" is part of the result.
+
+---
+
+## Results (2026-08-10)
+
+**All numbers are 実測.** Source: `benchmarks/results/stage6b-revless.{txt,jsonl}`
+(12 pipeline runs). Darwin 25.6.0 arm64 / Apple M1 / 16 GB, `lean4:v4.31.0`, the
+APFS clone in its post-move 433-module state, IR reused across both contracts so
+**no Lean runs inside the measured loop**. 6 runs per contract, interleaved, run 1
+discarded.
+
+| # | prediction | result |
+|---|---|---|
+| V0 | true | **true** — `render.ts` with no `--only` writes **433 pages** |
+| V1 | true | **true** — B renders **0** pages, A renders **433** |
+| V2 | true | **true** — **0** occurrences of the revision (A has **4,993**) |
+| V3 | true, ≲0.6 s | **true** — total **1.6227 → 0.6441 s (−60.3%)**, render stage **0.9017 → 0.0256 s** |
+| V4 | true | **true** — 439 files byte-identical after substituting the token back |
+| V5 | true, ≈−290 KB | **true in direction, and the estimate was wrong: −399,440 B (−1.27%)** |
+| V6 | true, ≲0.3 s | **true — 0.1893 s** for 439 files |
+
+### The change needs no renderer change
+
+`--source-url` is concatenated with an IR-derived path (`render.ts:1250`), so
+`--source-url '{{SOURCE_URL}}'` puts the token in the bytes and takes the revision
+out of `renderKey` at the same time — the key stores the string it was handed
+(`ledger.ts:203-208`) and that string is now constant across commits. The
+**output contract** changes; the code does not.
+
+### V0 — the bug that would have silently defeated this
+
+`render.ts` treats "no `--only`" as "every module" (`render.ts:1381`), and
+`incremental.sh` built its `--only` list from the render set — so an **empty**
+render set meant **render all 433 pages**. Nothing reached that path while the
+revision was in the bytes, because every commit forced `all` anyway. Contract B
+lands there on every run. Fixed by skipping the renderer when the set is empty;
+without the fix, V1 would have read "433 pages" and the whole stage would have
+looked like it bought nothing.
+
+### V5 — the arithmetic, because the estimate missed by 38%
+
+Predicted ≈−290 KB, measured **−399,440 B**. The estimate used the wrong two
+lengths. The real ones:
+
+| | bytes |
+|---|---:|
+| `https://github.com/FujiHaruka/information-theory/blob/` + 40 hex | **94** |
+| `{{SOURCE_URL}}` | **14** |
+| difference per occurrence | **80** |
+| occurrences | **4,993** |
+| 4,993 × 80 | **399,440** — exactly the measured delta |
+
+**4,993, not 4,992**: the earlier count was taken on the 432-module tree, and this
+one is post-move with 433 modules, so there is one more per-page nav link. The two
+numbers agree; the module count differs.
+
+### V3 — where the 0.98 s goes, and what is left
+
+| stage | A (revision in bytes) | B (token) |
+|---|---:|---:|
+| render | **0.9017** | **0.0256** (skipped) |
+| everything else | ≈0.72 | ≈0.62 |
+| **total** | **1.6227** | **0.6441** |
+
+**What remains in B's 0.64 s is almost entirely the whole-package artefacts** —
+`global.ts` rebuilding `declaration-data.bmp`, `name-map.json`, `navbar.html`,
+`tactics.html` unconditionally (L3-3), plus `impact.ts`. That is the same floor
+increment 7 measured and deliberately declined to incrementalise (0.139 s to
+build, and only 0.119 s of IR reading could be removed). **After this change that
+floor is the whole cost of a revision-only commit**, so the argument for leaving
+it alone should be revisited on its own terms rather than inherited.
+
+### The cost, measured rather than asserted
+
+* **The pages are no longer self-contained.** 4,993 dead links if neither
+  injection runs. This is the trade §8 names and the measurement does not soften
+  it.
+* **Deploy-time substitution costs 0.1893 s** for the whole tree — 4.8× cheaper
+  than the 0.9017 s re-render it replaces, but **not free**, so "the 0.87 s
+  disappears" is only true for the JS-injection variant. For the substitution
+  variant the honest figure is 0.9017 → 0.1893 s.
+* **`jump-src.js` reads `.gh_link a`'s `href` at runtime**, so with a placeholder
+  in the attribute the injection must run first. Untested here: this stage
+  measured bytes and timings, not browser behaviour.
+* **`coverage.ts:512-513` normalises the revision** when comparing against
+  doc-gen4. Under contract B the gh_link difference is no longer "the revision
+  only", so that oracle must be run **after** injection. Also untested here.
