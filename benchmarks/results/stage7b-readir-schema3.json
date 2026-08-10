@@ -1,0 +1,40 @@
+{
+  "ir": "/private/tmp/lean-doc-relay/w7b/ir3",
+  "deno": "2.7.14",
+  "v8": "14.7.173.20-rusty",
+  "schemaVersion": 3,
+  "leanVersion": "4.31.0",
+  "runs": 7,
+  "times": [
+    0.17198695800000002,
+    0.09855775,
+    0.098183833,
+    0.09823116599999997,
+    0.09733550000000007,
+    0.10177504199999998,
+    0.097550792
+  ],
+  "warmMedian": 0.09820749949999999,
+  "warmMin": 0.09733550000000007,
+  "warmMax": 0.10177504199999998,
+  "indexBytes": 88541,
+  "totals": {
+    "modules": 432,
+    "declarations": 4750,
+    "refPairs": 56552,
+    "refsUnique": 1446,
+    "moduleDocs": 1515,
+    "imports": 3935,
+    "equations": 863,
+    "members": 194,
+    "bytesRead": 15896190,
+    "depPackages": 3,
+    "depEntries": 533,
+    "spanFragments": 55465,
+    "spans": 408804,
+    "spansConst": 142181,
+    "spansSort": 7550,
+    "spansOther": 259073,
+    "spansNamed": 142181
+  }
+}

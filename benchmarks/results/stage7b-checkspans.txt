@@ -1,0 +1,42 @@
+ir                 /private/tmp/lean-doc-relay/w7b/ir4
+modules            432
+declarations       4750
+fragments          55514 (55514 carrying a span list)
+spans              408956 — 142234 const, 7550 sort, 259172 other
+max nesting depth  40
+const inside const 81060  (doc-gen4 drops the outer anchor for these)
+sort span texts    [["Type",7464],["Prop",86]]
+fragments with non-ASCII   45498 (81.96%)
+fragments with non-BMP     41   <- where UTF-16 units != code points
+spans whose slice is non-BMP 105
+const spans        142234; non-ASCII slice 48459 (34.07%)
+ASCII identifier slices whose last component matches the name: 61890/62131 (99.61%)
+
+schema 3 — splitWhitespaces widths
+  const spans with front/back  29251 (20.57% of const spans)
+  whitespace units described   75324
+  … of which not already ' '   3417   <- the units doc-gen4 rewrites visibly
+  runs (front + back)          54748
+  … not maximal                0 (0.00%)   <- adjacent whitespace outside the tag
+  all-whitespace tags (empty anchor) 0
+  const-span sides with no run but whitespace next to them  135375
+  … units a whole-run heuristic would wrongly rewrite        8403
+
+schema 4 — attributes, instance index, structure members
+  declarations with attributes 145 carrying 167 strings
+  attribute histogram          [["simp",69],["reducible",69],["inline",22],["implicit_reducible",4],["irreducible",2],["deprecated InformationTheory.Shannon.ParallelGaussian.parallel_gaussian_capacity_formula (since := \"2026-05-21\")",1]]
+  instances with a type index  91, 91 type names
+  structure fields             156 (4 inherited)
+  … binders / docstrings       49 / 121
+
+non-ASCII const samples (slice -> constant):
+  "(V₁ × V₂)" -> Prod   in "(pV : MeasureTheory.Measure (V₁ × V₂))"
+  "×" -> Prod   in "(pV : MeasureTheory.Measure (V₁ × V₂))"
+  "(V₁ × V₂)" -> Prod   in "(K : ProbabilityTheory.Kernel (V₁ × V₂) α)"
+  "×" -> Prod   in "(K : ProbabilityTheory.Kernel (V₁ × V₂) α)"
+  "martonInfo₁ pV K W + martonInfo₂ pV K W - martonInfoV₁V₂ pV K W ≤ (uvInfoSum₂ (martonAuxSwapLaw pV K W)).toReal" -> LE.le   in "martonInfo₁ pV K W + martonInfo₂ pV K W - martonInfoV₁V₂ pV K W ≤ (uvI"
+  "martonInfo₁ pV K W + martonInfo₂ pV K W - martonInfoV₁V₂ pV K W" -> HSub.hSub   in "martonInfo₁ pV K W + martonInfo₂ pV K W - martonInfoV₁V₂ pV K W ≤ (uvI"
+  "martonInfo₁ pV K W + martonInfo₂ pV K W" -> HAdd.hAdd   in "martonInfo₁ pV K W + martonInfo₂ pV K W - martonInfoV₁V₂ pV K W ≤ (uvI"
+  "martonInfo₁" -> InformationTheory.Shannon.BroadcastChannel.Marton.martonInfo₁   in "martonInfo₁ pV K W + martonInfo₂ pV K W - martonInfoV₁V₂ pV K W ≤ (uvI"
+
+OK — every span is in bounds, properly nested and trimmed.

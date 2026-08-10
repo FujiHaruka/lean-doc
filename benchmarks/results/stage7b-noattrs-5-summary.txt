@@ -1,0 +1,54 @@
+date              2026-08-10T15:21:07Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+LEAN_NUM_THREADS  unset (Lean default)
+target            /Users/haruka/dev/lean-projects
+modules           432 from /Users/haruka/dev/lean-doc/benchmarks/results/it-modules.txt
+binary            /Users/haruka/dev/lean-doc/experiments/stage7b/build/extract
+args              --equations --refs --tagged-code --write-ir --no-attrs --ir-dir /private/tmp/lean-doc-relay/w7b/ir-abl
+
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+target modules       432
+loaded modules       6021
+importModules        2.529s
+indexLookup          0.002s  enumerated 8849, unique 8824
+moduleDocs           0.000s  1515 docs in 424 modules, 3935 imports
+tactics              0.009s  421 in env, 0 in target modules
+analyze              10.789s  considered 8824, produced 4750, blacklisted 4074, failed 0
+  of which signature 9.468s
+  of which equations 1.095s  (863 lemmas, 0 failed)
+  of which docstring 0.047s
+  attributes         0.000s  (0 calls, 0 declarations with at least one)
+  instance index     0.001s  (91 instances, 91 type names)
+  member extra       0.001s  (156 fields, 4 inherited; inside signature)
+  ABLATED            [attrs] — the IR of this run is for the stopwatch only
+  of which refs      1.329s  (143121 occurrences; inside the two above)
+writeIR              0.543s serialize + 0.003s hash + 0.051s write
+  files              432 modules + 3 dep maps + 1 index
+  bytes              16018466 (15902695 modules, 27208 deps, 88563 index)
+  content            4750 declarations, 56552 ref pairs, 533 dep map entries, 0 unresolved refs
+  schema             4  (taggedCode true)
+  spans              408956 in 55514 fragments — 142234 const, 7550 sort, 259172 other
+  ws widths          29251 const spans carry front/back, 75324 UTF-16 units total (schema 3)
+  dir                /private/tmp/lean-doc-relay/w7b/ir-abl
+total                13.938s
+genEquations         true   tagCode false   refs true   open []
+kinds                theorem=3742 definition=842 instance=91 structure=37 constructor=37 opaque=1
+       14.02 real        12.91 user         1.30 sys
+          3363717120  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              260061  page reclaims
+                 372  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 191  voluntary context switches
+                1825  involuntary context switches
+        138700348318  instructions retired
+         44422444607  cycles elapsed
+           554283264  peak memory footprint

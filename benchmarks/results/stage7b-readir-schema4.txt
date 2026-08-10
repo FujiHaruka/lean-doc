@@ -1,0 +1,74 @@
+# read-ir — reading the stage-4 IR without starting Lean
+
+date              2026-08-10T15:28:57Z
+ir                /private/tmp/lean-doc-relay/w7b/ir4
+written           2026-08-10T15:22:23Z
+deno              2.7.14 / V8 14.7.173.20-rusty
+schemaVersion     4
+generator         lean-doc/experiments/stage4b
+leanVersion       4.31.0
+hashAlgorithm     lean-string-hash-64/hex16
+runs              7 (run 1 dropped as cold)
+note              stage7b session: schema-4 (experiments/stage7b extractor)
+
+## What was read (実測)
+
+| | |
+|---|---:|
+| module files | 432 |
+| declarations | 4,750 |
+| (declaration, reference) pairs | 56,552 |
+| distinct (module, name) references | 1,446 |
+| equations | 863 |
+| structure members | 194 |
+| module docstrings | 1,515 |
+| direct imports | 3,935 |
+| dependency map packages | 3 |
+| dependency map entries | 533 |
+| index.json bytes | 88,541 |
+| bytes read | 16,021,632 (15.28 MiB) |
+
+## Spans read back (実測, schema 4)
+
+| | |
+|---|---:|
+| fragments (binders + type + equations + members) | 55,465 |
+| spans | 408,804 |
+| of which kind 1 (const) | 142,181 |
+| of which kind 2 (sort) | 7,550 |
+| of which kind 0 (other) | 259,073 |
+| const spans carrying a name | 142,181 |
+
+## Read time (実測, warm — run 1 dropped)
+
+| | seconds |
+|---|---:|
+| run 1 (cold-ish, discarded) | 0.1592 |
+| run 2 | 0.0989 |
+| run 3 | 0.0992 |
+| run 4 | 0.0988 |
+| run 5 | 0.0985 |
+| run 6 | 0.1002 |
+| run 7 | 0.0999 |
+| **median of runs 2-7** | **0.0991** |
+| spread (min-max, warm) | 0.0985-0.1002 |
+
+Against the warm `importModules` floor (2.5 s, stage 1): **4.0%**.
+Throughput: 154.26 MiB/s.
+
+## Cross-check: one fresh process per read (実測)
+
+In-process repetition can be flattered by a warm V8 heap, so the same read
+was repeated with a new process each time (the process start itself is not
+counted; the timer is inside the child).
+
+| | seconds |
+|---|---:|
+| run 1 (discarded) | 0.1052 |
+| run 2 | 0.1042 |
+| run 3 | 0.1082 |
+| run 4 | 0.1045 |
+| run 5 | 0.1056 |
+| **median of runs 2-5** | **0.1051** |
+
+

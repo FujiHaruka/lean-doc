@@ -1,0 +1,9 @@
+{"phase":"stage4b.initSearchPath","pid":58436,"us":29}
+{"phase":"stage4b.importModules","pid":58436,"us":2577470,"directImports":432,"resident":0}
+{"phase":"stage4b.envStats","pid":58436,"us":0,"loadedModules":6021}
+{"phase":"stage4b.indexLookup","pid":58436,"us":2022,"targetModules":432,"enumerated":8849,"candidates":8824}
+{"phase":"stage4b.moduleDocs","pid":58436,"us":597,"modules":432,"moduleDocs":1515,"modulesWithDocs":424,"imports":3935}
+{"phase":"stage4b.tactics","pid":58436,"us":9202,"tacticsInEnv":421,"tacticsAssigned":0}
+{"phase":"stage4b.analyze","pid":58436,"us":10654728,"considered":8824,"produced":4750,"blacklisted":4074,"failed":0,"ppUs":9347651,"eqUs":1099596,"docUs":44494,"equations":863,"eqFailures":0,"genEquations":true,"tagCode":false,"refUs":1321238,"refOccurrences":143121,"collectRefs":true,"taggedCode":true}
+{"phase":"stage4b.writeIR","pid":58436,"us":613380,"taggedCode":true,"schemaVersion":3,"spanFragments":55465,"spans":408804,"spansConst":142181,"spansSort":7550,"spansOther":259073,"spansWs":29248,"spansWsUnits":75318,"moduleFiles":432,"moduleBytes":15868982,"declarations":4750,"refPairs":56552,"refsUnresolved":0,"depFiles":3,"depEntries":533,"depBytes":27208,"indexBytes":88541,"serializeUs":540142,"hashUs":3403,"writeUs":66881}
+{"phase":"stage4b.total","pid":58436,"us":13865646,"modules":432}

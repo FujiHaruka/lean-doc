@@ -1,0 +1,50 @@
+date              2026-08-10T15:20:36Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+LEAN_NUM_THREADS  unset (Lean default)
+target            /Users/haruka/dev/lean-projects
+modules           432 from /Users/haruka/dev/lean-doc/benchmarks/results/it-modules.txt
+binary            /Users/haruka/dev/lean-doc/experiments/stage7a/build/extract
+args              --equations --refs --tagged-code --write-ir --ir-dir /private/tmp/lean-doc-relay/w7b/ir3
+
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+target modules       432
+loaded modules       6021
+importModules        2.566s
+indexLookup          0.001s  enumerated 8849, unique 8824
+moduleDocs           0.000s  1515 docs in 424 modules, 3935 imports
+tactics              0.009s  421 in env, 0 in target modules
+analyze              10.853s  considered 8824, produced 4750, blacklisted 4074, failed 0
+  of which signature 9.510s
+  of which equations 1.126s  (863 lemmas, 0 failed)
+  of which docstring 0.047s
+  of which refs      1.328s  (143121 occurrences; inside the two above)
+writeIR              0.546s serialize + 0.003s hash + 0.054s write
+  files              432 modules + 3 dep maps + 1 index
+  bytes              15984731 (15868982 modules, 27208 deps, 88541 index)
+  content            4750 declarations, 56552 ref pairs, 533 dep map entries, 0 unresolved refs
+  schema             3  (taggedCode true)
+  spans              408804 in 55465 fragments — 142181 const, 7550 sort, 259073 other
+  ws widths          29248 const spans carry front/back, 75318 UTF-16 units total (schema 3)
+  dir                /private/tmp/lean-doc-relay/w7b/ir3
+total                14.046s
+genEquations         true   tagCode false   refs true   open []
+kinds                theorem=3742 definition=842 instance=91 structure=37 constructor=37 opaque=1
+       14.33 real        12.94 user         1.36 sys
+          3351019520  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              256854  page reclaims
+                3577  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 249  voluntary context switches
+                3593  involuntary context switches
+        138837550243  instructions retired
+         44677074230  cycles elapsed
+           552022336  peak memory footprint

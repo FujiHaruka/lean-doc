@@ -1,0 +1,307 @@
+# stage7b — IR schema 4 (属性 / instance 索引 / メンバの binder・docstring・由来): 再現率と代償
+
+すべて **実測**。条件は下記、生ログは各行の「ログ」列。
+
+## 条件
+
+| | |
+|---|---|
+| 日付 | 2026-08-10 (UTC) |
+| 機材 | Apple M1 / 8 cores / 16 GB (Darwin 25.6.0 arm64) |
+| 計測対象 | /Users/haruka/dev/lean-projects (InformationTheory, 432 モジュール) |
+| lean-toolchain | leanprover/lean4:v4.31.0 |
+| doc-gen4 | v4.31.0 (`.lake/packages/doc-gen4`、計装パッチ当て) |
+| Deno | 2.7.14 / V8 14.7.173.20-rusty |
+| 並列度 | 1 プロセス (LEAN_NUM_THREADS unset) |
+| page cache | **warm**。抽出は 5 構成を**同一ラウンド内で回り持ち**にして 6 ラウンド、ラウンド 1 を捨てて 2-6 の median。壁時計 ≒ user+sys (14.31 real 対 12.97+1.38 CPU) |
+| cold 側 | `stage7b-*-1.*`。cold だったのは**セッション最初の 1 本だけ** (`stage7b-schema3-1`: importModules 8.0440 s / 壁 19.83 s)。残り 4 構成のラウンド 1 は既に warm (import 2.46-2.48 s)。**warm と混ぜて引用しないこと** |
+
+schema 3 の数字は**同じセッションで測り直した対照** (`stage7b-schema3-*`、
+`experiments/stage7a/build/extract` = コミット済みの schema 3 抽出器)。
+2026-08-10 の `stage7a-tag-*` とは別セッションなので、比較には使っていない。
+
+**回り持ちの順序は固定** (schema3 → tag → noattrs → noinst → nomember)。
+ラウンド内の位置に系統差が残る可能性は消していない — 下の §3 でそれが効く。
+
+## 1. 再現率 (受け入れオラクル = experiments/stage4c/coverage.ts、1 行も変えていない)
+
+母数は doc-gen4 がディスクに出した 348 ページ = 22,028,728 B。領域は隙間なくページを覆う
+(coverage.ts のタイル検査が通っている)。「再現」= その領域が **byte 完全一致**したもの。
+
+| | schema 3 | schema 4 | |
+|---|---:|---:|---|
+| 再現できたバイト | 21,258,979 | **21,389,581** | +130,602 |
+| 再現率 | 96.506% | **97.099%** | +0.593 pt |
+| byte 完全一致したページ | 148 / 348 | **170 / 348** | +22 |
+| `attributes` 領域一致 | 0 / 89 | **89 / 89** | +3,651 B |
+| `members` 領域一致 | 3 / 36 | **34 / 36** | +126,951 B |
+| `decl_header` 領域一致 | 3,477 / 3,477 | 3,477 / 3,477 | |
+| `equations` 領域一致 | 653 / 653 | 653 / 653 | |
+
+ログ: `stage7b-coverage.txt` (schema 4) / `stage7a-coverage.txt` (schema 3)。
+
+### 原因別の未再現バイト
+
+| 原因 | schema 3 | 母数比 | schema 4 | 母数比 | 領域数 |
+|---|---:|---:|---:|---:|---:|
+| docstring の autolink 索引が IR に無い | 401,987 | 1.825% | 401,987 | 1.825% | 208 |
+| **IR に情報が無い (メンバの binder / docstring)** | **135,078** | 0.613% | **8,127** | 0.037% | 33 → 2 |
+| CommonMark 未実装 | 120,261 | 0.546% | 120,261 | 0.546% | 47 |
+| 設定値 (rev) — IR に無い | 108,772 | 0.494% | 108,772 | 0.494% | 540 |
+| **IR に情報が無い (領域ごと欠落、`div.attributes`)** | **3,651** | 0.017% | **0** | 0% | 89 → 0 |
+| splitWhitespaces (schema 2 の欠落、7a で解消) | 0 | 0% | 0 | 0% | 0 |
+| **合計** | **769,749** | 3.494% | **639,147** | 2.901% | |
+
+**触った 2 原因以外 (autolink / CommonMark / rev) は 1 バイトも動いていない。**
+増えた 130,602 B は attributes 3,651 + members 126,951 と完全に一致する — 他を
+壊さずにこの 2 つだけを閉じたことの確認であって、レンダラ全体が良くなったという
+意味ではない。
+
+ログ: `stage7b-coverage-breakdown.txt` (§X1 原因×領域、§X2 ページ別)。
+
+### 残った members 2 領域は「メンバのデータ」ではない
+
+到達目標は 97.136% (= 96.506 + 0.613 + 0.017) だった。届いたのは **97.099%**、
+差は **8,127 B = 0.037 pt**。その 8,127 B は **members 領域に残った 2 件**で、
+中身は **field docstring の中の autolink**:
+
+| module | 宣言 | バイト | `<a>` 数 生成側/doc-gen4 |
+|---|---|---:|---|
+| InformationTheory.Shannon.LZ78.ZivEntropyBridge | `…IsLZ78PerPathParsingFactorization` | 4,763 | 24/25 |
+| InformationTheory.Shannon.EPI.L3Integration | `…IsDeBruijnTailHyp` | 3,364 | 13/16 |
+
+両側から `<a …>` を剥がすと **どちらも byte 一致する** — prose 領域に coverage.ts が
+当てているのと同じ判定。つまりこの 8,127 B の原因は autolink 索引 (合計 401,987 B の
+一部が members 領域に落ちているだけ) で、メンバのデータ欠落は **0 B**。
+目標値 97.136% は、members 領域に入り込んだ autolink 分を二重に数えていた。
+
+ログ: `stage7b-member-check.txt` §B。
+
+### マークアップの割合検算 (静かな取りこぼしの検査)
+
+stage4c は `li.structure_field` の正規表現が属性順に依存して 153 本中 4 本しか
+拾えていなかったことがある。同じ壊れ方をしていないかを、doc-gen4 が出した 348 ページの
+上で**ページごとに**突き合わせた:
+
+| マーカー | 生成側 | doc-gen4 |
+|---|---:|---:|
+| `div.structure_field_info` | 153 | 153 |
+| … その中の `span.decl_args` | 48 | 48 |
+| `div.structure_field_doc` | 114 | 114 |
+| `li.structure_field` (direct、id 付き) | 149 | 149 |
+| `li.structure_field.inherited_field` | 4 | 4 |
+| … うち id 付き (`containedNames` が真) | 0 | 0 |
+
+**ページ単位でも全て一致**。合計だけ合って配り方が違う、という壊れ方はしていない。
+ログ: `stage7b-member-check.txt` §A。
+
+### instance 索引: 再現率は動かない (動いたら何かがおかしい)
+
+instance 索引はモジュールページに**1 バイトも出ない** — ブラウザが
+`declarations/declaration-data.bmp` から埋めるため (`approach.md` §5.5 L3-3)。
+実際、上の表で instance 索引に帰する差は **0 B**。これは失敗ではなく仕様どおり。
+
+出ないものを「書いた」で済ませないために、doc-gen4 が書いた索引そのものと突き合わせた。
+doc-gen4 は schema 4 が持つ 2 列から `instances[className] ∋ name` と
+`instancesFor[typeName] ∋ name` を作る (`Output/ToJson.lean:88-97`) ので、直接比較できる:
+
+| | |
+|---|---:|
+| IR の instance | 91 |
+| … doc-gen4 がページを出したモジュールにあるもの (対象) | 56 |
+| … 出していない 84 モジュールにあるもの (対象外) | 35 |
+| 順方向 (IR → bmp) 一致 | 56 / 56 |
+| 逆方向 (bmp → IR) 一致 | 56 / 56 |
+| 食い違い | **0** |
+
+ログ: `stage7b-instance-check.txt`。
+
+## 2. IR の代償 (バイト)
+
+| | schema 3 | schema 4 | 差 |
+|---|---:|---:|---:|
+| IR 合計バイト | 15,984,731 (15.24 MiB) | **16,021,632 (15.28 MiB)** | +36,901 (+0.23%) |
+| … modules/ | 15,868,982 | 15,905,883 | +36,901 |
+| … deps/ + index.json | 115,749 | 115,749 | ±0 |
+| spans | 408,804 (55,465 fragments) | 408,956 (55,514 fragments) | +152 / +49 |
+
+内訳は ablation の差分で、**足し算が合う**:
+
+| | バイト | 出し方 |
+|---|---:|---|
+| 属性 | 3,188 | tag − noattrs (`--no-attrs` は `attrs` キーごと落とす) |
+| instance 索引 | 10,532 | tag − noinst (`--no-inst-index` は 2 キーごと落とす) |
+| メンバの中身 (binder / doc / isDirect の**値**) | 12,105 | tag − nomember |
+| メンバの空キー枠 | 11,076 | 残り。schema 4 の field メンバは値が無くても 5 キーを持つので、`--no-member-extra` の IR にもこの枠は残る |
+| **合計** | **36,901** | |
+
+ログ: `stage7b-{tag,noattrs,noinst,nomember,schema3}-*-summary.txt` の `bytes` 行。
+
+## 3. 時間の代償
+
+### 3-1. 抽出器の中の phase timer (**これが分離できている唯一の数字**)
+
+`--tagged-code` の下で、足した 3 つだけを直接計った (runs 2-6 の median、秒):
+
+| | 秒 | 回数 | 1 回あたり |
+|---|---:|---:|---:|
+| 属性 `getAllAttributes` | **0.0199** | 4,750 呼び出し (145 宣言が 1 つ以上持つ) | 4.2 µs |
+| instance 索引 | **0.0020** | 91 instance | 21.8 µs |
+| メンバの追加 (`getFieldOrigin` + field docstring) | **0.0014** | 156 field (4 inherited) | 8.8 µs |
+| **合計** | **0.0233** | | |
+
+`attrUs` / `instUs` は独立した項。`memberUs` は `ppUs` の**内側**
+(メンバの pretty print と同じ telescope の中) なので、足すのではなく内訳として読む。
+ログ: `stage7b-tag-*.jsonl` の `stage4b.analyze` レコード。
+
+メンバの binder は**もともと計算していた** — `ppSignature` が binder を整形して
+span まで取っていたのを stage 7a が捨てていただけなので、(3) の抽出コストは
+「捨てるのをやめる」分しか無い。増えるのは時間ではなく IR バイトのほう。
+
+### 3-2. 抽出全体 (medians of runs 2-6、秒)
+
+| | schema3 | schema4 (tag) | noattrs | noinst | nomember |
+|---|---:|---:|---:|---:|---:|
+| `total` | 14.0467 | **14.0819** | 14.0339 | 13.9429 | 13.9332 |
+| `analyze` | 10.8502 | 10.8490 | 10.8293 | 10.7908 | 10.8041 |
+| `importModules` | 2.5775 | 2.5592 | 2.5299 | 2.5339 | 2.5306 |
+| `writeIR` | 0.6072 | **0.6225** | 0.6124 | 0.5955 | 0.5913 |
+| 壁 (`/usr/bin/time`) | 14.33 | 14.31 | 14.15 | 14.03 | 14.02 |
+| user + sys | 12.90 + 1.37 | 12.97 + 1.38 | 12.91 + 1.32 | 12.88 + 1.32 | 12.91 + 1.31 |
+| peak RSS (B) | 3,346,907,136 | 3,342,565,376 | 3,362,029,568 | 3,336,552,448 | 3,362,947,072 |
+
+各 run (warm、ラウンド 1 を捨てた 5 本):
+
+```
+total    schema3   13.8656 13.9911 14.0467 14.0981 14.1982
+         schema4   13.9079 13.9851 14.0819 14.0862 14.2176   <- 範囲がほぼ完全に重なる
+writeIR  schema3   0.6042 0.6069 0.6072 0.6126 0.6134
+         schema4   0.6032 0.6043 0.6225 0.6306 0.6380        <- 重なる
+         noattrs   0.5995 0.6003 0.6124 0.6177 0.6410
+         noinst    0.5927 0.5931 0.5955 0.5970 0.5983
+         nomember  0.5857 0.5878 0.5913 0.5962 0.5996
+```
+
+**この計測で言えるのは「合計は動いていない」までで、ablation では 3 つを分離できていない。**
+`total` の run 間ばらつきは ±0.15 s あり、足した仕事は phase timer で 0.023 s
+(合計の 0.17%)。ablation の差 (noinst / nomember が tag より 0.14 s 速い) は
+ばらつきと同じ大きさで、しかもラウンド内の実行順が固定なので位置の効果と区別できない。
+**分離できているのは §3-1 の phase timer と §2 のバイトだけ。**
+
+`writeIR` は schema3 → schema4 で median +0.0153 s (+2.5%) だが範囲が重なる。
+`nomember`/`noinst` の範囲は tag と重ならないので、**書き出しが IR の大きさで動く**
+方向は見えている (それぞれ −0.031 s / −0.027 s)。ただしこれもラウンド内位置と
+交絡しているので、幅としてしか読めない。
+
+### 3-3. IR の読み出しと HTML 生成 (同一セッションの対照ペア)
+
+| | schema 3 | schema 4 | 差 | ログ |
+|---|---:|---:|---:|---|
+| 読み出し (in-process median, warm) | 0.0982 s | **0.0991 s** | +0.0009 | `stage7b-readir-schema3.txt` / `-schema4.txt` |
+| 読み出し (プロセスを毎回作り直す median) | 0.1030 s | **0.1051 s** | +0.0021 | 同上 |
+| HTML 生成 `total` (in-process median, warm) | 0.8002 s | **0.8044 s** | +0.0042 | `stage7b-render-timings.jsonl` |
+
+HTML 生成の内訳 (7 回中 runs 2-7 の median、秒):
+
+```
+phase            schema3   schema4     delta
+readIr            0.1304    0.1303    -0.0002
+indexBuild        0.0091    0.0112    +0.0021
+renderHeaders     0.2192    0.2200    +0.0008
+renderPage        0.2514    0.2536    +0.0022
+flatten           0.0487    0.0486    -0.0001
+write             0.1383    0.1386    +0.0003
+total             0.8002    0.8044    +0.0042
+```
+
+出力ページは 432 ファイル / 29,706,705 B (schema 3 は 29,450,685 code unit →
+29,486,029 code unit、+35,344)。schema 3 側は `experiments/stage7a/render.ts` を
+同じセッションで回した対照で、**別セッションの 0.7967 s とは並べない**。
+
+## 4. `approach.md` §6.1 に入れる形
+
+§6.1 の 13.71 s に付いていた留保 (「属性収集・instance 索引・構造体メンバの binder が
+未実装」) は、この段階で**外せる**。3 つとも実装され、うち 2 つは doc-gen4 の出力と
+byte 単位で、1 つ (instance 索引) は doc-gen4 の索引ファイルと突き合わせて一致している。
+
+| | schema 3 (stage7a、別セッション) | schema 4 (stage7b、本セッション) | 同セッションの schema 3 対照 |
+|---|---:|---:|---:|
+| 抽出 `total` | 13.7084 s | **14.0819 s** | 14.0467 s |
+| 抽出のうち writeIR | 0.5927 s | **0.6225 s** | 0.6072 s |
+| IR バイト | 15,984,731 | **16,021,632** | 15,984,731 |
+| IR 読み出し (in-process) | 0.0981 s | **0.0991 s** | 0.0982 s |
+| HTML 生成 | 0.7967 s | **0.8044 s** | 0.8002 s |
+| byte 再現率 | 96.506% | **97.099%** | 96.506% |
+
+**縦に読むときの注意**: 左列 (stage7a) と中列 (stage7b) は**別セッション**。
+schema 3 → schema 4 の差として引用してよいのは中列と右列の対だけで、その差は
+`total` +0.035 s / `writeIR` +0.015 s / IR +36,901 B / 生成 +0.004 s。
+左列との差 (+0.37 s) はセッション差を含んでいて、変更の代償ではない。
+
+## 5. 残り (2.901% = 639,147 B)
+
+| | バイト | 母数比 | |
+|---|---:|---:|---|
+| docstring の autolink 索引 | 401,987 + 8,127 | 1.862% | IR に全環境の名前索引が無い。members 領域に落ちている 8,127 B を含む |
+| CommonMark 未実装 | 120,261 | 0.546% | md4c を持たない自前レンダラ |
+| 設定値 (rev) | 108,772 | 0.494% | **到達不能**: doc-gen4 の参照ツリー自身が 2 つの git revision を持つ (`gh_link` 497 件は rev だけが違う) |
+
+到達可能な上限は **99.51%** (= 100% − rev の 0.494%)。autolink 索引と CommonMark は
+どちらも「やっていないだけ」で、到達不能なのは rev だけ。
+
+## 6. 検査
+
+| 検査 | 結果 | ログ |
+|---|---|---|
+| IR の不変条件 (span の範囲・入れ子・trim、schema 4 のキー) | OK | `stage7b-checkspans.txt` |
+| `--pages` が増分の数字を動かさない (stage4c README の 3 点) | 3/3 PASS | `stage7b-pitfall-recheck.txt` |
+| `--tagged-code` を外した IR が stage7a と byte 一致 | PASS | `stage7b-untagged-identity.txt` |
+| メンバのマークアップの割合検算 | 6/6 一致 | `stage7b-member-check.txt` §A |
+| instance 索引 vs `declaration-data.bmp` | 56/56 双方向 | `stage7b-instance-check.txt` |
+
+## 7. この対象で**通っていない**経路 (未検証と明記する)
+
+`getAllAttributes` の 4 系統のうち、この対象が実際に踏むのは 2 つだけ:
+
+| 系統 | この対象での出現 | 状態 |
+|---|---|---|
+| customs (`simp` / reducibility) | 89 領域中のほぼ全部 (simp 69, reducible 69, implicit_reducible 4, irreducible 2 — IR 全体) | **採点で一致** |
+| enums (`Compiler.inlineAttrs`) | `@[reducible, inline]` 13 領域 (IR 全体で inline 22) | **採点で一致** |
+| parametric (extern / implemented_by / export / specialize / deprecated) | 1 件だけ (`@[deprecated … (since := "…")]`)。ただしそのモジュールは doc-gen4 が**ページを出していない** 84 個の側 | **未採点** |
+| tags (unbox / never_extract / elab_without_expected_type / match_pattern) | 0 件 | **未検証** |
+
+`Compiler.specializeAttr` は Lean v4.31.0 では `ParametricAttribute (Array Nat)` で、
+doc-gen4 が持っている `ToString SpecializeAttributeKind` は**その属性の型ではない**
+(doc-gen4 側の死んだコード)。こちらは core の `ToString (Array α)` に合わせてある —
+どちらが正しいかはこの対象では判定できない (出現 0)。
+
+## 8. 再現手順
+
+```sh
+# 抽出 (schema 4)
+experiments/stage7b/build.sh
+experiments/stage7b/run.sh stage7b-tag-1 -- \
+  --equations --refs --tagged-code --write-ir --ir-dir <IR_DIR>   # 6 回、ラウンド 1 は捨てる
+
+# 代償の内訳 (ablation。IR は index.json に ablations 印が付き、render.ts は読まない)
+experiments/stage7b/run.sh stage7b-noattrs-1   -- … --no-attrs        --ir-dir <ABL>
+experiments/stage7b/run.sh stage7b-noinst-1    -- … --no-inst-index   --ir-dir <ABL>
+experiments/stage7b/run.sh stage7b-nomember-1  -- … --no-member-extra --ir-dir <ABL>
+
+# 生成 — 採点用は必ず具体的な rev を埋めた --source-url で描く
+deno run --allow-read --allow-write --allow-env experiments/stage7b/render.ts \
+  --ir <IR_DIR> --pages <PAGES> \
+  --source-url https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec \
+  --stats <STATS>
+
+# 採点 (オラクルは stage4c のまま、1 行も変えない)
+deno run --allow-read --allow-write --allow-env experiments/stage4c/coverage.ts \
+  --pages <PAGES> --report <OUT>
+deno run --allow-read --allow-write --allow-env benchmarks/tools/coverage-breakdown.ts \
+  --pages <PAGES> --report <OUT>
+
+# 診断 (オラクルではない)
+deno run --allow-read --allow-write --allow-env experiments/stage7b/member-check.ts --pages <PAGES>
+deno run --allow-read --allow-write --allow-env experiments/stage7b/instance-check.ts --ir <IR_DIR>
+deno run --allow-read experiments/stage7b/check-spans.ts --ir <IR_DIR>
+```

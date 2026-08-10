@@ -1,0 +1,14 @@
+# stage7b — --tagged-code を外したときの IR が stage7a と byte 一致するか (実測)
+
+date              2026-08-10T15:29:40Z
+target            /Users/haruka/dev/lean-projects (432 modules)
+
+stage 7b が足した 3 つはすべて --tagged-code の内側にある (Cfg.wantAttrs /
+wantInstIndex / wantMemberExtra)。フラグを外したときに stage 4 と同じものを書く、
+という性質は主張ではなく検査で持つ:
+
+  stage7a/build/extract <modules> a.jsonl --equations --refs --write-ir --ir-dir A
+  stage7b/build/extract <modules> b.jsonl --equations --refs --write-ir --ir-dir B
+  diff -r A B
+
+PASS  diff -r reports no difference (436 files, 9400 KiB, schema 1)
