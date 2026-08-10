@@ -1,0 +1,13 @@
+{"step": "noop", "run": 1, "edit": "無変更", "real_s": 2.4, "user_s": 1.31, "sys_s": 1.99, "cpu_s": 3.3, "peak_rss_b": 739868672, "major_faults": 489}
+{"step": "noop", "run": 2, "edit": "無変更", "real_s": 2.33, "user_s": 1.3, "sys_s": 1.85, "cpu_s": 3.15, "peak_rss_b": 738295808, "major_faults": 233}
+{"step": "noop", "run": 3, "edit": "無変更", "real_s": 3.39, "user_s": 1.32, "sys_s": 2.03, "cpu_s": 3.35, "peak_rss_b": 741015552, "major_faults": 233}
+{"step": "noop", "run": 4, "edit": "無変更", "real_s": 2.35, "user_s": 1.3, "sys_s": 1.91, "cpu_s": 3.21, "peak_rss_b": 738721792, "major_faults": 233}
+{"step": "noop", "run": 5, "edit": "無変更", "real_s": 2.47, "user_s": 1.31, "sys_s": 1.88, "cpu_s": 3.19, "peak_rss_b": 738344960, "major_faults": 233}
+{"step": "EA-add-1", "run": 1, "edit": "A に未参照宣言を追加", "real_s": 26.89, "user_s": 6.04, "sys_s": 7.01, "cpu_s": 13.05, "peak_rss_b": 3252404224, "major_faults": 167377}
+{"step": "EA-rm-1", "run": 1, "edit": "追加を撤回", "real_s": 17.75, "user_s": 5.99, "sys_s": 6.06, "cpu_s": 12.05, "peak_rss_b": 3253469184, "major_faults": 84796}
+{"step": "EA-add-2", "run": 1, "edit": "A に未参照宣言を追加", "real_s": 19.83, "user_s": 5.97, "sys_s": 6.34, "cpu_s": 12.31, "peak_rss_b": 3253829632, "major_faults": 103625}
+{"step": "EA-rm-2", "run": 1, "edit": "追加を撤回", "real_s": 13.67, "user_s": 5.88, "sys_s": 5.71, "cpu_s": 11.59, "peak_rss_b": 3253747712, "major_faults": 48274}
+{"step": "EA-add-3", "run": 1, "edit": "A に未参照宣言を追加", "real_s": 12.4, "user_s": 5.94, "sys_s": 5.71, "cpu_s": 11.65, "peak_rss_b": 3252387840, "major_faults": 29176}
+{"step": "EA-rm-3", "run": 1, "edit": "追加を撤回", "real_s": 12.73, "user_s": 5.9, "sys_s": 5.65, "cpu_s": 11.55, "peak_rss_b": 3249274880, "major_faults": 31728}
+{"step": "EB-move", "run": 1, "edit": "A の全宣言を X へ移動", "real_s": 19.59, "user_s": 7.16, "sys_s": 7.02, "cpu_s": 14.18, "peak_rss_b": 3255123968, "major_faults": 81673}
+{"step": "EB-revert", "run": 1, "edit": "移動を撤回", "real_s": 25.06, "user_s": 5.95, "sys_s": 6.71, "cpu_s": 12.66, "peak_rss_b": 3257761792, "major_faults": 158222}

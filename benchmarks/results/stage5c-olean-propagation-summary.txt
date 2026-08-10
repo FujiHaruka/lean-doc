@@ -1,0 +1,191 @@
+段階 5c — 参照側モジュールの olean は実際に変わるのか (2026-08-10)
+================================================================================
+
+判断基準は計測前に commit 済み: experiments/stage5c/README.md (commit 04a5b2d)。
+本ファイルの数字はすべて【実測】。外挿・仮定・理論値は 1 つも含まない。
+
+
+§0 何を偽装したか
+--------------------------------------------------------------------------------
+何も偽装していない。段階 5b は対象リポジトリを書き換えられないため IR レベルの注入で
+代替したが、今回は APFS の clonefile (`cp -Rc`) で対象リポジトリの複製を作り、
+そこで実際に `lake build` を回した。**原本 /Users/haruka/dev/lean-projects は
+一切書き換えていない** (COW。複製 12 GB の実消費ディスクは 0、`df` の空きは変化なし)。
+
+複製の健全性: 複製直後に `lake build --no-build` が
+"All targets up-to-date (3779 jobs)" を返すことを確認済み。
+
+複製には doc-gen4 の計装パッチが当たったまま入っている (ビルド対象ではない)。
+
+
+§1 計測条件
+--------------------------------------------------------------------------------
+機材            Apple M1 / 16 GiB / macOS (Darwin 25.6.0)、ディスク空き 16 GiB
+Lean            4.31.0     Mathlib v4.31.0     Lake 5.0.0-src+68218e8
+対象            InformationTheory 432 モジュール (= InformationTheory/**.lean 431 + ルート 1)
+                .lake/build/lib/lean 配下の olean は 1,090 個 (うち 659 は孤児 → §4.2)
+複製先          session scratchpad の lp-clone (APFS clone)
+並列度          Lake の既定 (指定なし)
+暖機            no-op は warm (壁時計 ≒ user+sys、major fault 233)。
+                1 モジュール変更は系列の中で徐々に warm 化する (§3 に全数)
+測定器          /usr/bin/time -l、olean は sha256 全数比較 (experiments/stage5c/snapshot-oleans.py)
+
+実験対象のモジュール
+  A    InformationTheory.Shannon.GaussianPDFVarianceDerivative  (8.5 KB)
+  C    InformationTheory.Shannon.FisherDeBruijnGaussian  (50 行)
+       — A の isHeatTimeDerivHyp_gaussian を 2 か所で参照
+  root InformationTheory — 431 モジュールを全部 import している
+       → **どのモジュールを変えても root は必ず再ビルドされる** (葉は root ただ 1 つ)
+  A の直接 importer は C と root の 2 つだけ (パッケージ内 import グラフより)
+
+
+§2 命題の判定
+--------------------------------------------------------------------------------
+
+P1 「olean の生成は決定的」                                          → 真 (条件つき)
+    同一ソース・同一パスからの再ビルドは 4 回とも byte 一致。
+      probe あり 3 回: C = cb0765e6...、A = dbbc1573... (それぞれ一意)
+      probe なし 3 回: C = cb0765e6...、A = 19cd565e... (それぞれ一意)
+      E-B 撤回後: 3 モジュールとも content changed = 0
+    **条件**: ソースの絶対パスが同じであること。パスが変わると変わる → §4.1
+
+P2 「未参照の宣言を A に足しても C の olean は変わらない」               → 真
+    A の末尾に誰も参照しない theorem を 1 個追加 (+1,472 B が A の olean に入る)。
+    C の olean は sha256 が完全一致 (cb0765e61702c9e6...、size 6,048 B で不変)。
+    mtime は変わる = Lake は C を再ビルドしている。**再ビルドされたが byte は同じ。**
+    root も同様 (083d24ac32ef...、size 50,144 B で不変)。
+    → 変わったのは A の olean 1 個だけ。
+
+P3 「宣言が A から X へ移動すると、その名前を参照する C の olean が変わる」 → 偽
+    A の中身を丸ごと新モジュール
+    X = InformationTheory.Shannon.GaussianPDFVarianceDerivativeCore へ移し、
+    A は `import X` だけの shim にした。**C のソースは 1 byte も変えていない**
+    (sha256 82f2be5a... が原本と一致することを確認済み)。
+    宣言の完全名は不変 (namespace はファイルパスと独立): InformationTheory.Shannon.*
+
+    lake build 後の olean 差分 (baseline = 同じ複製・同じパスでの無変更状態):
+      added            1   X の olean (423,328 B)
+      content changed  1   A の olean のみ
+      lake_hash 変化   1   同上
+      rebuilt but byte-identical  2   ← **C と root**
+
+    → **C の olean は 1 byte も変わらない。** Lake の内容ハッシュも変わらない。
+
+    sha256 と Lake の <file>.olean.hash は全ステップで完全に一致した (食い違い 0)。
+    つまり L2 が読む値と実体の食い違いは無い。**問題はハッシュの精度ではなく、
+    参照側モジュールに変化そのものが存在しないこと。**
+
+
+§3 lake build の時間 (増分の臨界パス。これまで未測定だった)
+--------------------------------------------------------------------------------
+生ログ: benchmarks/results/stage5c-lake-build-times.jsonl
+
+  step        real(s)   cpu(s)   major fault   備考
+  noop #1        2.40     3.30           489
+  noop #2        2.33     3.15           233
+  noop #3        3.39     3.35           233
+  noop #4        2.35     3.21           233
+  noop #5        2.47     3.19           233   → 無変更 2.33〜3.39s / 中央値 2.40s
+  EA-add-1      26.89    13.05       167,377
+  EA-rm-1       17.75    12.05        84,796
+  EA-add-2      19.83    12.31       103,625
+  EA-rm-2       13.67    11.59        48,274
+  EA-add-3      12.40    11.65        29,176
+  EA-rm-3       12.73    11.55        31,728   → 1 モジュール変更の収束値 12.40〜12.73s
+  EB-move       19.59    14.18        81,673   (X の全宣言を初回 elaborate している)
+  EB-revert     25.06    12.66       158,222   (直前に olean 1,091 個を全読みしたため)
+
+  peak RSS は 1 モジュール変更で 3.25 GB (no-op は 0.74 GB)。
+
+  **壁時計は 12.40〜26.89 秒 (2.2 倍) 動くが CPU 時間は 11.55〜14.18 秒で安定**し、
+  差はそのまま major fault の数 (29,176 〜 167,377) に対応する。
+  この系列は「同じ計測を繰り返すと warm 化する」典型で、収束後の warm 値は 12.4〜12.7 秒。
+  EB-revert が跳ねているのは、直前に snapshot ツールが olean を全数読んで
+  page cache を入れ替えたため (CLAUDE.md「計測の順序が後続の数字を汚す」の実例)。
+
+  実際に再ビルドされたモジュール (Lake の "Built" 行。"Replayed" は再ビルドではない):
+    EA  3 個   A (15s) / C (2.4s) / root (3.7s)
+    EB  4 個   X (9.0s) / A の shim (2.4s) / C (2.3s) / root (3.5s)
+
+§3.1 fan-in が大きいモジュールを変えた場合 (n=1)
+
+  対象: InformationTheory.Shannon.DifferentialEntropy
+        (直接 importer 54 / 推移 126。root を含む)
+
+    壁時計          242.72s
+    user + sys      819.04 + 264.21 = 1,083.25s  (並列度 実効 4.0〜4.5×)
+    major fault     555,347
+    peak RSS        3.42 GB
+    Built           127 個 = DifferentialEntropy + 推移 importer 126 (グラフの予測と完全一致)
+    Replayed        303 個 (再ビルドではない)
+    1 モジュールあたり  min 2.4s / median 6.3s / max 34.0s / 合計 963s
+
+  → **1 モジュールの変更でも fan-in で 20 倍 (12.4s → 242.7s) 動く。**
+
+  比較のための分母:
+    増分の doc 生成 (差分検出 → 再抽出 → IR マージ → HTML 再生成)  3.30〜4.39s (段階 5 増分 1)
+    その手前に必ず乗る lake build (1 モジュール変更、warm)         12.40〜12.73s (直接 importer 2)
+                                                                242.72s        (直接 importer 54)
+    → **端から端まででは lake build が 74〜79%、fan-in が大きいと 98.2%** を占める。
+       doc 側をゼロにしても 12.4 秒より速くはならない。
+    無変更のとき: lake build 2.40s + 無変更検出 0.080s = 2.48s
+
+
+§4 副次的な発見
+--------------------------------------------------------------------------------
+
+§4.1 olean にソースの絶対パスが埋まっている (429/432 モジュール)
+
+  同じソースを別ディレクトリでビルドすると olean の byte が変わる。
+  原本 /Users/haruka/dev/lean-projects (31 文字) と複製 (107 文字) の差 76 文字に対し、
+  C の olean は 5,968 → 6,048 B (+80 = 76 を 8 byte 境界に丸めた値) で一致した。
+
+  正体は **Mathlib の style linter のログを持つ環境拡張 `lintLogExt`**。
+  olean 内でパス文字列の直前に "lintLogExt / linter / style / header"、直後に
+  "Copyright too short!" と "Note: This linter can be disabled with
+  `set_option linter.style.header false`" が並んでいる。
+  警告メッセージにファイルの絶対パスが入ったまま olean に保存されている。
+
+    自パッケージ 432 モジュール中、自分の絶対パスを含む:   429
+    含まない 3 件: InformationTheory (ルート、宣言なし) /
+                   InformationTheory.Meta.EntryPoint / InformationTheory.Shannon.WynerZiv.Operational
+    この 3 件は lintLogExt のエントリも持たない (= style linter の警告が出ていない)。
+    **429 と 429 が完全に一致**するので、パス埋め込みの原因は lintLogExt で確定。
+    Mathlib 側の olean (cache get で降ってきたもの) にはパス文字列が 0 個。
+
+  含意: **olean の内容ハッシュはチェックアウト先のパスに依存する。**
+  L2 の台帳を olean の内容ハッシュで作ると、CI のワークスペースパスが開発機と違うだけで
+  432 モジュール中 429 が「変更あり」になり、IR キャッシュが全滅する。
+  これは Lean の olean 形式の性質ではなく **linter 警告が olean に載っていることの帰結**
+  なので、警告を消せば消える (この対象リポジトリは警告を大量に出したままにしている)。
+
+§4.2 Lake は孤児 olean を消さない
+
+  E-B で作った X のソースを削除して `lake build` しても、
+  X の olean は .lake/build/lib/lean に残り続けた。
+  同じ理由で、現行ソースが 432 モジュールしかないのに .lake には olean が 1,090 個ある。
+  **659 個は現行ソースに対応しない孤児** (Common2026 という今は存在しないライブラリなど)。
+
+  含意: approach.md §5.5 の L2 改善案「モジュール一覧を台帳の構築時に凍結せず
+  ディスク走査で作る」は、**走査先を .lake/build にすると 659 個の幽霊を拾う。**
+  列挙元はビルドディレクトリではなく Lake のライブラリ target (ソースの glob) でなければ
+  ならない。段階 5b の S4 (消えたモジュールがページを残す) は doc 側だけの問題ではなく、
+  **Lake 自身が同じ構造を持っている。**
+
+
+§5 結論 — L3-1 は必須で確定した
+--------------------------------------------------------------------------------
+「参照側モジュールの olean が実際に変わるなら L3-1 は不要になる」という分岐は、
+**変わらない側で決着した (P3 = 偽、実測)。**
+
+  ・宣言の *改名* は参照側の olean を変える (名前が式に埋まっているため。P2 の対偶)
+  ・宣言の *移動* は参照側の olean を変えない (名前が同じなので式が同一)
+
+したがって L2 (モジュール単位の olean ハッシュ) は移動を原理的に検出できず、
+approach.md §5.5 の L3-1「所有権が変わった名前を参照するモジュールを再抽出集合に足す」は
+**仮定ではなく実測に裏づけられた必須項目**になった。
+
+同時に P2 が真だったことは設計上の朗報でもある:
+**A を変えても importer の olean は変わらない**ので、再抽出集合を import 閉包へ広げる
+必要はない (それは出力側 = ページの問題であって入力側の問題ではない)。
+段階 5b の「影響集合の mode という枠組みが的を外していた」という結論と一致する。
