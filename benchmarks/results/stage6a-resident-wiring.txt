@@ -1,0 +1,56 @@
+# stage6a — wiring the resident extractor into incremental.sh
+
+date              2026-08-10T13:14:49Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+target            APFS clone of /Users/haruka/dev/lean-projects, own modules rebuilt in place
+move              InformationTheory.Shannon.Huffman.Length -> InformationTheory.Shannon.Huffman.LengthCore (minimal shim)
+runs              6 per variant, interleaved within a phase, run 1 discarded
+render set        --mode self
+servers           P = pre-edit env (before the move), Q = post-build env; never alive together
+
+## W0 — does a resident server survive the build?
+W0 P is still running after lake build: yes
+W0 P still answers a request: yes (ok 0 61171000 wall 0.1510)
+stopped: 7 request(s) served
+
+REFERENCE pages: 439
+referrers of A:  4  (InformationTheory.Shannon.Huffman.ExpectedLength, InformationTheory.Shannon.Huffman.KraftSum, InformationTheory.Shannon.Huffman.Optimality, InformationTheory.Shannon.Huffman.StrongForm)
+
+## W1 — the round-2 IR each path produced
+W1 fresh    round-2 modules: InformationTheory.Shannon.Huffman.StrongForm byte-equal to REFERENCE
+W1 pre      round-2 modules: InformationTheory.Shannon.Huffman.StrongForm DIFFERS
+     InformationTheory.Shannon.Huffman.StrongForm.json: 10263 B vs REFERENCE 10267 B
+       InformationTheory.Shannon.Huffman.huffmanLength_optimal
+         this path says the owner is  InformationTheory.Shannon.Huffman.Length :: InformationTheory.Shannon.Huffman.huffmanLength
+         REFERENCE says the owner is  InformationTheory.Shannon.Huffman.LengthCore :: InformationTheory.Shannon.Huffman.huffmanLength
+W1 post     round-2 modules: InformationTheory.Shannon.Huffman.StrongForm byte-equal to REFERENCE
+
+## W2/W3 — each assembled site against REFERENCE
+fresh    439 pages, missing 0, extra 0, differing 0  -> byte-identical to REFERENCE
+pre      439 pages, missing 0, extra 0, differing 1  -> WRONG
+  differing: InformationTheory/Shannon/Huffman/StrongForm.html
+  of those, referrer pages: 1/4 ['InformationTheory.Shannon.Huffman.StrongForm']
+  first difference in InformationTheory/Shannon/Huffman/StrongForm.html, variant -> reference:
+    @@ -76 +76 @@
+    -<span class="decl_args"> :</span><div class="decl_type"><span class="fn"><a href="../../.././InformationTheory/Shannon/ShannonCode/Basic.html#InformationTheory.Shannon.ShannonCode.expectedLength">Sha
+    +<span class="decl_args"> :</span><div class="decl_type"><span class="fn"><a href="../../.././InformationTheory/Shannon/ShannonCode/Basic.html#InformationTheory.Shannon.ShannonCode.expectedLength">Sha
+post     439 pages, missing 0, extra 0, differing 0  -> byte-identical to REFERENCE
+postall  439 pages, missing 0, extra 0, differing 0  -> byte-identical to REFERENCE
+fresh2   439 pages, missing 0, extra 0, differing 0  -> byte-identical to REFERENCE
+
+## W4/W5 — the clock
+server startup: P 3.998 s, Q 3.486 s
+
+variant       total              [min-max]    extract     rounds   pages
+fresh         7.850          [7.765-7.901]      5.872        2.0       6
+pre           5.284          [5.245-5.320]      3.335        2.0       6
+fresh2        7.940          [7.846-8.228]      5.976        2.0       6
+post          5.302          [5.253-5.317]      3.352        2.0       6
+postall       2.682          [2.579-2.690]      0.718        2.0       6
+
+fresh vs fresh2 (phase comparability): 7.850 vs 7.940 s, delta 0.090 s
+post including Q's startup (a per-run server must pay it): 5.302 + 3.486 = 8.788 s vs fresh2 7.940 s -> a LOSS
+postall including Q's startup (a per-run server must pay it): 2.682 + 3.486 = 6.168 s vs fresh2 7.940 s -> a win
+
+stage 5h's extrapolation was 7.989 -> 5.06 s for the 'pre' shape.

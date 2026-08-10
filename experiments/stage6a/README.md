@@ -101,3 +101,113 @@ medians are a check that the phases are comparable at all.
 | `serve-ctl.sh` | start / request / stop a resident extractor over a FIFO |
 | `../stage5/incremental.sh` | `--serve-dir <d>` `--serve-from <n>`: rounds ≥ n go to the server |
 | `run.sh` | W1–W5 |
+
+---
+
+## Results (2026-08-10)
+
+**All numbers are 実測 unless labelled.** Source:
+`benchmarks/results/stage6a-resident-wiring.txt` and
+`benchmarks/results/stage6a-resident-wiring.jsonl` (30 pipeline runs).
+
+Conditions: Darwin 25.6.0 arm64 / Apple M1 / 16 GB, `leanprover/lean4:v4.31.0`.
+APFS clone of the target, its own 431 modules rebuilt in place first (626.75 s
+wall / 2762.29 s user / 821.13 s sys, peak RSS 3.42 GB, 1,110,490 page faults).
+Warm: both servers were started minutes after that rebuild, so the package's
+oleans were in page cache. 6 runs per variant interleaved inside a phase, run 1
+discarded, medians below.
+
+**"439 pages" is the whole site**: 433 module pages (432 under
+`InformationTheory/` plus `InformationTheory.html`) + `navbar.html` +
+`references.html` + `tactics.html` + `declarations/declaration-data.bmp` +
+`declarations/name-map.json` + `references.bib`. Stage 5e's "433" counted module
+pages only; the two are consistent, not contradictory.
+
+| # | prediction | result |
+|---|---|---|
+| W0 | uncertain | **survived** — P was alive after the `lake build` that rewrote oleans it had imported, and answered a request in 0.151 s |
+| W1 | true | **true** — see the witness below |
+| W2 | true | **true** — 1 of 439 pages wrong, and it is the referrer page, the same failure shape stage 5e got from `--l3-1 off` |
+| W3 | true | **true** — `post` and `postall` are both 439/439 byte-identical to REFERENCE |
+| W4 | true (a loss) | **split: true for serve-from-2, FALSE for serve-from-1** |
+| W5 | true | **true** — 5.06 s is not reachable correctly; the best correct number is 6.168 s |
+
+### W1 — the witness, which is four bytes
+
+`pre`'s round-2 IR for the referrer differs from a post-build extraction by
+**10,263 B against 10,267 B**, and the difference is one reference's owner:
+
+```
+InformationTheory.Shannon.Huffman.huffmanLength_optimal
+  server P says the owner is  ...Huffman.Length     :: ...Huffman.huffmanLength
+  REFERENCE says the owner is ...Huffman.LengthCore :: ...Huffman.huffmanLength
+```
+
+`Length` is 4 bytes shorter than `LengthCore`. **The resident server returned the
+exact stale pair L3-1 exists to repair**, which is what `Extract.lean:1352`
+resolving the owner from the environment predicts. The site that comes out of it
+is wrong in exactly one page.
+
+### W0 — a resident server does survive a rebuild, and that makes W1 worse
+
+The interesting direction. Lake replaces oleans rather than writing in place, so
+P kept its mapping of the old inodes and never faulted. **A long-lived preview
+server is therefore mechanically possible on APFS** — and W1 is what it would be
+serving: a coherent view of a build that no longer exists. The failure mode is not
+a crash, it is a confident wrong answer, which is the harder one to notice.
+
+### W4 — the prediction was right about the wrong variant
+
+| variant | what is served | median total | [min–max] | of which extract |
+|---|---|---:|---:|---:|
+| `fresh` | nothing (today's pipeline) | **7.850** | [7.765–7.901] | 5.872 |
+| `pre` | round 2, pre-edit env | 5.284 | [5.245–5.320] | 3.335 |
+| `fresh2` | nothing (phase 2 control) | **7.940** | [7.846–8.228] | 5.976 |
+| `post` | round 2, post-build env | 5.302 | [5.253–5.317] | 3.352 |
+| `postall` | **every round**, post-build env | **2.682** | [2.579–2.690] | 0.718 |
+
+Phase comparability: `fresh` 7.850 vs `fresh2` 7.940, **delta 0.090 s** — the two
+phases are the same measurement.
+
+Server startup, warm: **P 3.998 s, Q 3.486 s**. (Stage 5h's 6.335 s was a
+different condition — the original tree, not a just-rebuilt clone. Not comparable,
+and not compared.)
+
+A server started per pipeline run must pay its startup inside the run:
+
+| | pipeline | + startup | vs `fresh2` 7.940 |
+|---|---:|---:|---|
+| `post` (serve rounds 2+) | 5.302 | **8.788** | **a loss of 0.85 s** |
+| `postall` (serve every round) | 2.682 | **6.168** | **a win of 1.77 s (−22%)** |
+
+**Why the split.** Today's pipeline pays one environment load *per round*: 5.872 s
+of extraction across two rounds. Serving only round 2 removes one load (≈2.5 s)
+but adds a whole startup (3.486 s) — a net loss. Serving **both** rounds removes
+both loads (extraction falls 5.872 → 0.718 s) for the same single startup, and
+that pays. The break-even is at **two rounds**, not the four stage 5h estimated,
+because a round's load here is ~2.5–3 s against a 3.5 s startup on warm oleans.
+
+### W5 — what is actually reachable
+
+* **5.06 s is not reachable.** It assumed the `pre` shape, which is wrong. `pre`
+  did land at 5.284 s, so the extrapolation's *clock* was close; its *answer* was
+  incorrect. Same speed, different correctness — the cleanest form this result
+  could have taken.
+* **6.168 s is reachable and correct**: one server per pipeline run, started after
+  `lake build`, serving every round. −22% on the two-round case.
+* **2.682 s is reachable only without the startup**, i.e. by a server that serves
+  several pipeline runs with no `lake build` between them. That is not the edit
+  loop; it is re-rendering, re-querying, or a batch of independent requests.
+
+### What this settles about residency
+
+1. **A server must never outlive the build whose oleans it imported.** Not because
+   it dies — it does not — but because it answers wrongly (W0 + W1).
+2. **The unit of residency is the pipeline run, not the session**, and it is worth
+   it only when the run has ≥2 extraction rounds.
+3. **`--serve-from 2` is the wrong default.** The correct-and-faster configuration
+   is `--serve-from 1` against a post-build server. The flag defaults to 2 because
+   that is what the extrapolation assumed and this stage had to be able to run it;
+   the measurement says 1.
+4. Stage 5h's "the real fit is a long-lived preview mode" does not survive W1
+   either, for the same reason. That is stage 6d.
