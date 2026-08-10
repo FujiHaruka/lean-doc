@@ -59,6 +59,7 @@ variant () { # variant <name> <module> <mode> <runs>
       --time-l "$tl" --timings "$tj" --exec -- \
       "$HERE/incremental.sh" --module "$m" --ir "$WORK/live-$v/ir" \
       --pages "$WORK/live-$v/pages" --ledger "$WORK/live-$v/ledger.json" \
+      --modules "$RESULTS_DIR/it-modules.txt" \
       --work "$RAW/run-$v" --mode "$mode" --timings "$tj" \
       >> "$RESULTS_DIR/stage5-incremental-$v.jsonl"
     echo "  $v run $i done"

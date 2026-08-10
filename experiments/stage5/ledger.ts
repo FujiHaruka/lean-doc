@@ -96,13 +96,18 @@ function modulePaths(libDir: string, module: string): string[] {
   return out;
 }
 
-/** One module's entry. `algorithm` decides where the per-file hash comes from. */
+/** One module's entry, or null when the module has no olean at all.
+ *
+ * Null is a real answer, not an error: a module can be deleted between `build`
+ * and `check`, and the deletion is exactly what the caller needs to hear about.
+ * Throwing here is what made `check` die with an exception instead of
+ * reporting a removed module (stage 5b, S4). */
 async function hashModule(
   target: string,
   libDir: string,
   module: string,
   algorithm: string,
-): Promise<ModuleEntry> {
+): Promise<ModuleEntry | null> {
   const files: FileEntry[] = [];
   for (const p of modulePaths(libDir, module)) {
     if (algorithm === "lake") {
@@ -118,9 +123,14 @@ async function hashModule(
       });
     }
   }
-  if (files.length === 0) throw new Error(`no olean for ${module} under ${libDir}`);
+  if (files.length === 0) return null;
   const combined = await sha256Text(files.map((f) => `${f.path} ${f.hash}`).join("\n"));
   return { module, files, hash: combined };
+}
+
+function readModuleList(path: string): string[] {
+  return Deno.readTextFileSync(path).split("\n").map((s) => s.trim())
+    .filter((s) => s && !s.startsWith("#"));
 }
 
 /** Bounded-concurrency map, so the read path can be measured at 1 and at N. */
@@ -171,13 +181,18 @@ if (cmd === "build") {
     Deno.exit(2);
   }
   const libDir = `${TARGET}/.lake/build/lib/lean`;
-  const modules = (await Deno.readTextFile(MODULES)).split("\n").map((s) => s.trim())
-    .filter((s) => s && !s.startsWith("#"));
+  const modules = readModuleList(MODULES);
   const tKey = performance.now();
   const key = await envKey(TARGET, IR);
   const tHash0 = performance.now();
-  const entries = await mapPool(modules, CONC, (m) => hashModule(TARGET, libDir, m, ALGO));
+  const maybe = await mapPool(modules, CONC, (m) => hashModule(TARGET, libDir, m, ALGO));
   const tHash1 = performance.now();
+  const missing = modules.filter((_m, i) => maybe[i] === null);
+  if (missing.length) {
+    console.error(`no olean under ${libDir} for: ${missing.join(", ")}`);
+    Deno.exit(3);
+  }
+  const entries = maybe as ModuleEntry[];
   const ledger: Ledger = {
     ledgerSchema: 1,
     algorithm: ALGO,
@@ -208,9 +223,14 @@ if (cmd === "build") {
 } else if (cmd === "check") {
   const LEDGER = opt("--ledger");
   const CHANGED = opt("--changed-out");
+  const REMOVED = opt("--removed-out");
+  const MODULES = opt("--modules");
   const CONC = Number(opt("--concurrency", "1"));
   if (!LEDGER) {
-    console.error("usage: ledger.ts check --ledger <ledger.json> [--changed-out <path>]");
+    console.error(
+      "usage: ledger.ts check --ledger <ledger.json> [--modules <list>] " +
+        "[--changed-out <path>] [--removed-out <path>]",
+    );
     Deno.exit(2);
   }
   const tRead0 = performance.now();
@@ -219,32 +239,72 @@ if (cmd === "build") {
   const tRead1 = performance.now();
   const key = await envKey(ledger.target, opt("--ir"));
   const tKey = performance.now();
-  const envChanged = Object.entries(ledger.envKey)
-    .filter(([k, v]) => key[k] !== undefined && key[k] !== v)
-    .map(([k]) => k);
+
+  // L1, the global key. Compare the *union* of both key sets: a key that
+  // appeared and a key that vanished are both changes, and skipping them is how
+  // the previous version let `--ir` being absent hide the IR schema silently.
+  const envChanged = [...new Set([...Object.keys(ledger.envKey), ...Object.keys(key)])]
+    .filter((k) => ledger.envKey[k] !== key[k]).sort();
+
+  // L2's module list must not be frozen at build time. With `--modules` the
+  // current list is re-read, so a module that appeared since `build` is visible
+  // as `added` and one that vanished as `removed`, instead of being invisible
+  // and throwing respectively (stage 5b, S4).
+  const previous = new Map(ledger.modules.map((e) => [e.module, e]));
+  const current = MODULES ? readModuleList(MODULES) : [...previous.keys()];
   const now = await mapPool(
-    ledger.modules,
+    current,
     CONC,
-    (e) => hashModule(ledger.target, ledger.libDir, e.module, ALGO),
+    (m) => hashModule(ledger.target, ledger.libDir, m, ALGO),
   );
   const tHash = performance.now();
+
+  const present: ModuleEntry[] = [];
   const changed: string[] = [];
-  for (let i = 0; i < now.length; i++) {
-    if (now[i].hash !== ledger.modules[i].hash) changed.push(now[i].module);
+  const added: string[] = [];
+  const removed: string[] = [];
+  for (let i = 0; i < current.length; i++) {
+    const m = current[i], e = now[i], was = previous.get(m);
+    if (e === null) { removed.push(m); continue; } // in the list, no olean on disk
+    present.push(e);
+    if (!was) added.push(m);
+    else if (e.hash !== was.hash) changed.push(m);
   }
+  for (const m of previous.keys()) {
+    if (!current.includes(m) && !removed.includes(m)) removed.push(m);
+  }
+  // A changed global key invalidates everything (L1). Computing `envChanged`
+  // and then not acting on it was the whole failure of S1.
+  const envInvalidated = envChanged.length > 0;
+  const reExtract = envInvalidated
+    ? present.map((e) => e.module)
+    : [...changed, ...added].sort();
   const tEnd = performance.now();
-  if (CHANGED) await Deno.writeTextFile(CHANGED, changed.join("\n") + (changed.length ? "\n" : ""));
-  const bytes = now.reduce((a, e) => a + e.files.reduce((b, f) => b + Math.max(f.bytes, 0), 0), 0);
+
+  if (CHANGED) {
+    await Deno.writeTextFile(CHANGED, reExtract.join("\n") + (reExtract.length ? "\n" : ""));
+  }
+  if (REMOVED) {
+    await Deno.writeTextFile(REMOVED, removed.join("\n") + (removed.length ? "\n" : ""));
+  }
+  const bytes = present.reduce((a, e) => a + e.files.reduce((b, f) => b + Math.max(f.bytes, 0), 0), 0);
   timings = {
     command: "check",
     algorithm: ALGO,
     concurrency: CONC,
-    modules: now.length,
-    files: now.reduce((a, e) => a + e.files.length, 0),
+    modules: present.length,
+    moduleListSource: MODULES ? "list" : "ledger",
+    files: present.reduce((a, e) => a + e.files.length, 0),
     hashedBytes: bytes,
     envChanged,
+    envInvalidated,
     changed: changed.length,
     changedModules: changed,
+    added: added.length,
+    addedModules: added,
+    removed: removed.length,
+    removedModules: removed,
+    reExtract: reExtract.length,
     readLedgerSeconds: (tRead1 - tRead0) / 1000,
     envKeySeconds: (tKey - tRead1) / 1000,
     hashSeconds: (tHash - tKey) / 1000,
@@ -252,11 +312,16 @@ if (cmd === "build") {
     totalSeconds: (tEnd - t0) / 1000,
   };
   console.log(
-    `check ${now.length} modules (${ALGO}, concurrency ${CONC}): ${changed.length} changed` +
-      (envChanged.length ? `, env key changed: ${envChanged.join(",")}` : "") +
+    `check ${present.length} modules (${ALGO}, concurrency ${CONC}): ` +
+      `${changed.length} changed, ${added.length} added, ${removed.length} removed` +
+      (envInvalidated
+        ? `; env key changed (${envChanged.join(",")}) -> all ${reExtract.length} re-extracted`
+        : "") +
       ` — ${((tEnd - t0) / 1000).toFixed(4)} s`,
   );
   for (const m of changed) console.log(`  changed  ${m}`);
+  for (const m of added) console.log(`  added    ${m}`);
+  for (const m of removed) console.log(`  removed  ${m}`);
 } else if (cmd === "touch") {
   const LEDGER = opt("--ledger");
   const MODULE = opt("--module");

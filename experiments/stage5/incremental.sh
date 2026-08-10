@@ -39,7 +39,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LD="$(cd "$HERE/../.." && pwd)"
 SOURCE_URL="https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec"
 
-MODULE=""; IR=""; PAGES=""; LEDGER=""; WORK=""; MODE=self; TIMINGS=""
+MODULE=""; IR=""; PAGES=""; LEDGER=""; WORK=""; MODE=self; TIMINGS=""; MODULES=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --module) MODULE="$2"; shift 2 ;;
@@ -48,6 +48,7 @@ while [ $# -gt 0 ]; do
     --ledger) LEDGER="$2"; shift 2 ;;
     --work) WORK="$2"; shift 2 ;;
     --mode) MODE="$2"; shift 2 ;;
+    --modules) MODULES="$2"; shift 2 ;;
     --timings) TIMINGS="$2"; shift 2 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
@@ -72,10 +73,25 @@ now () { python3 -c 'import time; print(repr(time.time()))'; }
 T0=$(now)
 
 # 1 -- detect ---------------------------------------------------------------
+# `--ir` is not optional here: without it the ledger cannot see the IR schema or
+# the generator id, so a schema bump would leave every page stale with the
+# ledger reporting "0 changed" (stage 5b, S1). `--modules` re-reads the current
+# module list so that additions and deletions are visible at all.
+REMOVEDF="$WORK/removed.txt"
 deno run --allow-read --allow-write --allow-env "$HERE/ledger.ts" check \
-  --ledger "$LEDGER" --changed-out "$CHANGED" > "$WORK/detect.log"
+  --ledger "$LEDGER" --ir "$IR" --changed-out "$CHANGED" --removed-out "$REMOVEDF" \
+  ${MODULES:+--modules "$MODULES"} > "$WORK/detect.log"
 T1=$(now)
 NCHANGED=$(grep -c . "$CHANGED" || true)
+NREMOVED=$(grep -c . "$REMOVEDF" 2>/dev/null || true)
+if [ "${NREMOVED:-0}" -gt 0 ]; then
+  # There is no deletion path yet (approach.md §5.5: a removal has to be erased
+  # from the ledger, the IR and the pages). Failing here beats leaving pages
+  # behind and reporting success.
+  echo "incremental.sh: $NREMOVED module(s) removed; no deletion path is implemented" >&2
+  sed 's/^/  removed /' "$REMOVEDF" >&2
+  exit 4
+fi
 
 # 2 -- extract --------------------------------------------------------------
 if [ "$NCHANGED" -gt 0 ]; then
