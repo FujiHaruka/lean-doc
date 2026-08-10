@@ -1,16 +1,17 @@
 # Handoff — 2026-08-10 (8)
 
 ## Relay control
-- Mode: ON
+- Mode: DONE
 - Goal: handoff (7) の「次にやるなら」1〜5 を全部完遂する
 - Leg: 1 / cap 8
 - Predecessor: none
-- Stop-on: user-decision
+- Stop-on: completion
 - Progress ledger:
-  - r1: **1・2・3・5 を完遂** (段階 6a / 6d / 6b / 6c を新設、全部 byte 一致オラクルで判定)。
-    approach.md を 634→605 行に圧縮。`a68f205`〜`1975eae`、全部 push 済み。
-    **4 だけ残** — 計測用 workflow は書いて push したが**トリガーはユーザー判断**。
-- 聞きたいこと: **`ubuntu-latest` の計測 workflow を回してよいか** (下記「ユーザー判断が要る 1 点」)
+  - r1: **1〜5 を全部完遂。** 段階 6a (常駐の配線) / 6b (rev 非埋め込み) / 6c (L3-1 の一般性) /
+    6d (プレビュー) を新設し、CI 軸は `ubuntu-latest` で実測 (ユーザー承認のうえ run
+    `31395165118`)。判定はすべて**フルビルドとのバイト一致**。数字の訂正 4 件、潜在バグ 1 件、
+    ツールの欠陥 1 件を修正。approach.md を 634 → 599 行に圧縮。
+    `a68f205`〜、全部 push 済み。
 
 ## State
 
@@ -90,29 +91,30 @@ renderKey からも rev が外れる。取り分【全部実測】: **再生成 
 
 ## Tasks
 
-なし。**ユーザー判断が 1 点だけ残っている。**
+なし。**ゴールの 1〜5 は全部完遂した。**
 
-## item 4 — ユーザー承認済み、実行中
+### CI 軸 — `ubuntu-latest` の常駐率 (item 4)
 
-**承認された** (2026-08-10)。run: https://github.com/FujiHaruka/lean-doc/actions/runs/31395165118
-結果が出たら `docs/verification-log.md` に節を足し、`approach.md` §3 の
-「`ubuntu-latest` で `cache get` 直後の常駐率を測る = 未着手」と §8 の cold の行を直す。
+**macOS の否定は Linux に移らなかった。** run `31395165118` (ユーザー承認のうえ実行)。
+`ubuntu-latest` = **2 コア / 7.75 GiB / page size 4096**、`cache get` 直後:
 
-**`ubuntu-latest` で `lake exe cache get` 直後の olean 常駐率を測る。**
+| | 常駐 | `importModules` |
+|---|---:|---|
+| macOS / M1 / 16 GiB | **4.7–20.2%** | 14.96 / 15.66 秒 |
+| `ubuntu-latest` | **62.4%** (3.48 GB / 5.19 GiB、51,278 ファイル) | **未計測** |
 
-- 用意したもの: `.github/workflows/ci-olean-residency.yml` (**push 済み・`workflow_dispatch` のみ**
-  なので勝手には走らない)。lean-doc (private) 側で回し、対象は public な
-  `FujiHaruka/information-theory` を checkout する。**計測対象リポジトリには何も書かない。**
-- なぜローカルで代替できないか: macOS で出た否定は**不利な側**なので移送できず、
-  かつ決め手は「ランナーの RAM で 5〜6 GB の olean が page cache に残るか」なので
-  ローカルの Linux VM では別の問いになる。
-- 費用: private repo の Actions 分を消費する。**60 分 timeout**、実際は `cache get` +
-  mincore スナップショットで 10〜20 分の見込み。
-- 回し方: `gh workflow run ci-olean-residency.yml -R FujiHaruka/lean-doc`
-- ここが埋まるまで **CI 軸の床は確定しない** (§3・§8 の未着手項目)。
++20 / +40 秒でも常駐は動かない (byte 一致、MemAvailable 6.8 GiB で圧力なし)。
+**床はまだ確定していない** — 測ったのは常駐率で時間ではなく、しかも「どの 62.4%」かが不明
+(cold が読むのは約 2.59 GB)。**62.4% は容量律速の疑い**: cache は 7.75 GiB 中 6.20 GiB で
+止まっている = ランナーの大きさが変数。**n=1。**
+workflow は `.github/workflows/ci-olean-residency.yml` (`workflow_dispatch` のみ)。
+再実行は `gh workflow run ci-olean-residency.yml -R FujiHaruka/lean-doc`。
 
-## 次にやるなら (item 4 以外)
+## 次にやるなら
 
+0. **Linux で `importModules` そのものを測る** — CI 軸に残った本体。62.4% は常駐率であって
+   時間ではない。CI で抽出器をビルドする段が要る (今の workflow は意図的に scope 外にした)。
+   「どの 62.4% か」も同時に分かる (抽出器の read set と突き合わせる)。
 1. **常駐を「1 パイプライン 1 台」で本配線する** — 段階 6a は `--serve-dir` を手で渡す形。
    自動で立てて畳む形にすると 2 ラウンド以上の増分が常に −22%。**起動を run の中で払うこと、
    ラウンド 1 も任せること**が条件 (`--serve-from 1`)。
@@ -142,3 +144,18 @@ renderKey からも rev が外れる。取り分【全部実測】: **再生成 
   (固定費 18% / ページ比例 82%)。固定費が大半なのは 1 ページ再生成のケース。
   この誤りは §8 の「rev を埋めない」判断を過小評価させていた。
 - **4,992 と 4,993 はどちらも正しい** — 前者は 432 モジュール、後者は移動後の 433 モジュール。
+
+### このラウンドで入れた訂正 (全部、自分の書いたものを含む)
+
+1. **「0.87 秒の大半は IR 全読みの固定費」は誤り** → 固定費 18% / ページ比例 82%。
+   固定費が大半なのは 1 ページ再生成のケースで、それが 432 ページの記述に横滑りしていた。
+   この誤りは §8 の「rev を埋めない」判断を過小評価させていた。
+2. **段階 6 の「ラウンド 2 以降なら常駐で安全」は誤り** → `stage5h/README.md` の本文に否定を明記。
+3. **「B の残り 0.64 秒はほぼ全域成果物」は過大** → global 45.1% / impact 24.3% / detect 16.8%。
+4. **段階 6a の W0 で「Lake が rename で置き換えるから生き延びた」は推論で、たぶん誤り**
+   → 有力なのは「全ページ常駐済みだから読み直さない」。**遅延 fault は未検証。**
+5. **潜在バグ**: 空の再生成集合が全 433 ページの再生成を意味していた (`incremental.sh`)。修正済み。
+6. **ツールの欠陥**: `summarize-residency.ts` の "page-cache bytes" ラベルが 16384 を
+   ハードコードしていた (値は正しい、ラベルだけ)。修正済み。
+7. **census の名前照合**: ソース名は namespace 相対、IR 名は完全修飾。接尾辞照合に直した
+   (結論は変わらなかったが、直す前に別途確認した)。
