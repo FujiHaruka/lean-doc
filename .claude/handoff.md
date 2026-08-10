@@ -10,7 +10,9 @@
 - Stop-on: completion | user-decision | no-progress×2 | leg-cap
 - Progress ledger:
   - (前ラウンド, 別ゴール) handoff (6) の 1〜5 完遂 + approach.md 圧縮 → `21b2578`
-  - r1: (進行中)
+  - r1: 1 完遂 (段階 6a) / 2 完遂 (段階 6d) / 3 完遂 (段階 6b) / 5 ほぼ完遂 (段階 6c、
+    強い abbrev witness の追試中) / 4 は workflow を用意して**ユーザー判断待ち**。
+    `a68f205`→ 系列を push 済み
 
 ## State
 
