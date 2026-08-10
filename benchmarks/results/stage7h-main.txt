@@ -1,0 +1,115 @@
+# stage7h — L3-3: the whole-package artifacts, incrementalised
+
+date              2026-08-10T22:01:55Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+extractor         /Users/haruka/dev/lean-doc/experiments/stage7d/build/extract (stage 7d, IR schema 4, --jobs)
+renderer          experiments/stage7d/render.ts
+deno              deno 2.7.14 (stable, release, aarch64-apple-darwin)
+target            APFS clone of /Users/haruka/dev/lean-projects at /private/tmp/lean-doc-relay/clone, own modules rebuilt in place
+measured          2026-08-10T21:59:59Z (mtime of runs.jsonl)
+lean-toolchain    leanprover/lean4:v4.31.0
+move              InformationTheory.Shannon.Huffman.Length -> InformationTheory.Shannon.Huffman.LengthCore (minimal shim) — stage 6a/7g's move, so the shapes match
+runs              7 per variant, interleaved, run 1 discarded
+jobs              4 on every variant (step 6 is single-threaded either way)
+render set        --mode self
+warm              same session; the clone was rebuilt before the run and its
+                  oleans are in page cache. No cold number is reported here.
+control           stage5/global.ts (build + delta, two processes)
+treatment         stage7h/global.ts (build+delta in one, contentHash-keyed cache)
+
+REFERENCE pages: 439 files
+
+## O1 — each assembled site against REFERENCE (byte equality)
+old-fresh 439 files, missing 0, extra 0, differing 0  -> byte-identical to REFERENCE
+new-fresh 439 files, missing 0, extra 0, differing 0  -> byte-identical to REFERENCE
+old-res   439 files, missing 0, extra 0, differing 0  -> byte-identical to REFERENCE
+new-res   439 files, missing 0, extra 0, differing 0  -> byte-identical to REFERENCE
+
+## O2 — the six whole-package artifacts on their own
+(a 439-file tree comparison is dominated by module pages; this stage is
+ about these six, so they are named)
+
+old-fresh all 6 byte-identical to REFERENCE
+new-fresh all 6 byte-identical to REFERENCE
+old-res   all 6 byte-identical to REFERENCE
+new-res   all 6 byte-identical to REFERENCE
+
+## O3 — the render set step 6 hands to step 7
+(equal sites with unequal sets would mean the site was equal by luck)
+
+old-fresh vs new-fresh : identical (0 module(s) in the set)
+old-res   vs new-res   : identical (0 module(s) in the set)
+old-fresh delta: 27 name(s) moved, 0 page(s) affected
+new-fresh delta: 27 name(s) moved, 0 page(s) affected
+old-res   delta: 27 name(s) moved, 0 page(s) affected
+new-res   delta: 27 name(s) moved, 0 page(s) affected
+
+## T1 — step 6 (`globalSeconds`), median of runs 2..N
+
+variant       global           [min-max]        n      total      share
+old-fresh     0.4527     [0.3974-0.5007]        6     11.127      4.07%
+new-fresh     0.1257     [0.1074-0.1783]        6     11.739      1.07%
+old-res       0.4470     [0.4003-0.5175]        6     19.177      2.33%
+new-res       0.1461     [0.1422-0.1600]        6     18.096      0.81%
+
+old-fresh -> new-fresh  global 0.4527 -> 0.1257 = -0.3270 s
+                        total  11.127 -> 11.739 = +0.612 s (+5.50%), denominator = old-fresh
+                        the step-6 saving alone is 2.94% of old-fresh's total
+                        NOT ATTRIBUTABLE: `extract` + `serveStart` alone differ by
+                        0.801 s between these two variants, which is 2.5x the
+                        effect. Quote the step-6 line, not the total line.
+old-res   -> new-res    global 0.4470 -> 0.1461 = -0.3010 s
+                        total  19.177 -> 18.096 = -1.081 s (-5.64%), denominator = old-res
+                        the step-6 saving alone is 1.57% of old-res's total
+                        NOT ATTRIBUTABLE: `extract` + `serveStart` alone differ by
+                        0.372 s between these two variants, which is 1.2x the
+                        effect. Quote the step-6 line, not the total line.
+
+### inside step 6 (median, s)
+
+                             old-fresh   new-fresh     old-res     new-res
+global.readSeconds              0.1525      0.0098      0.1502      0.0123
+global.stateLoadSeconds              -      0.0060           -      0.0067
+global.writeSeconds             0.0260      0.0195      0.0262      0.0217
+global.deltaSeconds                  -      0.0096           -      0.0106
+global.stateSaveSeconds              -      0.0053           -      0.0058
+global.totalSeconds             0.1785      0.0449      0.1790      0.0503
+global.cacheHits                     -    427.0000           -    427.0000
+global.cacheMisses                   -      6.0000           -      6.0000
+global.stateBytes                    - 842210.0000           - 842210.0000
+
+`global.totalSeconds` is the script's own timer; `globalSeconds` is the
+wall clock around the process(es). The gap is `deno` startup — twice on
+the old side, once on the new one.
+
+### the rest of the pipeline (median, s) — it must not have moved
+
+phase                        old-fresh   new-fresh     old-res     new-res
+serveStartSeconds               0.0000      0.0000     14.9849     14.6214
+detectSeconds                   0.1567      0.1618      0.4460      0.4458
+extractSeconds                  8.6836      9.4851      0.6985      0.7068
+ownershipSeconds                0.3025      0.3131      0.3572      0.3283
+mergeSeconds                    0.3788      0.3890      0.4212      0.4229
+pruneSeconds                    0.0350      0.0344      0.0348      0.0376
+globalSeconds                   0.4527      0.1257      0.4470      0.1461
+impactSeconds                   0.2021      0.2071      0.1898      0.2134
+renderSeconds                   0.2898      0.2968      0.2794      0.3063
+serveStopSeconds                0.0320      0.0336      0.1670      0.1690
+totalSeconds                   11.1265     11.7389     19.1771     18.0961
+
+## C1 — module-file reads in one incremental run
+(counted by wrapping `Deno.readTextFile`, not by reading the code;
+ 433 is the whole package)
+
+step                               old                   new
+detect                               0                     0
+ownership-r1                       437                   437
+merge-r1                           433                   433
+ownership-r2                         2                     2
+merge-r2                           433                   433
+global                             433                     6
+global-delta                       433                     -
+impact                             433                   433
+render                             433                   433
+TOTAL old       3037 reads, 7 full passes
+TOTAL new       2177 reads, 5 full passes

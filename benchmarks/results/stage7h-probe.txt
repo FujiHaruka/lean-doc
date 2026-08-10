@@ -1,0 +1,62 @@
+# stage7h probe — the ceiling on L3-3, piece by piece
+
+date              2026-08-10T22:00:57Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+deno              deno 2.7.14 (stable, release, aarch64-apple-darwin)
+IR                /private/tmp/lean-doc-relay/w7h/ir (433 modules, 16M)
+reps              9, interleaved
+warm              same session; the IR was written and re-read repeatedly
+                  before this ran, so it is in page cache. No cold number here.
+
+## the six invocations, median of 9 reps
+
+tag             wall          [min-max]   inner  startup
+empty         0.0557    [0.0516-0.0698]       -        -
+usage         0.0555    [0.0520-0.0608]       -        -
+readall       0.1588    [0.1522-0.1747]  0.1019   0.0568
+build         0.2293    [0.2183-0.2620]  0.1576   0.0717
+delta-hit     0.1912    [0.1803-0.2668]  0.1341   0.0570
+delta-miss    0.0681    [0.0614-0.0944]  0.0072   0.0610
+
+  empty        an empty script: the floor of `deno run`
+  usage        global.ts with no command: the same floor plus its own module load
+  readall      read + JSON.parse all 433 module files, nothing else
+  build        stage5/global.ts build
+  delta-hit    stage5/global.ts delta, 52 names moved -> the scan runs
+  delta-miss   stage5/global.ts delta, nothing moved -> the scan is skipped
+
+## where the two processes' time goes
+
+piece                                 seconds  verdict
+deno startup (build)                  0.0717  floor for one process; the second one is removable
+build: read 433 module IRs            0.1339  REMOVABLE (cache)
+build: derive + write 6 artifacts     0.0241  not removable: each artifact is a function of the whole set
+deno startup (delta)                  0.0570  REMOVABLE: one process can do both
+delta: diff the two name maps         0.0066  not removable
+delta: scan 433 module IRs            0.1276  REMOVABLE (cache)
+
+sum of the pieces                   0.4210
+  of which removable                0.3186
+  floor                             0.1024
+
+The floor is not the whole story: a cache has to be read and written, and
+that cost is not in this table because it does not exist in the program
+being measured. The ceiling this gives is therefore an upper bound on the
+saving, and the A/B in `run.sh` is what says how much of it survives.
+
+A caveat that cuts the other way: `delta-miss` shows the scan is already
+skipped when no name moved (0.0681 s vs 0.1912 s), so on a run
+that changes no name the removable part is smaller by that much.
+
+## how far the cache scales — N of 433 module entries invalidated
+
+  misses     wall    inner     read  (median of 5 reps)
+  stage5   0.2411   0.1622   0.1378   the control: no cache, always reads all 433
+       0   0.1074   0.0308   0.0050
+       6   0.1029   0.0329   0.0090
+      25   0.1097   0.0390   0.0144
+     100   0.1415   0.0677   0.0394
+     433   0.2336   0.1615   0.1380
+
+even with every entry invalidated the cached build is no slower than the control,
+which is the case where the cache buys nothing and still has to be written.

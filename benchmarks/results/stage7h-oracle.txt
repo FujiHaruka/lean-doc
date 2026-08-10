@@ -1,0 +1,23 @@
+# stage7h oracle — the cached build against a from-scratch build, at the unit level
+
+date              2026-08-10T22:02:02Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+IR                /private/tmp/lean-doc-relay/w7h/ir (433 modules, schema 4)
+from-scratch      experiments/stage5/global.ts build (unchanged)
+cached            experiments/stage7h/global.ts build --state
+diff              /usr/bin/diff -r over the 6 artifacts, every step
+
+### stage7h oracle — cached build vs from-scratch build, over a sequence of IR states
+  base           cache   0 hit / 433 miss   6 artifacts byte-identical
+  rerun          cache 433 hit /   0 miss   6 artifacts byte-identical
+  modified InformationTheory.Shannon.TimeBandLimiting.Operator (72 declarations)
+  modified       cache 432 hit /   1 miss   6 artifacts byte-identical
+  removed InformationTheory
+  removed        cache 432 hit /   0 miss   6 artifacts byte-identical
+  added InformationTheory.Shannon.BroadcastChannel.OuterBoundUV.BridgeAdded (59 declarations)
+  added          cache 432 hit /   1 miss   6 artifacts byte-identical
+  restored       cache 431 hit /   2 miss   6 artifacts byte-identical
+  stale-state    cache   0 hit / 433 miss   6 artifacts byte-identical
+  stale-state   the foreign state was dropped whole (433 misses)
+
+oracle: PASS
