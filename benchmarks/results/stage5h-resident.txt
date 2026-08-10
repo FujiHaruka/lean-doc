@@ -1,0 +1,27 @@
+# stage5h — stage 6: one process, many extractions
+
+date              2026-08-10T11:44:16Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+target            /Users/haruka/dev/lean-projects (read-only; the extractor never writes into it)
+requests          InformationTheory.Shannon.Huffman.StrongForm InformationTheory.Shannon.Huffman.Length InformationTheory.Shannon.Huffman.StrongForm InformationTheory.Asymptotic InformationTheory.Shannon.Huffman.StrongForm InformationTheory.Shannon.Huffman.Length
+
+ready: env load 6.335 s, 6021 modules loaded from a 432-module import list
+
+H1 per-request importModules (s): 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000
+H1 resident flag on each: 1, 1, 1, 1, 1, 1
+H1 per-request initSearchPath (s): 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000
+
+H3 per-request wall (s): 0.040, 0.088, 0.035, 0.041, 0.036, 0.081
+H3 one-shot totals (s): StrongForm 4.602, Length 1.867, Asymptotic 1.718
+H3 one-shot importModules (s): StrongForm 4.584, Length 1.808, Asymptotic 1.697
+
+H2 request 1 (StrongForm): module IR equals the one-shot's: True
+H2 request 2 (Length): module IR equals the one-shot's: True
+H2 request 3 (StrongForm): module IR equals the one-shot's: True
+H4 request 3 (StrongForm): equals request 1's answer: True
+H2 request 4 (Asymptotic): module IR equals the one-shot's: True
+H2 request 5 (StrongForm): module IR equals the one-shot's: True
+H4 request 5 (StrongForm): equals request 1's answer: True
+H2 request 6 (Length): module IR equals the one-shot's: True
+H4 request 6 (Length): equals request 2's answer: True

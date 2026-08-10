@@ -153,6 +153,9 @@ structure Cfg where
   declaration range end / kind modifiers / in-module index to the IR. Off by
   default so that this binary still reproduces the stage-4 IR byte for byte. -/
   taggedCode : Bool := false
+  /-- `--serve`: stay resident and take extraction requests on stdin, reusing
+  one imported environment (stage 6). -/
+  serve : Bool := false
   deriving Inhabited
 
 /-! ## doc-gen4's blacklist, transcribed
@@ -1480,7 +1483,15 @@ structure Failure where
   name : Name
   message : String
 
-def run (cfg : Cfg) : IO UInt32 := do
+/-- One extraction.
+
+`preEnv` is the resident mode's whole contribution (stage 6): when it is given,
+the search path is already initialised and the environment already imported, so
+both are skipped and everything downstream runs unchanged. The environment is
+*not* threaded back out — each request derives its own (`--open` activation
+returns a new one) and drops it, which is what makes reuse sound rather than
+merely fast. -/
+def run (cfg : Cfg) (preEnv : Option Environment := none) : IO UInt32 := do
   let sink ← Sink.create cfg.outPath
   let tTotal0 ← IO.monoNanosNow
 
@@ -1495,16 +1506,22 @@ def run (cfg : Cfg) : IO UInt32 := do
     | none => pure none
 
   let tSp0 ← IO.monoNanosNow
-  initSearchPath (← findSysroot)
+  if preEnv.isNone then
+    initSearchPath (← findSysroot)
   let tSp1 ← IO.monoNanosNow
   sink.emit "stage4b.initSearchPath" (tSp1 - tSp0)
 
   let tImp0 ← IO.monoNanosNow
-  unsafe Lean.enableInitializersExecution
-  let env ← importModules (targets.map (Import.mk · false true false)) Options.empty
-    (leakEnv := true) (loadExts := true)
+  let env ← match preEnv with
+    | some e => pure e
+    | none => do
+      unsafe Lean.enableInitializersExecution
+      importModules (targets.map (Import.mk · false true false)) Options.empty
+        (leakEnv := true) (loadExts := true)
   let tImp1 ← IO.monoNanosNow
-  sink.emit "stage4b.importModules" (tImp1 - tImp0) [("directImports", toString targets.size)]
+  sink.emit "stage4b.importModules" (tImp1 - tImp0)
+    [("directImports", toString targets.size),
+     ("resident", if preEnv.isSome then "1" else "0")]
 
   let header := env.header
   sink.emit "stage4b.envStats" 0 [("loadedModules", toString header.moduleNames.size)]
@@ -1848,6 +1865,72 @@ def run (cfg : Cfg) : IO UInt32 := do
       IO.println s!"  {f.name}: {f.message.take 300}"
   return 0
 
+/-- Stage 6: one process, many extractions.
+
+The environment load is the extraction's fixed cost (~3.1 s warm, §6.5), and it
+is paid per *process*. Anything that runs the extractor more than once per edit
+pays it more than once — which stage 5e made the normal case rather than an
+exotic one, because L3-1 turns re-extraction into rounds.
+
+The import list is the **superset**: whatever `<modules.txt>` names, typically
+the whole package. Requests then extract subsets of it. That is the right
+direction for soundness — stage 5b's S3 refuted "a single-module target list
+reproduces the full extraction" for `--open`, and the failure was that the
+single-module list left the environment too *small*. A resident process's
+environment is never smaller than the one-shot's, so it cannot fail that way;
+whether it is nonetheless byte-identical is what stage 5h measures rather than
+argues.
+
+**What this deliberately does not do is reload.** An olean that changed on disk
+after the import is not picked up: Lean has no way to swap one module out of an
+imported environment. So a resident server is only valid for re-extracting
+modules whose *own* olean has not changed — which is exactly the case L3-1
+creates (the referring module is stale precisely because its olean did not move),
+and exactly not the case for the module the user just edited. The protocol makes
+that explicit by refusing nothing and reporting everything: the caller decides.
+
+Protocol, one request per line on stdin, tab- or space-separated:
+
+    <modules.txt> <out.jsonl> [<ir-dir>]
+
+and one reply line per request on stdout: `ok <exit code> <nanoseconds>`.
+EOF or an empty line ends the loop. -/
+partial def serve (cfg : Cfg) : IO UInt32 := do
+  let t0 ← IO.monoNanosNow
+  initSearchPath (← findSysroot)
+  unsafe Lean.enableInitializersExecution
+  let targets ← readNameList cfg.modulesPath
+  if targets.isEmpty then
+    IO.eprintln s!"no module names in {cfg.modulesPath}"
+    return 1
+  let env ← importModules (targets.map (Import.mk · false true false)) Options.empty
+    (leakEnv := true) (loadExts := true)
+  let t1 ← IO.monoNanosNow
+  IO.println s!"ready {t1 - t0} {env.header.moduleNames.size} {targets.size}"
+  (← IO.getStdout).flush
+  let stdin ← IO.getStdin
+  let rec loop : IO UInt32 := do
+    let line ← stdin.getLine
+    let line := line.trimAscii.toString
+    if line.isEmpty then return 0
+    let parts := (line.splitOn " ").flatMap (·.splitOn "\t") |>.filter (!·.isEmpty)
+    match parts with
+    | modules :: out :: rest =>
+      let reqCfg := { cfg with
+        modulesPath := ⟨modules⟩, outPath := ⟨out⟩,
+        irDir := match rest with | dir :: _ => some ⟨dir⟩ | [] => cfg.irDir }
+      let r0 ← IO.monoNanosNow
+      let code ← run reqCfg (some env)
+      let r1 ← IO.monoNanosNow
+      IO.println s!"ok {code} {r1 - r0}"
+      (← IO.getStdout).flush
+      loop
+    | _ =>
+      IO.println s!"err bad request: {line}"
+      (← IO.getStdout).flush
+      loop
+  loop
+
 end Stage4b
 
 open Stage4b in
@@ -1861,6 +1944,7 @@ where
   | "--equations" :: rest => go { cfg with genEquations := true } rest
   | "--write-ir" :: rest => go { cfg with writeIR := true } rest
   | "--tagged-code" :: rest => go { cfg with taggedCode := true } rest
+  | "--serve" :: rest => go { cfg with serve := true } rest
   -- Deliberately does *not* imply `--write-ir`: "the IR is off unless --write-ir"
   -- is the one rule that keeps the stage-3 baseline reproducible from this tree.
   | "--ir-dir" :: p :: rest => go { cfg with irDir := some ⟨p⟩ } rest
@@ -1880,5 +1964,5 @@ where
 
 def main (args : List String) : IO UInt32 := do
   match parseArgs args with
-  | .ok cfg => Stage4b.run cfg
+  | .ok cfg => if cfg.serve then Stage4b.serve cfg else Stage4b.run cfg
   | .error msg => IO.eprintln msg; return 1
