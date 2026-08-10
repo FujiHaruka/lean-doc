@@ -56,3 +56,74 @@ elaboration — out of scope here and named as such.
 | | |
 |---|---|
 | `run.sh` | U1–U4, reusing stage 6a's clone, servers, and page trees |
+
+---
+
+## Results (2026-08-10)
+
+**All numbers are 実測.** Source: `benchmarks/results/stage6d-preview.txt`,
+computed from stage 6a's trees (`stage6a-resident-wiring.txt` for the run they
+came from). Nothing was started and nothing was timed here — these are byte
+comparisons.
+
+| # | prediction | result |
+|---|---|---|
+| U1 | true | **true — the set is empty** |
+| U2 | true | **true** — 6 of 433 module pages, and that is exactly the render set |
+| U3 | true, ≤2% | **true, 1.39%**, and the marker must be per page |
+| U4 | uncertain | **mostly derivable: 5 of 6 pre-build (83%)**; the missing one is L3-1's |
+
+### U1 — the answer that closes the question
+
+Server P was asked for the one L3-1 round-2 module. Its answer was **byte-identical
+to what the previous build already had on disk**, and **incorrect** against the
+post-build truth. So:
+
+> modules served by P: 1 — of those, both correct **and** different from the
+> previous build: **0**
+
+**A pre-edit resident environment is a function of the pre-edit oleans, so
+everything derived from it was already derived from them last time.** There is no
+page it can produce that is both new and right. Residency cannot be what makes a
+preview fast, because a preview's whole job is to say something about the edit.
+
+### U2 — the shape of an edit's blast radius
+
+| | |
+|---|---:|
+| module pages the edit reached | **6 of 433 (1.39%)** — 5 changed, 1 added |
+| the pipeline's render set | **6 — the same set** |
+| whole-package artefacts that changed | 4 (`declaration-data.bmp`, `name-map.json`, `navbar.html`, `tactics.html`) |
+| module pages already correct on disk | **427** |
+
+The four artefacts are L3-3's: rebuilt on every run whatever changed, so they are
+never *stale* in the sense a preview cares about. Counting them with the module
+pages would inflate the number a preview gets wrong from 1.39% to 2.28%, which is
+why they are counted apart.
+
+### U3/U4 — what an honest "not updated" preview costs
+
+* **1.39% of the site would be stale**, and the stale set is *named*, so the
+  marker belongs on those pages. A site-wide "may be out of date" banner would
+  mark **427 correct pages for nothing** — worse than useless, because it trains
+  the reader to ignore it.
+* **Before the build finishes, 5 of the 6 can be named exactly** from the ledger
+  alone (olean hashes, no Lean). The sixth is the L3-1 referrer, and it is
+  undiscoverable pre-build **by construction**: it is stale precisely because its
+  own olean did not change, so no hash can betray it.
+* So a pre-build marker is 83% precise here and needs a conservative rule for the
+  rest. The cheap conservative rule is "also mark everything whose IR names a
+  declaration of a changed module" — the referrer set, which the IR already has
+  (4 modules for this change) and which needs no Lean.
+
+### What this leaves in §8
+
+Preview mode has **two** options, not three. Residency is out:
+
+1. a syntactic approximation that does not need the environment — accurate for
+   names and signatures as written, wrong wherever elaboration matters;
+2. serve the previous page and mark it — **wrong on 1.39% of the site, 83% of
+   which is markable before the build even starts**.
+
+Option 2 now has numbers and option 1 still does not; its cost is a Lean parser
+without elaboration, which is out of scope here and named as such.

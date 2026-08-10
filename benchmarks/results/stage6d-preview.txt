@@ -1,0 +1,28 @@
+# stage6d — is preview mode the receptacle for residency?
+
+date              2026-08-10T13:21:23Z
+inputs            stage6a work dir /private/tmp/lean-doc-relay/w6a (no process started, nothing timed)
+change            InformationTheory.Shannon.Huffman.Length -> ...LengthCore (stage 5e's move)
+
+## U1 — did the pre-edit server produce anything new?
+  InformationTheory.Shannon.Huffman.StrongForm                 equals the previous build: True   correct: False
+U1 modules served by P: 1; of those, both correct AND different from what the previous build had: **0**
+U1 -> CONFIRMED: the set is empty
+
+## U2 — what a user needs after the edit, and who can produce it
+  files in the previous build: 438 ; in the post-build truth: 439
+  MODULE PAGES the edit reached: 6 of 433 (1.39%)  [5 changed, +1 added, -0 removed]
+  the pipeline's render set: 6  -> the same set
+  WHOLE-PACKAGE artefacts that changed: 4  (declarations/declaration-data.bmp, declarations/name-map.json, navbar.html, tactics.html)  — rebuilt every run by L3-3, so never 'stale'
+  L2 reported changed modules: 5 ; L3-1 stale: 1 ; L3-2 stale: 0
+U2 -> 6 module pages of 433 (1.39%) are obtainable only from a post-build extraction; the other 427 were already correct on disk
+
+## U3 — a 'serve the previous page, marked not-updated' preview
+  module pages it would serve stale: 6 of 433 = 1.39%
+  they are: InformationTheory/Shannon/Huffman/ExpectedLength.html, InformationTheory/Shannon/Huffman/KraftSum.html, InformationTheory/Shannon/Huffman/Length.html, InformationTheory/Shannon/Huffman/Optimality.html, InformationTheory/Shannon/Huffman/StrongForm.html  [+added: InformationTheory/Shannon/Huffman/LengthCore.html]
+U3 -> the stale set is small and named, so the marker is per page. A site-wide banner would mark 427 correct pages for nothing.
+
+## U4 — is the stale set derivable before the build finishes?
+  derivable from the ledger alone (olean hashes, no Lean): the L2 changed / added set = 5 modules
+  needs the FRESH IR of the changed modules, i.e. needs the build: L3-1's 1 and L3-2's 0
+U4 -> pre-build a preview can name 5 of the 6 affected module pages exactly (83%); the remaining 1 are the L3-1/L3-2 ones and are found only after the build. So a pre-build marker must be conservative for the rest.
