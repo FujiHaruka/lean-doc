@@ -1,0 +1,204 @@
+# stage 7e-rev — approach.md §8「revision をページのバイトに埋めるか」の未検証 2 点
+
+目的は 2 点だけ。新しい速度の主張はしない。
+
+  A. `coverage.ts` の受け入れオラクルは**注入後に回せば成立するか**
+  B. `jump-src.js` は実行時に `href` を読むのか。注入の順序制約は何か
+
+## 計測条件
+
+date            2026-08-10T18:28Z 〜 18:40Z (UTC)
+machine         MacBookAir10,1 / Apple M1 / 16 GiB (17,179,869,184 B) / Darwin 25.6.0 arm64
+target          /Users/haruka/dev/lean-projects (InformationTheory, Lean 4)
+toolchain       leanprover/lean4:v4.31.0
+doc-gen4        0bc516c (参照ツリー = .lake/build/doc/InformationTheory、348 ページ)
+deno            2.7.14 / V8 14.7.173.20-rusty
+python3         注入器のみ (段階 6b V4/V6 と同じ実装を再利用)
+IR              /private/tmp/lean-doc-relay/w7d/ir-j4 (段階 7d の抽出器 schema 4 / --jobs 4 が書いたもの、再利用)
+link index      /private/tmp/lean-doc-relay/w7c/linkindex/link-index.lidx (段階 7c、再利用)
+renderer        experiments/stage7d/render.ts (無改変)
+oracle          experiments/stage4c/coverage.ts (**1 行も変えていない**)
+Lean            **この段階では 1 度も走らせていない** (IR は既存物の再利用)
+暖機            warm。IR / link index は直前の段階が書いたもので page cache に載っている。
+                注入の計測は毎回 `cp -R` で作り直した木に対して行い、cp は時計の外。
+並列度          レンダリングも注入も単一プロセス・逐次
+rev             https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec
+token           {{SOURCE_URL}}
+work dir        /private/tmp/lean-doc-relay/w7e
+driver          experiments/stage7e-rev/run.sh
+
+3 つのページ集合はすべて**同一の IR / 同一の link index / 同一のレンダラ**から出る。
+違うのは `--source-url` の引数 1 つだけ:
+
+  (i)  pages-rev  --source-url <具体 rev>
+  (ii) pages-ph   --source-url '{{SOURCE_URL}}'
+  (ii-injected) pages-inj = pages-ph の写しに文字列置換 {{SOURCE_URL}} → <具体 rev>
+
+## A-1. (i) と (ii-injected) の byte 比較【実測】
+
+  /usr/bin/diff -r pages-rev pages-inj   → exit 0、出力 0 バイト
+
+  432 ファイル、differing 0 / missing 0 / extra 0。**全木 byte 一致。**
+  合計バイトでも一致: pages-rev 29,740,469 B == pages-inj 29,740,469 B。
+
+  pages-ph は 29,341,109 B。差 399,360 B = 80 B × 4,992 か所
+  (94 B の rev 前置 − 14 B のトークン)。段階 6b の 399,440 B = 80 × 4,993 と
+  **木の規模だけが違う** (段階 6b は移動後 433 モジュール、ここは 432)。
+
+  ログ → w7e/diff-rev-vs-inj.txt (空)、w7e/diff-status.txt、w7e/run.log
+
+## A-2. coverage.ts を 3 つにかけた点数【実測】
+
+  | ページ集合 | 再現率 | 再現できたバイト | 未分類 (母数 − 再現) | byte 完全一致ページ |
+  |---|---:|---:|---:|---:|
+  | (i)  pages-rev  | **99.5062%** | 21,919,956 | 108,772 B / 540 領域 | **304 / 348** |
+  | (ii) pages-ph   | **96.3959%** | 21,234,798 | 793,930 B / 3,825 領域 | **0 / 348** |
+  | (ii-inj) pages-inj | **99.5062%** | 21,919,956 | 108,772 B / 540 領域 | **304 / 348** |
+
+  母数はいずれも doc-gen4 の 348 ページ = 22,028,728 B。
+
+  * **(i) == (ii-injected)。** 再現率・領域内訳・完全一致ページ数のすべてが一致する
+    (A-1 の byte 一致から自明だが、オラクル自体を通して確認した)。
+  * (ii) だけが **−3.1103 pt** ずれる。予測の「約 −3.1 pt」に一致。
+  * (ii) の gh_link / nav_gh は再現率 **0.0%** (一致 0/3,477、0/348)。つまり
+    プレースホルダのままだと `coverage.ts:512` の revless 正規化
+    (`/blob/[0-9a-f]{40}/` → `/blob/REV/`) にマッチせず、**rev 由来の差が
+    「rev だけの差」に分類されなくなる**。段階 6b が「オラクルを拡張するか
+    注入後に回すかのどちらかが要る」と書いた通りで、**後者で閉じる**。
+  * 未分類 793,930 B / 3,825 領域は verification-log §(e) の段階 7 baseline の
+    数字と**完全に一致**する。−3.1 pt がレンダラに依存しないことの再確認。
+
+  ログ → benchmarks/results/stage7e-rev-coverage-{rev,ph,inj}.txt
+
+## A-3. 注入そのものの所要時間【実測】
+
+  段階 6b V6 と**同じ注入器**(python3、ファイル単位で read → bytes.replace → write)。
+  木は毎回 `cp -R pages-ph pages-inj` で作り直す (cp は時計の外)。
+
+  | run | 注入 (内側の時計) | real | user | sys | peak RSS |
+  |---|---:|---:|---:|---:|---:|
+  | 1 | 0.1500 | 0.17 | 0.03 | 0.06 | 10,289,152 |
+  | 2 | 0.1552 | 0.18 | 0.03 | 0.06 | 10,289,152 |
+  | 3 | 0.1534 | 0.17 | 0.03 | 0.05 | 10,289,152 |
+  | 4 | 0.1569 | 0.18 | 0.03 | 0.05 | 10,272,768 |
+  | 5 | 0.1754 | 0.20 | 0.03 | 0.06 | 10,289,152 |
+
+  中央値 **0.1552 秒 / 432 ファイル** (全 432 ファイルにトークンがあり、全部を書き戻す)。
+  user+sys = 0.09 秒に対し real = 0.17〜0.20 秒 — **CPU ではなく書き戻しの I/O 律速**。
+
+  **段階 6b の 0.1893 秒と並べてはいけない。** 条件が違う:
+  6b は 439 ファイルの木 (パッケージ全体の成果物込み、433 モジュール)、
+  こちらは 432 ファイル (モジュールページのみ、432 モジュール)。
+  ファイル数比 432/439 = 0.984 で説明できる差ではない (0.1552/0.1893 = 0.82)。
+  **同一セッションで測り直していないので、この 2 つの差は分離できていない。**
+  言えるのは「どちらの条件でも注入は 0.2 秒未満で、0.9017 秒の再レンダリングより
+  4〜6 倍安いが、ゼロではない」まで。
+
+  ログ → w7e/inject-{1..5}.{out,time}、w7e/inject-timings.txt
+
+  参考 (この段階で一度ずつしか測っていないので比較には使わない):
+  レンダリング `total` は (i) 0.9800 秒 / (ii) 0.8744 秒、うち write は 0.1530 / 0.1555 秒。
+
+## B-1. `jump-src.js` が何をいつ読むか【コードを読んで判明】
+
+  ファイル全文 (10 行) — /Users/haruka/dev/lean-projects/.lake/packages/doc-gen4/static/jump-src.js
+
+    1  document.addEventListener("DOMContentLoaded", () => {
+    2    const hash = document.location.hash.substring(1);
+    3    const tgt = new URLSearchParams(document.location.search).get("jump");
+    4    if (tgt === "src" && hash) {
+    5      const target = document.getElementById(hash)
+    6        ?.querySelector(".gh_link a")
+    7        ?.getAttribute("href");
+    8      if (target) window.location.replace(target);
+    9    }
+    10 })
+
+  * 読むのは **`#<declId>` 要素の下の `.gh_link a` の `href` 属性** (jump-src.js:5-7)。
+    `data-*` 属性ではない。`a.href` プロパティでもなく **`getAttribute("href")`** なので、
+    **解決済み URL ではなく属性の生文字列**が返る。
+  * 読むタイミングは **`DOMContentLoaded` のハンドラ内** (jump-src.js:1)。
+    click 時ではない。さらに **`?jump=src` が付いていて hash が非空のときだけ** (jump-src.js:3-4)。
+  * 読んだ生文字列をそのまま `window.location.replace()` に渡す (jump-src.js:8)。
+  * ページ側のロード形態は `<script type="module" src=".././jump-src.js"></script>` で
+    `<head>` 内 (doc-gen4 の生成ページ、および我々の render.ts の出力 — `head` 領域は
+    byte 一致なので同一)。module script は既定で defer 相当。
+  * **doc-gen4 の static 資産で `.gh_link` / `gh_nav_link` の `href` を実行時に読むのは
+    `jump-src.js` だけ**。`static/` 以下 15 ファイルを再帰 grep して、`gh_link` に
+    触るのは `jump-src.js:6` と `style.css:790` (見た目だけ) の 2 か所しか無いことを
+    確認した (`expand-nav.js:8-9` は `a.href` を読むがナビの相対リンク、
+    `search.js:144` / `how-about.js:30` は `href` を**書く**側)。
+
+  → §8 の「`jump-src.js` が実行時に `href` を読む」は**正しい**。ただし
+     「実行時」は **DOMContentLoaded 時、かつ `?jump=src` 付きのときだけ**であって、
+     ページを開くたびではない。
+
+## B-2. 実行して確かめたこと (DOM シム。**ブラウザではない**)【実測】
+
+  jump-src.js の**バイトそのもの**を評価し、**実在の生成ページの本物のパース結果**
+  (jsr:@b-fuze/deno-dom@0.1.56) に対して走らせて、`location.replace` に渡る文字列を捕まえた。
+  `document.location` / `window.location.replace` / DOMContentLoaded の発火は**シム**。
+  ハーネス → experiments/stage7e-rev/jump-src-probe.ts、生ログ →
+  benchmarks/results/stage7e-rev-jump-src-probe.txt
+
+  ページ = InformationTheory/Asymptotic.html、id = InformationTheory.Asymptotic.DotEq、
+  ページ URL = https://fujiharuka.github.io/information-theory/InformationTheory/Asymptotic.html
+
+  | ページ集合 | `.gh_link a` の href | location.replace() に渡る値 | ページ相対に解決すると |
+  |---|---|---|---|
+  | (i) rev | https://github.com/…/blob/573793b…/InformationTheory/Asymptotic.lean#L44-L52 | 同左 | 同左 (GitHub へ飛ぶ) |
+  | (ii) ph | `{{SOURCE_URL}}/InformationTheory/Asymptotic.lean#L44-L52` | 同左 | https://fujiharuka.github.io/information-theory/InformationTheory/**%7B%7BSOURCE_URL%7D%7D**/InformationTheory/Asymptotic.lean#L44-L52 |
+  | (ii-inj) | https://github.com/…/blob/573793b…/… | 同左 | 同左 (GitHub へ飛ぶ) |
+
+  * **(ii) は「リンクが無反応になる」のではなく、同一オリジンの存在しないパスへ
+    ナビゲートして 404 になる**。`{{` `}}` は %7B%7B / %7D%7D に percent-encode される。
+    「4,993 本が死ぬ」の死に方が具体的に分かった。
+  * **(ii-injected) の href は具体 rev になっている** — 配信時置換版の裏取り (B-3)。
+
+  **シムで確かめていないこと**: module script の実行順、DOMContentLoaded リスナの
+  発火順、`location.replace` が実際に 404 を返すこと。これらは**ブラウザ未検証**。
+
+## B-3. 注入の順序制約【(a) は実測、(b) は未検証】
+
+  (a) **配信時に文字列置換で注入する版 — 順序制約は無い。**【実測】
+      置換は HTML がブラウザに届く前に完了しているので、`jump-src.js` が
+      いつ `href` を読もうと具体 rev が入っている。裏取りは 2 つ:
+      A-1 の byte 一致 (pages-inj == pages-rev、全木) と、B-2 の
+      「pages-inj の `getAttribute("href")` が具体 rev」。
+      **§8 の「注入が先に走らないといけない」は、この版には当てはまらない。**
+
+  (b) **JS で実行時に注入する版 — 順序制約はある。**【コードからの言明、ブラウザ未検証】
+      制約を正確に言うと「注入が先」ではなく:
+        **注入が DOM の `.gh_link a[href]` を書き換え終わる時点が、
+          `jump-src.js` が jump-src.js:1 で登録した DOMContentLoaded ハンドラの
+          実行より前でなければならない。**
+      HTML の parse 完了より前である必要は無い (jump-src.js は parse 中には何も読まない)。
+      満たし方は仕様上 2 通りあり、どちらも**この段階では実行して確かめていない**:
+        - 注入スクリプトを `jump-src.js` より前に置き、同じく DOMContentLoaded で
+          登録する (同一イベントのリスナは登録順に発火する)。
+        - 注入を同期スクリプトで body 末尾に置く (DOMContentLoaded より前に走る)。
+      **ブラウザで確かめていないので「未検証」のまま残す。**
+      なお `?jump=src` 付きで開かれたときだけ読まれる (jump-src.js:3-4) ので、
+      順序を外したときの壊れ方は「全ページが壊れる」ではなく
+      「`?jump=src` のディープリンクだけが壊れる」。
+
+## B-4. `{{SOURCE_URL}}` のまま配信したときに死ぬリンクの本数【実測】
+
+  432 モジュールの木 (pages-ph、432 ファイル):
+
+    トークン `{{SOURCE_URL}}` の出現       4,992
+      うち `<div class="gh_link"><a href=…>`  4,560
+      うち `<p class="gh_nav_link"><a href=…>`  432
+    トークンを含むファイル                432 / 432
+
+  §8 は「4,993 本」と書いている。**同じ数ではないが矛盾でもない**:
+  段階 6b の木は移動後 433 モジュールで、gh_nav_link がモジュールごとに 1 本だから
+  4,560 + 433 = 4,993。ここは 432 モジュールなので 4,560 + 432 = 4,992。
+  §8 が文中で先に「4,992〜4,993 か所」と幅で書いているのと整合する。
+
+## この段階でやっていないこと
+
+  * Lean を走らせていない (IR は段階 7d の再利用)。抽出の数字は一切更新していない。
+  * `render.ts` / `coverage.ts` を 1 行も変えていない。
+  * ブラウザを使っていない。B-3 (b) の順序制約は**言明であって実測ではない**。
+  * 注入時間を段階 6b と同一条件で測り直していない (B-3 ではなく A-3 の注記を参照)。

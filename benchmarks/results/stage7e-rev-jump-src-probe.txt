@@ -1,0 +1,35 @@
+# stage 7e-rev — point B: what jump-src.js reads at runtime (DOM シム、ブラウザではない)
+
+date       2026-08-10T18:29:00Z
+js         /Users/haruka/dev/lean-projects/.lake/packages/doc-gen4/static/jump-src.js (doc-gen4 0bc516c)
+parser     jsr:@b-fuze/deno-dom@0.1.56 / deno 2.7.14
+shimmed    document.location / window.location.replace / DOMContentLoaded dispatch
+real       HTML parse, getElementById, querySelector('.gh_link a'), getAttribute('href')
+
+=== pages-rev ===
+registered DOMContentLoaded listeners: 1
+page                 pages-rev/InformationTheory/Asymptotic.html
+id                   InformationTheory.Asymptotic.DotEq
+.gh_link a @href     https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec/InformationTheory/Asymptotic.lean#L44-L52
+location.replace()   https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec/InformationTheory/Asymptotic.lean#L44-L52
+resolves against page to
+                     https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec/InformationTheory/Asymptotic.lean#L44-L52
+
+=== pages-ph ===
+registered DOMContentLoaded listeners: 1
+page                 pages-ph/InformationTheory/Asymptotic.html
+id                   InformationTheory.Asymptotic.DotEq
+.gh_link a @href     {{SOURCE_URL}}/InformationTheory/Asymptotic.lean#L44-L52
+location.replace()   {{SOURCE_URL}}/InformationTheory/Asymptotic.lean#L44-L52
+resolves against page to
+                     https://fujiharuka.github.io/information-theory/InformationTheory/%7B%7BSOURCE_URL%7D%7D/InformationTheory/Asymptotic.lean#L44-L52
+
+=== pages-inj ===
+registered DOMContentLoaded listeners: 1
+page                 pages-inj/InformationTheory/Asymptotic.html
+id                   InformationTheory.Asymptotic.DotEq
+.gh_link a @href     https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec/InformationTheory/Asymptotic.lean#L44-L52
+location.replace()   https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec/InformationTheory/Asymptotic.lean#L44-L52
+resolves against page to
+                     https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec/InformationTheory/Asymptotic.lean#L44-L52
+
