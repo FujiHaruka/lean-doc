@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Make an APFS clonefile copy of the measurement target, or apply stage 5c's E-B
-# move to an existing one.
+# Make an APFS clonefile copy of the measurement target, and move one module's
+# body into a new module inside it.
 #
 # WHY A CLONE
 #   CLAUDE.md forbids modifying the measurement target, and this experiment needs
@@ -8,42 +8,41 @@
 #   the 12 GB tree costs ~0 real disk and ~34 s, and the original is not written
 #   to at all. Stage 5c established this; it is reused verbatim.
 #
-# THE MOVE (E-B)
-#   A = InformationTheory.Shannon.GaussianPDFVarianceDerivative
-#   X = InformationTheory.Shannon.GaussianPDFVarianceDerivativeCore   (new)
-#   C = InformationTheory.Shannon.FisherDeBruijnGaussian              (untouched)
+# THE MOVE
+#   A's body moves to a new module X = A ++ "Core"; A becomes a shim that
+#   imports X. Full names do not change — a namespace comes from the `namespace`
+#   command, not the file path — so the only thing that changes is *which module
+#   defines the names*. Stage 5c measured that change to be invisible in a
+#   referring module's olean.
 #
-#   A's body moves to X; A becomes a shim that imports X. Full names do not
-#   change — a namespace comes from the `namespace` command, not the file path —
-#   so the only thing that changes is *which module defines the names*. That is
-#   the change stage 5c measured to be invisible to L2.
+#   A IS A PARAMETER, AND CHOOSING IT WRONG WASTES THE EXPERIMENT. Stage 5c used
+#   `Shannon.GaussianPDFVarianceDerivative` and described
+#   `Shannon.FisherDeBruijnGaussian` as referring to it "in two places". Those
+#   two places are backticks in a **module docstring**: that module has **zero
+#   declarations**, and *no module in the package names anything of A's in a
+#   printed signature*. For an olean-level question that did not matter. For a
+#   question about what the IR's `refs` say, it makes the move unobservable by
+#   construction. Pick A from `impact.ts --census`: it must have referrers.
 #
-# THE SHIM STYLE IS A PARAMETER, AND IT MATTERS
-#   minimal       A becomes `import X` and nothing else. This is stage 5c's E-B.
+# THE SHIM STYLE IS ALSO A PARAMETER
+#   minimal       A becomes `import X` and nothing else.
 #   keep-imports  A keeps its original imports and adds `import X`.
 #
-#   The two are not interchangeable. `keep-imports` leaves eleven imports that
-#   the now-empty A does not use, which changes what Mathlib's style linter
-#   logs — and the linter's log is an environment extension that is serialized
-#   into oleans (stage 5c found it embeds absolute source paths in 429/432
-#   modules). So the choice can decide whether a *referring* module's olean
-#   changes, which is exactly the thing under test. Both are measured.
+#   `keep-imports` leaves imports the now-empty A does not use, which changes
+#   what Mathlib's style linter logs — and that log is an environment extension
+#   serialized into oleans (stage 5c found it embeds absolute source paths in
+#   429/432 modules). `minimal` is the default for that reason.
 #
 # usage:
-#   setup-clone.sh clone <clone-dir>              clone and verify it is up to date
-#   setup-clone.sh move  <clone-dir> [style]      apply E-B and `lake build`
-#   setup-clone.sh reset <clone-dir>              undo the move and `lake build`
+#   setup-clone.sh clone <clone-dir>
+#   setup-clone.sh move  <clone-dir> <module> [style]
+#   setup-clone.sh reset <clone-dir>
 set -euo pipefail
 
 SRC="${TARGET_SRC:-/Users/haruka/dev/lean-projects}"
 CMD=${1:?clone|move|reset}
 CLONE=${2:?clone dir}
-STYLE=${3:-minimal}
 LAKE="${LAKE:-$HOME/.elan/bin/lake}"
-
-A_REL=InformationTheory/Shannon/GaussianPDFVarianceDerivative.lean
-X_REL=InformationTheory/Shannon/GaussianPDFVarianceDerivativeCore.lean
-X_MOD=InformationTheory.Shannon.GaussianPDFVarianceDerivativeCore
 
 case "$CLONE" in
   "$SRC"|"$SRC"/*) echo "refusing to write inside the measurement target" >&2; exit 2 ;;
@@ -61,21 +60,27 @@ if [ "$CMD" = clone ]; then
 fi
 
 if [ "$CMD" = reset ]; then
-  echo "### undoing the move"
-  rm -f "$CLONE/$X_REL"
-  git -C "$CLONE" checkout -- "$A_REL"
+  echo "### undoing every edit in the clone's sources"
+  git -C "$CLONE" clean -fd -- InformationTheory InformationTheory.lean
+  git -C "$CLONE" checkout -- InformationTheory InformationTheory.lean
   (cd "$CLONE" && "$LAKE" build 2>&1 | tail -3)
   exit 0
 fi
 
-[ "$CMD" = move ] || { echo "usage: setup-clone.sh clone|move|reset <dir> [style]" >&2; exit 2; }
+[ "$CMD" = move ] || { echo "usage: setup-clone.sh clone|move|reset <dir> ..." >&2; exit 2; }
+A_MOD=${3:?module to move}
+STYLE=${4:-minimal}
+X_MOD="${A_MOD}Core"
+A_REL="$(echo "$A_MOD" | tr '.' '/').lean"
+X_REL="$(echo "$X_MOD" | tr '.' '/').lean"
 
 if [ -f "$CLONE/$X_REL" ]; then
   echo "### the move is already applied"
   exit 0
 fi
+[ -f "$CLONE/$A_REL" ] || { echo "no such module file: $A_REL" >&2; exit 2; }
 
-echo "### applying E-B (shim style: $STYLE)"
+echo "### moving $A_MOD -> $X_MOD (shim style: $STYLE)"
 python3 - "$CLONE/$A_REL" "$CLONE/$X_REL" "$X_MOD" "$STYLE" <<'PY'
 import sys
 a_path, x_path, x_mod, style = sys.argv[1:]
@@ -86,7 +91,7 @@ src = open(a_path, encoding="utf-8").read()
 open(x_path, "w", encoding="utf-8").write(src)
 
 # A becomes a pure re-export. It must still exist and still be importable,
-# because C imports A and C is not allowed to change.
+# because the referring modules import A and they are not allowed to change.
 if style == "minimal":
     shim = f"import {x_mod}\n"
 elif style == "keep-imports":

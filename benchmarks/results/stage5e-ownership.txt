@@ -1,32 +1,95 @@
 # stage5e — L3-1 (name ownership) against a real move
 
-date              2026-08-10T10:57:34Z
+date              2026-08-10T11:17:28Z
 host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
 lean-toolchain    leanprover/lean4:v4.31.0
-target            APFS clone of /Users/haruka/dev/lean-projects (original untouched)
-move              InformationTheory.Shannon.GaussianPDFVarianceDerivative -> InformationTheory.Shannon.GaussianPDFVarianceDerivativeCore, C untouched
+target            APFS clone of /Users/haruka/dev/lean-projects, own modules rebuilt in place
+move              InformationTheory.Shannon.Huffman.Length -> InformationTheory.Shannon.Huffman.LengthCore (minimal shim)
+referrers         4 module(s) naming A's declarations in a printed signature
+render set        --mode self (the honest minimal set; no render key change)
 
-## D1 — what L2 reports
-check 433 modules (lake, concurrency 1): 2 changed, 1 added, 0 removed — 0.1135 s
-  changed  InformationTheory.Shannon.FisherDeBruijnGaussian
-  changed  InformationTheory.Shannon.GaussianPDFVarianceDerivative
-  added    InformationTheory.Shannon.GaussianPDFVarianceDerivativeCore
-D1 changed set (3 modules):
-     InformationTheory.Shannon.FisherDeBruijnGaussian
-     InformationTheory.Shannon.GaussianPDFVarianceDerivative
-     InformationTheory.Shannon.GaussianPDFVarianceDerivativeCore
-D1 contains   InformationTheory.Shannon.GaussianPDFVarianceDerivative  yes
-D1 contains   InformationTheory.Shannon.GaussianPDFVarianceDerivativeCore  yes
-D1 contains   InformationTheory  NO
-D1 contains C InformationTheory.Shannon.FisherDeBruijnGaussian  YES (D1 refuted)
+## D0 — the baseline is a fixed point
+check 432 modules (lake, concurrency 1): 0 changed, 0 added, 0 removed — 0.0591 s
 
-## D2/D3/D4 — the three trees against a from-scratch reference
+## D1 — what L2 reports after the move
+check 433 modules (lake, concurrency 1): 4 changed, 1 added, 0 removed — 0.1095 s
+  changed  InformationTheory.Shannon.Huffman.ExpectedLength
+  changed  InformationTheory.Shannon.Huffman.KraftSum
+  changed  InformationTheory.Shannon.Huffman.Length
+  changed  InformationTheory.Shannon.Huffman.Optimality
+  added    InformationTheory.Shannon.Huffman.LengthCore
+D1 contains  InformationTheory.Shannon.Huffman.Length  yes
+D1 contains  InformationTheory.Shannon.Huffman.LengthCore  yes
+D1 referrers in the changed set: 3/4 (D1 refuted for at least one referrer)
+
+## D2/D3/D4/D5 — both trees against a from-scratch reference
 REFERENCE pages: 433
+referrers of A: 4
 
-INC-NOL3: 433 pages, missing 0, extra 0, differing 0
-  C's page (InformationTheory/Shannon/FisherDeBruijnGaussian.html) differs: no
+INC-NOL3: 433 pages, missing 0, extra 0, differing 1
+  differing: InformationTheory/Shannon/Huffman/StrongForm.html
+  referrer pages wrong: 1/4
+  the staleness in InformationTheory.Shannon.Huffman.StrongForm, incremental -> reference:
+    @@ -76 +76 @@
+    -<span class="decl_args"> :</span><div class="decl_type"><span class="fn"><a href="../../.././InformationTheory/Shannon/ShannonCode/Basic.html#InformationTheory.Shannon.ShannonCode.expectedLength">Sha
+    +<span class="decl_args"> :</span><div class="decl_type"><span class="fn"><a href="../../.././InformationTheory/Shannon/ShannonCode/Basic.html#InformationTheory.Shannon.ShannonCode.expectedLength">Sha
 
 INC-L3: 433 pages, missing 0, extra 0, differing 0
-  C's page (InformationTheory/Shannon/FisherDeBruijnGaussian.html) differs: no
+  referrer pages wrong: 0/4
 
-L3-1 round 1: lost 7 / gained 7 names, scanned 429 base modules, stale 0 (byLostOwner 0, byMovedElsewhere 0), 0.1546 s
+l3 L3-1 round 1: lost 27 / gained 27 names, scanned 427 base modules, stale 1 (byLostOwner 1, byMovedElsewhere 0), 0.1604 s
+    lostOwner  InformationTheory.Shannon.Huffman.StrongForm  (ref InformationTheory.Shannon.Huffman.Length :: InformationTheory.Shannon.Huffman.huffmanLength)
+
+l3 L3-1 round 2: lost 0 / gained 0 names, scanned 0 base modules, stale 0 (byLostOwner 0, byMovedElsewhere 0), 0.0011 s
+
+## pipeline timings
+### nol3
+{
+    "module": "InformationTheory.Shannon.Huffman.Length",
+    "mode": "self",
+    "l3_1": "off",
+    "detectSeconds": 0.15004801750183105,
+    "extractSeconds": 3.19923996925354,
+    "ownershipSeconds": 0.0,
+    "mergeSeconds": 0.21198415756225586,
+    "roundsSeconds": 3.611593008041382,
+    "pruneSeconds": 0.027580738067626953,
+    "impactSeconds": 0.15918517112731934,
+    "renderSeconds": 0.22455620765686035,
+    "totalSeconds": 4.1729631423950195,
+    "rounds": 1,
+    "staleFound": 0,
+    "changed": 5,
+    "removed": 0,
+    "irChanged": 5,
+    "pagesRendered": 5,
+    "extract": {
+        "initSearchPath": 2.3e-05,
+        "importModules": 1.917196,
+        "importModules:directImports": 5,
+        "envStats": 0.0,
+### l3
+{
+    "module": "InformationTheory.Shannon.Huffman.Length",
+    "mode": "self",
+    "l3_1": "on",
+    "detectSeconds": 0.1143500804901123,
+    "extractSeconds": 6.170089483261108,
+    "ownershipSeconds": 0.26482343673706055,
+    "mergeSeconds": 0.31899189949035645,
+    "roundsSeconds": 7.266324043273926,
+    "pruneSeconds": 0.02698683738708496,
+    "impactSeconds": 0.15777015686035156,
+    "renderSeconds": 0.2117748260498047,
+    "totalSeconds": 7.777205944061279,
+    "rounds": 2,
+    "staleFound": 1,
+    "changed": 5,
+    "removed": 0,
+    "irChanged": 6,
+    "pagesRendered": 6,
+    "extract": [
+        {
+            "initSearchPath": 2.4e-05,
+            "importModules": 1.914948,
+            "importModules:directImports": 5,
