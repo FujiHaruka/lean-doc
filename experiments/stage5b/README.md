@@ -133,7 +133,7 @@ The pieces, if one is wanted on its own:
 | `inject-decl.py` | copies an IR tree and adds one declaration to one module (E2) |
 | `drop-module.py` | copies an IR tree with one module removed (E4) |
 | `fake-target.py` | a symlink stand-in for the target's olean tree, so a module can be made to disappear without touching the target (E4) |
-| `compare-pages.py` | byte-diff two page trees; score an impact set against the difference (`stale` / `gratuitous`); print a diff excerpt |
+| `compare-pages.py` | byte-diff two page trees; score an impact set against the difference (`stale` / `gratuitous`); print a diff excerpt. **Refuses to run** on a missing/empty tree or on two trees holding different page sets (`--allow-asymmetric` counts those as differing) — a stale counter must not be able to answer "0 changed" by accident |
 | `autolink-analysis.py` | the candidate census, and the extension of the two measured injections to all 432 modules and all 1,095 candidates |
 | `site-inventory.py` | doc-gen4's output classified by what each file is a function of, and the broken links our pages emit (E5) |
 | `revdep.py` | leg 7's reverse-dependency check over a rendered tree (kept; not used by `run-all.sh`) |
