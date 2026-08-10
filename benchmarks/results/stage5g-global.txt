@@ -1,0 +1,35 @@
+# stage5g — the whole-package artifacts
+
+date              2026-08-10T11:37:15Z
+host              Darwin 25.6.0 arm64
+ir                /private/tmp/claude-502/-Users-haruka-dev-lean-doc/c88353cb-13bd-4214-bc1b-469a4fc7863e/scratchpad/s5e/base-ir (432 modules, 4750 own declarations, 533 dependency names)
+runs              8 (run 1 dropped)
+
+## G1 — is `tactics.html` a function of this package?
+tactic docstrings across all 432 modules: **0**
+
+## G2 — cost of generating everything from the full IR
+| phase | seconds (median of warm runs) |
+|---|---:|
+| read the whole IR | 0.1187 |
+| build + write all artifacts | 0.0204 |
+| **total** | **0.1391** |
+
+spread over warm runs: 0.1376 .. 0.1425
+
+## sizes
+| file | bytes |
+|---|---:|
+| `declarations/declaration-data.bmp` | 1,216,017 |
+| `declarations/name-map.json` | 602,729 |
+| `navbar.html` | 57,949 |
+| `references.bib` | 0 |
+| `references.html` | 186 |
+| `tactics.html` | 243 |
+| **total** | **1,877,124** |
+
+## G3 — determinism
+two independent generations over the same IR: **same**
+
+## G4 — would an incremental update be worth writing?
+The most an incremental path could remove is the full-IR read, 0.1187 s: it would still have to read the changed modules, rebuild the derived maps and write every artifact (0.0204 s). Against an incremental run of 4.5-8.0 s (stages 5e/5f) the whole step is 1.7%-3.1%, and the part that could be saved is 1.5%-2.6%.

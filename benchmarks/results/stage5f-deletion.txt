@@ -1,30 +1,29 @@
 # stage5f — the deletion path
 
-date              2026-08-10T11:22:48Z
+date              2026-08-10T11:34:57Z
 host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
 lean-toolchain    leanprover/lean4:v4.31.0
 target            APFS clone of /Users/haruka/dev/lean-projects, own modules rebuilt in place
 deleted           InformationTheory.Shannon.Kolmogorov.OmegaNoncomputable (leaf: imported only by the root, no referrers)
 
 ## F0 — the baseline is a fixed point
-check 432 modules (lake, concurrency 1): 0 changed, 0 added, 0 removed — 0.0586 s
+check 432 modules (lake, concurrency 1): 0 changed, 0 added, 0 removed — 0.0581 s
 
 ## F1 — what the ledger reports
-check 431 modules (lake, concurrency 1): 1 changed, 0 added, 1 removed — 0.0610 s
+check 431 modules (lake, concurrency 1): 1 changed, 0 added, 1 removed — 0.0592 s
   changed  InformationTheory
   removed  InformationTheory.Shannon.Kolmogorov.OmegaNoncomputable
 F1 removed contains  InformationTheory.Shannon.Kolmogorov.OmegaNoncomputable  yes
 F1 changed contains  root  yes
 
 ## F2..F5
-F2 ownership: removedModules 1, lost 52 name(s), stale 0 (byLostOwner 0, byMovedElsewhere 0), 0.1529 s
+F2 ownership: removedModules 1, lost 52 name(s), stale 0 (byLostOwner 0, byMovedElsewhere 0), 0.1541 s
 F3 IR index: incremental 431 modules, reference 431, DEL still indexed: False
 F3 index module sets equal: True
 F3 DEL's module file still on disk: False
 F3 dependency map entries: incremental 527, reference 527, equal: True
 F4 DEL's page present after the run: False
-F5 incremental 431 pages, reference 431; missing 0, extra 0, differing 1
-   differing: InformationTheory/Shannon/LZ78/GreedyLongestPrefix.html
+F5 incremental 437 pages, reference 437; missing 0, extra 0, differing 0
 F4 directory sets equal: True
 
 ## pipeline timings
@@ -32,23 +31,23 @@ F4 directory sets equal: True
     "module": "InformationTheory.Shannon.Kolmogorov.OmegaNoncomputable",
     "mode": "self",
     "l3_1": "on",
-    "detectSeconds": 0.11365675926208496,
-    "extractSeconds": 3.7241570949554443,
-    "ownershipSeconds": 0.20521068572998047,
-    "mergeSeconds": 0.16067886352539062,
-    "roundsSeconds": 4.360648155212402,
-    "pruneSeconds": 0.06578707695007324,
-    "impactSeconds": 0.1575179100036621,
-    "renderSeconds": 0.2118821144104004,
-    "totalSeconds": 4.909492015838623,
+    "detectSeconds": 0.11658406257629395,
+    "extractSeconds": 3.7201600074768066,
+    "ownershipSeconds": 0.20745491981506348,
+    "mergeSeconds": 0.15916013717651367,
+    "roundsSeconds": 4.359911918640137,
+    "pruneSeconds": 0.057704925537109375,
+    "globalSeconds": 0.3581221103668213,
+    "impactSeconds": 0.16179585456848145,
+    "renderSeconds": 0.21531128883361816,
+    "totalSeconds": 5.269430160522461,
     "rounds": 1,
     "staleFound": 0,
     "changed": 1,
     "removed": 1,
     "irChanged": 1,
-    "pagesRendered": 1,
+    "globalStale": 1,
+    "pagesRendered": 2,
     "extract": {
-        "initSearchPath": 2.5e-05,
-        "importModules": 2.587624,
-        "importModules:directImports": 1,
-        "envStats": 0.0,
+        "initSearchPath": 2.6e-05,
+        "importModules": 2.582539,

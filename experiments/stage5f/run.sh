@@ -26,8 +26,12 @@ OUT="$W/out"; mkdir -p "$OUT"
 export TARGET_REPO="$CLONE"
 
 deno_ () { deno run --allow-read --allow-write --allow-env "$@"; }
+# Rendering a tree means the module pages *and* the whole-package artifacts:
+# they are part of the site, so leaving them out of the comparison would leave
+# the thing stage 5g implements untested.
 render () { deno run --allow-read --allow-write "$LD/experiments/stage4c/render.ts" \
-  --ir "$1" --pages "$2" --source-url "$URL" > /dev/null; }
+  --ir "$1" --pages "$2" --source-url "$URL" > /dev/null
+  deno run --allow-read --allow-write "$S5/global.ts" build --ir "$1" --out "$2" > /dev/null; }
 modlist () {
   (cd "$CLONE" && find InformationTheory.lean InformationTheory -name '*.lean' | sort) \
     | sed 's/\.lean$//; s#/#.#g' > "$1"

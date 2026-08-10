@@ -14,7 +14,10 @@
 #   4 merge      fold the partial IR back in, and drop removed modules; the IR
 #                content hash decides which pages are stale
 #   5 prune      delete the pages of removed modules
-#   6 render     stage4c's render.ts over the page set
+#   6 global     rebuild the whole-package artifacts and diff the global name ->
+#                module map; names that moved in or out of it decide which
+#                *other* pages went stale (L3-2)
+#   7 render     stage4c's render.ts over the page set
 #
 # WHY 2-3-4 IS A LOOP AND NOT A LINE
 #   L3-1 cannot run before the extraction it depends on: knowing that a name
@@ -95,6 +98,13 @@ RENDERSET="$WORK/render-set.txt"
 # on the total; these stamps only split it.
 now () { python3 -c 'import time; print(repr(time.time()))'; }
 T0=$(now)
+
+# The global name -> module map as it stands *before* this run. Snapshotted
+# rather than recomputed, because step 6 overwrites it in place.
+NAMEMAP="$PAGES/declarations/name-map.json"
+MAPBEFORE="$WORK/name-map-before.json"
+rm -f "$MAPBEFORE"
+[ -f "$NAMEMAP" ] && cp "$NAMEMAP" "$MAPBEFORE"
 
 # 1 -- detect ---------------------------------------------------------------
 # `--ir` is not optional here: without it the ledger cannot see the IR schema or
@@ -194,7 +204,30 @@ if [ "${NREMOVED:-0}" -gt 0 ]; then
 fi
 T3=$(now)
 
-# 6 -- render ---------------------------------------------------------------
+# 6 -- global ---------------------------------------------------------------
+# Rebuilt outright rather than patched: reading all 432 module IRs and writing
+# every whole-package artifact costs 0.136 s (stage 5g), which is 2-3% of an
+# incremental run — the same answer the ledger gave, for the same reason.
+#
+# Its by-product is the reason it runs *before* the render: the diff of the
+# global name -> module map names every declaration whose links can have changed
+# anywhere on the site. Stage 5f measured a deletion dropping six names and
+# leaving a live link to a vanished anchor in a module that shares no import and
+# no reference with the deleted one (§5.5 L3-2). Those pages are found by
+# scanning docstrings for the changed names, not guessed at from the graph.
+deno run --allow-read --allow-write "$HERE/global.ts" build --ir "$IR" \
+  --out "$PAGES" --timings "$WORK/global-timings.json" > "$WORK/global.log"
+GLOBALSET="$WORK/global-set.txt"
+: > "$GLOBALSET"
+if [ -f "$MAPBEFORE" ]; then
+  deno run --allow-read --allow-write "$HERE/global.ts" delta --before "$MAPBEFORE" \
+    --after "$NAMEMAP" --ir "$IR" --print-set "$GLOBALSET" \
+    --json "$WORK/global-delta.json" > "$WORK/global-delta.log"
+fi
+T4=$(now)
+NGLOBAL=$(grep -c . "$GLOBALSET" || true)
+
+# 7 -- render ---------------------------------------------------------------
 # `--mode` decides the page set (see the header). A changed render key overrides
 # it with `all`: that is the one page set not derived from the changed module
 # set, which is the point of splitting the key — nothing was re-extracted, yet
@@ -205,23 +238,28 @@ if [ "${NRENDERALL:-0}" -gt 0 ]; then
   sed 's/^/  render-all /' "$RENDERALLF" >&2
 fi
 deno run --allow-read --allow-write "$HERE/impact.ts" --ir "$IR" \
-  --changed-file "$SEEN" --mode "$MODE_EFF" --print-set "$RENDERSET" > "$WORK/impact.log"
-T4=$(now)
+  --changed-file "$SEEN" --mode "$MODE_EFF" --print-set "$WORK/impact-set.txt" \
+  > "$WORK/impact.log"
+# The render set is the union of the two derivations, which is the whole point
+# of deriving them separately: one comes from the changed modules, the other
+# from the global map and reaches modules the first cannot see.
+sort -u "$WORK/impact-set.txt" "$GLOBALSET" | grep . > "$RENDERSET" || : > "$RENDERSET"
+T5=$(now)
 ONLY=()
 while read -r m; do [ -n "$m" ] && ONLY+=(--only "$m"); done < "$RENDERSET"
 deno run --allow-read --allow-write "$LD/experiments/stage4c/render.ts" \
   --ir "$IR" --pages "$PAGES" --source-url "$SOURCE_URL" \
   --timings "$WORK/render-timings.json" ${ONLY[@]+"${ONLY[@]}"} > "$WORK/render.log"
-T5=$(now)
+T6=$(now)
 
 NPAGES=$(grep -c . "$RENDERSET" || true)
-python3 - "$TIMINGS" "$T0" "$T1" "$T2" "$T3" "$T4" "$T5" \
+python3 - "$TIMINGS" "$T0" "$T1" "$T2" "$T3" "$T4" "$T5" "$T6" \
   "$EXTRACT_S" "$OWN_S" "$MERGE_S" "$ROUNDS" "$NSTALE_TOTAL" \
-  "$NCHANGED" "$NREMOVED" "$NIRCHANGED" "$NPAGES" "$MODULE" "$MODE_EFF" "$L31" "$WORK" <<'PY'
+  "$NCHANGED" "$NREMOVED" "$NIRCHANGED" "$NGLOBAL" "$NPAGES" "$MODULE" "$MODE_EFF" "$L31" "$WORK" <<'PY'
 import json, sys, os, glob
-(out, t0, t1, t2, t3, t4, t5, ex, ow, mg, rounds, nstale,
- nch, nrm, nir, npg, module, mode, l31, work) = sys.argv[1:]
-t = [float(x) for x in (t0, t1, t2, t3, t4, t5)]
+(out, t0, t1, t2, t3, t4, t5, t6, ex, ow, mg, rounds, nstale,
+ nch, nrm, nir, nglob, npg, module, mode, l31, work) = sys.argv[1:]
+t = [float(x) for x in (t0, t1, t2, t3, t4, t5, t6)]
 rec = {
     "module": module, "mode": mode, "l3_1": l31,
     "detectSeconds": t[1] - t[0],
@@ -230,15 +268,18 @@ rec = {
     "mergeSeconds": float(mg),
     "roundsSeconds": t[2] - t[1],
     "pruneSeconds": t[3] - t[2],
-    "impactSeconds": t[4] - t[3],
-    "renderSeconds": t[5] - t[4],
-    "totalSeconds": t[5] - t[0],
+    "globalSeconds": t[4] - t[3],
+    "impactSeconds": t[5] - t[4],
+    "renderSeconds": t[6] - t[5],
+    "totalSeconds": t[6] - t[0],
     "rounds": int(rounds), "staleFound": int(nstale),
     "changed": int(nch), "removed": int(nrm or 0),
-    "irChanged": int(nir), "pagesRendered": int(npg),
+    "irChanged": int(nir), "globalStale": int(nglob or 0),
+    "pagesRendered": int(npg),
 }
 for name, pattern in (("extract", "extract-timings-*.json"),
                       ("merge", "merge-timings-*.json"),
+                      ("global", "global-timings.json"),
                       ("render", "render-timings.json")):
     hits = sorted(glob.glob(os.path.join(work, pattern)))
     if not hits:
