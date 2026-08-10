@@ -37,3 +37,6 @@ experiments/stage7a/build/
 
 # stage-7b experiment build output (native binary + generated C)
 experiments/stage7b/build/
+
+# stage-7c experiment build output (native binary + generated C)
+experiments/stage7c/build/

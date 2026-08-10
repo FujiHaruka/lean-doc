@@ -1,0 +1,91 @@
+# render — doc-gen4 HTML rebuilt from the IR (no Lean)
+
+ir              /private/tmp/lean-doc-relay/w7b/ir4
+schemaVersion   4
+generator       lean-doc/experiments/stage4b
+out             (none)
+pages           /private/tmp/lean-doc-relay/w7c/pages
+source-url      https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec   <- configuration, not IR
+link-index      /private/tmp/lean-doc-relay/w7c/linkindex/link-index.lidx
+md ablations    (none)
+only            (all modules)
+
+## decl_header path (increment 3; unaffected by --pages)
+
+modulesRead                      432
+modulesRendered                  432
+declarationsInIr                 4,750
+declarationsSuppressed           190
+declarationsRendered             4,560
+anchorsConst                     101,641
+anchorsSort                      7,354
+anchorsModuleFallback            6
+anchorsBreakWithin               4,560
+constSpansSuppressedByNesting    25,076
+constSpansUnlinkable             0
+constSpansViaParent              0
+constSpansPrivate                6
+constSpansNameNotInRefs          0
+implArgs                         30,403
+extendsRendered                  1
+wsWidthChars                     2,461
+wsWidthFragments                 1,260
+
+## page path (increment 4)
+
+pagesWritten                     432
+pageCodeUnits                    29,519,791
+moduleDocs                       1,515
+navLinks                         4,560
+importListItems                  3,503
+importDuplicatesDropped          432
+ghLinks                          4,560
+docstringsRendered               3,277
+docstringChars                   930,004
+equationBlocks                   804
+equationItems                    552
+equationsOmittedNotices          270
+equationsDroppedOverLimit        270
+memberTables                     37
+memberFields                     156
+memberFieldArgs                  49
+memberFieldDocs                  117
+memberFieldsInherited            4
+memberFieldsInheritedWithId      0
+attributeBlocks                  104
+attributeItems                   126
+instancesForStubs                838
+classInstancesStubs              0
+autolinkAttempts                 123,102
+autolinkResolved                 5,498
+anchorsConst                     4,465
+anchorsSort                      0
+anchorsModuleFallback            0
+constSpansSuppressedByNesting    1,685
+constSpansUnlinkable             0
+constSpansViaParent              0
+constSpansPrivate                0
+constSpansNameNotInRefs          0
+wsWidthChars                     264
+wsWidthFragments                 252
+
+## phases (seconds, in-process; `total` is timeOrigin -> here)
+
+preMain (module init; see TIMERS) 0.0029
+read IR (readTextFile + parse)   0.1843
+index build (name map + sets)    0.0108
+link index (read + map)          0.0767
+render decl_header               0.2190
+render page                      0.2349
+flatten probe                    0.0524
+write (mkdir + writeTextFile)    0.1584
+  of "render page": docstrings   0.1598
+--------------------------------
+sum of the above                 0.9395
+total (timeOrigin -> here)       0.9428
+unaccounted                      0.0033
+
+ir bytes read                    15,933,091
+link index code units            8,494,819
+link index entries               258,760
+flatten sink (keeps the probe alive) 29519359

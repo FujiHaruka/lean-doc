@@ -1,0 +1,32 @@
+# build-link-index — 依存クロージャ全体の「名前 → モジュール」索引 (実測)
+
+bmp        /Users/haruka/dev/lean-projects/.lake/build/doc/declarations/declaration-data.bmp
+out        /private/tmp/lean-doc-relay/w7c/linkindex
+date       2026-08-10T16:18:55.959Z
+deno       2.7.14 / V8 14.7.173.20-rusty
+runs       6 (run 1 は捨て、残りの median)
+
+## 中身
+
+| | |
+|---|---:|
+| 入力 (declaration-data.bmp) | 37,481,374 B |
+| 宣言 (名前 → モジュール) | 258,760 |
+| … 出現するモジュール | 5,775 |
+| docLink が解釈できず落とした宣言 | 0 |
+| モジュール名 (それ自体がリンク先になる) | 6,115 |
+
+## サイズ
+
+| 形式 | 生 | gzip | 入力比 |
+|---|---:|---:|---:|
+| .lidx (グループ化テキスト) | 8,508,273 B | 1,332,647 B | 22.7% |
+| .json (modules[] + declarations{}) | 9,990,592 B | 1,389,168 B | 26.7% |
+
+## 作る時間 (秒)
+
+| | read | JSON.parse | 組み立て | 書き出し | 合計 |
+|---|---:|---:|---:|---:|---:|
+| median (run 2 以降) | 0.0082 | 0.1763 | 0.2152 | 0.0271 | 0.4152 |
+
+各 run (合計秒): 0.4972 0.4141 0.4227 0.4152 0.4413 0.4147

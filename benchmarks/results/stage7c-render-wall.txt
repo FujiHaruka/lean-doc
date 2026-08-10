@@ -1,0 +1,28 @@
+r1 stage7b real 0.85 user 1.03 sys 0.13
+r1 stage7b peakRSS 223051776
+r1 stage7c real 0.94 user 1.16 sys 0.14
+r1 stage7c peakRSS 288653312
+r2 stage7b real 0.86 user 1.04 sys 0.13
+r2 stage7b peakRSS 222560256
+r2 stage7c real 0.95 user 1.18 sys 0.14
+r2 stage7c peakRSS 287686656
+r3 stage7b real 0.85 user 1.02 sys 0.13
+r3 stage7b peakRSS 221822976
+r3 stage7c real 0.93 user 1.16 sys 0.13
+r3 stage7c peakRSS 289882112
+r4 stage7b real 0.85 user 1.03 sys 0.13
+r4 stage7b peakRSS 221773824
+r4 stage7c real 0.93 user 1.16 sys 0.14
+r4 stage7c peakRSS 288407552
+r5 stage7b real 0.90 user 1.04 sys 0.12
+r5 stage7b peakRSS 222789632
+r5 stage7c real 0.91 user 1.15 sys 0.13
+r5 stage7c peakRSS 288735232
+r6 stage7b real 0.84 user 1.02 sys 0.12
+r6 stage7b peakRSS 223100928
+r6 stage7c real 0.93 user 1.17 sys 0.14
+r6 stage7c peakRSS 288702464
+r7 stage7b real 0.84 user 1.03 sys 0.12
+r7 stage7b peakRSS 222871552
+r7 stage7c real 0.92 user 1.16 sys 0.14
+r7 stage7c peakRSS 287506432

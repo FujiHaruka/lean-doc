@@ -1,0 +1,32 @@
+# stage7c — メンバ表マークアップの割合検算と、残った members 領域の帰属 (実測)
+
+pages(mine)  /private/tmp/lean-doc-relay/w7c/pages
+doc-root     /Users/haruka/dev/lean-projects/.lake/build/doc/InformationTheory
+date         2026-08-10T16:19:00Z
+deno         2.7.14 / V8 14.7.173.20-rusty
+
+## A. マーカーの個数 (doc-gen4 が出した 348 ページの上だけ、ページごとに突き合わせ)
+
+| マーカー | 生成側 | doc-gen4 | |
+|---|---:|---:|---|
+| `div.structure_field_info` | 153 | 153 | 一致 |
+| … その中の `span.decl_args` | 48 | 48 | 一致 |
+| `div.structure_field_doc` | 114 | 114 | 一致 |
+| `li.structure_field` (id 付き = direct) | 149 | 149 | 一致 |
+| `li.structure_field.inherited_field` | 4 | 4 | 一致 |
+| … うち id 付き (containedNames が真) | 0 | 0 | 一致 |
+
+**ページ単位でも全て一致**。合計だけ合っていて配り方が違う、という壊れ方はしていない。
+
+## B. byte 一致しなかった members 領域の帰属
+
+`coverage.ts` は members 領域の不一致を全部「IR に情報が無い (メンバの binder /
+docstring)」に入れる — その規則が書かれた時点ではそれしか原因が無かったため。
+ここでは prose と同じ判定 (両側から `<a …>` を剥がして一致するか) を当てて、
+**メンバのデータ欠落**と**autolink 索引の欠落**を分ける。
+
+| module | 宣言 | doc-gen4 のバイト | `<a>` 数 生成側/doc-gen4 | アンカーを剥がすと一致 |
+|---|---|---:|---|---|
+
+autolink 索引に帰する: **0 B** / メンバのデータに帰する: **0 B**。
+

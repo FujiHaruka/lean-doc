@@ -1,0 +1,344 @@
+# autolink-check (diagnostic; the oracle is experiments/stage4c/coverage.ts)
+
+pages(mine)  /private/tmp/lean-doc-relay/w7c/pages-7b
+doc-root     /Users/haruka/dev/lean-projects/.lake/build/doc/InformationTheory
+date         2026-08-10T15:46:00.799Z
+pages compared 348
+
+| | |
+|---|---:|
+| doc-gen4 が出していてこちらが出していないアンカー | 297 |
+| … 相異なる宛先 | 191 |
+| こちらが出していて doc-gen4 が出していないアンカー (過剰) | 4 |
+| 数は同じで href だけ違う | 9 |
+
+## 宛先のルート名前空間 (出せていないもの)
+
+| root | 個数 |
+|---|---:|
+| Real | 43 |
+| MeasureTheory | 21 |
+| Nat | 10 |
+| HasDerivAt | 10 |
+| Finset | 9 |
+| Filter | 9 |
+| tendsto_of_le_liminf_of_limsup_le | 9 |
+| List | 9 |
+| ENNReal | 9 |
+| ProbabilityTheory | 8 |
+| rfl | 8 |
+| InformationTheory | 7 |
+| hasDerivAt_integral_of_dominated_loc_of_deriv_le | 7 |
+| ConvexOn | 6 |
+| Fin | 6 |
+| csInf_le | 5 |
+| MeasurableEquiv | 5 |
+| csInf_le_csInf | 4 |
+| ge_of_tendsto | 4 |
+| EReal | 4 |
+| ConcaveOn | 3 |
+| le_csInf | 3 |
+| le_antisymm | 3 |
+| symm | 3 |
+| measure | 2 |
+| Pi | 2 |
+| Function | 2 |
+| trivial | 2 |
+| Classical | 2 |
+| iInf | 2 |
+| IsCompact | 2 |
+| sorryAx | 2 |
+| VectorFourier | 2 |
+| convex_stdSimplex | 2 |
+| AddCircle | 2 |
+| ContinuousWithinAt | 2 |
+| add_pos | 2 |
+| antitoneOn_of_deriv_nonpos | 2 |
+| funext | 2 |
+| StrictMonoOn | 2 |
+| measurable_deriv_with_param | 2 |
+| Measurable | 2 |
+| zero_le | 2 |
+| le_csSup | 2 |
+| MeasurableEmbedding | 2 |
+| iSup | 1 |
+| strictConcaveOn_log_Ioi | 1 |
+| measurable_of_countable | 1 |
+| exists_nat_gt | 1 |
+| Ergodic | 1 |
+| StrictConcaveOn | 1 |
+| intermediate_value_Icc | 1 |
+| sum_geometric_two_le | 1 |
+| le_of_tendsto | 1 |
+| ConditionallyCompleteLattice | 1 |
+| Fintype | 1 |
+| dif_pos | 1 |
+| dif_neg | 1 |
+| le_min | 1 |
+| ae_eq_of_integral_contDiff_smul_eq | 1 |
+| eq_comm | 1 |
+| eq_pos_convex_span_of_mem_convexHull | 1 |
+| finTwoEquiv | 1 |
+| Prod | 1 |
+| Sym2 | 1 |
+| Encodable | 1 |
+| Denumerable | 1 |
+| Continuous | 1 |
+| ContDiffBump | 1 |
+| sub_self | 1 |
+| tendsto_of_tendsto_of_tendsto_of_le_of_le' | 1 |
+| strictMonoOn_of_deriv_pos | 1 |
+| DifferentiableAt | 1 |
+| ContinuousAt | 1 |
+| continuousWithinAt_Ioi_iff_Ici | 1 |
+| mul_assoc | 1 |
+| ContinuousLinearMap | 1 |
+| BddAbove | 1 |
+| is_const_of_deriv_eq_zero | 1 |
+| logDeriv_apply | 1 |
+| Even | 1 |
+| integral_withDensity_eq_integral_toReal_smul₀ | 1 |
+| mul_comm | 1 |
+| sub_nonneg | 1 |
+| MonotoneOn | 1 |
+| frontier | 1 |
+| le_of_forall_sub_le | 1 |
+| Set | 1 |
+| tendsto_atTop_ciSup | 1 |
+| Unique | 1 |
+| Subadditive | 1 |
+| Preorder | 1 |
+| aemeasurable_of_tendsto_metrizable_ae' | 1 |
+| cast | 1 |
+| measurable_of_finite | 1 |
+
+## 出せていない宛先 (名前 × 回数)
+
+   9  tendsto_of_le_liminf_of_limsup_le
+   8  rfl
+   7  hasDerivAt_integral_of_dominated_loc_of_deriv_le
+   5  Nat.lt_pow_succ_log_self
+   5  Real.log_prod
+   5  csInf_le
+   4  EReal.tendsto_coe_nhds_top_iff
+   4  MeasurableEquiv.piFinSuccAbove
+   4  Real.tendsto_log_atTop
+   4  csInf_le_csInf
+   4  ge_of_tendsto
+   3  ConvexOn.map_sum_le
+   3  Fin.sum_univ_castSucc
+   3  HasDerivAt.comp
+   3  InformationTheory.Shannon.EPIStamDeBruijnConclusion.entropy_power_inequality_gaussian'
+   3  List.ofFn_injective
+   3  Real.convexOn_mul_log
+   3  Real.exp_log
+   3  Real.log_mul
+   3  le_antisymm
+   3  le_csInf
+   3  symm
+   2  AddCircle
+   2  ConcaveOn.le_map_sum
+   2  ConvexOn.map_integral_le
+   2  ENNReal.ofReal_mul
+   2  ENNReal.toReal_mono
+   2  ENNReal.toReal_nonneg
+   2  Filter.Tendsto.limUnder_eq
+   2  Filter.limsup_nat_add
+   2  Fin.rev
+   2  Finset.sum_const
+   2  HasDerivAt.congr_of_eventuallyEq
+   2  HasDerivAt.of_local_left_inverse
+   2  List.Nodup.concat
+   2  MeasureTheory.Integrable.tendsto_ae_condExp
+   2  MeasureTheory.Measure.addHaar_image_homothety
+   2  MeasureTheory.integral_fin_nat_prod_eq_prod
+   2  MeasureTheory.unifIntegrable_of
+   2  ProbabilityTheory.meas_ge_le_variance_div_sq
+   2  ProbabilityTheory.strong_law_ae_real
+   2  Real.exp_le_exp
+   2  Real.exp_pos
+   2  Real.exp_sub
+   2  Real.log_le_log_iff
+   2  Real.negMulLog_mul
+   2  Real.toEReal
+   2  add_pos
+   2  antitoneOn_of_deriv_nonpos
+   2  convex_stdSimplex
+   2  funext
+   2  iInf
+   2  le_csSup
+   2  measurable_deriv_with_param
+   2  measure
+   2  sorryAx
+   2  trivial
+   2  zero_le
+   1  BddAbove.continuous_convolution_right_of_integrable
+   1  Classical.dec
+   1  Classical.decEq
+   1  ConcaveOn.subset
+   1  ConditionallyCompleteLattice
+   1  ContDiffBump
+   1  Continuous.fourierInv_fourier_eq
+   1  ContinuousAt
+   1  ContinuousLinearMap.mul_apply'
+   1  ContinuousWithinAt.congr
+   1  ContinuousWithinAt.log
+   1  ConvexOn.map_condExp_le
+   1  Denumerable
+   1  DifferentiableAt
+   1  ENNReal.mul_iInf_of_ne
+   1  ENNReal.toReal_prod
+   1  ENNReal.toReal_sum
+   1  Encodable
+   1  Ergodic.ae_eq_const_of_ae_eq_comp_ae
+   1  Even.convexOn_pow
+   1  Filter.Tendsto.bddAbove_range
+   1  Filter.Tendsto.cesaro
+   1  Filter.Tendsto.limsup_eq
+   1  Filter.liminf_le_liminf
+   1  Filter.tendsto_iff_seq_tendsto
+   1  Fin.snocEquiv
+   1  Finset.card_le_card_of_injOn
+   1  Finset.prod_range_div
+   1  Finset.sum_Ico_consecutive
+   1  Finset.sum_Ico_eq_sum_range
+   1  Finset.sum_comm
+   1  Finset.sum_fiberwise_of_maps_to'
+   1  Finset.sum_image
+   1  Fintype.card
+   1  Function.invFun
+   1  Function.invFunOn
+   1  HasDerivAt.differentiableAt
+   1  HasDerivAt.log
+   1  HasDerivAt.sub
+   1  InformationTheory.Shannon.BroadcastChannel.Marton.meas_pairCount_eq_zero_le'
+   1  InformationTheory.Shannon.BroadcastChannel.Marton.variance_pairCount_le'
+   1  InformationTheory.Shannon.Cramer.TiltedLLN.cramer_lower_infinitePi'
+   1  InformationTheory.kraft_mcmillan_inequality
+   1  IsCompact.exists_isMinOn
+   1  IsCompact.exists_sInf_image_eq
+   1  List.Nodup.length_le_card
+   1  List.append_inj
+   1  List.dropLast_concat
+   1  List.length_ofFn
+   1  Measurable.div
+   1  Measurable.map_prodMk_left
+   1  MeasurableEmbedding
+   1  MeasurableEmbedding.map_withDensity_rnDeriv
+   1  MeasurableEquiv.piCongrLeft
+   1  MeasureTheory.Measure.integrable_compProd_iff
+   1  MeasureTheory.Submartingale.ae_tendsto_limitProcess
+   1  MeasureTheory.convolution_assoc
+   1  MeasureTheory.exists_measure_symmDiff_lt_of_generateFrom_isSetRing
+   1  MeasureTheory.ext_of_generate_finite
+   1  MeasureTheory.integral_convolution
+   1  MeasureTheory.integral_map
+   1  MeasureTheory.integral_mul_deriv_eq_deriv_mul_of_integrable
+   1  MeasureTheory.integral_undef
+   1  MeasureTheory.measurePreserving_eval
+   1  MeasureTheory.pdf_def
+   1  MeasureTheory.sum_measureReal_singleton
+   1  MeasureTheory.tendsto_ae_condExp
+   1  MonotoneOn.insert_of_continuousWithinAt
+   1  Nat.ceil_lt_add_one
+   1  Nat.eq_of_testBit_eq
+   1  Nat.le_ceil
+   1  Nat.pow_log_le_self
+   1  Nat.size
+   1  Pi.compactSpace
+   1  Pi.uniqueOfIsEmpty
+   1  Preorder
+   1  ProbabilityTheory.IndepFun.variance_sum
+   1  ProbabilityTheory.integrable_gaussianPDFReal
+   1  ProbabilityTheory.integral_gaussianPDFReal_eq_one
+   1  ProbabilityTheory.variance_sum_pi
+   1  Prod.Lex
+   1  Real.HolderConjugate
+   1  Real.continuous_exp
+   1  Real.continuous_negMulLog
+   1  Real.hasDerivAt_negMulLog
+   1  Real.isLittleO_log_id_atTop
+   1  Real.log_exp
+   1  Real.log_inv
+   1  Real.log_le_sub_one_of_pos
+   1  Real.log_natCast_le_rpow_div
+   1  Real.log_nonpos
+   1  Real.natLog_le_logb
+   1  Real.sInf_empty
+   1  Real.sqrt_mul
+   1  Set.singleton_prod_singleton
+   1  StrictConcaveOn.map_sum_eq_iff
+   1  StrictMonoOn.continuousAt_of_image_mem_nhds
+   1  StrictMonoOn.orderIso
+   1  Subadditive.tendsto_lim
+   1  Sym2
+   1  Unique
+   1  VectorFourier.fourierIntegral
+   1  VectorFourier.integral_fourierIntegral_smul_eq_flip
+   1  ae_eq_of_integral_contDiff_smul_eq
+   1  aemeasurable_of_tendsto_metrizable_ae'
+   1  cast
+   1  continuousWithinAt_Ioi_iff_Ici
+   1  dif_neg
+   1  dif_pos
+   1  eq_comm
+   1  eq_pos_convex_span_of_mem_convexHull
+   1  exists_nat_gt
+   1  finTwoEquiv
+   1  frontier
+   1  iSup
+   1  integral_withDensity_eq_integral_toReal_smul₀
+   1  intermediate_value_Icc
+   1  is_const_of_deriv_eq_zero
+   1  le_min
+   1  le_of_forall_sub_le
+   1  le_of_tendsto
+   1  logDeriv_apply
+   1  measurable_of_countable
+   1  measurable_of_finite
+   1  mul_assoc
+   1  mul_comm
+   1  strictConcaveOn_log_Ioi
+   1  strictMonoOn_of_deriv_pos
+   1  sub_nonneg
+   1  sub_self
+   1  sum_geometric_two_le
+   1  tendsto_atTop_ciSup
+   1  tendsto_of_tendsto_of_tendsto_of_le_of_le'
+
+## href だけ違うもの
+
+InformationTheory.Shannon.LZ78.ZivInequality  "refl"
+  mine  : ../../.././InformationTheory/Shannon/LZ78/ZivInequality.html#InformationTheory.Shannon.ZivCountingBound.refl
+  theirs: ../../.././Mathlib/Order/Defs/Unbundled.html#refl
+InformationTheory.Shannon.LZ78.ConverseAsymptotic  "refl"
+  mine  : ../../.././InformationTheory/Shannon/LZ78/ConverseAsymptotic.html#InformationTheory.Shannon.IsLZ78PhraseCountSandwich.refl
+  theirs: ../../.././Mathlib/Order/Defs/Unbundled.html#refl
+InformationTheory.Shannon.LZ78.ConverseAsymptotic  "add_nonneg"
+  mine  : ../../.././InformationTheory/Shannon/LZ78/ConverseAsymptotic.html#InformationTheory.Shannon.IsZivCountingAsymptoticBound.add_nonneg
+  theirs: ../../.././Mathlib/Algebra/Order/Monoid/Unbundled/Basic.html#add_nonneg
+InformationTheory.Shannon.NormalizedSinc  "sincN"
+  mine  : ../.././InformationTheory/Shannon/NormalizedSinc.html#InformationTheory.Shannon.NormalizedSinc.Continuous.sincN
+  theirs: ../.././InformationTheory/Shannon/NormalizedSinc.html#InformationTheory.Shannon.NormalizedSinc.sincN
+InformationTheory.Shannon.NormalizedSinc  "sincN"
+  mine  : ../.././InformationTheory/Shannon/NormalizedSinc.html#InformationTheory.Shannon.NormalizedSinc.Continuous.sincN
+  theirs: ../.././InformationTheory/Shannon/NormalizedSinc.html#InformationTheory.Shannon.NormalizedSinc.sincN
+InformationTheory.Shannon.NormalizedSinc  "sincN"
+  mine  : ../.././InformationTheory/Shannon/NormalizedSinc.html#InformationTheory.Shannon.NormalizedSinc.Continuous.sincN
+  theirs: ../.././InformationTheory/Shannon/NormalizedSinc.html#InformationTheory.Shannon.NormalizedSinc.sincN
+InformationTheory.Shannon.NormalizedSinc  "sincN"
+  mine  : ../.././InformationTheory/Shannon/NormalizedSinc.html#InformationTheory.Shannon.NormalizedSinc.Continuous.sincN
+  theirs: ../.././InformationTheory/Shannon/NormalizedSinc.html#InformationTheory.Shannon.NormalizedSinc.sincN
+InformationTheory.Shannon.NormalizedSinc  "sincN"
+  mine  : ../.././InformationTheory/Shannon/NormalizedSinc.html#InformationTheory.Shannon.NormalizedSinc.Continuous.sincN
+  theirs: ../.././InformationTheory/Shannon/NormalizedSinc.html#InformationTheory.Shannon.NormalizedSinc.sincN
+InformationTheory.Shannon.NormalizedSinc  "sincN"
+  mine  : ../.././InformationTheory/Shannon/NormalizedSinc.html#InformationTheory.Shannon.NormalizedSinc.Continuous.sincN
+  theirs: ../.././InformationTheory/Shannon/NormalizedSinc.html#InformationTheory.Shannon.NormalizedSinc.sincN
+
+## 過剰なアンカー
+
+InformationTheory.Shannon.Hoeffding.MinimizerAttainment  "IsMinOn" -> ../../.././Mathlib/Order/Filter/Extr.html#IsMinOn
+InformationTheory.Shannon.ShannonHartley.Operational  "contAwgnOperationalCapacity" -> ../../.././InformationTheory/Shannon/ShannonHartley/Operational.html#InformationTheory.Shannon.ShannonHartley.contAwgnOperationalCapacity
+InformationTheory.Shannon.Huffman.Length  "Lex" -> ../../.././Mathlib/Order/Lex.html#Lex
+InformationTheory.Shannon.EPI.G2.HeatFlowContinuity  "insert_of_continuousWithinAt" -> ../../../.././InformationTheory/Shannon/EPI/G2/HeatFlowContinuity.html#AntitoneOn.insert_of_continuousWithinAt

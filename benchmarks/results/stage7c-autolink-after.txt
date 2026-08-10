@@ -1,0 +1,21 @@
+# autolink-check (diagnostic; the oracle is experiments/stage4c/coverage.ts)
+
+pages(mine)  /private/tmp/lean-doc-relay/w7c/pages
+doc-root     /Users/haruka/dev/lean-projects/.lake/build/doc/InformationTheory
+date         2026-08-10T16:18:59.508Z
+pages compared 348
+
+| | |
+|---|---:|
+| doc-gen4 が出していてこちらが出していないアンカー | 0 |
+| … 相異なる宛先 | 0 |
+| こちらが出していて doc-gen4 が出していないアンカー (過剰) | 0 |
+| 数は同じで href だけ違う | 0 |
+
+## 宛先のルート名前空間 (出せていないもの)
+
+| root | 個数 |
+|---|---:|
+
+## 出せていない宛先 (名前 × 回数)
+

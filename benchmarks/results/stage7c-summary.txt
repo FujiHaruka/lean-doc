@@ -1,0 +1,327 @@
+# stage7c — 生成側の残り (autolink 索引 + CommonMark): 到達上限に到達
+
+すべて **実測**。条件は下記、生ログは各行の「ログ」列。
+
+## 条件
+
+| | |
+|---|---|
+| 日付 | 2026-08-10 (UTC) |
+| 機材 | Apple M1 / 8 cores / 16 GB (Darwin 25.6.0 arm64) |
+| 計測対象 | /Users/haruka/dev/lean-projects (InformationTheory, 432 モジュール) |
+| lean-toolchain | leanprover/lean4:v4.31.0 |
+| doc-gen4 | v4.31.0 (`.lake/packages/doc-gen4`) |
+| Deno | 2.7.14 / V8 14.7.173.20-rusty |
+| 並列度 | 1 プロセス |
+| IR | **段階 7b の schema 4 IR をそのまま使った** (`/private/tmp/lean-doc-relay/w7b/ir4`、16,021,632 B)。抽出器は 1 バイトも変えていない |
+| page cache | **warm**。生成は 3 構成を同一ラウンド内で回り持ちにして **11 ラウンド**、ラウンド 1 を捨てて 2-11 の median |
+| cold 側 | 各構成のラウンド 1: 7b 0.9060 s / 7c 1.1407 s / 7c-noidx 0.8031 s (`stage7c-render-timings.jsonl` の `cold: true`)。**warm と混ぜて引用しないこと** |
+| 対照 | stage7b の renderer を**同じセッションで**回した (`stage7c-coverage-stage7b-control.txt`、`stage7c-render-timings.jsonl` の `variant: stage7b`)。別セッションの stage7b の数字とは並べていない |
+
+採点はすべて **`--source-url` に具体的な rev を埋めて描いたページ**に対して行っている
+(`…/blob/573793b243fb1343636088eb62d1789ab2b14cec`)。`{{SOURCE_URL}}` で描くと
+未分類が跳ねて採点が −3.1 pt ずれる。
+
+## 1. 再現率 (受け入れオラクル = experiments/stage4c/coverage.ts、1 行も変えていない)
+
+母数は doc-gen4 がディスクに出した 348 ページ = 22,028,728 B。領域は隙間なくページを覆う
+(coverage.ts のタイル検査が通っている)。「再現」= その領域が **byte 完全一致**したもの。
+
+| | schema 4 / 7b renderer | schema 4 / 7c renderer | |
+|---|---:|---:|---|
+| 再現できたバイト | 21,389,581 | **21,919,956** | +530,375 |
+| 再現率 | 97.099% | **99.506%** | +2.407 pt |
+| byte 完全一致したページ | 170 / 348 | **304 / 348** | +134 |
+| 生成側が出したバイト (母数の範囲) | 22,002,135 | **22,028,728** | doc-gen4 と**同数**になった |
+| `docstring` 領域一致 | 2,502 / 2,646 | **2,646 / 2,646** | |
+| `mod_doc` 領域一致 | 1,121 / 1,232 | **1,232 / 1,232** | |
+| `members` 領域一致 | 34 / 36 | **36 / 36** | |
+| `decl_header` 領域一致 | 3,477 / 3,477 | 3,477 / 3,477 | |
+| 差が rev にしか無いページ | 203 / 348 | **348 / 348** | |
+
+ログ: `stage7c-coverage.txt` (7c) / `stage7c-coverage-stage7b-control.txt` (同一セッションの 7b)。
+
+**99.506% は到達上限**である。doc-gen4 の参照ツリー自身が 2 つの git revision を持ち
+(`573793b243fb…` が 3,285 href、`5e38aecd1e08…` が 540 href)、`--source-url` は 1 本しか
+渡せないので、どんな設定でも 540 本は一致しない。**残っているのはそれだけ。**
+
+### 原因別の未再現バイト
+
+| 原因 | 7b renderer | 母数比 | 7c renderer | 母数比 | 領域数 |
+|---|---:|---:|---:|---:|---:|
+| **docstring の autolink 索引が IR に無い** | **410,114** | 1.862% | **0** | 0% | 210 → 0 |
+| **CommonMark 未実装** | **120,261** | 0.546% | **0** | 0% | 47 → 0 |
+| 設定値 (rev) — IR に無い | 108,772 | 0.494% | 108,772 | 0.494% | 540 |
+| **合計** | **639,147** | 2.901% | **108,772** | **0.494%** | |
+
+*7b 側の autolink 410,114 は prose 領域 401,987 + members 領域 8,127 (段階 7b の
+`stage7b-member-check.txt` §B で帰属し直した分)。7c ではその 2 領域も byte 一致した。*
+
+ログ: `stage7c-coverage-breakdown.txt` (§X1 原因×領域、§X2 ページ別)。
+
+### 残った 540 領域のラベルを中身で確認した
+
+`coverage.ts` は原因を**規則で**振る。段階 7b でその規則が前提を失った例が出ている
+(members の不一致を全部「メンバのデータ欠落」に入れる規則が、実際には autolink だった)。
+なので**最後に残ったラベルは中身を読んで確かめた** (`stage7c-rev-check.txt`):
+
+| | |
+|---|---:|
+| `/blob/<40 hex>/` を含む href の比較 | 3,825 |
+| 一致しなかったもののうち **rev だけが違う** | **540** |
+| それ以外 | **0** |
+| rev を伏せると byte 完全一致するページ | 42 (+ 完全一致 304) |
+
+**ラベルは正しい。** ページ単位でも 348 / 348 が「rev を伏せれば一致」に入る。
+
+### coverage.ts に見えていない差が 2 ページある (段階 7b から変わっていない)
+
+`coverage.ts` は領域を**宣言名で**対応付けるので、**同じ集合の並べ替えは一致と数える**。
+rev を伏せても byte 一致しないページが 2 枚あり、どちらも宣言の並び順だけが違う:
+
+| module | 宣言 | 最初にずれる位置 |
+|---|---:|---|
+| InformationTheory.Polymatroid.Basic | 3 | #1 (生成側 `…Polymatroid.ext_iff` / doc-gen4 `…Polymatroid.ext`) |
+| InformationTheory.Shannon.EntropyPower.Ext | 12 | #0 (生成側 `…differentialEntropyExt` / doc-gen4 `…differentialEntropyExt_def`) |
+
+**段階 7b のページでも同じ 2 枚**なので段階 7c が作った差ではない (同じ検査を
+`pages-7b` に当てて確認: 並び順だけの差 2、それ以外 145 → 7c では 0)。doc-gen4 の
+`qsort` が不安定で、宣言範囲の開始が同じ 2 本の順序が決まらないケース。
+**再現率には出ないが byte は違う** — 99.506% の中に 2 ページ分の見えない差がある。
+
+ログ: `stage7c-rev-check.txt`。
+
+## 2. autolink 索引 — §8「依存パッケージの写像をどう配布するか」に直結する 3 数字
+
+doc-gen4 の `nameToLink?` は環境全体 (`name2ModIdx`) を引く。IR にはそれが無く、
+`deps/` は署名が参照した名前だけ (115,749 B)。足したのは
+**依存クロージャ全体の「名前 → モジュール」索引**で、ローカルの doc-gen4 出力
+`declarations/declaration-data.bmp` (37,481,374 B) から導いた。
+
+**前提 (未検証)**: これは「上流パッケージの公開ドキュメントサイトから同じファイルが
+手に入る」ことを前提にした実装である。**手に入るか / バージョン対応が取れるかは
+未検証** (approach.md §8)。ローカル出力から作っているのは計測のためであって、
+**配布方式を決めたわけではない。**
+
+| | |
+|---|---:|
+| 索引の中身 | 宣言 **258,760** / 出現モジュール 5,775 / モジュール名 6,115 |
+| docLink が解釈できず落とした宣言 | 0 |
+| **(a) 実サイズ — `.lidx` (グループ化テキスト)** | **8,508,273 B** (gzip **1,332,647 B**) |
+| 同 — `.json` (`modules[]` + `declarations{}`) | 9,990,592 B (gzip 1,389,168 B) |
+| **(b) 索引を作る時間** (bmp 読み + `JSON.parse` + 組み立て + 書き出し) | **0.4152 s** |
+| … 内訳 | read 0.0082 / parse 0.1763 / 組み立て 0.2152 / write 0.0271 |
+| … 各 run (秒、run 1 は cold) | 0.4972 / 0.4141 0.4227 0.4152 0.4413 0.4147 |
+| **(c) レンダラが索引を読む時間** (readTextFile + Map 化、プロセス起動ごと) | **0.0764 s** |
+
+**§5.3 が「下限 53 KB / 上限 34.3 MB」と 647 倍の幅で置いていた写像の実サイズは、
+実装すると 8.51 MB (gzip 1.33 MB)** — 上限の 1/4、下限の 160 倍。入力 bmp の 22.7%
+(gzip なら 3.6%)。**`kind` を落とし、モジュール名を 1 回だけ書く**分が効いている。
+
+ログ: `stage7c-build-link-index.txt` (6 回、run 1 を捨てて median)、
+`stage7c-render-timings.jsonl` の `seconds.linkIndex`。
+
+### アンカーの前後 (診断。オラクルは coverage.ts)
+
+doc-gen4 が出した 348 ページ上の宣言アンカーを多重集合で突き合わせた:
+
+| | 7b renderer | 7c renderer |
+|---|---:|---:|
+| doc-gen4 が出していてこちらが出していない | **297** (相異なる宛先 191) | **0** |
+| こちらが出していて doc-gen4 が出していない (過剰) | 4 | **0** |
+| 数は同じで href だけ違う | 9 | **0** |
+
+出せていなかった 191 の宛先は **191 / 191 が `declaration-data.bmp` にあった**。
+索引以外に 2 つ必要だったものがある:
+
+* **`isNameLit` が `'` `!` `?` を落としていた** — Lean の `isIdRest` はこの 3 つを
+  含むので、`Foo.bar'` 型の名前が名前リテラルとして拒否されていた (9 アンカー)。
+  `Init/Meta/Defs.lean:1180-1203` の `splitNameLitAux` を写した。
+* **モジュール内フォールバックの探索順** — `nameToLink?` は
+  `moduleInfo[…].members` (= 宣言範囲順、`shouldRender` では絞らない、private を除く)
+  を順に見る。7b は IR の並び順を渡していて、`sincN` 2 候補のうち別の方を選んでいた
+  (6 アンカー)。
+
+ログ: `stage7c-autolink-before.txt` / `stage7c-autolink-after.txt`。
+
+### 過剰リンクは増えていない
+
+索引は 258,760 件 = `known` の約 50 倍だが、**過剰アンカーは 4 → 0**。
+索引を `known` とは**別の Map** に置き、`nameToLink` が `known` → 索引の順に引くので、
+既に解決していたものは解決先が変わらない。署名側 (`Renderer.constLink`) は索引を
+一切引かない: `--out` の JSONL (宣言ごとの `decl_header`) が **stage7b と byte 一致**
+(23,353,796 B / 4,560 行、`stage7c-header-identity.txt`)。
+
+## 3. CommonMark — 7 規則、ablation で測った
+
+`Output/DocString.lean:393` のフラグは
+`MD_DIALECT_GITHUB ||| MD_FLAG_LATEXMATHSPANS ||| MD_FLAG_NOHTML`。
+**外部依存は足していない** (このリポジトリに TS の依存管理機構は無く、
+`docs/plans/three-axes.md` 事前決定 5 がネットワークを禁じている。npm/jsr の
+CommonMark 実装はどれも md4c と byte 一致しない)。
+
+どの規則がどれだけ効いたかは、**規則を 1 つずつ外して採点し直して**測った:
+
+| 外した規則 | 落ちるバイト | 壊れる領域 |
+|---|---:|---:|
+| lazy continuation (字下げ不足の行が段落の続き) | 49,663 | 23 |
+| 項目境界 (字下げ不足の**リストマーカー**は項目を閉じる) | 46,595 | 18 |
+| loose list (項目間の空行 → `<li><p>`) | 43,822 | 11 |
+| indented code block (4 桁下げ → `<pre><code>`) | 39,712 | 13 |
+| nested list (項目の中の字下げ → `<ul>` 入れ子) | 25,116 | 7 |
+| 順序付きリストが段落を割れるのは `1.` のときだけ | 5,663 | 2 |
+| `_` の強調 (md4c の flanking 判定つき) | 532 | 1 |
+| 7 つ全部 | 147,160 | 52 |
+
+**合計は 47 にならない** — 1 領域が 2 つ以上の規則を要求するので、各行は分割ではなく
+「その規則だけを外したときに壊れる領域」。7 つ全部を外した 52 / 147,160 が 7b の
+47 / 120,261 より悪いのは、ブロック構造の入れ物は残っていて 7b の素朴なレンダラに
+戻るわけではないため。**この行は「7 規則の合計効果」であって「7b との差」ではない。**
+
+ログ: `stage7c-commonmark-ablation.txt`、閉じる前の 47 領域は
+`stage7c-md-diff-before.txt` (markdown 原文つき)。
+
+**この対象が使っていない構文は実装していない** — doc-gen4 の 348 ページに
+`<table>` / `<del>` / `<br>` / task list checkbox は **0 個** (実測)。
+参照リンク・画像・permissive autolink も同様。使う対象が来たら
+`coverage.ts` がその領域を落とすので、黙って近似することにはならない。
+
+## 4. 時間 — §6.6 の「+0.36 秒」は当たったか
+
+§6.6 の外挿:
+
+> 未実装のうち重いのは CommonMark と docstring の autolink 索引で、いま docstring
+> 描画は 0.178 秒 = 壁時計の 21.6% (実測)。本物の CommonMark がこの項を **3 倍**に
+> しても **+0.36 秒**、合計 **1.2 秒前後**
+
+**外れた。向きごと外れた。** 同一セッション・同一 IR・warm、runs 2-11 の median (秒):
+
+| phase | stage7b | **stage7c** | stage7c (索引なし) |
+|---|---:|---:|---:|
+| preMain | 0.0018 | 0.0020 | 0.0020 |
+| readIr | 0.1323 | 0.1334 | 0.1332 |
+| indexBuild | 0.0110 | 0.0107 | 0.0107 |
+| **linkIndex** | — | **0.0764** | — |
+| renderHeaders | 0.2194 | 0.2212 | 0.2214 |
+| renderPage | 0.2560 | 0.2384 | 0.2359 |
+| flatten | 0.0487 | 0.0536 | 0.0540 |
+| write | 0.1457 | 0.1443 | 0.1450 |
+| **… うち docstring 描画** (renderPage の内数) | **0.1809** | **0.1616** | **0.1595** |
+| **total** | **0.8204** | **0.8852** | **0.8063** |
+
+各 run (warm、ラウンド 1 を捨てた 10 本、昇順):
+
+```
+total      stage7b  0.8067 0.8087 0.8136 0.8139 0.8171 0.8237 0.8237 0.8259 0.8437 0.8905
+           stage7c  0.8763 0.8797 0.8799 0.8811 0.8832 0.8871 0.8871 0.9019 0.9042 0.9158
+           noidx    0.7872 0.7943 0.7991 0.7996 0.8053 0.8072 0.8323 0.8552 0.8916 0.8927
+docstring  stage7b  0.1779 0.1800 0.1801 0.1802 0.1808 0.1811 0.1812 0.1814 0.1839 0.1908
+           stage7c  0.1604 0.1605 0.1607 0.1608 0.1615 0.1616 0.1617 0.1631 0.1632 0.1639
+linkIndex  stage7c  0.0749 0.0754 0.0760 0.0763 0.0763 0.0764 0.0789 0.0801 0.0808 0.0825
+```
+
+`total` の範囲はほぼ重ならない (7b の最大 0.8905 と 7c の最小 0.8763 が端でかすめる
+だけ)。**docstring と linkIndex は完全に分離している。**
+
+* **docstring 項は 3 倍にならず 0.89 倍になった** (0.1809 → 0.1616 s、**−10.7%**、
+  範囲は重ならない)。本物の CommonMark のほうが素朴な近似より**速い**。7b の
+  ブロックループは行ごとに正規表現を試し、fence の中では `new RegExp` を毎行
+  組み立てていた。7c は前もってコンパイルした正規表現と 1 パスの block parser。
+  **この因果は分離して計測していない** — 分離できているのは
+  「項が 0.1809 → 0.1616 になった」まで。
+* **合計は +0.0648 s** (0.8204 → 0.8852)。**その増分は全部 autolink 索引の読み込み**
+  (+0.0764) で、renderPage が −0.0176 押し返している。索引を渡さない構成は
+  **0.8063 s = stage7b より 0.0141 s 速い**。`write` は 7b 0.1457 / 7c 0.1443 で
+  差が無い — ページは 33,762 code unit 大きいが、その分は計測できていない。
+* 予測 1.2 秒に対し実測 **0.885 秒**。**§6.3 の結論は動かない** — warm の合計は
+  14.08 + 0.80 = 14.89 s から 14.08 + 0.89 = **14.97 s** になるだけ。
+  **§6.6 の見積もりは 5.6 倍保守的だった** (+0.36 s 予測 / +0.0648 s 実測)。
+  ただし**中身も違う**: 実測の増分は CommonMark ではなく、§6.6 が数えていなかった
+  「索引ファイルを読む」という別の仕事である。CommonMark 単体の寄与は **負**。
+
+### 外側から測った壁時計・CPU・peak RSS (runs 2-7 の median)
+
+| | stage7b | stage7c |
+|---|---:|---:|
+| real | 0.85 s | **0.93 s** |
+| user + sys | 1.03 + 0.12 | **1.16 + 0.14** |
+| **peak RSS** | 222,674,944 B | **288,555,008 B** (+66 MB, +29.6%) |
+
+(7 ラウンド、runs 2-7 の median。in-process の 11 ラウンドとは別の計測。)
+
+**索引の代償は時間よりメモリ**。258,760 エントリの Map と 8.5 MB のテキストで
++66 MB。1 プロセス 288 MB なので 16 GB 機では問題にならないが、
+**並列度を上げるときはここが効く** (このワークロードは CPU ではなくメモリ律速)。
+
+ログ: `stage7c-render-timings.jsonl` / `stage7c-render-wall.txt`。
+
+## 5. 出力バイト
+
+| | stage7b | stage7c |
+|---|---:|---:|
+| 出力ページ | 432 ファイル | 432 ファイル |
+| 合計バイト | 29,706,705 | **29,740,469** (+33,764) |
+| code unit | 29,486,029 | 29,519,791 |
+
+## 6. 検査
+
+| 検査 | 結果 | ログ |
+|---|---|---|
+| IR の不変条件 (span の範囲・入れ子・trim、schema 4 のキー) | OK | `stage7c-checkspans.txt` |
+| `--pages` が増分の数字を動かさない (stage4c README の 3 点) | **3/3 PASS** | `stage7c-pitfall-recheck.txt` |
+| `decl_header` の JSONL が stage7b と byte 一致 | **PASS** (23,353,796 B / 4,560 行) | `stage7c-header-identity.txt` |
+| タイル検査 (領域合計 = 22,028,728 B、切れなかったページ 0) | OK | `stage7c-coverage.txt` |
+| メンバのマークアップの割合検算 | 6/6 一致、未帰属 0 B | `stage7c-member-check.txt` |
+| instance 索引 vs `declaration-data.bmp` | 56/56 双方向 | `stage7c-instance-check.txt` |
+| 残った未再現領域のラベルを中身で確認 | 540/540 が rev のみ | `stage7c-rev-check.txt` |
+| docstring の未再現領域 | 0 領域 / 0 B | `md-diff.ts` (`0 regions, 0 bytes`) |
+
+## 7. まだ言えないこと
+
+* **索引の配布方式は決まっていない** (§8)。上流の公開サイトから同じファイルが
+  取れるかは未検証で、取れないなら生成側で作ることになる。ここで測ったのは
+  「ローカルの doc-gen4 出力から作った場合の 3 数字」だけ。
+* **索引は doc-gen4 の出力の写しなので、doc-gen4 がリンクして索引に無い名前は
+  出せない。** この対象では 0 件だったが、`name2ModIdx` は環境の全定数を持つのに
+  `declaration-data.bmp` は**ページに出る宣言だけ**なので、一般には差がありうる
+  (§5.3 が「dead link 実測 3 本」と書いているのがその向き)。
+* **CommonMark は md4c の部分集合**。tables / strikethrough / task list /
+  hard break / 参照リンク / 画像 / permissive autolink は無い。
+  この対象が 1 つも使っていないことは確認済み (実測) だが、**別の対象では落ちる**。
+* **2 ページの並び順の差は残っている** (上記 §1)。`coverage.ts` の対応付けが
+  位置ではなく名前なので再現率には出ない。直すには doc-gen4 の `qsort` が
+  同着をどう並べるかを決める必要がある (§8 の「所有モジュール」とは別問題)。
+
+## 8. 再現手順
+
+```sh
+W=/private/tmp/lean-doc-relay/w7c
+IR=<段階 7b の schema-4 IR>      # 抽出器は 7b から変えていない
+URL=https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec
+
+# (1) autolink 索引を作る
+deno run --allow-read --allow-write --allow-env experiments/stage7c/build-link-index.ts \
+  --out $W/linkindex --repeat 6 --report <OUT>
+
+# (2) 生成 — 採点用は必ず具体的な rev を埋めた --source-url で描く
+deno run --allow-read --allow-write --allow-env experiments/stage7c/render.ts \
+  --ir $IR --pages $W/pages --source-url "$URL" \
+  --link-index $W/linkindex/link-index.lidx --stats <OUT>
+
+# (3) 採点 (オラクルは stage4c のまま、1 行も変えない)
+deno run --allow-read --allow-write --allow-env experiments/stage4c/coverage.ts \
+  --pages $W/pages --report <OUT>
+deno run --allow-read --allow-write --allow-env benchmarks/tools/coverage-breakdown.ts \
+  --pages $W/pages --report <OUT>
+
+# (4) 診断 (オラクルではない)
+deno run --allow-read --allow-write --allow-env experiments/stage7c/autolink-check.ts --pages $W/pages
+deno run --allow-read --allow-write --allow-env experiments/stage7c/md-diff.ts --pages $W/pages --ir $IR
+deno run --allow-read --allow-write --allow-env experiments/stage7c/rev-check.ts  --pages $W/pages
+deno run --allow-read --allow-write --allow-env experiments/stage7c/member-check.ts --pages $W/pages
+deno run --allow-read --allow-write --allow-env experiments/stage7c/instance-check.ts --ir $IR
+deno run --allow-read experiments/stage7c/check-spans.ts --ir $IR
+
+# (5) CommonMark の ablation (ページは意図的に間違っている。点数だけ読む)
+deno run … experiments/stage7c/render.ts … --md-no-indented-code      # 他 6 つも同様
+```

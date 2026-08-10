@@ -1,0 +1,23 @@
+# stage7c — instance 索引を doc-gen4 の declaration-data.bmp と突き合わせる (実測)
+
+ir           /private/tmp/lean-doc-relay/w7b/ir4
+bmp          /Users/haruka/dev/lean-projects/.lake/build/doc/declarations/declaration-data.bmp
+date         2026-08-10T16:07:55Z
+
+この索引はモジュールページに 1 バイトも出ない (ブラウザが bmp から埋める)。
+`coverage.ts` では検証できないので、doc-gen4 が書いた索引そのものと比べる。
+
+| | |
+|---|---:|
+| IR の宣言 | 4,750 |
+| … kind = instance | 91 |
+| … doc-gen4 がページを出したモジュールにあるもの (採点対象) | 56 |
+| … doc-gen4 がページを出していない 84 モジュールにあるもの (対象外) | 35 |
+| 対象のうち doc-gen4 の `instances` に出てこないもの | 0 |
+| 順方向: (name, className) が bmp にある | 56 / 56 |
+| 順方向: (name, typeName) が bmp にある | 56 |
+| 逆方向: bmp の `instances` 行が IR と一致 | 56 |
+| 逆方向: bmp の `instancesFor` 行が IR と一致 | 56 |
+
+**食い違い 0**。両方向で一致した。
+

@@ -1,0 +1,16 @@
+# stage7c — decl_header 経路が stage7b と byte 一致することの確認 (実測)
+
+date       2026-08-10T16:13:29Z
+ir         /private/tmp/lean-doc-relay/w7b/ir4 (schema 4、stage7b と同じ)
+7b         experiments/stage7b/render.ts --out
+7c         experiments/stage7c/render.ts --link-index … --out
+
+段階 7c が触ったのは docstring の経路だけで、署名 (`decl_header`) の経路は
+1 バイトも動いていないはずである。--out の JSONL (宣言ごとの decl_header HTML)
+を両方で書いて cmp した:
+
+    PASS  cmp に差なし。23353796 バイト / 4560 行
+
+`--link-index` を渡しても decl_header は変わらない — 索引は `nameToLink`
+(docstring 側) からしか引かれず、`Renderer.constLink` は従来どおり `refs` →
+`known` の順で解決するため。
