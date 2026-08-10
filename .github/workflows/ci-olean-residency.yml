@@ -1,0 +1,144 @@
+# Measures the one number the CI axis is missing: right after `lake exe cache get`
+# extracts Mathlib's oleans on `ubuntu-latest`, how much of them is resident in the
+# page cache?
+#
+# WHY THIS CANNOT BE ANSWERED LOCALLY
+#   The macOS answer is "no" (measured, verification log, CI-residency section) and
+#   it is the *unfavourable* side, so it does not transfer: a refutation on one
+#   platform says nothing about another. What decides the answer is (a) whether
+#   extraction leaves written pages in cache and (b) whether the runner has enough
+#   RAM to keep ~5-6 GB of oleans there. (b) is a property of the runner, so a local
+#   Linux VM would answer a different question.
+#
+# WHY IT IS `workflow_dispatch` ONLY
+#   It is a measurement, not a check. It must never run on a push, and it must never
+#   run without someone deciding to spend the minutes. `approach.md` §8 keeps the
+#   open question; this workflow is what closes it when triggered.
+#
+# WHAT IT DELIBERATELY DOES NOT DO
+#   It does not build the extractor and does not measure the prefetch effect. The
+#   primary sub-question — "is it warm straight after `cache get`" — needs neither,
+#   and adding them would make the run long enough that the answer to the cheap
+#   question would be held hostage to the expensive one.
+name: CI olean residency (measurement)
+
+on:
+  workflow_dispatch:
+    inputs:
+      snapshots:
+        description: "extra residency snapshots after the first (to see drift)"
+        required: false
+        default: "2"
+
+jobs:
+  residency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out lean-doc (the measurement tools)
+        uses: actions/checkout@v5
+        with:
+          path: lean-doc
+
+      - name: Check out the measurement target (public)
+        uses: actions/checkout@v5
+        with:
+          repository: FujiHaruka/information-theory
+          path: target
+
+      - name: Record the machine, before anything is downloaded
+        run: |
+          {
+            echo "## runner"
+            echo "date        $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "kernel      $(uname -srm)"
+            echo "nproc       $(nproc)"
+            echo "pagesize    $(getconf PAGESIZE)"
+            echo "runner      ${RUNNER_OS} / ${RUNNER_ARCH} / image ${ImageOS:-?} ${ImageVersion:-?}"
+            echo
+            echo "## /proc/meminfo (the number that decides whether 5-6 GB can stay resident)"
+            grep -E '^(MemTotal|MemFree|MemAvailable|Cached|Buffers|SwapTotal)' /proc/meminfo
+            echo
+            echo "## df"
+            df -h / /home 2>/dev/null || df -h /
+            echo
+            echo "## toolchain requested by the target"
+            cat target/lean-toolchain
+          } | tee env-before.txt
+
+      - name: Install elan at the target's pinned toolchain
+        run: |
+          curl -sSfL https://github.com/leanprover/elan/releases/latest/download/elan-x86_64-unknown-linux-gnu.tar.gz \
+            | tar xz
+          ./elan-init -y --default-toolchain "$(cat target/lean-toolchain)"
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Build the residency probe
+        run: |
+          cc -O2 -o olean-residency lean-doc/benchmarks/tools/olean-residency.c
+          ./olean-residency < /dev/null && echo "probe runs"
+
+      - name: Snapshot residency BEFORE the cache is fetched (the zero point)
+        run: |
+          find target -name '*.olean*' 2>/dev/null | sort > olean-paths-before.txt
+          wc -l < olean-paths-before.txt
+          ./olean-residency < olean-paths-before.txt > residency-0.jsonl || true
+          wc -l < residency-0.jsonl || true
+
+      # The measured step. Nothing may run between this and the snapshot below —
+      # that is the whole design of the experiment.
+      - name: lake exe cache get
+        working-directory: target
+        run: |
+          /usr/bin/time -v lake exe cache get 2>&1 | tail -30
+
+      - name: Snapshot residency IMMEDIATELY after cache get
+        run: |
+          find target -name '*.olean*' | sort > olean-paths.txt
+          echo "olean files: $(wc -l < olean-paths.txt)"
+          ./olean-residency < olean-paths.txt > residency-1.jsonl
+          grep -E '^(MemTotal|MemFree|MemAvailable|Cached|Buffers)' /proc/meminfo > meminfo-after-cache-get.txt
+          cat meminfo-after-cache-get.txt
+
+      - name: Extra snapshots, to see whether residency drifts on an idle runner
+        run: |
+          n='${{ github.event.inputs.snapshots }}'
+          n=${n:-2}
+          for i in $(seq 1 "$n"); do
+            sleep 20
+            ./olean-residency < olean-paths.txt > "residency-drift-$i.jsonl"
+            echo "drift snapshot $i taken"
+          done
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Summarise with the same tool the macOS numbers were taken with
+        run: |
+          S=lean-doc/benchmarks/tools/summarize-residency.ts
+          {
+            echo "## residency straight after 'lake exe cache get'"
+            deno run --allow-read "$S" residency-1.jsonl
+            echo
+            echo "## by extension"
+            deno run --allow-read "$S" residency-1.jsonl --by-ext
+            echo
+            for f in residency-drift-*.jsonl; do
+              [ -e "$f" ] || continue
+              echo "## $f"
+              deno run --allow-read "$S" "$f"
+              echo
+            done
+          } | tee residency-summary.txt
+
+      - name: Upload the raw logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-olean-residency
+          path: |
+            env-before.txt
+            meminfo-after-cache-get.txt
+            residency-*.jsonl
+            residency-summary.txt
+            olean-paths.txt
