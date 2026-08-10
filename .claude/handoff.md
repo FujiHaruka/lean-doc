@@ -16,6 +16,13 @@
 - Stop-on: completion | user-decision | no-progress×2 | leg-cap
 - Progress ledger:
   - (r0) 前ゴール完遂ぶん: 段階 6a〜6d + CI 軸。`a68f205`〜`9c45073`、push 済み。
+  - r1 (進行中): **7f 完了** — Linux の `importModules` を実測、**CI の床は配置で決まる**
+    (同ジョブ 2.61s / 別ジョブ 63〜71s、24〜27 倍)。§7 の CI 行を ◐ → ✅。
+    **7a 完了** — IR schema 3 (`splitWhitespaces`) + schema 4 (属性・instance 索引・メンバ)。
+    再現率 **63.587% → 96.506% → 97.099%**、完全一致ページ **34 → 170**。§6.1 の
+    「完成品の値として引用しない」留保を外し、倍率を **76× / 約 2,190×** に更新。
+    `8160199`〜`2755e58` push 済み。**走行中**: 生成側 (CommonMark + autolink 索引、
+    到達上限 99.506% を狙う) と CI 先読み run `31403402584`。
 
 ## State
 
