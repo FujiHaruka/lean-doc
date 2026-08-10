@@ -7,8 +7,15 @@
 # measures the *incremental path*, not a new extractor. Re-extracting one module
 # is the same binary with a one-line module list.
 #
+# `--serve-dir` (stage 6a) swaps the one process for a request to a resident one
+# started by `stage6a/serve-ctl.sh`. It is here rather than in `incremental.sh` on
+# purpose: the events -> timings conversion below then applies to *both* paths
+# unchanged, so the two are numerically comparable, which is the whole point of
+# the comparison. With the flag absent nothing about this script changes.
+#
 # usage:
 #   extract-once.sh --modules <list> --ir-dir <dir> --timings <path> [--events <path>]
+#                   [--serve-dir <server dir>]
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,13 +24,14 @@ source "$HERE/../../benchmarks/tools/env.sh"
 LAKE="${LAKE:-$HOME/.elan/bin/lake}"
 BIN="$HERE/../stage4b/build/extract"
 
-MODULES=""; IRDIR=""; TIMINGS=""; EVENTS=""
+MODULES=""; IRDIR=""; TIMINGS=""; EVENTS=""; SERVEDIR=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --modules) MODULES="$2"; shift 2 ;;
     --ir-dir) IRDIR="$2"; shift 2 ;;
     --timings) TIMINGS="$2"; shift 2 ;;
     --events) EVENTS="$2"; shift 2 ;;
+    --serve-dir) SERVEDIR="$2"; shift 2 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
@@ -37,9 +45,16 @@ EVENTS="${EVENTS:-${TIMINGS%.json}-events.jsonl}"
 rm -f "$EVENTS"
 mkdir -p "$IRDIR"
 
-cd "$TARGET_REPO"
-"$LAKE" env "$BIN" "$MODULES" "$EVENTS" \
-  --equations --refs --write-ir --tagged-code --ir-dir "$IRDIR" > /dev/null
+if [ -n "$SERVEDIR" ]; then
+  # The resident path. `--serve`'s reply carries its own nanosecond timer, but the
+  # authority here is the same wall clock the one-shot path is measured with, so
+  # the reply is only echoed.
+  "$HERE/../stage6a/serve-ctl.sh" request "$SERVEDIR" "$MODULES" "$EVENTS" "$IRDIR"
+else
+  cd "$TARGET_REPO"
+  "$LAKE" env "$BIN" "$MODULES" "$EVENTS" \
+    --equations --refs --write-ir --tagged-code --ir-dir "$IRDIR" > /dev/null
+fi
 
 python3 - "$EVENTS" "$TIMINGS" "$MODULES" <<'PY'
 import json, sys

@@ -1,13 +1,16 @@
 # Handoff — 2026-08-10 (7)
 
 ## Relay control
-- Mode: DONE
-- Goal: handoff (6) の「次にやるなら」1〜5 を全部完遂する
+- Mode: ON
+- Goal: handoff (7) の「次にやるなら」1〜5 を全部完遂する
+  (1 常駐を incremental.sh に配線 / 2 プレビューモード / 3 revision 非埋め込み /
+   4 ubuntu-latest cold 常駐率 / 5 L3-1 の一般性)
 - Leg: 1 / cap 8
 - Predecessor: none
-- Stop-on: completion
+- Stop-on: completion | user-decision | no-progress×2 | leg-cap
 - Progress ledger:
-  - r1: 1〜5 を全部完遂 + approach.md 圧縮。`0b68b7e`→`21b2578` 系列、全部 push 済み
+  - (前ラウンド, 別ゴール) handoff (6) の 1〜5 完遂 + approach.md 圧縮 → `21b2578`
+  - r1: (進行中)
 
 ## State
 

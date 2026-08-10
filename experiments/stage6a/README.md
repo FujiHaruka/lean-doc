@@ -57,11 +57,19 @@ per-edit number. Q is the honest alternative: correct by construction, but its
 
 | # | proposition | prediction |
 |---|---|---|
+| **W0** | Server **P** survives the `lake build` that rewrites oleans it has already imported, and still answers requests afterwards. | uncertain — the environment's olean data is `mmap`ed, so whether a rebuild is survivable depends on whether Lake replaces files by rename (old inode stays alive, safe) or writes in place (torn pages). **This is a prerequisite for testing W1 through P, and a result either way**: a long-lived preview server that cannot outlive a build is a much weaker thing than one that can |
 | **W1** | For an L3-1 round-2 module, the IR that server **P** returns is **not** byte-equal to a fresh post-build process's IR for the same module. | **true** — the differing bytes are the `refs` owner column |
 | **W2** | Wiring P into rounds 2+ therefore makes the assembled site **wrong**: its page tree differs from REFERENCE, and it differs **in the same page** the `--l3-1 off` variant of stage 5e got wrong. | true |
 | **W3** | Server **Q** serves rounds 2+ with IR byte-equal to a fresh process's, and the assembled site is byte-equal to REFERENCE (433/433). | true |
 | **W4** | With Q started inside the run, the two-round case is **slower** than the current fresh-process-per-round pipeline: Q's startup (≈6.3 s) exceeds the ≈3 s of round-2 environment load it removes. | true — a net loss |
 | **W5** | Stage 5h's ≈5.06 s is therefore **not reachable** by either server: P is incorrect and Q is slower. | true |
+
+**The two servers are started and stopped in sequence, never together.** The
+extractor's peak RSS is 3.27–3.37 GB (verification log, stage 5 §(b)) on a 16 GB
+machine, and this workload is memory-bound rather than CPU-bound. Two residents
+plus a fresh extraction process would be ~10 GB and any paging would land in the
+timings. `fresh` is therefore measured **once per phase**, and the two `fresh`
+medians are a check that the phases are comparable at all.
 
 **Retreat lines.**
 

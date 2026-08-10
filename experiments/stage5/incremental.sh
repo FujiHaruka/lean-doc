@@ -51,10 +51,23 @@
 #   really edited and `lake build` really runs.
 #
 # usage:
+# RESIDENCY (stage 6a)
+#   `--serve-dir <d>` sends the extraction of rounds >= `--serve-from` (default 2)
+#   to a resident extractor instead of starting a process. Round 1 is deliberately
+#   never served by default: its modules are the ones whose oleans just moved.
+#   **Whether rounds 2+ may be served depends on the server's olean generation,
+#   which this script cannot check** — a server imported before the edit still
+#   holds the old owner for every name that moved, and the owner column is exactly
+#   what L3-1 re-extracts to repair (`ownership.ts:8-20`, `Extract.lean:1352`).
+#   Stage 6a measures what that costs in bytes; the flag exists to make both
+#   variants runnable through the same pipeline.
+#
+# usage:
 #   incremental.sh --module M --ir <live ir> --pages <live pages> --ledger <file>
 #                  --work <dir> --mode self|referrers|importers|all
 #                  [--source-url <u>] [--modules <list>] [--l3-1 on|off]
 #                  [--max-rounds N] [--timings <p>]
+#                  [--serve-dir <d>] [--serve-from N]
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -65,9 +78,11 @@ LD="$(cd "$HERE/../.." && pwd)"
 SOURCE_URL="https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec"
 
 MODULE=""; IR=""; PAGES=""; LEDGER=""; WORK=""; MODE=self; TIMINGS=""; MODULES=""
-L31=on; MAXROUNDS=5
+L31=on; MAXROUNDS=5; SERVEDIR=""; SERVEFROM=2
 while [ $# -gt 0 ]; do
   case "$1" in
+    --serve-dir) SERVEDIR="$2"; shift 2 ;;
+    --serve-from) SERVEFROM="$2"; shift 2 ;;
     --source-url) SOURCE_URL="$2"; shift 2 ;;
     --module) MODULE="$2"; shift 2 ;;
     --ir) IR="$2"; shift 2 ;;
@@ -143,10 +158,16 @@ while [ "$(grep -c . "$ROUND_IN" || true)" -gt 0 ] || \
   NIN=$(grep -c . "$ROUND_IN" || true)
 
   if [ "$NIN" -gt 0 ]; then
+    SERVE_ARG=()
+    if [ -n "$SERVEDIR" ] && [ "$ROUNDS" -ge "$SERVEFROM" ]; then
+      SERVE_ARG=(--serve-dir "$SERVEDIR")
+      echo "  round $ROUNDS: served by the resident extractor at $SERVEDIR" >&2
+    fi
     A=$(now)
     "$HERE/extract-once.sh" --modules "$ROUND_IN" --ir-dir "$INCIR" \
       --timings "$WORK/extract-timings-$ROUNDS.json" \
-      --events "$WORK/extract-events-$ROUNDS.jsonl"
+      --events "$WORK/extract-events-$ROUNDS.jsonl" \
+      ${SERVE_ARG[@]+"${SERVE_ARG[@]}"}
     EXTRACT_S=$(add_s "$EXTRACT_S" "$(python3 -c "print($(now) - $A)")")
   fi
 
@@ -255,13 +276,19 @@ T6=$(now)
 NPAGES=$(grep -c . "$RENDERSET" || true)
 python3 - "$TIMINGS" "$T0" "$T1" "$T2" "$T3" "$T4" "$T5" "$T6" \
   "$EXTRACT_S" "$OWN_S" "$MERGE_S" "$ROUNDS" "$NSTALE_TOTAL" \
-  "$NCHANGED" "$NREMOVED" "$NIRCHANGED" "$NGLOBAL" "$NPAGES" "$MODULE" "$MODE_EFF" "$L31" "$WORK" <<'PY'
+  "$NCHANGED" "$NREMOVED" "$NIRCHANGED" "$NGLOBAL" "$NPAGES" "$MODULE" "$MODE_EFF" "$L31" "$WORK" \
+  "$SERVEDIR" "$SERVEFROM" <<'PY'
 import json, sys, os, glob
 (out, t0, t1, t2, t3, t4, t5, t6, ex, ow, mg, rounds, nstale,
- nch, nrm, nir, nglob, npg, module, mode, l31, work) = sys.argv[1:]
+ nch, nrm, nir, nglob, npg, module, mode, l31, work, servedir, servefrom) = sys.argv[1:]
 t = [float(x) for x in (t0, t1, t2, t3, t4, t5, t6)]
 rec = {
     "module": module, "mode": mode, "l3_1": l31,
+    # Self-describing on purpose: a resident run and a fresh run are otherwise
+    # indistinguishable in the record, and stage 6a's whole result is the
+    # difference between them.
+    "serveDir": servedir or None,
+    "serveFrom": int(servefrom) if servedir else None,
     "detectSeconds": t[1] - t[0],
     "extractSeconds": float(ex),
     "ownershipSeconds": float(ow),
