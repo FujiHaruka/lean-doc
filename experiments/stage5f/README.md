@@ -63,3 +63,64 @@ Run inside the same APFS clone as stage 5e, reset to its pre-move state first.
 | `../stage5/prune-pages.ts` | the page third: delete removed modules' pages, report orphans |
 | `../stage5/merge-ir.ts --remove` | the IR third |
 | `run.sh` | F1–F5 against a from-scratch reference |
+
+---
+
+## Results (2026-08-10)
+
+**All numbers are 実測.** Source: `benchmarks/results/stage5f-deletion.txt`.
+Deleted: `InformationTheory.Shannon.Kolmogorov.OmegaNoncomputable` (52 declarations,
+imported only by the root, no referrers) — chosen from `impact.ts --census`.
+
+| # | prediction | result |
+|---|---|---|
+| F1 | true | **true** — `removed` names it, `changed` names the root |
+| F2 | true, 0 | **true** — 52 names folded into `lost`, **0** stale, 0.153 s |
+| F3 | true | **true** — 431 index entries both sides, module sets equal, module file gone, dependency maps equal (527 = 527) |
+| F4 | true | **true** — page gone, no orphan, directory sets equal to the from-scratch tree |
+| F5 | true | **refuted** — 431 pages, none missing or extra, but **1 differs** |
+
+**The deletion path itself works.** All three thirds — ledger, IR, pages — come
+out equal to a from-scratch build, including the emptied directory. Deletion
+cost 0.066 s of pruning inside a 4.909 s run.
+
+### F5, and why it is not a deletion bug
+
+The one differing page is `Shannon/LZ78/GreedyLongestPrefix.html`, which has
+nothing to do with the deleted module. The difference:
+
+```
+incremental:  <code>bAbsorbed = <a href=".../Mathlib/Data/Nat/Find.html#Nat.find">Nat.find</a></code>
+reference:    <code>bAbsorbed = Nat.find</code>
+```
+
+The **incremental tree has a link the from-scratch build does not**. The
+mechanism, traced end to end:
+
+1. The deleted module was the only one in the package that referenced `Nat.find`
+   (3 times, in printed signatures).
+2. So `Nat.find` was in the package's **global name → module map**, which is
+   assembled from the dependency slice. Deleting the module removed it, along
+   with 5 other names: the map went **533 → 527** entries.
+3. `GreedyLongestPrefix`'s *docstring* mentions `` `Nat.find` `` in backticks.
+   Autolink resolves backticked tokens against that global map, so before the
+   deletion it produced a link and after it does not.
+4. Nothing re-rendered that page: its own IR did not change and no rule points
+   at it. The stale link survives.
+
+This is exactly **§5.5's L3-2 (the global map)**, and this is a sharper
+demonstration of it than judgement point 3 had:
+
+* **The failure is bidirectional.** Judgement point 3 showed pages that should
+  have *gained* a link. This shows a page that should have *lost* one — a link
+  to an anchor that is no longer generated anywhere.
+* **The affected page is arbitrarily far away.** LZ78 does not import Kolmogorov,
+  is not imported by it, and shares no reference with it. Only the global map
+  connects them, which is what "does not close under imports" means.
+* **The delta is small and computable.** Six names left the map. The set of pages
+  that can possibly be affected is "pages whose docstrings mention one of those
+  six", which is a scan, not a guess — see stage 5g.
+
+**The retreat line declared before measuring said this outcome means "a finding
+about the output contract, not about deletion".** That is what it is, and it is
+recorded as such: F1–F4 are the deletion path and they hold.
