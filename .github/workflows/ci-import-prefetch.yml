@@ -1,0 +1,228 @@
+# Closes the last open item on the CI axis: does prefetching buy back the cold start
+# on Linux? (approach.md §8, item (a).)
+#
+# WHY IT IS STILL OPEN AFTER ci-import-modules.yml
+#   That run established the cold ceiling on `ubuntu-latest`: 63.4-70.6 s of
+#   `importModules` against 2.61 s when doc generation shares a job with `lake build`.
+#   Prefetch only matters in the split-job topology — but there the Linux cold penalty
+#   is 4.2-4.7x the macOS one, so it matters more there, not less.
+#
+# WHY THE MACOS RESULT DOES NOT TRANSFER
+#   macOS measured -49.0% with madvise/16 concurrent with extraction. `MADV_WILLNEED` is
+#   advisory and its synchronous/asynchronous behaviour differs between the two kernels,
+#   so the *choice of method* cannot be carried over — only the question.
+#
+# VARIANTS (definitions copied from benchmarks/tools/measure-prefetch.sh so the two are
+# comparable in shape; only the evictor differs — `drop_caches` here, olean-evict there)
+#   baseline    drop, run the extractor. The cold reference for this session.
+#   sequential  drop, prefetch to completion, then extract. Upper bound on the effect,
+#               and a wall clock that must be paid in full (prefetch + extract).
+#   overlapped  drop, start the prefetcher and the extractor at once. The actual play.
+#               It can LOSE to sequential: demand faults and the prefetcher contend.
+#   honesty     drop, prefetch, then measure residency with mincore. A prefetcher that
+#               finishes fast because the cache dropped its bytes is worse than useless,
+#               and only mincore separates the two.
+#
+# WHY `workflow_dispatch` ONLY
+#   It is a measurement, not a check.
+name: CI importModules prefetch (measurement)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: "commit of FujiHaruka/information-theory (must match it-modules.txt)"
+        required: false
+        default: "ca4fd931952b5e93045d210007bdd7e14c118d34"
+      reps:
+        description: "repetitions per variant"
+        required: false
+        default: "2"
+      jobs:
+        description: "prefetcher threads"
+        required: false
+        default: "16"
+
+jobs:
+  prefetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - name: Check out lean-doc (the measurement tools)
+        uses: actions/checkout@v5
+        with:
+          path: lean-doc
+
+      - name: Check out the measurement target (public), pinned
+        uses: actions/checkout@v5
+        with:
+          repository: FujiHaruka/information-theory
+          ref: ${{ github.event.inputs.target_ref }}
+          path: target
+
+      - name: Record the machine
+        run: |
+          {
+            echo "date        $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "kernel      $(uname -srm)"
+            echo "nproc       $(nproc)"
+            echo "pagesize    $(getconf PAGESIZE)"
+            echo "runner      ${RUNNER_OS} / ${RUNNER_ARCH} / image ${ImageOS:-?} ${ImageVersion:-?}"
+            echo "target_ref  $(git -C target rev-parse HEAD)"
+            echo "reps        ${{ github.event.inputs.reps }}   jobs ${{ github.event.inputs.jobs }}"
+            grep -E '^(MemTotal|SwapTotal)' /proc/meminfo
+            cat target/lean-toolchain
+          } | tee env-before.txt
+
+      - name: Install elan at the target's pinned toolchain
+        run: |
+          curl -sSfL https://github.com/leanprover/elan/releases/latest/download/elan-x86_64-unknown-linux-gnu.tar.gz \
+            | tar xz
+          ./elan-init -y --default-toolchain "$(cat target/lean-toolchain)"
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Build the probes
+        run: |
+          cc -O2 -o olean-residency lean-doc/benchmarks/tools/olean-residency.c
+          cc -O2 -pthread -o olean-prefetch lean-doc/benchmarks/tools/olean-prefetch.c
+          : | ./olean-prefetch -j 2 -m read 2>&1 | head -3
+
+      - name: lake exe cache get
+        working-directory: target
+        run: lake exe cache get 2>&1 | tail -5
+
+      - name: Build the extractor
+        env:
+          TARGET_REPO: ${{ github.workspace }}/target
+        run: lean-doc/experiments/stage4b/build.sh 2>&1 | tail -5
+
+      - name: lake build (the target's own 432 modules)
+        working-directory: target
+        run: /usr/bin/time -v lake build 2>&1 | tail -12
+
+      # The set to prefetch must be something an implementation could compute before the
+      # extractor starts. macOS used the import closure derived from .lean headers; if
+      # that script cannot run here, fall back to the blind set (every olean) and SAY SO
+      # in the log — the two are different claims.
+      - name: Build the prefetch file set (import closure, blind set as fallback)
+        env:
+          TARGET_REPO: ${{ github.workspace }}/target
+          LEAN_TOOLCHAIN_DIR: /home/runner/.elan/toolchains/leanprover--lean4---v4.31.0
+        run: |
+          find target -name '*.olean*' | sort > set-blind.txt
+          if python3 lean-doc/benchmarks/tools/import-closure.py \
+               lean-doc/benchmarks/results/it-modules.txt \
+               --olean-out set-closure.txt 2>closure.err; then
+            echo "SET=closure" | tee set-kind.txt
+            cp set-closure.txt set-prefetch.txt
+          else
+            echo "closure script failed; falling back to the blind set" >&2
+            cat closure.err >&2
+            echo "SET=blind (closure script failed — this is a DIFFERENT claim)" | tee set-kind.txt
+            cp set-blind.txt set-prefetch.txt
+          fi
+          echo "blind    $(wc -l < set-blind.txt) files"
+          echo "prefetch $(wc -l < set-prefetch.txt) files"
+
+      - name: Measure
+        env:
+          MODULES: ${{ github.workspace }}/lean-doc/benchmarks/results/it-modules.txt
+        run: |
+          set -u
+          W="$GITHUB_WORKSPACE"
+          EX="$W/lean-doc/experiments/stage4b/build/extract"
+          REPS='${{ github.event.inputs.reps }}'; REPS=${REPS:-2}
+          J='${{ github.event.inputs.jobs }}';    J=${J:-16}
+          drop() { sudo sh -c 'sync; echo 3 > /proc/sys/vm/drop_caches'; }
+          now_ms() { echo $(( $(date +%s%N) / 1000000 )); }
+          run_ex() {  # $1 = tag. The extractor's own phase log is the primary number.
+            ( cd target && lake env /usr/bin/time -v "$EX" "$MODULES" "$W/ex-$1.jsonl" ) \
+              > "$W/ex-$1.log" 2>&1
+          }
+          # The prefetcher writes its JSON to STDERR, so 2> is the capture, not >.
+          prefetch() { "$W/olean-prefetch" -j "$J" -m "$1" < "$W/set-prefetch.txt" 2> "$2"; }
+
+          for r in $(seq 1 "$REPS"); do
+            drop
+            s=$(now_ms); run_ex "baseline-$r"; e=$(now_ms)
+            echo "$(( e - s ))" > "$W/wall-baseline-$r.txt"
+            echo "baseline-$r done ($(( e - s )) ms)"
+
+            for M in read madvise; do
+              drop
+              s=$(now_ms)
+              prefetch "$M" "$W/pf-overlapped-$M-$r.json" &
+              pf=$!
+              run_ex "overlapped-$M-$r"
+              wait $pf || true
+              e=$(now_ms); echo "$(( e - s ))" > "$W/wall-overlapped-$M-$r.txt"
+              echo "overlapped-$M-$r done ($(( e - s )) ms)"
+            done
+
+            drop
+            s=$(now_ms)
+            prefetch madvise "$W/pf-sequential-$r.json"
+            run_ex "sequential-$r"
+            e=$(now_ms); echo "$(( e - s ))" > "$W/wall-sequential-$r.txt"
+            echo "sequential-$r done ($(( e - s )) ms)"
+          done
+
+          # Honesty check: after a prefetch and nothing else, is the set actually resident?
+          # A prefetcher that finishes fast because the cache dropped its bytes is worse
+          # than useless, and only mincore separates that from a real win.
+          for M in read madvise; do
+            drop
+            prefetch "$M" "$W/pf-honesty-$M.json"
+            "$W/olean-residency" < "$W/set-blind.txt" > "$W/residency-after-prefetch-$M.jsonl"
+            echo "honesty-$M done"
+          done
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Summarise
+        if: always()
+        run: |
+          W="$GITHUB_WORKSPACE"
+          {
+            cat env-before.txt; echo; cat set-kind.txt
+            echo "prefetch set: $(wc -l < set-prefetch.txt) files / blind: $(wc -l < set-blind.txt)"
+            echo
+            printf '%-26s %14s %14s %14s %12s\n' variant importModules_us total_us major_faults wall_ms
+            for f in "$W"/ex-*.jsonl; do
+              [ -e "$f" ] || continue
+              b=$(basename "$f" .jsonl); b=${b#ex-}
+              imp=$(grep -o '"phase":"[^"]*\.importModules","pid":[0-9]*,"us":[0-9]*' "$f" | grep -o '[0-9]*$')
+              tot=$(grep -o '"phase":"[^"]*\.total","pid":[0-9]*,"us":[0-9]*' "$f" | grep -o '[0-9]*$')
+              maj=$(grep -o 'Major (requiring I/O) page faults: [0-9]*' "$W/ex-$b.log" | grep -o '[0-9]*$')
+              wall=$(cat "$W/wall-$b.txt" 2>/dev/null | tr -d '\n')
+              printf '%-26s %14s %14s %14s %12s\n' "$b" "${imp:-?}" "${tot:-?}" "${maj:-?}" "${wall:-?}"
+            done
+            echo
+            echo "## prefetcher throughput (its own JSON)"
+            for f in "$W"/pf-*.json; do echo "$(basename "$f"): $(cat "$f")"; done
+            echo
+            echo "## honesty check — residency of ALL oleans after a prefetch and nothing else"
+            for M in read madvise; do
+              echo "### $M"
+              deno run --allow-read lean-doc/benchmarks/tools/summarize-residency.ts \
+                "$W/residency-after-prefetch-$M.jsonl" 2>&1 | tail -12 || true
+            done
+          } | tee prefetch-summary.txt
+
+      - name: Upload the raw logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-import-prefetch
+          path: |
+            env-before.txt
+            set-kind.txt
+            closure.err
+            ex-*.jsonl
+            ex-*.log
+            pf-*.json
+            wall-*.txt
+            residency-after-prefetch-*.jsonl
+            prefetch-summary.txt
