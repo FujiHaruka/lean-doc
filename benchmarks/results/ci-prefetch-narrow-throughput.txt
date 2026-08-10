@@ -1,0 +1,4 @@
+pf-closure-1.json: {"mode":"madvise","jobs":16,"files":17199,"bytes":4140732648,"elapsed_s":21.689,"mb_per_s":190.9,"failed":0}
+pf-closure-2.json: {"mode":"madvise","jobs":16,"files":17199,"bytes":4140732648,"elapsed_s":21.573,"mb_per_s":191.9,"failed":0}
+pf-oracle-1.json: {"mode":"madvise","jobs":16,"files":10439,"bytes":2530715582,"elapsed_s":13.730,"mb_per_s":184.3,"failed":0}
+pf-oracle-2.json: {"mode":"madvise","jobs":16,"files":10439,"bytes":2530715582,"elapsed_s":14.409,"mb_per_s":175.6,"failed":0}
