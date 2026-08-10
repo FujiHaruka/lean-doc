@@ -38,12 +38,16 @@
 // touched.
 //
 // usage:
-//   ownership.ts --base <base ir> --inc <inc ir> [--exclude <file>]
-//                [--print-set <path>] [--json <path>]
+//   ownership.ts --base <base ir> [--inc <inc ir>] [--removed <file>]
+//                [--exclude <file>] [--print-set <path>] [--json <path>]
 //
 //   --exclude <file>  modules already scheduled for re-extraction, one per
 //                     line; they are fresh by definition and are never
 //                     reported. Normally the changed-set file.
+//   --removed <file>  modules that no longer exist. Every name they defined is
+//                     lost, so this is the same computation as a move with an
+//                     empty "gained" side — deletion and relocation are one
+//                     mechanism, not two.
 
 const argv = Deno.args.slice();
 const opt = (name: string, dflt = "") => {
@@ -53,13 +57,14 @@ const opt = (name: string, dflt = "") => {
 
 const BASE = opt("--base");
 const INC = opt("--inc");
+const REMOVED = opt("--removed");
 const EXCLUDE = opt("--exclude");
 const PRINT_SET = opt("--print-set");
 const JSON_OUT = opt("--json");
-if (!BASE || !INC) {
+if (!BASE || (!INC && !REMOVED)) {
   console.error(
-    "usage: ownership.ts --base <base ir> --inc <inc ir> [--exclude <file>] " +
-      "[--print-set <path>] [--json <path>]",
+    "usage: ownership.ts --base <base ir> [--inc <inc ir>] [--removed <file>] " +
+      "[--exclude <file>] [--print-set <path>] [--json <path>]",
   );
   Deno.exit(2);
 }
@@ -95,8 +100,9 @@ async function readModule(dir: string, file: string): Promise<ModuleFile> {
 
 const baseEntries = await readIndex(BASE);
 const baseFileOf = new Map(baseEntries.map((e) => [e.module, e.file]));
-const incEntries = await readIndex(INC);
+const incEntries = INC ? await readIndex(INC) : [];
 const fresh = new Set(incEntries.map((e) => e.module));
+const removedModules = REMOVED ? readLines(REMOVED).filter((m) => baseFileOf.has(m)) : [];
 
 /** name -> the modules that lost it / the modules that gained it. */
 const lostOwners = new Map<string, Set<string>>();
@@ -126,12 +132,24 @@ for (const e of incEntries) {
     }
   }
 }
+
+// A deleted module is a module whose whole name set was lost. Same computation,
+// empty "gained" side.
+for (const m of removedModules) {
+  for (const d of (await readModule(BASE, baseFileOf.get(m)!)).declarations) {
+    if (!lostOwners.has(d.name)) lostOwners.set(d.name, new Set());
+    lostOwners.get(d.name)!.add(m);
+    lostCount++;
+  }
+}
 const tDiff = performance.now();
 
 // ------------------------------------------------------------ 2. the scan
 
 const exclude = new Set<string>(EXCLUDE ? readLines(EXCLUDE) : []);
 for (const m of fresh) exclude.add(m);
+// A removed module must not be reported as needing re-extraction: it is gone.
+for (const m of removedModules) exclude.add(m);
 
 const staleByRule = { lostOwner: new Set<string>(), movedElsewhere: new Set<string>() };
 const witnesses: { module: string; rule: string; ref: [string, string] }[] = [];
@@ -171,6 +189,7 @@ const summary = {
   base: BASE,
   inc: INC,
   incModules: incEntries.length,
+  removedModules: removedModules.length,
   scannedBaseModules: watching ? baseEntries.length - exclude.size : 0,
   lostNames: lostCount,
   gainedNames: gainedCount,

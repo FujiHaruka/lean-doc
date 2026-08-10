@@ -26,12 +26,17 @@
 // module list can pass it separately from the target list.
 //
 // usage:
-//   merge-ir.ts --base <ir> --inc <ir> [--out <ir>] [--modules <list>]
+//   merge-ir.ts --base <ir> [--inc <ir>] [--out <ir>] [--modules <list>]
+//               [--remove <file>]
 //   merge-ir.ts --verify <ir> --against <ir>
 //
 //   --base    the IR to update (not modified unless --out is omitted... it is
 //             never modified in place: --out defaults to --base + ".merged")
-//   --inc     the partial extraction's IR tree
+//   --inc     the partial extraction's IR tree. Optional: a pure deletion
+//             re-extracts nothing.
+//   --remove  modules that no longer exist, one per line. They leave the index
+//             and their module files are deleted, which is the IR third of the
+//             deletion path (the other two are the pages and the ledger).
 //   --modules the package's module list; defaults to the base index's modules
 //   --verify  compare two IR trees: module files byte for byte, index entries
 //             field by field, dependency slices as name -> module maps (their
@@ -129,14 +134,36 @@ async function verify(a: string, b: string): Promise<number> {
 
 // ---------------------------------------------------------------- merge
 
-async function merge(base: string, inc: string, out: string): Promise<void> {
+async function merge(
+  base: string,
+  inc: string,
+  out: string,
+  removed: string[],
+): Promise<void> {
   const t0 = performance.now();
   const baseIndex = await readJson(`${base}/index.json`);
-  const incIndex = await readJson(`${inc}/index.json`);
+  // A pure deletion re-extracts nothing, so there may be no incremental tree at
+  // all. That is a real case, not a misuse.
+  const incIndex = inc
+    ? await readJson(`${inc}/index.json`)
+    : { modules: [] as IndexEntry[] };
   const entries = new Map<string, IndexEntry>(
     baseIndex.modules.map((e: IndexEntry) => [e.module, e]),
   );
-  const order: string[] = baseIndex.modules.map((e: IndexEntry) => e.module);
+  let order: string[] = baseIndex.modules.map((e: IndexEntry) => e.module);
+
+  // Deletion, the IR half. A module that no longer exists has to leave the
+  // index, or it keeps a page and keeps feeding names to the dependency slice
+  // and the global maps. The other two halves are the caller's: the pages
+  // (`prune-pages.ts`) and the ledger (rebuilt, which costs the same 0.05 s as
+  // checking it — so there is no incremental ledger-update path to write).
+  const gone = new Set(removed.filter((m) => entries.has(m)));
+  const droppedFiles: string[] = [];
+  for (const m of gone) {
+    droppedFiles.push(entries.get(m)!.file);
+    entries.delete(m);
+  }
+  order = order.filter((m) => !gone.has(m));
 
   await Deno.mkdir(`${out}/modules`, { recursive: true });
   await Deno.mkdir(`${out}/deps`, { recursive: true });
@@ -144,8 +171,13 @@ async function merge(base: string, inc: string, out: string): Promise<void> {
     // Copy the untouched part. This is the cost of not updating in place; a
     // real driver keeps one directory and rewrites only the changed files.
     for (const e of baseIndex.modules as IndexEntry[]) {
+      if (gone.has(e.module)) continue;
       if (incIndex.modules.some((x: IndexEntry) => x.module === e.module)) continue;
       await Deno.copyFile(`${base}/${e.file}`, `${out}/${e.file}`);
+    }
+  } else {
+    for (const f of droppedFiles) {
+      await Deno.remove(`${out}/${f}`).catch(() => {});
     }
   }
   const updated: string[] = [];
@@ -218,7 +250,9 @@ async function merge(base: string, inc: string, out: string): Promise<void> {
   await Deno.writeTextFile(`${out}/index.json`, JSON.stringify(index));
   const t1 = performance.now();
   console.log(
-    `merged ${updated.length} module(s) into ${order.length}: ` +
+    `merged ${updated.length} module(s)` +
+      (gone.size ? `, removed ${gone.size}` : "") +
+      ` into ${order.length}: ` +
       `modules ${((tModules - t0) / 1000).toFixed(4)} s, ` +
       `deps+index ${((t1 - tModules) / 1000).toFixed(4)} s, ` +
       `total ${((t1 - t0) / 1000).toFixed(4)} s -> ${out}`,
@@ -238,6 +272,7 @@ async function merge(base: string, inc: string, out: string): Promise<void> {
       JSON.stringify({
         command: "merge",
         updated: updated.length,
+        removed: gone.size,
         irChanged: irChanged.length,
         modules: order.length,
         copySeconds: (tModules - t0) / 1000,
@@ -259,9 +294,14 @@ if (VERIFY) {
 } else {
   const BASE = opt("--base");
   const INC = opt("--inc");
-  if (!BASE || !INC) {
-    console.error("usage: merge-ir.ts --base <ir> --inc <ir> [--out <ir>]");
+  const REMOVE = opt("--remove");
+  if (!BASE || (!INC && !REMOVE)) {
+    console.error("usage: merge-ir.ts --base <ir> --inc <ir> [--out <ir>] [--remove <file>]");
     Deno.exit(2);
   }
-  await merge(BASE, INC, opt("--out", BASE + ".merged"));
+  const removed = REMOVE
+    ? Deno.readTextFileSync(REMOVE).split("\n").map((s) => s.trim())
+      .filter((s) => s && !s.startsWith("#"))
+    : [];
+  await merge(BASE, INC, opt("--out", BASE + ".merged"), removed);
 }

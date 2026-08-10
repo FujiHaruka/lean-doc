@@ -1,39 +1,57 @@
 #!/usr/bin/env bash
-# One end-to-end incremental generation: "module M changed" in, an updated IR
+# One end-to-end incremental generation: a changed build tree in, an updated IR
 # and updated HTML pages out.
 #
-# The four stages are the ones `approach.md` §5.5 splits the problem into, and
-# they are timed separately inside one wall clock so that the total is a
-# measurement rather than a sum of medians taken at different times:
+# The stages are the ones `approach.md` §5.5 splits the problem into, timed
+# separately inside one wall clock so the total is a measurement rather than a
+# sum of medians taken at different times:
 #
-#   1 detect   hash ledger over the 432 oleans -> the changed module set
-#   2 extract  the stage-4b extractor over exactly that set (Lean runs here)
-#   3 merge    fold the partial IR back in; the IR content hash decides which
-#              pages are stale
-#   4 render   stage4c's render.ts over the page set
+#   1 detect     hash ledger over the oleans -> the changed / added / removed
+#                module sets (L1 + L2), plus whether the render key moved
+#   2 extract    the stage-4b extractor over exactly that set (Lean runs here)
+#   3 ownership  L3-1: whose IR now names a module that no longer defines what
+#                it points at? Those modules go into another extraction round.
+#   4 merge      fold the partial IR back in, and drop removed modules; the IR
+#                content hash decides which pages are stale
+#   5 prune      delete the pages of removed modules
+#   6 render     stage4c's render.ts over the page set
 #
-# THE ONE THING THAT IS FAKED, AND EXACTLY HOW MUCH
-#   The measurement target must not be modified, so no `.lean` file is edited
-#   and no `lake build` is run. "M changed" is injected by invalidating M's
-#   ledger entry (`ledger.ts touch`). Everything else is real work on real
-#   inputs: the extractor really re-reads M's import closure and re-analyses M,
-#   the merge really rewrites the IR, the renderer really rewrites the pages.
-#   What the numbers therefore exclude is `lake build` itself, which is outside
-#   lean-doc but on the critical path of a real edit-to-preview loop.
+# WHY 2-3-4 IS A LOOP AND NOT A LINE
+#   L3-1 cannot run before the extraction it depends on: knowing that a name
+#   moved requires the fresh IR of the module it moved out of. So the shape is
+#   "extract, then ask who that invalidated, then extract those too". Stage 5c
+#   established that this cannot be replaced by widening the *first* set — the
+#   referring module's olean does not change when a declaration moves, so no
+#   ledger-side rule can reach it. Whether the loop terminates in two rounds is a
+#   measurement, not an assumption; `--max-rounds` bounds it and the round count
+#   is reported.
 #
-#   A consequence worth stating rather than hiding: because nothing actually
-#   changed, stage 3 finds the re-extracted IR byte-identical and reports zero
-#   stale pages. That is the correct answer and it is checked (`irChanged`), but
-#   it would make stage 4 free, so `--mode` forces a page set instead:
-#     self       the re-extracted modules (what a change that only alters M's
-#                own page would produce)
+# THE ONE THING THAT MAY BE FAKED, AND EXACTLY HOW MUCH
+#   Against the measurement target no `.lean` file is edited and no `lake build`
+#   is run, because that target must not be modified. "M changed" is injected by
+#   invalidating M's ledger entry (`ledger.ts touch`). Everything else is real
+#   work on real inputs. What the numbers therefore exclude is `lake build`
+#   itself, which is outside lean-doc but on the critical path of a real edit.
+#
+#   A consequence worth stating rather than hiding: with an injected change
+#   nothing actually moved, so the merge finds the re-extracted IR
+#   byte-identical and reports zero stale pages. That is the correct answer and
+#   it is checked (`irChanged`), but it would make the render free, so `--mode`
+#   forces a page set instead:
+#     self       the re-extracted modules
 #     referrers  self + the modules whose printed text names something of M's
 #     importers  self + everything that transitively imports M (the sound bound)
+#     all        every module (also forced automatically when the render key
+#                moved — see stage 5d)
+#
+#   Against a *clone* of the target (stage 5e) nothing is faked: the source is
+#   really edited and `lake build` really runs.
 #
 # usage:
 #   incremental.sh --module M --ir <live ir> --pages <live pages> --ledger <file>
-#                  --work <dir> --mode self|referrers|importers [--source-url <u>]
-#                  [--timings <p>]
+#                  --work <dir> --mode self|referrers|importers|all
+#                  [--source-url <u>] [--modules <list>] [--l3-1 on|off]
+#                  [--max-rounds N] [--timings <p>]
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -44,6 +62,7 @@ LD="$(cd "$HERE/../.." && pwd)"
 SOURCE_URL="https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec"
 
 MODULE=""; IR=""; PAGES=""; LEDGER=""; WORK=""; MODE=self; TIMINGS=""; MODULES=""
+L31=on; MAXROUNDS=5
 while [ $# -gt 0 ]; do
   case "$1" in
     --source-url) SOURCE_URL="$2"; shift 2 ;;
@@ -54,19 +73,19 @@ while [ $# -gt 0 ]; do
     --work) WORK="$2"; shift 2 ;;
     --mode) MODE="$2"; shift 2 ;;
     --modules) MODULES="$2"; shift 2 ;;
+    --l3-1) L31="$2"; shift 2 ;;
+    --max-rounds) MAXROUNDS="$2"; shift 2 ;;
     --timings) TIMINGS="$2"; shift 2 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
-[ -n "$MODULE" ] && [ -n "$IR" ] && [ -n "$PAGES" ] && [ -n "$LEDGER" ] && [ -n "$WORK" ] || {
-  echo "usage: incremental.sh --module M --ir <dir> --pages <dir> --ledger <f> --work <dir>" >&2
+[ -n "$IR" ] && [ -n "$PAGES" ] && [ -n "$LEDGER" ] && [ -n "$WORK" ] || {
+  echo "usage: incremental.sh --ir <dir> --pages <dir> --ledger <f> --work <dir>" >&2
   exit 2; }
 mkdir -p "$WORK"
 CHANGED="$WORK/changed.txt"
 IRCHANGED="$WORK/ir-changed.txt"
 RENDERSET="$WORK/render-set.txt"
-INCIR="$WORK/inc-ir"
-rm -rf "$INCIR"
 
 # `time.monotonic()` is per-process on this platform (Python 3.9 / macOS returns
 # time since interpreter start), so it cannot be sampled from separate
@@ -85,9 +104,9 @@ T0=$(now)
 #
 # `--source-url` is not optional either, for the mirror-image reason: it is the
 # renderer's input, it appears in the page bytes, and it carries the git
-# revision, so it changes on every commit. Leaving it out of the ledger was the
-# other half of S1. It goes into the *render* key, not the extract key, so a new
-# revision re-renders 432 pages without starting Lean once.
+# revision, so it changes on every commit. It goes into the *render* key, not
+# the extract key, so a new revision re-renders every page without starting Lean
+# once (stage 5d: 18.39 s -> 1.34 s).
 REMOVEDF="$WORK/removed.txt"
 RENDERALLF="$WORK/render-all.txt"
 deno run --allow-read --allow-write --allow-env "$HERE/ledger.ts" check \
@@ -98,47 +117,95 @@ T1=$(now)
 NCHANGED=$(grep -c . "$CHANGED" || true)
 NREMOVED=$(grep -c . "$REMOVEDF" 2>/dev/null || true)
 NRENDERALL=$(grep -c . "$RENDERALLF" 2>/dev/null || true)
-if [ "${NREMOVED:-0}" -gt 0 ]; then
-  # There is no deletion path yet (approach.md §5.5: a removal has to be erased
-  # from the ledger, the IR and the pages). Failing here beats leaving pages
-  # behind and reporting success.
-  echo "incremental.sh: $NREMOVED module(s) removed; no deletion path is implemented" >&2
-  sed 's/^/  removed /' "$REMOVEDF" >&2
-  exit 4
-fi
 
-# 2 -- extract --------------------------------------------------------------
-if [ "$NCHANGED" -gt 0 ]; then
-  "$HERE/extract-once.sh" --modules "$CHANGED" --ir-dir "$INCIR" \
-    --timings "$WORK/extract-timings.json" --events "$WORK/extract-events.jsonl"
-fi
+# 2/3/4 -- extract, ownership, merge, in rounds ------------------------------
+EXTRACT_S=0; OWN_S=0; MERGE_S=0; ROUNDS=0; NSTALE_TOTAL=0
+: > "$IRCHANGED"
+SEEN="$WORK/seen.txt"; cp "$CHANGED" "$SEEN"
+ROUND_IN="$CHANGED"
+add_s () { python3 -c "print(repr($1 + $2))"; }
+
+while [ "$(grep -c . "$ROUND_IN" || true)" -gt 0 ] || \
+      { [ "$ROUNDS" -eq 0 ] && [ "${NREMOVED:-0}" -gt 0 ]; }; do
+  ROUNDS=$((ROUNDS + 1))
+  INCIR="$WORK/inc-ir-$ROUNDS"
+  rm -rf "$INCIR"
+  NIN=$(grep -c . "$ROUND_IN" || true)
+
+  if [ "$NIN" -gt 0 ]; then
+    A=$(now)
+    "$HERE/extract-once.sh" --modules "$ROUND_IN" --ir-dir "$INCIR" \
+      --timings "$WORK/extract-timings-$ROUNDS.json" \
+      --events "$WORK/extract-events-$ROUNDS.jsonl"
+    EXTRACT_S=$(add_s "$EXTRACT_S" "$(python3 -c "print($(now) - $A)")")
+  fi
+
+  # Deletions are handled in the first round only: after it the modules are gone
+  # from the IR, and asking again would be asking about nothing.
+  INC_ARG=(); [ "$NIN" -gt 0 ] && INC_ARG=(--inc "$INCIR")
+  DEL_ARG=(); OWN_DEL_ARG=()
+  if [ "$ROUNDS" -eq 1 ] && [ "${NREMOVED:-0}" -gt 0 ]; then
+    DEL_ARG=(--remove "$REMOVEDF")
+    OWN_DEL_ARG=(--removed "$REMOVEDF")
+  fi
+
+  # 3 -- ownership (L3-1). Must run *before* the merge: it needs the IR's
+  # previous idea of who owns each name, which the merge is about to overwrite.
+  STALE="$WORK/stale-$ROUNDS.txt"
+  : > "$STALE"
+  if [ "$L31" = on ]; then
+    A=$(now)
+    deno run --allow-read --allow-write "$HERE/ownership.ts" --base "$IR" \
+      ${INC_ARG[@]+"${INC_ARG[@]}"} ${OWN_DEL_ARG[@]+"${OWN_DEL_ARG[@]}"} \
+      --exclude "$SEEN" --print-set "$STALE" --json "$WORK/ownership-$ROUNDS.json" \
+      > "$WORK/ownership-$ROUNDS.log"
+    OWN_S=$(add_s "$OWN_S" "$(python3 -c "print($(now) - $A)")")
+  fi
+
+  # 4 -- merge. The removals are folded into the first round's merge, so the IR
+  # is never left in a state where a deleted module is still indexed.
+  A=$(now)
+  deno run --allow-read --allow-write "$HERE/merge-ir.ts" --base "$IR" \
+    ${INC_ARG[@]+"${INC_ARG[@]}"} --out "$IR" \
+    --changed-out "$WORK/ir-changed-$ROUNDS.txt" ${DEL_ARG[@]+"${DEL_ARG[@]}"} \
+    --timings "$WORK/merge-timings-$ROUNDS.json" > "$WORK/merge-$ROUNDS.log"
+  MERGE_S=$(add_s "$MERGE_S" "$(python3 -c "print($(now) - $A)")")
+  cat "$WORK/ir-changed-$ROUNDS.txt" >> "$IRCHANGED"
+
+  NSTALE=$(grep -c . "$STALE" || true)
+  NSTALE_TOTAL=$((NSTALE_TOTAL + NSTALE))
+  cat "$STALE" >> "$SEEN"
+  ROUND_IN="$STALE"
+  if [ "$ROUNDS" -ge "$MAXROUNDS" ] && [ "$NSTALE" -gt 0 ]; then
+    echo "incremental.sh: still $NSTALE stale module(s) after $ROUNDS rounds" >&2
+    exit 5
+  fi
+done
 T2=$(now)
-
-# 3 -- merge ----------------------------------------------------------------
-if [ "$NCHANGED" -gt 0 ]; then
-  deno run --allow-read --allow-write "$HERE/merge-ir.ts" --base "$IR" --inc "$INCIR" \
-    --out "$IR" --changed-out "$IRCHANGED" --timings "$WORK/merge-timings.json" \
-    > "$WORK/merge.log"
-else
-  : > "$IRCHANGED"
-fi
-T3=$(now)
 NIRCHANGED=$(grep -c . "$IRCHANGED" || true)
 
-# 4 -- render ---------------------------------------------------------------
-# `--mode` decides the page set (see the header): the injected change leaves the
-# IR byte-identical, so the honest render set is empty and has to be forced.
-#
-# A changed render key overrides that choice with `all`. This is the one page
-# set that is *not* derived from the changed module set, which is the point of
-# splitting the key: nothing was re-extracted, yet every page is stale.
+# 5 -- prune ----------------------------------------------------------------
+# The third of the deletion path. The renderer only ever writes, so without this
+# a deleted module's page survives every later run and is indistinguishable from
+# a live one.
+if [ "${NREMOVED:-0}" -gt 0 ]; then
+  deno run --allow-read --allow-write "$HERE/prune-pages.ts" --pages "$PAGES" \
+    --remove "$REMOVEDF" --json "$WORK/prune.json" > "$WORK/prune.log"
+fi
+T3=$(now)
+
+# 6 -- render ---------------------------------------------------------------
+# `--mode` decides the page set (see the header). A changed render key overrides
+# it with `all`: that is the one page set not derived from the changed module
+# set, which is the point of splitting the key — nothing was re-extracted, yet
+# every page is stale.
 MODE_EFF="$MODE"
 if [ "${NRENDERALL:-0}" -gt 0 ]; then
   MODE_EFF=all
   sed 's/^/  render-all /' "$RENDERALLF" >&2
 fi
 deno run --allow-read --allow-write "$HERE/impact.ts" --ir "$IR" \
-  --changed-file "$CHANGED" --mode "$MODE_EFF" --print-set "$RENDERSET" > "$WORK/impact.log"
+  --changed-file "$SEEN" --mode "$MODE_EFF" --print-set "$RENDERSET" > "$WORK/impact.log"
 T4=$(now)
 ONLY=()
 while read -r m; do [ -n "$m" ] && ONLY+=(--only "$m"); done < "$RENDERSET"
@@ -149,28 +216,38 @@ T5=$(now)
 
 NPAGES=$(grep -c . "$RENDERSET" || true)
 python3 - "$TIMINGS" "$T0" "$T1" "$T2" "$T3" "$T4" "$T5" \
-  "$NCHANGED" "$NIRCHANGED" "$NPAGES" "$MODULE" "$MODE_EFF" "$WORK" <<'PY'
-import json, sys, os
-out, t0, t1, t2, t3, t4, t5, nch, nir, npg, module, mode, work = sys.argv[1:]
+  "$EXTRACT_S" "$OWN_S" "$MERGE_S" "$ROUNDS" "$NSTALE_TOTAL" \
+  "$NCHANGED" "$NREMOVED" "$NIRCHANGED" "$NPAGES" "$MODULE" "$MODE_EFF" "$L31" "$WORK" <<'PY'
+import json, sys, os, glob
+(out, t0, t1, t2, t3, t4, t5, ex, ow, mg, rounds, nstale,
+ nch, nrm, nir, npg, module, mode, l31, work) = sys.argv[1:]
 t = [float(x) for x in (t0, t1, t2, t3, t4, t5)]
 rec = {
-    "module": module, "mode": mode,
+    "module": module, "mode": mode, "l3_1": l31,
     "detectSeconds": t[1] - t[0],
-    "extractSeconds": t[2] - t[1],
-    "mergeSeconds": t[3] - t[2],
+    "extractSeconds": float(ex),
+    "ownershipSeconds": float(ow),
+    "mergeSeconds": float(mg),
+    "roundsSeconds": t[2] - t[1],
+    "pruneSeconds": t[3] - t[2],
     "impactSeconds": t[4] - t[3],
     "renderSeconds": t[5] - t[4],
     "totalSeconds": t[5] - t[0],
-    "changed": int(nch), "irChanged": int(nir), "pagesRendered": int(npg),
+    "rounds": int(rounds), "staleFound": int(nstale),
+    "changed": int(nch), "removed": int(nrm or 0),
+    "irChanged": int(nir), "pagesRendered": int(npg),
 }
-for name, path in (("extract", "extract-timings.json"), ("merge", "merge-timings.json"),
-                   ("render", "render-timings.json")):
-    p = os.path.join(work, path)
-    if os.path.exists(p):
-        try:
-            rec[name] = json.load(open(p, encoding="utf-8"))
-        except Exception:
-            pass
+for name, pattern in (("extract", "extract-timings-*.json"),
+                      ("merge", "merge-timings-*.json"),
+                      ("render", "render-timings.json")):
+    hits = sorted(glob.glob(os.path.join(work, pattern)))
+    if not hits:
+        continue
+    try:
+        loaded = [json.load(open(p, encoding="utf-8")) for p in hits]
+        rec[name] = loaded[0] if len(loaded) == 1 else loaded
+    except Exception:
+        pass
 line = json.dumps(rec)
 print(line)
 if out:
