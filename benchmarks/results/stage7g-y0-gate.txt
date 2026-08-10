@@ -1,0 +1,32 @@
+# stage7g y0 — the gate: does residency x parallelism change a byte?
+
+date              2026-08-10T17:52:08Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+extractor         /Users/haruka/dev/lean-doc/experiments/stage7d/build/extract (stage 7d, IR schema 4, --jobs)
+renderer          experiments/stage7d/render.ts
+target            /Users/haruka/dev/lean-projects (read-only; the IR is written outside it)
+modules           26 of 432 (every 17th, so the sample is spread)
+server env        all 432 modules (the superset a real server imports)
+warm              same session, oleans in page cache
+
+## IR trees, pairwise (/usr/bin/diff -r)
+  ir-one-j1 == ir-one-j4   byte-identical
+  ir-one-j1 == ir-srv-j1-r1   byte-identical
+  ir-one-j1 == ir-srv-j4-r1   byte-identical
+  ir-srv-j1-r1 == ir-srv-j4-r1   byte-identical
+  ir-srv-j4-r1 == ir-srv-j4-r2   byte-identical
+
+## counts the extractor reports (they must agree too)
+  counter                           one-j1          one-j4       srv-j1-r1       srv-j4-r1       srv-j4-r2
+  analyze:considered                   505             505             505             505             505
+  analyze:produced                     265             265             265             265             265
+  analyze:blacklisted                  240             240             240             240             240
+  analyze:equations                     40              40              40              40              40
+  analyze:refOccurrences              8445            8445            8445            8445            8445
+  writeIR:spans                      22972           22972           22972           22972           22972
+
+  counters that disagree: 0
+
+## server startup, by job count (a check that --jobs does not touch importModules)
+  srv-j1   3.514 s
+  srv-j4   3.584 s

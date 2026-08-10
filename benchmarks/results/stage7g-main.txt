@@ -1,0 +1,88 @@
+# stage7g — residency x --jobs 4: the share, and byte equality
+
+date              2026-08-10T18:12:31Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+extractor         /Users/haruka/dev/lean-doc/experiments/stage7d/build/extract (stage 7d, IR schema 4, --jobs)
+renderer          experiments/stage7d/render.ts
+target            APFS clone of /Users/haruka/dev/lean-projects at /private/tmp/lean-doc-relay/clone, own modules rebuilt in place
+measured          2026-08-10T18:03:38Z (mtime of runs.jsonl)
+lean-toolchain    leanprover/lean4:v4.31.0
+move              InformationTheory.Shannon.Huffman.Length -> InformationTheory.Shannon.Huffman.LengthCore (minimal shim) — stage 6a's move, so the shapes match
+runs              7 per variant for Y1/Y2, interleaved, run 1 discarded;
+                  5 per variant for Y3, round 1 discarded
+render set        --mode self
+warm              same session; the clone was rebuilt before the run and its
+                  oleans are in page cache. No cold number is reported here.
+residency         one server per pipeline run, started after the build, serving
+                  every round, stopped inside the measured total
+
+REFERENCE pages: 439
+
+## Y1 — each assembled site against REFERENCE (byte equality)
+fresh-j1  439 pages, missing 0, extra 0, differing 0  -> byte-identical to REFERENCE
+fresh-j4  439 pages, missing 0, extra 0, differing 0  -> byte-identical to REFERENCE
+res-j1    439 pages, missing 0, extra 0, differing 0  -> byte-identical to REFERENCE
+res-j4    439 pages, missing 0, extra 0, differing 0  -> byte-identical to REFERENCE
+
+## Y2 — the two-round case (median of runs 2..N, [min-max])
+
+variant       total           [min-max]   extract  srvStart    render  rounds   peakRSS
+fresh-j1      7.968       [7.928-8.151]     5.967     0.000     0.221     2.0   2.30 GB
+fresh-j4      7.894       [7.825-7.950]     5.895     0.000     0.222     2.0   2.30 GB
+res-j1        6.668       [6.585-7.109]     0.731     3.705     0.223     2.0   0.18 GB
+res-j4        6.509       [6.457-6.571]     0.604     3.693     0.222     2.0   0.18 GB
+
+fresh-j1  7.968 -> fresh-j4  7.894 : -0.074 s (-0.9%), denominator = fresh-j1
+fresh-j1  7.968 -> res-j1    6.668 : -1.300 s (-16.3%), denominator = fresh-j1
+fresh-j4  7.894 -> res-j4    6.509 : -1.385 s (-17.5%), denominator = fresh-j4
+res-j1    6.668 -> res-j4    6.509 : -0.160 s (-2.4%), denominator = res-j1
+
+server startup inside the run (median): res-j1 3.705 s, res-j4 3.693 s
+
+### where the two-round pipeline's time goes (median, s)
+
+phase                           fresh-j1  fresh-j4    res-j1    res-j4
+serveStartSeconds                 0.0000    0.0000    3.7051    3.6931
+detectSeconds                     0.1121    0.1110    0.1640    0.1618
+extractSeconds                    5.9668    5.8945    0.7306    0.6038
+ownershipSeconds                  0.2594    0.2610    0.2645    0.2607
+mergeSeconds                      0.3222    0.3219    0.3220    0.3204
+globalSeconds                     0.3522    0.3555    0.3721    0.3672
+impactSeconds                     0.1614    0.1616    0.1615    0.1623
+renderSeconds                     0.2208    0.2216    0.2227    0.2220
+serveStopSeconds                  0.0250    0.0249    0.1628    0.1626
+totalSeconds                      7.9679    7.8941    6.6684    6.5088
+
+### inside `extract`, per round (median, s)
+
+                                fresh-j1  fresh-j4    res-j1    res-j4
+round 1 importModules (5 mod)     1.8190    1.8202    0.0000    0.0000
+round 1 analyze (5 mod)           0.1128    0.0428    0.1146    0.0426
+round 1 writeIR (5 mod)           0.0078    0.0078    0.0078    0.0079
+round 2 importModules (1 mod)     1.7658    1.7661    0.0000    0.0000
+round 2 analyze (1 mod)           0.0083    0.0063    0.0068    0.0048
+round 2 writeIR (1 mod)           0.0016    0.0016    0.0015    0.0016
+
+`importModules` 0.0000 on the resident side is the phase not running at all:
+the environment was imported once, at server start, and that cost is the
+`serveStartSeconds` row above — inside the same total.
+
+## Y3 — re-extracting all 432 modules (median of rounds 2..N, [min-max])
+
+variant        wall           [min-max] importMods    analyze    writeIR
+fresh-j1     14.931     [14.902-14.954]      2.479     10.662      0.599
+fresh-j4      7.507       [7.468-7.544]      2.485      3.215      0.611
+res-j1       11.439     [11.352-11.555]      0.000     10.572      0.600
+res-j4        4.257       [4.172-4.429]      0.000      3.395      0.606
+
+j1: fresh 14.931 -> resident 11.439 = -3.491 s (-23.4%), denominator = fresh-j1
+    with the server's own startup (3.603 s): 15.042 s = +0.7% vs fresh-j1
+    server RSS (ps, outside every timed region): rssAfterRuns 0.57 GB, rssAfterStart 0.62 GB
+j4: fresh 7.507 -> resident 4.257 = -3.250 s (-43.3%), denominator = fresh-j4
+    with the server's own startup (3.809 s): 8.066 s = +7.4% vs fresh-j4
+    server RSS (ps, outside every timed region): rssAfterRuns 0.62 GB, rssAfterStart 0.62 GB
+
+NOTE on peakRSS in the Y2 table: it comes from /usr/bin/time -l around
+incremental.sh, which sees only the processes it waits for. A resident
+server is detached from that accounting, so the res-* peakRSS is the
+pipeline's, not the server's. The server's own RSS is the line above.

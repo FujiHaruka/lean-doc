@@ -1,0 +1,47 @@
+# stage7g Y4 — a soak test: 600 requests against one resident extractor
+
+date              2026-08-10T18:10:00Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+extractor         experiments/stage7d/build/extract, --jobs 4 --serve
+target            /Users/haruka/dev/lean-projects (read-only; the IR is written outside it)
+environment       432 modules imported once
+requests          600; 1-3 modules each, walked around the package;
+                  #1, #300 and #600 ask for the same 5-module canary
+warm              same session, oleans in page cache
+rss               ps -o rss=, every 25 requests
+
+## (a) is the IR still right at the end?
+  request ir-1 == ir-300   byte-identical
+  request ir-1 == ir-600   byte-identical
+
+## (b) RSS over the soak
+  samples 25, first 0.55 GB (#1), last 0.55 GB (#600), max 0.55 GB, min 0.55 GB
+  growth first -> last: +0.0 MB (+0.00%)
+  trace (every sample): 0.55 0.55 0.55 0.55 0.55 0.55 0.55 0.55 0.55 0.55 0.55 0.55 0.55 0.55 0.55 0.55 0.55 0.55 0.55 0.55 0.55 0.55 0.55 0.55 0.55
+
+## (c) does it get slower?
+  first 100          serverSeconds  n= 99 median 0.0293 s  [0.0115-0.1052]
+  first 100          wallSeconds    n= 99 median 0.0323 s  [0.0153-0.1106]
+  last 100           serverSeconds  n= 99 median 0.0297 s  [0.0103-0.0869]
+  last 100           wallSeconds    n= 99 median 0.0347 s  [0.0120-0.0908]
+  serverSeconds  first100 0.0293 -> last100 0.0297 = +0.0004 s (+1.3%), denominator = first 100
+  wallSeconds    first100 0.0323 -> last100 0.0347 = +0.0025 s (+7.7%), denominator = first 100
+
+  per-module normalised (server timer): 1 module(s) median 0.0209 s (n=198), 2 module(s) median 0.0280 s (n=199), 3 module(s) median 0.0366 s (n=200)
+
+  CAVEAT: first-100 vs last-100 is confounded. The request walk is
+  start=(i*7) mod M, k=1+(i mod 3), so the two blocks ask about *different*
+  modules and a module's declaration count is what sets its time. The two
+  clean controls are below.
+
+  control 1 — the same request, asked early and again 400+ requests later
+    serverSeconds  n=166  median delta -0.0006 s (-1.9%)  [-0.0117 - +0.0420]
+    wallSeconds    n=166  median delta -0.0004 s (-1.2%)  [-0.0149 - +0.0467]
+    later slower in 48 of 166 pairs (server timer)
+
+  control 2 — the canary, an identical 5-module request at #1 / #300 / #600
+    #1 0.0740 s, #300 0.0652 s, #600 0.0657 s
+
+## errors
+  non-zero replies: 0
+  requests completed: 600 of 600
