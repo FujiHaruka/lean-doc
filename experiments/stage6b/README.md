@@ -148,19 +148,30 @@ numbers agree; the module count differs.
 
 ### V3 — where the 0.98 s goes, and what is left
 
-| stage | A (revision in bytes) | B (token) |
-|---|---:|---:|
-| render | **0.9017** | **0.0256** (skipped) |
-| everything else | ≈0.72 | ≈0.62 |
-| **total** | **1.6227** | **0.6441** |
+Per-stage medians from `stage6b-revless.jsonl` (runs 2–6):
 
-**What remains in B's 0.64 s is almost entirely the whole-package artefacts** —
-`global.ts` rebuilding `declaration-data.bmp`, `name-map.json`, `navbar.html`,
-`tactics.html` unconditionally (L3-3), plus `impact.ts`. That is the same floor
-increment 7 measured and deliberately declined to incrementalise (0.139 s to
-build, and only 0.119 s of IR reading could be removed). **After this change that
-floor is the whole cost of a revision-only commit**, so the argument for leaving
-it alone should be revisited on its own terms rather than inherited.
+| stage | A (revision in bytes) | B (token) | share of B's total |
+|---|---:|---:|---:|
+| detect | 0.1105 | 0.1083 | 16.8% |
+| rounds (extract / ownership / merge) | 0.0382 | 0.0365 | 5.7% |
+| prune | 0.0278 | 0.0276 | 4.3% |
+| **global (L3-3)** | 0.3136 | **0.2903** | **45.1%** |
+| impact | 0.1630 | 0.1566 | 24.3% |
+| **render** | **0.9017** | **0.0256** (skipped) | 4.0% |
+| **total** | **1.6227** | **0.6441** | |
+
+**The single largest remaining item is `global.ts` at 45.1%**, with `impact.ts`
+second at 24.3% — together 69%, and `detect` accounts for a further 17%. (An
+earlier draft of this section said B's remainder was "almost entirely the
+whole-package artefacts"; that overstates it and is corrected here.)
+
+Note that **the pipeline's L3-3 cost is 0.29 s, not the 0.139 s increment 7
+measured**, because `incremental.sh` runs `global.ts` twice — `build` and then
+`delta` for L3-2's input. Increment 7 declined to incrementalise this on the
+grounds that only 0.119 s of IR reading could be removed from a 1.5–2.6% slice of
+the run. **Under contract B the same work is 45% of the run**, so that judgment
+was made against a different denominator and should be re-made rather than
+inherited.
 
 ### The cost, measured rather than asserted
 
