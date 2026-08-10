@@ -1,0 +1,214 @@
+=== (B) declaration names: syntax tree vs IR
+syntax declarations (raw)  5253
+  of which `private`       707   (doc-gen4 does not document these; dropped before the diff)
+syntax declarations (kept) 4546
+IR declarations            4750
+matched (same full name in the same module)
+                           4546  = 95.7% of IR, 100.0% of syntax
+IR only (missed)           204  (4.3% of IR)
+syntax only (false pos.)   0  (0.0% of syntax), of which 0 exist in another module's IR
+
+missed, by category:
+    152  (3.20% of IR)  auto: structure field projection (in `structFields`, walker does not descend)
+           theorem InformationTheory.Shannon.IsRegularDensity.pos
+           theorem InformationTheory.Shannon.IsRegularDensity.diff
+           theorem InformationTheory.Shannon.IsRegularDensity.integral_deriv_eq_zero
+           theorem InformationTheory.Shannon.IsRegularDensity.tail_bot
+           theorem InformationTheory.Shannon.IsRegularDensity.integrable_deriv
+           theorem InformationTheory.Shannon.IsRegularDensity.pdf_ae_eq
+           theorem InformationTheory.Shannon.IsRegularDensity.tail_top
+           definition InformationTheory.Shannon.IsRegularDensity.density
+     37  (0.78% of IR)  auto: structure constructor (.mk)
+           constructor InformationTheory.Shannon.IsRegularDensity.mk
+           constructor InformationTheory.Shannon.FisherInfo.IsRegularDensityV2.mk
+           constructor InformationTheory.Shannon.FisherInfo.IsHeatFlowDensity.mk
+           constructor InformationTheory.Shannon.Relay.RelayCode.mk
+           constructor InformationTheory.Shannon.HoeffdingTilt.IsHoeffdingLagrangeHyp.mk
+           constructor InformationTheory.Shannon.HoeffdingTilt.IsKLGradientHyp.mk
+           constructor InformationTheory.Shannon.BroadcastChannel.Marton.InMartonRegion.mk
+           constructor InformationTheory.Shannon.StamEPIBridge.IsDeBruijnRegularityHyp.mk
+      6  (0.13% of IR)  MISSED (should have been visible in the syntax)
+           definition InformationTheory.Shannon.differentialEntropyExt
+           theorem InformationTheory.Shannon.differentialEntropyExt_def
+           opaque InformationTheory.Meta.entryPointAttr
+           theorem Combinatorics.Polymatroid.ext_iff
+           theorem Combinatorics.Polymatroid.ext
+           definition InformationTheory.Shannon.ErgodicProcess.toStationaryProcess
+      6  (0.13% of IR)  auto: notation-generated decl (`«term...»`)
+           definition InformationTheory.Shannon.«termI(_;_;_)»
+           definition InformationTheory.Shannon.«termD(_;_∥_)»
+           definition InformationTheory.Shannon.«termI(_;_;_|_)»
+           definition InformationTheory.Shannon.«termH(_;_|_)»
+           definition InformationTheory.Shannon.«termH(_;_)»
+           definition InformationTheory.Asymptotic.«term_≐_»
+      3  (0.06% of IR)  auto: anonymous instance (name synthesised by elaborator)
+           instance InformationTheory.Shannon.WhittakerShannon.instFactLtRealOfNat_informationTheory
+           instance InformationTheory.Shannon.instFintypeTypeCountIndex
+           instance InformationTheory.Shannon.BroadcastChannel.instIsProbabilityMeasureThm7AmbientOfNatNatThm7DegenerateLaw
+
+false positives, by category:
+
+per-module recall  min 0.0%  p10 100.0%  p50 100.0%  p90 100.0%
+modules with an exactly matching declaration set: 369 / 432
+
+=== (C) signature: verbatim source text vs IR pretty-print
+signature := <binders> " : " <type>
+  IR side     = .binders joined by " " + " : " + .type   (not typeCode/binderCode/modifiers)
+  syntax side = verbatim source of the binder region and of the term after ":"
+  naive text comparison; NOT the stage4c coverage.ts acceptance scoring
+matched declarations       4546
+whole signature, byte-exact                          340  (7.5%)
+  + whitespace/line-wrap normalised                  350  (7.7%)
+  + namespace qualification normalised away          418  (9.2%)
+  + IR-only leading binders ignored (type must match) 1301  (28.6%)
+binders byte-exact 749  (16.5%) | ws 749  (16.5%) | unqual 803  (17.7%)
+type    byte-exact 1391  (30.6%) | ws 1486  (32.7%) | unqual 1821  (40.1%)
+type omitted at the definition site  347  (7.6%)
+binder groups: IR 48499, source 23920  (source writes 49.3% of them)
+declarations where the IR's binder list strictly extends the source's (a `variable` block the file never repeats): 1692  (37.2%), 14225 binder groups invisible in the source
+
+how the signatures deviate (each declaration counted once, first matching cause):
+   1190  (26.2%)  type differs beyond qualification (binder prefix explains the rest)
+        InformationTheory.Shannon.BroadcastChannel.Marton.martonInfo₁_sub_martonInfoV₁V₂_le
+        ir : martonInfo₁ pV K W - martonInfoV₁V₂ pV K W ≤ (condMutualInfo (martonAuxSwapLaw pV K W) (fun (q : V₂ 
+        syn: martonInfo₁ pV K W - martonInfoV₁V₂ pV K W ≤ (condMutualInfo (martonAuxSwapLaw pV K W) (fun q ↦ q.2.
+        InformationTheory.Shannon.BroadcastChannel.Marton.martonInfo₂_sub_martonInfoV₁V₂_le
+        ir : martonInfo₂ pV K W - martonInfoV₁V₂ pV K W ≤ (condMutualInfo (martonAuxSwapLaw pV K W) (fun (q : V₂ 
+        syn: martonInfo₂ pV K W - martonInfoV₁V₂ pV K W ≤ (condMutualInfo (martonAuxSwapLaw pV K W) (fun q ↦ q.2.
+        InformationTheory.Shannon.ShannonHartley.contAwgnRate_isBoundedUnder
+        ir : IsBoundedUnder (fun (x1 x2 : ℝ) => x1 ≤ x2) atTop fun (T : ℝ) => log ↑(contAwgnMaxMessages T W N₀ P 
+        syn: IsBoundedUnder (· ≤ ·) atTop (fun T : ℝ ↦ log (contAwgnMaxMessages T W N₀ P ε : ℝ) / T)
+        InformationTheory.Shannon.ShannonHartley.deficit_div_tendsto_zero
+        ir : Tendsto (fun (T : ℝ) => (2 + log (1 + 2 * W * T)) / T) atTop (nhds 0)
+        syn: Tendsto (fun T : ℝ ↦ (2 + log (1 + 2 * W * T)) / T) atTop (𝓝 0)
+        InformationTheory.Shannon.ShannonHartley.exists_testFn_family
+        ir : ∃ (u : Fin (prolateCount T W c) → E) (h : Fin (prolateCount T W c) → ℝ → ℝ) (φ : Fin (prolateCount T
+        syn: ∃ (u : Fin (prolateCount T W c) → E) (h φ : Fin (prolateCount T W c) → (ℝ → ℝ)), Orthonormal ℂ u ∧ (
+        InformationTheory.Shannon.ShannonHartley.exists_params_of_lt
+        ir : ∃ (c : ℝ) (Q : ℝ) (R : ℝ), 0 < c ∧ c < 1 ∧ 0 < Q ∧ Q < c * P / (2 * W) ∧ 0 < R ∧ R < 1 / 2 * log (1 
+        syn: ∃ c Q R, 0 < c ∧ c < 1 ∧ 0 < Q ∧ Q < c * P / (2 * W) ∧ 0 < R ∧ R < (1 / 2) * log (1 + 2 * Q / N₀) ∧ 
+        InformationTheory.Shannon.ShannonHartley.exists_crossMap_lower_bound
+        ir : ∃ (h : Fin (prolateCount T W c) → ℝ → ℝ) (φ : Fin (prolateCount T W c) → ℝ → ℝ), (∀ (i : Fin (prolat
+        syn: ∃ (h φ : Fin (prolateCount T W c) → (ℝ → ℝ)), (∀ i, MemLp (h i) 2 volume) ∧ (∀ i, IsBandlimited (h i
+        InformationTheory.Shannon.ShannonHartley.prolateCount_div_tendsto
+        ir : Tendsto (fun (T : ℝ) => ↑(prolateCount T W c) / T) atTop (nhds (2 * W))
+        syn: Tendsto (fun T : ℝ ↦ (prolateCount T W c : ℝ) / T) atTop (𝓝 (2 * W))
+   1188  (26.1%)  both binders and type differ beyond qualification
+        InformationTheory.Shannon.lz78PhraseStrings_dropLast_earlier
+        ir : {α : Type u_1} [DecidableEq α] (input : List α) (j : ℕ) (h : j < (lz78 : (lz78PhraseStrings input)[j].dropLast ∈ take j (lz78PhraseStrings inpu
+        syn: (input : List α) : ∀ j, ∀ h : j < (lz78PhraseStrings input).length, ((lz78PhraseStrings i
+        InformationTheory.Shannon.lz78PhraseStrings_forall_ne_nil
+        ir : {α : Type u_1} [DecidableEq α] (input w : List α) : w ∈ lz78PhraseStrings input → w ≠ []
+        syn: (input : List α) : ∀ w ∈ lz78PhraseStrings input, w ≠ []
+        InformationTheory.Shannon.getElem?_eq_some_drop_take_of_flatten_prefix
+        ir : {α : Type u_1} (L : List (List α)) {input tail : List α} (htail : flat : L[idx]? = some (take (foldr (fun (w : List α) (acc : ℕ) => length + ac
+        syn: (L : List (List α)) {input : List α} {tail : List α} (htail : flatten  : L[idx]? = some ((drop ((take idx).foldr (fun w acc ↦ length + acc) 0))
+        InformationTheory.Shannon.negMulLog_marginal_gap_le_joint_gap
+        ir : {α : Type u_1} {β : Type u_2} [Fintype α] [Fintype β] [MeasurableSpace : ∑ y : β, ((∑ x : α, (a * r₁ (x, y) + b * r₂ (x, y))).negMulLog - a * (
+        syn: (r₁ r₂ : α × β → ℝ) (hr₁ : ∀ p, 0 ≤ r₁ p) (hr₂ : ∀ p, 0 ≤ r₂ p) (a b : : (∑ y, (negMulLog (∑ x, (a * r₁ (x, y) + b * r₂ (x, y))) - a * negMulLo
+        InformationTheory.Shannon.wzCondEntDiff_block_convex
+        ir : {α : Type u_1} {β : Type u_2} [Fintype α] [Fintype β] [MeasurableSpace : ∑ y : β, (wzMarginalYU U (a • q₁ + b • q₂) (y, u)).negMulLog - ∑ x : α
+        syn: (P_XY : α × β → ℝ) (h_pmf_nn : ∀ p, 0 ≤ P_XY p) {q₁ q₂ : α × β × U → ℝ : ((∑ y, negMulLog (wzMarginalYU U (a • q₁ + b • q₂) (y, u))) - ∑ x, neg
+        InformationTheory.Shannon.BroadcastChannel.condMutualInfoReal_sub_eq_condMutualInfoReal_prod
+        ir : {Ω : Type u_1} [MeasurableSpace Ω] {A : Type u_2} [Fintype A] [Measura : condMutualInfoReal μ vt x wt - condMutualInfoReal μ vt z wt = condMutu
+        syn: (μ : Measure Ω) [IsProbabilityMeasure μ] (x : Ω → A) (y : Ω → B₁) (z : : condMutualInfoReal μ vt x wt - condMutualInfoReal μ vt z wt = condMutu
+        InformationTheory.Shannon.ChannelCodingFeedback.feedback_per_letter_bound
+        ir : {Ω : Type u_1} [MeasurableSpace Ω] {M : Type u_2} [MeasurableSpace M]  : (condMutualInfo μ Msg (Ys i) fun (ω : Ω) (j : Fin ↑i) => Ys ⟨↑j, ⋯⟩ ω)
+        syn: {n : ℕ} (μ : Measure Ω) [IsProbabilityMeasure μ] (Msg : Ω → M) (Xs : F : ∀ i : Fin n, condMutualInfo μ Msg (Ys i) (fun ω (j : Fin val) ↦ Ys ⟨va
+        InformationTheory.Shannon.ShannonCodeKraftReverse.shannonFanoCode_injective
+        ir : {α : Type u_1} [Fintype α] [DecidableEq α] {D : ℕ} [NeZero D] (hD : 2  : Injective (shannonFanoCode l L)
+        syn: {D : ℕ} [NeZero D] (hD : 2 ≤ D) (l : α → ℕ) (hl : ∀ a, 0 < l a) (L : ℕ : Injective (shannonFanoCode (D := D) (α := α) l L)
+    883  (19.4%)  IR adds leading binders the file never wrote (`variable` / auto-bound) + qualification
+        InformationTheory.Shannon.BroadcastChannel.Marton.martonInfo₁_add_martonInfo₂_sub_martonInfoV₁V₂_le_uvInfoSum₂_toReal
+        ir : {V₁ : Type u_1} {V₂ : Type u_2} {α : Type u_3} {β₁ : Type u_4} {β₂ : Type u_5} [Fintype V₁] [Decidab
+        syn: (pV : Measure (V₁ × V₂)) [IsProbabilityMeasure pV] (K : Kernel (V₁ × V₂) α) [IsMarkovKernel K] (W : 
+        InformationTheory.Shannon.BroadcastChannel.Marton.martonUVLaw.instIsProbabilityMeasure
+        ir : {V₁ : Type u_1} {V₂ : Type u_2} {α : Type u_3} {β₁ : Type u_4} {β₂ : Type u_5} [Fintype V₁] [Measura
+        syn: (pV : Measure (V₁ × V₂)) [IsProbabilityMeasure pV] (K : Kernel (V₁ × V₂) α) [IsMarkovKernel K] (W : 
+        InformationTheory.Shannon.BroadcastChannel.Marton.martonInfo₂_eq_uvInfo₂_toReal
+        ir : {V₁ : Type u_1} {V₂ : Type u_2} {α : Type u_3} {β₁ : Type u_4} {β₂ : Type u_5} [Fintype V₁] [Decidab
+        syn: (pV : Measure (V₁ × V₂)) [IsProbabilityMeasure pV] (K : Kernel (V₁ × V₂) α) [IsMarkovKernel K] (W : 
+        InformationTheory.Shannon.BroadcastChannel.Marton.martonAuxSwapLaw_isUVChannelLaw
+        ir : {V₁ : Type u_1} {V₂ : Type u_2} {α : Type u_3} {β₁ : Type u_4} {β₂ : Type u_5} [MeasurableSpace V₁] 
+        syn: (pV : Measure (V₁ × V₂)) [IsProbabilityMeasure pV] (K : Kernel (V₁ × V₂) α) [IsMarkovKernel K] (W : 
+        InformationTheory.Shannon.BroadcastChannel.Marton.martonAuxSwapLaw.instIsProbabilityMeasure
+        ir : {V₁ : Type u_1} {V₂ : Type u_2} {α : Type u_3} {β₁ : Type u_4} {β₂ : Type u_5} [MeasurableSpace V₁] 
+        syn: (pV : Measure (V₁ × V₂)) [IsProbabilityMeasure pV] (K : Kernel (V₁ × V₂) α) [IsMarkovKernel K] (W : 
+        InformationTheory.Shannon.BroadcastChannel.Marton.martonUVLaw
+        ir : {V₁ : Type u_1} {V₂ : Type u_2} {α : Type u_3} {β₁ : Type u_4} {β₂ : Type u_5} [Fintype V₁] [Measura
+        syn: (pV : Measure (V₁ × V₂)) (K : Kernel (V₁ × V₂) α) (W : BCChannel α β₁ β₂)
+        InformationTheory.Shannon.BroadcastChannel.Marton.uvInfo₁_martonUVLaw
+        ir : {V₁ : Type u_1} {V₂ : Type u_2} {α : Type u_3} {β₁ : Type u_4} {β₂ : Type u_5} [Fintype V₁] [Decidab
+        syn: (pV : Measure (V₁ × V₂)) [IsProbabilityMeasure pV] (K : Kernel (V₁ × V₂) α) [IsMarkovKernel K] (W : 
+        InformationTheory.Shannon.BroadcastChannel.Marton.martonJointDistribution_isUVChannelLaw
+        ir : {V₁ : Type u_1} {V₂ : Type u_2} {α : Type u_3} {β₁ : Type u_4} {β₂ : Type u_5} [MeasurableSpace V₁] 
+        syn: (pV : Measure (V₁ × V₂)) [IsProbabilityMeasure pV] (K : Kernel (V₁ × V₂) α) [IsMarkovKernel K] (W : 
+    520  (11.4%)  binders differ beyond qualification (type agrees)
+        InformationTheory.Shannon.BroadcastChannel.Marton.natIndex_injective
+        ir : (X : Type u_6) [Fintype X]
+        syn: (X : Type*) [Fintype X]
+        InformationTheory.Shannon.BroadcastChannel.Marton.natIndex
+        ir : (X : Type u_6) [Fintype X] (x : X)
+        syn: (X : Type*) [Fintype X] (x : X)
+        InformationTheory.Shannon.ShannonHartley.contAwgnMaxMessages_ge_of_awgnCode
+        ir : (T W N₀ P : ℝ) (hT : 0 < T) (hW : 0 < W) (hN₀ : 0 < N₀) (hP : 0 ≤ P) {c : ℝ} (hc0 : 0 < c) (hc1 : c 
+        syn: (T W N₀ P : ℝ) (hT : 0 < T) (hW : 0 < W) (hN₀ : 0 < N₀) (hP : 0 ≤ P) {c : ℝ} (hc0 : 0 < c) (hc1 : c 
+        InformationTheory.Shannon.wynerZivRateFactorizable_convex_in_D
+        ir : {α : Type u_1} {β : Type u_2} [Fintype α] [Fintype β] [MeasurableSpace α] [MeasurableSpace β] (U : T
+        syn: {γ : Type*} {P_XY : α × β → ℝ} (h_pmf : P_XY ∈ stdSimplex ℝ (α × β)) (d : α → γ → ℝ) (f : U × β → γ)
+        InformationTheory.Shannon.wynerZivCondEntDiffConvex_holds
+        ir : {α : Type u_1} {β : Type u_2} [Fintype α] [Fintype β] [MeasurableSpace α] [MeasurableSpace β] (U : T
+        syn: (P_XY : α × β → ℝ) (h_pmf_nn : ∀ p, 0 ≤ P_XY p)
+        InformationTheory.Shannon.BroadcastChannel.le_enhancedSumRateBound_of_le_plainSumRateBound
+        ir : {Ω : Type u_1} [MeasurableSpace Ω] {A : Type u_2} [Fintype A] [MeasurableSpace A] [MeasurableSinglet
+        syn: (μ : Measure Ω) [IsProbabilityMeasure μ] (x : Ω → A) (y : Ω → B₁) (z : Ω → B₂) (j : Ω → D) (w : Ω → 
+        InformationTheory.Shannon.BroadcastChannel.twoAuxFirstUserBound_le_twoAuxFirstUserBoundInput
+        ir : {Ω : Type u_1} [MeasurableSpace Ω] {A : Type u_2} [Fintype A] [MeasurableSpace A] [MeasurableSinglet
+        syn: (μ : Measure Ω) [IsProbabilityMeasure μ] (x : Ω → A) (y : Ω → B₁) (z : Ω → B₂) (wh : Ω → Wh) (uh : Ω
+        InformationTheory.Shannon.BroadcastChannel.enhancedSumRateBound_sub_plainSumRateBound_eq_secondUserSlack
+        ir : {Ω : Type u_1} [MeasurableSpace Ω] {A : Type u_2} [Fintype A] [MeasurableSpace A] [MeasurableSinglet
+        syn: (μ : Measure Ω) [IsProbabilityMeasure μ] (x : Ω → A) (y : Ω → B₁) (z : Ω → B₂) (j : Ω → D) (w : Ω → 
+    347  (7.6%)  type omitted at the definition site (`def f := ...`)
+        InformationTheory.Shannon.ChannelCodingFeedback.channel_coding_feedback_converse_memoryless  | IR type: Real.log ↑(Fintype.card M) ≤ ↑n * C.toReal + Real.binEntropy (MeasureF
+        InformationTheory.Shannon.differentialEntropyExt_eq_top_of_not_integrable  | IR type: differentialEntropyExt μ = ⊤
+        InformationTheory.Shannon.lintegral_ofReal_translate_density_aeeq  | IR type: ∀ᵐ (x : ℝ), ∫⁻ (z : ℝ), ENNReal.ofReal (μW.rnDeriv MeasureTheory.volum
+        InformationTheory.Shannon.integral_neg_translate_log_eq_differentialEntropy  | IR type: ∫ (z : ℝ), -∫ (x : ℝ), Real.log ((μW.conv μV).rnDeriv MeasureTheory.vo
+        InformationTheory.Shannon.integral_map_add_const_eq_integral_translate_mul  | IR type: ∫ (x : ℝ), g x ∂MeasureTheory.Measure.map (fun (x : ℝ) => x + z) μW = 
+        InformationTheory.Shannon.rnDeriv_conv_toReal_aeeq_integral_translate  | IR type: (fun (x : ℝ) => ((μW.conv μV).rnDeriv MeasureTheory.volume x).toReal) 
+        InformationTheory.Shannon.truncW_map_negMulLog_negPart_lintegral_ne_top  | IR type: ∫⁻ (x : ℝ), ENNReal.ofReal (-(fn x).negMulLog) ≠ ⊤
+        InformationTheory.Shannon.differentialEntropyExt_mono_add_of_integrable  | IR type: differentialEntropyExt (MeasureTheory.Measure.map W Q) ≤ differentialE
+    340  (7.5%)  byte-exact
+     68  (1.5%)  name qualification only (IR prints `A.b`, source wrote `b` under `open A`)
+        InformationTheory.Shannon.LZ78Phrase.bitLength_pos
+        ir : 0 < bitLength c a
+        syn: 0 < LZ78Phrase.bitLength c a
+        InformationTheory.Shannon.LZ78Phrase.bitLength_eq
+        ir : bitLength c a = Nat.log 2 (c + 1) + Nat.log 2 a + 2
+        syn: LZ78Phrase.bitLength c a = Nat.log 2 (c + 1) + Nat.log 2 a + 2
+        InformationTheory.Shannon.LZ78Phrase.bitLength_mono_left
+        ir : bitLength c a ≤ bitLength c' a
+        syn: LZ78Phrase.bitLength c a ≤ LZ78Phrase.bitLength c' a
+        InformationTheory.Shannon.FisherInfo.convDensityAdd_envelope_integrable
+        ir : MeasureTheory.Integrable (EPIConvDensity.convDensityAdd pX K) MeasureTheory.volu
+        syn: Integrable (convDensityAdd pX K) volume
+        InformationTheory.Shannon.FisherInfo.gaussHessMaj_integrable
+        ir : MeasureTheory.Integrable (gaussHessMaj t) MeasureTheory.volume
+        syn: Integrable (gaussHessMaj t) volume
+        InformationTheory.Shannon.entropyPowerExt_eq_top_of_diffEntExt_top
+        ir : entropyPowerExt μ = ⊤
+        syn: entropyPowerExt μ = ⊤
+        InformationTheory.Shannon.entropyPowerExt_dirac
+        ir : entropyPowerExt (MeasureTheory.Measure.dirac m) = 0
+        syn: entropyPowerExt (Measure.dirac m) = 0
+        InformationTheory.Shannon.affineShiftKernel.instIsMarkov
+        ir : ProbabilityTheory.IsMarkovKernel (affineShiftKernel νX c)
+        syn: IsMarkovKernel (affineShiftKernel νX c)
+     10  (0.2%)  whitespace / line-wrapping only
+        InformationTheory.Shannon.ChannelCoding.jointlyTypicalSetMinN_le_channelCodingSmoothMinN
+        InformationTheory.Shannon.ChannelCoding.expNegMulMinN_le_channelCodingSmoothMinN
+        InformationTheory.Shannon.StamConditionalCauchySchwarz.stam_jensen_gap
+        InformationTheory.Shannon.edgeBoundary_count_eq
+        InformationTheory.Shannon.two_sum_projection_eq
+        InformationTheory.Shannon.internal_pair_count_eq_projection_sum
+        InformationTheory.negMulLog_pair_sub_negMulLog_sum_eq_binEntropy
+        InformationTheory.Shannon.TimeBandLimiting.bandLimitProj_star

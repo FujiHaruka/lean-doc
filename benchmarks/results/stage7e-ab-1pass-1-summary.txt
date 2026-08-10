@@ -1,0 +1,41 @@
+date              2026-08-10T21:10:14Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+LEAN_NUM_THREADS  unset (Lean default)
+page cache        unstable: importModules drifted 6.1->12.9 s over the preceding 5 processes; A/B alternated for this reason
+target            /Users/haruka/dev/lean-projects
+modules           432 from /Users/haruka/dev/lean-doc/benchmarks/results/it-modules.txt
+binary            /Users/haruka/dev/lean-doc/experiments/stage7e/build/parse
+args              --env full --repeat 3
+
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+env               full (432 direct imports, 6021 loaded)
+initSearchPath    0.083 ms
+importModules     7933.847 ms
+round 0           wall 4413.784 ms  sum 4406.516 ms  p50 7.036 ms  p90 24.606 ms  max 60.449 ms  mean 10.200 ms  modules 432  errModules 215  errors 989
+  of which header  sum 215.186 ms  p50 0.449 ms  p90 0.794 ms  max 2.089 ms  (mkEmptyEnvironment inside parseHeader)
+round 1           wall 4249.771 ms  sum 4243.727 ms  p50 6.894 ms  p90 23.230 ms  max 54.746 ms  mean 9.823 ms  modules 432  errModules 215  errors 989
+  of which header  sum 195.390 ms  p50 0.413 ms  p90 0.704 ms  max 1.912 ms  (mkEmptyEnvironment inside parseHeader)
+round 2           wall 4369.114 ms  sum 4362.778 ms  p50 7.077 ms  p90 24.265 ms  max 54.463 ms  mean 10.099 ms  modules 432  errModules 215  errors 989
+  of which header  sum 210.357 ms  p50 0.445 ms  p90 0.768 ms  max 1.945 ms  (mkEmptyEnvironment inside parseHeader)
+
+modules parsed    432
+errModules        215 / 432
+       21.22 real        14.47 user         1.80 sys
+          3267772416  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              200700  page reclaims
+               51822  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                9157  voluntary context switches
+               47163  involuntary context switches
+        173388872789  instructions retired
+         50610088157  cycles elapsed
+           545648512  peak memory footprint

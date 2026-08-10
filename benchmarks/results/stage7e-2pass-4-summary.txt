@@ -1,0 +1,165 @@
+date              2026-08-10T21:06:08Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+LEAN_NUM_THREADS  unset (Lean default)
+page cache        warm (same session, oleans already touched by earlier stage-7e runs)
+target            /Users/haruka/dev/lean-projects
+modules           432 from /Users/haruka/dev/lean-doc/benchmarks/results/it-modules.txt
+binary            /Users/haruka/dev/lean-doc/experiments/stage7e/build/parse
+args              --env full --two-pass --repeat 5
+
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+env               full (432 direct imports, 6021 loaded)
+initSearchPath    0.091 ms
+importModules     12946.501 ms
+round 0           wall 10251.851 ms  sum 4957.985 ms  p50 7.898 ms  p90 27.620 ms  max 59.327 ms  mean 11.476 ms  modules 432  errModules 0  errors 0
+  of which header  sum 243.676 ms  p50 0.539 ms  p90 0.891 ms  max 1.804 ms  (mkEmptyEnvironment inside parseHeader)
+  scan (walk)      sum 184.916 ms  p50 0.252 ms  p90 1.093 ms  max 2.456 ms  decls 5160  unnamed 109  endMismatch 0
+  top-level command kinds (all of them, handled or not):
+    3298  Lean.Parser.Command.declaration
+    1971  lemma
+    1515  Lean.Parser.Command.moduleDoc
+    1132  Lean.Parser.Command.open
+    1040  Lean.Parser.Command.in
+    970  Lean.Parser.Command.variable
+    953  Lean.Parser.Command.omit
+    734  Lean.Parser.Command.end
+    428  Lean.Parser.Command.namespace
+    306  Lean.Parser.Command.section
+    222  Lean.Parser.Command.set_option
+    25  Lean.Parser.Command.include
+    14  Lean.Parser.Command.universe
+    5  Mathlib.Tactic.scopedNS
+    1  Lean.Parser.Command.notation
+    1  Lean.Elab.Command.command_Irreducible_def____
+    1  Lean.Parser.Command.attribute
+    1  Lean.Parser.Command.initialize
+  activateScoped   sum 392.441 ms  p50 1.000 ms  p90 1.320 ms  max 1.748 ms  namespaces 5885
+  UNIT (1 module)  sum 10188.195 ms  p50 16.505 ms  p90 54.657 ms  max 125.749 ms  mean 23.583 ms
+  pass1            errModules 215  errors 989  (must equal the --env full gate run when the base env is intact)
+  wanted grew      0 / 432 modules (a third pass would only help these)
+round 1           wall 10157.876 ms  sum 4919.971 ms  p50 7.979 ms  p90 27.097 ms  max 58.122 ms  mean 11.388 ms  modules 432  errModules 0  errors 0
+  of which header  sum 244.456 ms  p50 0.539 ms  p90 0.884 ms  max 1.949 ms  (mkEmptyEnvironment inside parseHeader)
+  scan (walk)      sum 183.852 ms  p50 0.254 ms  p90 1.149 ms  max 2.533 ms  decls 5160  unnamed 109  endMismatch 0
+  top-level command kinds (all of them, handled or not):
+    3298  Lean.Parser.Command.declaration
+    1971  lemma
+    1515  Lean.Parser.Command.moduleDoc
+    1132  Lean.Parser.Command.open
+    1040  Lean.Parser.Command.in
+    970  Lean.Parser.Command.variable
+    953  Lean.Parser.Command.omit
+    734  Lean.Parser.Command.end
+    428  Lean.Parser.Command.namespace
+    306  Lean.Parser.Command.section
+    222  Lean.Parser.Command.set_option
+    25  Lean.Parser.Command.include
+    14  Lean.Parser.Command.universe
+    5  Mathlib.Tactic.scopedNS
+    1  Lean.Parser.Command.notation
+    1  Lean.Elab.Command.command_Irreducible_def____
+    1  Lean.Parser.Command.attribute
+    1  Lean.Parser.Command.initialize
+  activateScoped   sum 393.051 ms  p50 0.991 ms  p90 1.304 ms  max 2.430 ms  namespaces 5885
+  UNIT (1 module)  sum 10095.824 ms  p50 16.818 ms  p90 53.595 ms  max 121.630 ms  mean 23.369 ms
+  pass1            errModules 215  errors 989  (must equal the --env full gate run when the base env is intact)
+  wanted grew      0 / 432 modules (a third pass would only help these)
+round 2           wall 10102.832 ms  sum 4895.423 ms  p50 7.907 ms  p90 27.256 ms  max 58.863 ms  mean 11.331 ms  modules 432  errModules 0  errors 0
+  of which header  sum 241.527 ms  p50 0.533 ms  p90 0.871 ms  max 1.831 ms  (mkEmptyEnvironment inside parseHeader)
+  scan (walk)      sum 181.045 ms  p50 0.247 ms  p90 1.094 ms  max 2.583 ms  decls 5160  unnamed 109  endMismatch 0
+  top-level command kinds (all of them, handled or not):
+    3298  Lean.Parser.Command.declaration
+    1971  lemma
+    1515  Lean.Parser.Command.moduleDoc
+    1132  Lean.Parser.Command.open
+    1040  Lean.Parser.Command.in
+    970  Lean.Parser.Command.variable
+    953  Lean.Parser.Command.omit
+    734  Lean.Parser.Command.end
+    428  Lean.Parser.Command.namespace
+    306  Lean.Parser.Command.section
+    222  Lean.Parser.Command.set_option
+    25  Lean.Parser.Command.include
+    14  Lean.Parser.Command.universe
+    5  Mathlib.Tactic.scopedNS
+    1  Lean.Parser.Command.notation
+    1  Lean.Elab.Command.command_Irreducible_def____
+    1  Lean.Parser.Command.attribute
+    1  Lean.Parser.Command.initialize
+  activateScoped   sum 389.795 ms  p50 0.989 ms  p90 1.294 ms  max 1.755 ms  namespaces 5885
+  UNIT (1 module)  sum 10042.082 ms  p50 16.278 ms  p90 53.794 ms  max 125.561 ms  mean 23.245 ms
+  pass1            errModules 215  errors 989  (must equal the --env full gate run when the base env is intact)
+  wanted grew      0 / 432 modules (a third pass would only help these)
+round 3           wall 10171.141 ms  sum 4930.724 ms  p50 7.912 ms  p90 26.771 ms  max 57.710 ms  mean 11.413 ms  modules 432  errModules 0  errors 0
+  of which header  sum 243.335 ms  p50 0.533 ms  p90 0.879 ms  max 1.776 ms  (mkEmptyEnvironment inside parseHeader)
+  scan (walk)      sum 182.989 ms  p50 0.249 ms  p90 1.144 ms  max 2.265 ms  decls 5160  unnamed 109  endMismatch 0
+  top-level command kinds (all of them, handled or not):
+    3298  Lean.Parser.Command.declaration
+    1971  lemma
+    1515  Lean.Parser.Command.moduleDoc
+    1132  Lean.Parser.Command.open
+    1040  Lean.Parser.Command.in
+    970  Lean.Parser.Command.variable
+    953  Lean.Parser.Command.omit
+    734  Lean.Parser.Command.end
+    428  Lean.Parser.Command.namespace
+    306  Lean.Parser.Command.section
+    222  Lean.Parser.Command.set_option
+    25  Lean.Parser.Command.include
+    14  Lean.Parser.Command.universe
+    5  Mathlib.Tactic.scopedNS
+    1  Lean.Parser.Command.notation
+    1  Lean.Elab.Command.command_Irreducible_def____
+    1  Lean.Parser.Command.attribute
+    1  Lean.Parser.Command.initialize
+  activateScoped   sum 392.515 ms  p50 0.998 ms  p90 1.313 ms  max 1.736 ms  namespaces 5885
+  UNIT (1 module)  sum 10109.916 ms  p50 16.306 ms  p90 53.163 ms  max 121.399 ms  mean 23.402 ms
+  pass1            errModules 215  errors 989  (must equal the --env full gate run when the base env is intact)
+  wanted grew      0 / 432 modules (a third pass would only help these)
+round 4           wall 11030.964 ms  sum 5321.467 ms  p50 8.235 ms  p90 29.793 ms  max 74.911 ms  mean 12.318 ms  modules 432  errModules 0  errors 0
+  of which header  sum 269.155 ms  p50 0.581 ms  p90 0.949 ms  max 2.906 ms  (mkEmptyEnvironment inside parseHeader)
+  scan (walk)      sum 214.780 ms  p50 0.272 ms  p90 1.285 ms  max 3.629 ms  decls 5160  unnamed 109  endMismatch 0
+  top-level command kinds (all of them, handled or not):
+    3298  Lean.Parser.Command.declaration
+    1971  lemma
+    1515  Lean.Parser.Command.moduleDoc
+    1132  Lean.Parser.Command.open
+    1040  Lean.Parser.Command.in
+    970  Lean.Parser.Command.variable
+    953  Lean.Parser.Command.omit
+    734  Lean.Parser.Command.end
+    428  Lean.Parser.Command.namespace
+    306  Lean.Parser.Command.section
+    222  Lean.Parser.Command.set_option
+    25  Lean.Parser.Command.include
+    14  Lean.Parser.Command.universe
+    5  Mathlib.Tactic.scopedNS
+    1  Lean.Parser.Command.notation
+    1  Lean.Elab.Command.command_Irreducible_def____
+    1  Lean.Parser.Command.attribute
+    1  Lean.Parser.Command.initialize
+  activateScoped   sum 424.427 ms  p50 1.035 ms  p90 1.421 ms  max 4.618 ms  namespaces 5885
+  UNIT (1 module)  sum 10951.531 ms  p50 17.395 ms  p90 60.773 ms  max 157.676 ms  mean 25.350 ms
+  pass1            errModules 215  errors 989  (must equal the --env full gate run when the base env is intact)
+  wanted grew      0 / 432 modules (a third pass would only help these)
+
+modules parsed    432
+errModules        0 / 432
+       65.10 real        53.01 user         2.45 sys
+          3252060160  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              142632  page reclaims
+              114479  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+               10942  voluntary context switches
+              112039  involuntary context switches
+        566552385453  instructions retired
+        169153630786  cycles elapsed
+           545124224  peak memory footprint

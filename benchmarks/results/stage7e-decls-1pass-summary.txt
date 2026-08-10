@@ -1,0 +1,57 @@
+date              2026-08-10T21:17:40Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+LEAN_NUM_THREADS  unset (Lean default)
+page cache        re-run right after the previous process; importModules on the line below is the honest indicator (warm ~2.6 s, cold up to ~13 s)
+target            /Users/haruka/dev/lean-projects
+modules           432 from /Users/haruka/dev/lean-doc/benchmarks/results/it-modules.txt
+binary            /Users/haruka/dev/lean-doc/experiments/stage7e/build/parse
+args              --env full --decls /private/tmp/lean-doc-relay/w7e-syn/decls-1pass.jsonl
+
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+env               full (432 direct imports, 6021 loaded)
+initSearchPath    0.083 ms
+importModules     3416.312 ms
+round 0           wall 4536.459 ms  sum 4253.594 ms  p50 6.856 ms  p90 23.285 ms  max 54.212 ms  mean 9.846 ms  modules 432  errModules 215  errors 989
+  of which header  sum 206.795 ms  p50 0.436 ms  p90 0.764 ms  max 1.769 ms  (mkEmptyEnvironment inside parseHeader)
+  scan (walk)      sum 128.232 ms  p50 0.187 ms  p90 0.739 ms  max 1.986 ms  decls 5253  unnamed 16  endMismatch 0
+  top-level command kinds (all of them, handled or not):
+    3298  Lean.Parser.Command.declaration
+    1971  lemma
+    1515  Lean.Parser.Command.moduleDoc
+    1132  Lean.Parser.Command.open
+    1040  Lean.Parser.Command.in
+    970  Lean.Parser.Command.variable
+    953  Lean.Parser.Command.omit
+    734  Lean.Parser.Command.end
+    428  Lean.Parser.Command.namespace
+    306  Lean.Parser.Command.section
+    222  Lean.Parser.Command.set_option
+    25  Lean.Parser.Command.include
+    14  Lean.Parser.Command.universe
+    5  Mathlib.Tactic.scopedNS
+    1  Lean.Parser.Command.notation
+    1  Lean.Elab.Command.command_Irreducible_def____
+    1  Lean.Parser.Command.attribute
+    1  Lean.Parser.Command.initialize
+
+modules parsed    432
+errModules        215 / 432
+        8.19 real         5.98 user         1.48 sys
+          3266248704  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              249395  page reclaims
+                5808  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                1841  voluntary context switches
+                7768  involuntary context switches
+         75580725725  instructions retired
+         23197224753  cycles elapsed
+           549318528  peak memory footprint

@@ -1,0 +1,113 @@
+date              2026-08-10T21:10:37Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+LEAN_NUM_THREADS  unset (Lean default)
+page cache        unstable: importModules drifted 6.1->12.9 s over the preceding 5 processes; A/B alternated for this reason
+target            /Users/haruka/dev/lean-projects
+modules           432 from /Users/haruka/dev/lean-doc/benchmarks/results/it-modules.txt
+binary            /Users/haruka/dev/lean-doc/experiments/stage7e/build/parse
+args              --env full --two-pass --repeat 3
+
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+env               full (432 direct imports, 6021 loaded)
+initSearchPath    0.099 ms
+importModules     2643.094 ms
+round 0           wall 9493.352 ms  sum 4613.075 ms  p50 7.429 ms  p90 25.707 ms  max 53.318 ms  mean 10.678 ms  modules 432  errModules 0  errors 0
+  of which header  sum 201.599 ms  p50 0.409 ms  p90 0.776 ms  max 1.698 ms  (mkEmptyEnvironment inside parseHeader)
+  scan (walk)      sum 152.403 ms  p50 0.224 ms  p90 0.852 ms  max 1.970 ms  decls 5160  unnamed 109  endMismatch 0
+  top-level command kinds (all of them, handled or not):
+    3298  Lean.Parser.Command.declaration
+    1971  lemma
+    1515  Lean.Parser.Command.moduleDoc
+    1132  Lean.Parser.Command.open
+    1040  Lean.Parser.Command.in
+    970  Lean.Parser.Command.variable
+    953  Lean.Parser.Command.omit
+    734  Lean.Parser.Command.end
+    428  Lean.Parser.Command.namespace
+    306  Lean.Parser.Command.section
+    222  Lean.Parser.Command.set_option
+    25  Lean.Parser.Command.include
+    14  Lean.Parser.Command.universe
+    5  Mathlib.Tactic.scopedNS
+    1  Lean.Parser.Command.notation
+    1  Lean.Elab.Command.command_Irreducible_def____
+    1  Lean.Parser.Command.attribute
+    1  Lean.Parser.Command.initialize
+  activateScoped   sum 358.601 ms  p50 0.900 ms  p90 1.224 ms  max 1.782 ms  namespaces 5885
+  UNIT (1 module)  sum 9441.520 ms  p50 15.558 ms  p90 50.347 ms  max 112.041 ms  mean 21.855 ms
+  pass1            errModules 215  errors 989  (must equal the --env full gate run when the base env is intact)
+  wanted grew      0 / 432 modules (a third pass would only help these)
+round 1           wall 9589.796 ms  sum 4665.358 ms  p50 7.433 ms  p90 26.270 ms  max 53.254 ms  mean 10.799 ms  modules 432  errModules 0  errors 0
+  of which header  sum 205.664 ms  p50 0.419 ms  p90 0.799 ms  max 1.831 ms  (mkEmptyEnvironment inside parseHeader)
+  scan (walk)      sum 155.921 ms  p50 0.222 ms  p90 0.891 ms  max 2.187 ms  decls 5160  unnamed 109  endMismatch 0
+  top-level command kinds (all of them, handled or not):
+    3298  Lean.Parser.Command.declaration
+    1971  lemma
+    1515  Lean.Parser.Command.moduleDoc
+    1132  Lean.Parser.Command.open
+    1040  Lean.Parser.Command.in
+    970  Lean.Parser.Command.variable
+    953  Lean.Parser.Command.omit
+    734  Lean.Parser.Command.end
+    428  Lean.Parser.Command.namespace
+    306  Lean.Parser.Command.section
+    222  Lean.Parser.Command.set_option
+    25  Lean.Parser.Command.include
+    14  Lean.Parser.Command.universe
+    5  Mathlib.Tactic.scopedNS
+    1  Lean.Parser.Command.notation
+    1  Lean.Elab.Command.command_Irreducible_def____
+    1  Lean.Parser.Command.attribute
+    1  Lean.Parser.Command.initialize
+  activateScoped   sum 364.736 ms  p50 0.898 ms  p90 1.248 ms  max 4.931 ms  namespaces 5885
+  UNIT (1 module)  sum 9538.792 ms  p50 15.678 ms  p90 51.487 ms  max 111.474 ms  mean 22.080 ms
+  pass1            errModules 215  errors 989  (must equal the --env full gate run when the base env is intact)
+  wanted grew      0 / 432 modules (a third pass would only help these)
+round 2           wall 9557.107 ms  sum 4646.199 ms  p50 7.353 ms  p90 25.630 ms  max 53.422 ms  mean 10.755 ms  modules 432  errModules 0  errors 0
+  of which header  sum 205.908 ms  p50 0.412 ms  p90 0.801 ms  max 1.821 ms  (mkEmptyEnvironment inside parseHeader)
+  scan (walk)      sum 156.974 ms  p50 0.228 ms  p90 0.851 ms  max 2.475 ms  decls 5160  unnamed 109  endMismatch 0
+  top-level command kinds (all of them, handled or not):
+    3298  Lean.Parser.Command.declaration
+    1971  lemma
+    1515  Lean.Parser.Command.moduleDoc
+    1132  Lean.Parser.Command.open
+    1040  Lean.Parser.Command.in
+    970  Lean.Parser.Command.variable
+    953  Lean.Parser.Command.omit
+    734  Lean.Parser.Command.end
+    428  Lean.Parser.Command.namespace
+    306  Lean.Parser.Command.section
+    222  Lean.Parser.Command.set_option
+    25  Lean.Parser.Command.include
+    14  Lean.Parser.Command.universe
+    5  Mathlib.Tactic.scopedNS
+    1  Lean.Parser.Command.notation
+    1  Lean.Elab.Command.command_Irreducible_def____
+    1  Lean.Parser.Command.attribute
+    1  Lean.Parser.Command.initialize
+  activateScoped   sum 361.184 ms  p50 0.901 ms  p90 1.248 ms  max 1.644 ms  namespaces 5885
+  UNIT (1 module)  sum 9506.021 ms  p50 15.264 ms  p90 50.983 ms  max 113.140 ms  mean 22.004 ms
+  pass1            errModules 215  errors 989  (must equal the --env full gate run when the base env is intact)
+  wanted grew      0 / 432 modules (a third pass would only help these)
+
+modules parsed    432
+errModules        0 / 432
+       31.51 real        30.03 user         1.36 sys
+          3267444736  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              254042  page reclaims
+                 376  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 559  voluntary context switches
+                2586  involuntary context switches
+        345684524910  instructions retired
+         98150921588  cycles elapsed
+           549138304  peak memory footprint

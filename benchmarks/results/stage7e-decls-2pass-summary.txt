@@ -1,0 +1,61 @@
+date              2026-08-10T21:17:23Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+LEAN_NUM_THREADS  unset (Lean default)
+page cache        re-run right after the previous process; importModules on the line below is the honest indicator (warm ~2.6 s, cold up to ~13 s)
+target            /Users/haruka/dev/lean-projects
+modules           432 from /Users/haruka/dev/lean-doc/benchmarks/results/it-modules.txt
+binary            /Users/haruka/dev/lean-doc/experiments/stage7e/build/parse
+args              --env full --two-pass --decls /private/tmp/lean-doc-relay/w7e-syn/decls-2pass.jsonl
+
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+env               full (432 direct imports, 6021 loaded)
+initSearchPath    0.084 ms
+importModules     5609.270 ms
+round 0           wall 10019.807 ms  sum 4786.460 ms  p50 7.593 ms  p90 27.588 ms  max 54.652 ms  mean 11.079 ms  modules 432  errModules 0  errors 0
+  of which header  sum 225.229 ms  p50 0.464 ms  p90 0.834 ms  max 5.808 ms  (mkEmptyEnvironment inside parseHeader)
+  scan (walk)      sum 164.787 ms  p50 0.241 ms  p90 0.955 ms  max 2.117 ms  decls 5253  unnamed 16  endMismatch 0
+  top-level command kinds (all of them, handled or not):
+    3298  Lean.Parser.Command.declaration
+    1971  lemma
+    1515  Lean.Parser.Command.moduleDoc
+    1132  Lean.Parser.Command.open
+    1040  Lean.Parser.Command.in
+    970  Lean.Parser.Command.variable
+    953  Lean.Parser.Command.omit
+    734  Lean.Parser.Command.end
+    428  Lean.Parser.Command.namespace
+    306  Lean.Parser.Command.section
+    222  Lean.Parser.Command.set_option
+    25  Lean.Parser.Command.include
+    14  Lean.Parser.Command.universe
+    5  Mathlib.Tactic.scopedNS
+    1  Lean.Parser.Command.notation
+    1  Lean.Elab.Command.command_Irreducible_def____
+    1  Lean.Parser.Command.attribute
+    1  Lean.Parser.Command.initialize
+  activateScoped   sum 378.748 ms  p50 0.938 ms  p90 1.268 ms  max 3.017 ms  namespaces 5885
+  UNIT (1 module)  sum 9802.974 ms  p50 16.309 ms  p90 53.051 ms  max 115.624 ms  mean 22.692 ms
+  pass1            errModules 215  errors 989  (must equal the --env full gate run when the base env is intact)
+  wanted grew      0 / 432 modules (a third pass would only help these)
+
+modules parsed    432
+errModules        0 / 432
+       15.87 real        11.41 user         1.65 sys
+          3268509696  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              225969  page reclaims
+               29604  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                4665  voluntary context switches
+               28046  involuntary context switches
+        134715550757  instructions retired
+         40562866575  cycles elapsed
+           548630400  peak memory footprint

@@ -1,0 +1,113 @@
+date              2026-08-10T21:08:41Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+LEAN_NUM_THREADS  unset (Lean default)
+page cache        warm (same session, oleans already touched by earlier stage-7e runs)
+target            /Users/haruka/dev/lean-projects
+modules           432 from /Users/haruka/dev/lean-doc/benchmarks/results/it-modules.txt
+binary            /Users/haruka/dev/lean-doc/experiments/stage7e/build/parse
+args              --env full --two-pass --accum --print-errors
+
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+env               full (432 direct imports, 6021 loaded)
+initSearchPath    0.070 ms
+importModules     2792.006 ms
+  ERR InformationTheory.Shannon.Pi (5) 112:38  unexpected token ':='; expected ')', ',' or ':'
+  ERR InformationTheory.Shannon.CondEntropyMemoryless (1) 506:42  unexpected token ':='; expected ')', ',' or ':'
+  ERR InformationTheory.Probability.TwoSidedExtension.Core (1) 174:32  unexpected token ':='; expected ')', ',' or ':'
+  ERR InformationTheory.Shannon.ChannelCoding.ConverseMemorylessMarkov (1) 82:42  unexpected token ':='; expected ')', ',' or ':'
+  ERR InformationTheory.Shannon.RateDistortion.ConverseNLetter (1) 453:43  unexpected token ':='; expected ')', ',' or ':'
+  ERR InformationTheory.Shannon.MultipleAccess.JointTypicality (1) 296:8  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.MultipleAccess.IIDAmbient (3) 87:36  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.Gambling.OperationalSequences (6) 78:5  unexpected token 'ω'; expected ',' or 'in'
+  ERR InformationTheory.Shannon.AEP.Rate (6) 43:46  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.BroadcastChannel.Thm7Region (1) 301:7  unexpected token 'ω'; expected ',' or 'in'
+  ERR InformationTheory.Shannon.Kolmogorov.EntropyRate (3) 542:23  unexpected token 'ω'; expected ',' or 'in'
+  ERR InformationTheory.Shannon.EPI.ScoreCrossTermOrth (1) 44:15  unexpected token 'ω'; expected ',' or 'in'
+  ERR InformationTheory.Shannon.ParallelGaussian.PerCoord (1) 385:10  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.IIDProductInput.Basic (2) 64:35  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.Portfolio.StationaryMarket (2) 71:6  unexpected token 'ω'; expected ',' or '∂'
+  ERR InformationTheory.Shannon.Portfolio.StationaryWinfty (27) 79:16  unexpected token 'ω'; expected '(', '[', '_', '{', '⦃' or identifier
+  ERR InformationTheory.Shannon.Portfolio.StationaryWinftyConcrete (1) 211:15  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.Portfolio.StationaryWinftyAEP (16) 142:14  unexpected token 'ω'; expected '(', '[', '_', '{', '⦃' or identifier
+  ERR InformationTheory.Shannon.Portfolio.OperationalSequences (2) 115:6  unexpected token 'ω'; expected ',' or '∂'
+  ERR InformationTheory.Shannon.SMB.McMillanBreiman (2) 91:18  unexpected token 'ω'; expected ',' or '∂'
+  ERR InformationTheory.Shannon.SMB.ChainRule (7) 87:41  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.Cramer.TiltedIID (3) 63:57  unexpected token 'ω'; expected '(', '[', '_', '{', '⦃' or identifier
+  ERR InformationTheory.Shannon.Cramer.TiltedLLN (7) 51:57  unexpected token 'ω'; expected '(', '[', '_', '{', '⦃' or identifier
+  ERR InformationTheory.Shannon.Cramer.InfinitePiTiltedChangeOfMeasure (6) 39:15  unexpected token 'ω'; expected ',' or 'in'
+  ERR InformationTheory.Shannon.Cramer.LC2PhaseC (3) 62:57  unexpected token 'ω'; expected '(', '[', '_', '{', '⦃' or identifier
+  ERR InformationTheory.Shannon.Cramer.Cramer (9) 102:44  unexpected token 'ω'; expected '(', '[', '_', '{', '⦃' or identifier
+  ERR InformationTheory.Shannon.Han.Basic (1) 100:21  unexpected token 'ω'; expected '(', '[', '_', '{', '⦃' or identifier
+  ERR InformationTheory.Shannon.AWGN.ConverseMIChainRule.Markov (3) 50:8  unexpected token 'ω'; expected ',' or 'in'
+  ERR InformationTheory.Shannon.SlepianWolf.FullRateRegion.Core (3) 91:5  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.SlepianWolf.FullRateRegion.PairBound (3) 114:8  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.SlepianWolf.FullRateRegion.AliasBound (5) 49:15  unexpected token 'ω'; expected '(', '[', '_', '{', '⦃' or identifier
+  ERR InformationTheory.Shannon.LZ78.AsymptoticOptimality.ParentBridgeConverse (4) 63:6  unexpected token 'ω'; expected ',' or '∂'
+  ERR InformationTheory.Shannon.LZ78.AsymptoticOptimality.ParentBridgeAchievability (5) 226:6  unexpected token 'ω'; expected ',' or '∂'
+  ERR InformationTheory.Shannon.RateDistortion.AchievabilityStrongTypicality.FailureTendstoZero (1) 260:59  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.WynerZiv.Converse.Prelim (1) 187:10  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.WynerZiv.Converse.SingleLetter (4) 287:12  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.WynerZiv.Achievability.Covering (2) 1184:6  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.WynerZiv.Achievability.Decomposition (1) 273:12  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.WynerZiv.Achievability.Concentration (1) 1068:10  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.AEP.Basic.Core (5) 33:54  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.BroadcastChannel.Marton.Covering (2) 81:8  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.BroadcastChannel.Marton.MutualCovering (6) 78:27  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.BroadcastChannel.Marton.CardinalityBound (1) 72:8  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.SMB.AlgoetCover.MarkovLikelihoodRatio (9) 385:41  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.SMB.AlgoetCover.Limsup (3) 28:6  unexpected token 'ω'; expected ',' or '∂'
+  ERR InformationTheory.Shannon.SMB.AlgoetCover.Liminf (3) 236:16  unexpected token 'ω'; expected ',' or '∂'
+  ERR InformationTheory.Shannon.SMB.AlgoetCover.KMarkovApproximation (3) 45:77  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.SMB.AlgoetCover.TwoSidedRatio (1) 101:82  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.SMB.AlgoetCover.Boundedness (2) 34:6  unexpected token 'ω'; expected ',' or '∂'
+  ERR InformationTheory.Shannon.EPI.InfiniteVariance.Truncation.Construction (4) 108:22  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.EPI.Unconditional.TruncationLimit.Limit (3) 79:44  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.EPI.Unconditional.TruncationLimit.Mono (2) 543:8  unexpected token 'ω'; expected command
+round 0           wall 11712.478 ms  sum 5380.157 ms  p50 8.502 ms  p90 29.429 ms  max 67.311 ms  mean 12.454 ms  modules 432  errModules 52  errors 196
+  of which header  sum 269.985 ms  p50 0.600 ms  p90 0.932 ms  max 1.909 ms  (mkEmptyEnvironment inside parseHeader)
+  scan (walk)      sum 239.987 ms  p50 0.333 ms  p90 1.435 ms  max 3.521 ms  decls 5160  unnamed 109  endMismatch 0
+  top-level command kinds (all of them, handled or not):
+    3298  Lean.Parser.Command.declaration
+    1971  lemma
+    1515  Lean.Parser.Command.moduleDoc
+    1132  Lean.Parser.Command.open
+    1040  Lean.Parser.Command.in
+    970  Lean.Parser.Command.variable
+    953  Lean.Parser.Command.omit
+    734  Lean.Parser.Command.end
+    428  Lean.Parser.Command.namespace
+    306  Lean.Parser.Command.section
+    222  Lean.Parser.Command.set_option
+    25  Lean.Parser.Command.include
+    14  Lean.Parser.Command.universe
+    5  Mathlib.Tactic.scopedNS
+    1  Lean.Parser.Command.notation
+    1  Lean.Elab.Command.command_Irreducible_def____
+    1  Lean.Parser.Command.attribute
+    1  Lean.Parser.Command.initialize
+  activateScoped   sum 399.809 ms  p50 0.911 ms  p90 1.455 ms  max 2.803 ms  namespaces 5885
+  UNIT (1 module)  sum 11667.185 ms  p50 18.698 ms  p90 63.283 ms  max 141.852 ms  mean 27.007 ms
+  pass1            errModules 56  errors 211  (must equal the --env full gate run when the base env is intact)
+  wanted grew      0 / 432 modules (a third pass would only help these)
+
+modules parsed    432
+errModules        52 / 432
+       14.74 real        13.16 user         1.42 sys
+          3293052928  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              251699  page reclaims
+                 373  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 563  voluntary context switches
+                2748  involuntary context switches
+        132409894907  instructions retired
+         42273352032  cycles elapsed
+           547221248  peak memory footprint

@@ -1,0 +1,61 @@
+date              2026-08-10T21:08:57Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+LEAN_NUM_THREADS  unset (Lean default)
+page cache        warm (same session, oleans already touched by earlier stage-7e runs)
+target            /Users/haruka/dev/lean-projects
+modules           432 from /Users/haruka/dev/lean-doc/benchmarks/results/it-modules.txt
+binary            /Users/haruka/dev/lean-doc/experiments/stage7e/build/parse
+args              --env full --two-pass --print-errors
+
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+env               full (432 direct imports, 6021 loaded)
+initSearchPath    0.073 ms
+importModules     2900.735 ms
+round 0           wall 11013.345 ms  sum 5331.999 ms  p50 8.491 ms  p90 29.900 ms  max 61.109 ms  mean 12.342 ms  modules 432  errModules 0  errors 0
+  of which header  sum 264.500 ms  p50 0.582 ms  p90 0.933 ms  max 2.039 ms  (mkEmptyEnvironment inside parseHeader)
+  scan (walk)      sum 206.774 ms  p50 0.275 ms  p90 1.257 ms  max 2.624 ms  decls 5160  unnamed 109  endMismatch 0
+  top-level command kinds (all of them, handled or not):
+    3298  Lean.Parser.Command.declaration
+    1971  lemma
+    1515  Lean.Parser.Command.moduleDoc
+    1132  Lean.Parser.Command.open
+    1040  Lean.Parser.Command.in
+    970  Lean.Parser.Command.variable
+    953  Lean.Parser.Command.omit
+    734  Lean.Parser.Command.end
+    428  Lean.Parser.Command.namespace
+    306  Lean.Parser.Command.section
+    222  Lean.Parser.Command.set_option
+    25  Lean.Parser.Command.include
+    14  Lean.Parser.Command.universe
+    5  Mathlib.Tactic.scopedNS
+    1  Lean.Parser.Command.notation
+    1  Lean.Elab.Command.command_Irreducible_def____
+    1  Lean.Parser.Command.attribute
+    1  Lean.Parser.Command.initialize
+  activateScoped   sum 423.448 ms  p50 1.052 ms  p90 1.428 ms  max 1.959 ms  namespaces 5885
+  UNIT (1 module)  sum 10943.026 ms  p50 17.622 ms  p90 58.396 ms  max 130.047 ms  mean 25.331 ms
+  pass1            errModules 215  errors 989  (must equal the --env full gate run when the base env is intact)
+  wanted grew      0 / 432 modules (a third pass would only help these)
+
+modules parsed    432
+errModules        0 / 432
+       14.16 real        12.57 user         1.45 sys
+          3264495616  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              253547  page reclaims
+                 430  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 559  voluntary context switches
+                2412  involuntary context switches
+        131112668579  instructions retired
+         40397346785  cycles elapsed
+           546533248  peak memory footprint
