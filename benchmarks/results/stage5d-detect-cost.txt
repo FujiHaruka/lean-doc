@@ -1,0 +1,21 @@
+# stage5d — C6: the cost of splitting L1 in two
+
+date              2026-08-10T10:50:45Z
+host              Darwin 25.6.0 arm64
+lean-toolchain    leanprover/lean4:v4.31.0
+rounds            20 per variant, interleaved (round 1 of each dropped)
+before            the single envKey, at the split commit's parent
+after             extractKey + renderKey
+
+| key | before | after | delta |
+|---|---:|---:|---:|
+| readLedgerSeconds | 0.0005 | 0.0005 | +0.0000 |
+| keySeconds | 0.0007 | 0.0008 | +0.0001 |
+| hashSeconds | 0.0505 | 0.0505 | -0.0000 |
+| compareSeconds | 0.0003 | 0.0003 | -0.0000 |
+| totalSeconds | 0.0520 | 0.0522 | +0.0003 |
+
+before  totalSeconds spread over its own runs: 0.0497 .. 0.0565 (0.0068)
+after   totalSeconds spread over its own runs: 0.0505 .. 0.0571 (0.0066)
+
+C6 delta +0.0003 s vs within-variant spread 0.0068 s -> within drift

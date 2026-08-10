@@ -32,16 +32,21 @@
 #
 # usage:
 #   incremental.sh --module M --ir <live ir> --pages <live pages> --ledger <file>
-#                  --work <dir> --mode self|referrers|importers [--timings <p>]
+#                  --work <dir> --mode self|referrers|importers [--source-url <u>]
+#                  [--timings <p>]
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LD="$(cd "$HERE/../.." && pwd)"
+# The default is the revision every stage-5 number was taken at. It is an option
+# because a *new* revision is the ordinary case, not an exotic one, and stage 5d
+# measures what one costs.
 SOURCE_URL="https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec"
 
 MODULE=""; IR=""; PAGES=""; LEDGER=""; WORK=""; MODE=self; TIMINGS=""; MODULES=""
 while [ $# -gt 0 ]; do
   case "$1" in
+    --source-url) SOURCE_URL="$2"; shift 2 ;;
     --module) MODULE="$2"; shift 2 ;;
     --ir) IR="$2"; shift 2 ;;
     --pages) PAGES="$2"; shift 2 ;;
