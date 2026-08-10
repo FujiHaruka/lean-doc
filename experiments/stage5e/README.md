@@ -63,5 +63,38 @@ rules are counted separately and the summary reports which one fired.
 | | |
 |---|---|
 | `../stage5/ownership.ts` | L3-1 itself: the ownership diff and the reference scan |
-| `setup-clone.sh` | make the APFS clone and apply the E-B move |
+| `setup-clone.sh` | clone / apply the E-B move (two shim styles) / reset |
+| `rebuild-own.sh` | rebuild the package's own oleans **inside** the clone — required before any baseline |
+| `probe-shim.sh` | isolate whether the shim style is what moves a referring module |
 | `run.sh` | D1–D5: the three trees (base, incremental, full rebuild) and their comparison |
+
+---
+
+## The first run was wrong, and how that was caught
+
+The first attempt appeared to **refute D1**: the referring module C showed up in
+L2's changed set, contradicting stage 5c's P3. It was an artefact of this
+experiment's own setup, and the mechanism is worth keeping because it will bite
+anything else that measures on a clone.
+
+`cp -Rc` copies the *build tree* along with the sources, so the clone begins
+with oleans that were produced at the **original** path. Stage 5c had already
+measured that Mathlib's style linter stores its log — with absolute source paths
+— in an environment extension that is serialized into the olean (429/432
+modules). So the first rebuild *inside* the clone rewrites the path and the
+olean changes by the path-length difference alone.
+
+What gave it away was **resetting the edit and checking again**: with the source
+back to its original bytes, the ledger still called A and C changed. A real
+consequence of the move could not survive undoing the move. Direct confirmation
+followed — C's olean went 5,968 → 6,048 B (**+80**, the exact signature stage 5c
+recorded), and the clone's path is present as a string inside it.
+
+**The fix is `rebuild-own.sh`**: rebuild the package's own modules once inside
+the clone before taking the baseline, so the path is constant from then on.
+Mathlib is deliberately left alone — it is never edited here, so its oleans are
+never rebuilt and their stale paths never matter.
+
+**The general rule this adds:** on a cloned tree, a baseline is only valid after
+everything that can be rebuilt has been rebuilt *in the clone*. Otherwise the
+first rebuild of any module is indistinguishable from a real change.

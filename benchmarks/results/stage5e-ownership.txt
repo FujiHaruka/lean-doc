@@ -1,0 +1,32 @@
+# stage5e — L3-1 (name ownership) against a real move
+
+date              2026-08-10T10:57:34Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+target            APFS clone of /Users/haruka/dev/lean-projects (original untouched)
+move              InformationTheory.Shannon.GaussianPDFVarianceDerivative -> InformationTheory.Shannon.GaussianPDFVarianceDerivativeCore, C untouched
+
+## D1 — what L2 reports
+check 433 modules (lake, concurrency 1): 2 changed, 1 added, 0 removed — 0.1135 s
+  changed  InformationTheory.Shannon.FisherDeBruijnGaussian
+  changed  InformationTheory.Shannon.GaussianPDFVarianceDerivative
+  added    InformationTheory.Shannon.GaussianPDFVarianceDerivativeCore
+D1 changed set (3 modules):
+     InformationTheory.Shannon.FisherDeBruijnGaussian
+     InformationTheory.Shannon.GaussianPDFVarianceDerivative
+     InformationTheory.Shannon.GaussianPDFVarianceDerivativeCore
+D1 contains   InformationTheory.Shannon.GaussianPDFVarianceDerivative  yes
+D1 contains   InformationTheory.Shannon.GaussianPDFVarianceDerivativeCore  yes
+D1 contains   InformationTheory  NO
+D1 contains C InformationTheory.Shannon.FisherDeBruijnGaussian  YES (D1 refuted)
+
+## D2/D3/D4 — the three trees against a from-scratch reference
+REFERENCE pages: 433
+
+INC-NOL3: 433 pages, missing 0, extra 0, differing 0
+  C's page (InformationTheory/Shannon/FisherDeBruijnGaussian.html) differs: no
+
+INC-L3: 433 pages, missing 0, extra 0, differing 0
+  C's page (InformationTheory/Shannon/FisherDeBruijnGaussian.html) differs: no
+
+L3-1 round 1: lost 7 / gained 7 names, scanned 429 base modules, stale 0 (byLostOwner 0, byMovedElsewhere 0), 0.1546 s
