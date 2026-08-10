@@ -150,11 +150,23 @@ is wrong in exactly one page.
 
 ### W0 — a resident server does survive a rebuild, and that makes W1 worse
 
-The interesting direction. Lake replaces oleans rather than writing in place, so
-P kept its mapping of the old inodes and never faulted. **A long-lived preview
-server is therefore mechanically possible on APFS** — and W1 is what it would be
-serving: a coherent view of a build that no longer exists. The failure mode is not
-a crash, it is a confident wrong answer, which is the harder one to notice.
+**What was measured**: P was still running after the build and answered a request
+for a module the build had rewritten, in 0.151 s, without error.
+
+**Why, is inference and not measurement.** The likeliest reason is that
+`importModules (leakEnv := true)` has already faulted in everything the
+environment needs, so no later access re-reads the file and a truncate-in-place
+would go unnoticed. (`lean` is invoked as `-o <path>.olean`, which looks like a
+direct write rather than a temp-and-rename, so the "old inode stays alive" story
+is probably *not* the mechanism — an earlier draft of this section asserted it as
+fact and that was wrong.) **The difference matters**: if survival depends on
+everything already being resident, then a server that faults lazily — a larger
+environment, memory pressure, a partially-touched module — could still take a
+SIGBUS. **Untested.**
+
+What is not in doubt is the consequence: **a long-lived server does not fail
+loudly.** W1 is what it serves — a coherent view of a build that no longer exists.
+The failure mode is a confident wrong answer, which is the harder one to notice.
 
 ### W4 — the prediction was right about the wrong variant
 
