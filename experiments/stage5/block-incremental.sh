@@ -41,8 +41,11 @@ setup () { # setup <variant> <module>
   cp -R "$BASE_IR" "$ir"
   deno run --allow-read --allow-write "$LD/experiments/stage4c/render.ts" \
     --ir "$ir" --pages "$pages" --source-url "$SOURCE_URL" > /dev/null
+  # `--source-url` has to match what the renderer above was given, or the render
+  # key differs on every run and every variant re-renders all 432 pages.
   deno run --allow-read --allow-write --allow-env "$HERE/ledger.ts" build \
     --modules "$RESULTS_DIR/it-modules.txt" --target "$TARGET" --ir "$ir" \
+    --source-url "$SOURCE_URL" \
     --algorithm lake --out "$WORK/live-$v/ledger.json" > /dev/null
   deno run --allow-read --allow-write --allow-env "$HERE/ledger.ts" touch \
     --ledger "$WORK/live-$v/ledger.json" --module "$m" > /dev/null

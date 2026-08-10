@@ -101,7 +101,7 @@ cache_note () {
   esac
 }
 
-KEYS=readLedgerSeconds,envKeySeconds,hashSeconds,compareSeconds,totalSeconds,changed
+KEYS=readLedgerSeconds,keySeconds,hashSeconds,compareSeconds,totalSeconds,changed
 for s in "${WARM[@]}" "${COLD[@]}"; do
   {
     echo "# stage5-ledger-$s"

@@ -80,11 +80,31 @@ the reference, the Lake hash is the free alternative. Two caveats keep it from
 being simply "the answer": it is a 64-bit non-cryptographic hash, and it is an
 undocumented implementation detail of the build tool.
 
-**What is *not* per-module.** Lean version, Mathlib revision, extractor version
-and IR schema version invalidate everything at once, so they are one `envKey`
-record in the ledger, not 432 copies of the same string. `envKey` is the
-`lean-toolchain` text, a SHA-256 of `lake-manifest.json`, the extractor id and
-the IR schema version.
+**What is *not* per-module.** Lean version, Mathlib revision, extractor version,
+IR schema version and the renderer's own configuration invalidate everything at
+once, so they live in the ledger as global keys, not as 432 copies of the same
+string. There are **two** such keys, because they do not invalidate the same
+thing (`ledgerSchema: 2`):
+
+| key | contents | changed ⇒ |
+|---|---|---|
+| `extractKey` | `lean-toolchain` text, SHA-256 of `lake-manifest.json`, extractor id, IR schema version, IR generator id | re-extract all 432; which pages are stale still follows from the IR diff |
+| `renderKey` | renderer id, `--source-url` | re-extract **nothing**, re-render **all** |
+
+The split is not cosmetic. `--source-url` carries a 40-hex git revision, so it
+changes on **every commit** — precisely when an incremental build runs. Under
+one key that meant every real incremental build paid a full re-extraction
+(Lean started, 27 s) for an input Lean cannot even see: the IR does not carry
+the source URL, which is why `render.ts` refuses `--pages` without it. The test
+for which side an input belongs on is "can it change the IR", not "does it
+change the output" — both do.
+
+`check` reports them separately: the re-extract set goes to `--changed-out`,
+and a changed render key goes to `--render-all-out` as a reason line. An empty
+`--render-all-out` means "the render set follows from the IR diff as usual".
+Both keys are compared over the **union** of the stored and current key sets, so
+a key that vanished counts as a change; forgetting `--source-url` therefore
+over-renders and says so, rather than silently under-rendering.
 
 ## 3. Where the ledger lives
 

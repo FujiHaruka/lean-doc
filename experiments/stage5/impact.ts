@@ -30,13 +30,19 @@
 //
 // usage:
 //   impact.ts --ir <dir> [--changed <Module>]... [--changed-file <path>]
-//             [--mode importers|referrers|self] [--census <path>]
+//             [--mode importers|referrers|self|all] [--census <path>]
 //             [--print-set <path>] [--json <path>]
 //
 //   --mode self        the changed modules themselves (the rule the olean-hash
 //                      ledger implements on its own)
 //   --mode referrers   self + REFERRERS
 //   --mode importers   self + IMPORTERS (the sound bound)
+//   --mode all         every module of the package, independent of the changed
+//                      set — and valid with an empty one. This is not a wider
+//                      closure over the same graph: it is the answer when the
+//                      *renderer's* input changed rather than any module's, so
+//                      no module IR is stale but every page is (ledger.ts
+//                      `--render-all-out`).
 //   --census <path>    write a per-module census of |IMPORTERS| / |REFERRERS| /
 //                      declaration count, TSV, for choosing the modules to
 //                      measure with.
@@ -170,7 +176,7 @@ if (CENSUS) {
 
 // ---------------------------------------------------------------- impact
 
-if (changed.length > 0) {
+if (changed.length > 0 || MODE === "all") {
   for (const m of changed) {
     if (!own.has(m)) {
       console.error(`not a module of this package: ${m}`);
@@ -193,6 +199,9 @@ if (changed.length > 0) {
       break;
     case "importers":
       set = new Set([...self, ...importers]);
+      break;
+    case "all":
+      set = new Set(own);
       break;
     default:
       console.error(`unknown --mode ${MODE}`);

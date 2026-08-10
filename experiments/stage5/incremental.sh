@@ -77,13 +77,22 @@ T0=$(now)
 # the generator id, so a schema bump would leave every page stale with the
 # ledger reporting "0 changed" (stage 5b, S1). `--modules` re-reads the current
 # module list so that additions and deletions are visible at all.
+#
+# `--source-url` is not optional either, for the mirror-image reason: it is the
+# renderer's input, it appears in the page bytes, and it carries the git
+# revision, so it changes on every commit. Leaving it out of the ledger was the
+# other half of S1. It goes into the *render* key, not the extract key, so a new
+# revision re-renders 432 pages without starting Lean once.
 REMOVEDF="$WORK/removed.txt"
+RENDERALLF="$WORK/render-all.txt"
 deno run --allow-read --allow-write --allow-env "$HERE/ledger.ts" check \
-  --ledger "$LEDGER" --ir "$IR" --changed-out "$CHANGED" --removed-out "$REMOVEDF" \
+  --ledger "$LEDGER" --ir "$IR" --source-url "$SOURCE_URL" \
+  --changed-out "$CHANGED" --removed-out "$REMOVEDF" --render-all-out "$RENDERALLF" \
   ${MODULES:+--modules "$MODULES"} > "$WORK/detect.log"
 T1=$(now)
 NCHANGED=$(grep -c . "$CHANGED" || true)
 NREMOVED=$(grep -c . "$REMOVEDF" 2>/dev/null || true)
+NRENDERALL=$(grep -c . "$RENDERALLF" 2>/dev/null || true)
 if [ "${NREMOVED:-0}" -gt 0 ]; then
   # There is no deletion path yet (approach.md §5.5: a removal has to be erased
   # from the ledger, the IR and the pages). Failing here beats leaving pages
@@ -114,8 +123,17 @@ NIRCHANGED=$(grep -c . "$IRCHANGED" || true)
 # 4 -- render ---------------------------------------------------------------
 # `--mode` decides the page set (see the header): the injected change leaves the
 # IR byte-identical, so the honest render set is empty and has to be forced.
+#
+# A changed render key overrides that choice with `all`. This is the one page
+# set that is *not* derived from the changed module set, which is the point of
+# splitting the key: nothing was re-extracted, yet every page is stale.
+MODE_EFF="$MODE"
+if [ "${NRENDERALL:-0}" -gt 0 ]; then
+  MODE_EFF=all
+  sed 's/^/  render-all /' "$RENDERALLF" >&2
+fi
 deno run --allow-read --allow-write "$HERE/impact.ts" --ir "$IR" \
-  --changed-file "$CHANGED" --mode "$MODE" --print-set "$RENDERSET" > "$WORK/impact.log"
+  --changed-file "$CHANGED" --mode "$MODE_EFF" --print-set "$RENDERSET" > "$WORK/impact.log"
 T4=$(now)
 ONLY=()
 while read -r m; do [ -n "$m" ] && ONLY+=(--only "$m"); done < "$RENDERSET"
@@ -126,7 +144,7 @@ T5=$(now)
 
 NPAGES=$(grep -c . "$RENDERSET" || true)
 python3 - "$TIMINGS" "$T0" "$T1" "$T2" "$T3" "$T4" "$T5" \
-  "$NCHANGED" "$NIRCHANGED" "$NPAGES" "$MODULE" "$MODE" "$WORK" <<'PY'
+  "$NCHANGED" "$NIRCHANGED" "$NPAGES" "$MODULE" "$MODE_EFF" "$WORK" <<'PY'
 import json, sys, os
 out, t0, t1, t2, t3, t4, t5, nch, nir, npg, module, mode, work = sys.argv[1:]
 t = [float(x) for x in (t0, t1, t2, t3, t4, t5)]

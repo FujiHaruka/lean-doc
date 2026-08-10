@@ -1,5 +1,16 @@
 # Handoff — 2026-08-10 (6)
 
+## Relay control
+- Mode: ON
+- Goal: handoff の「次にやるなら」1〜5 を全部完遂する
+  (1: L1 の鍵を 2 種類に分ける / 2: L3-1 の実装 / 3: 削除経路 /
+   4: 全域索引の増分更新 / 5: 段階 6 常駐)
+- Leg: 1 / cap 8
+- Predecessor: none
+- Stop-on: completion | user-decision | no-progress×2 | leg-cap
+- Progress ledger:
+  - (まだ無し)
+
 ## State
 
 - Branch: main / Uncommitted: clean / push 済み

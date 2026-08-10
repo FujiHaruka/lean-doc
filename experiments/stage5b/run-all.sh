@@ -69,20 +69,20 @@ deno run --allow-read --allow-write --allow-env "$LEDGER" check --ledger "$WORK/
   --ir "$IR" --changed-out "$WORK/e1-changed.txt" --timings "$OUT/stage5b-e1-check.json" \
   --concurrency 8 | tee -a "$OUT/stage5b-e1-ledger.txt"
 
-# The envKey half: fake the *recorded* key (the ledger is ours, in scratch) so
+# The extract-key half: fake the *recorded* key (the ledger is ours, in scratch) so
 # that `check` sees a toolchain / manifest / IR-schema change.
 python3 - "$WORK/e1-ledger.json" "$WORK/e1-ledger-envfake.json" <<'PY'
 import json, sys
 d = json.load(open(sys.argv[1], encoding="utf-8"))
-d["envKey"]["leanToolchain"] = "leanprover/lean4:v4.99.0-fake"
-d["envKey"]["manifestSha256"] = "0" * 64
-d["envKey"]["irSchemaVersion"] = "1"
+d["extractKey"]["leanToolchain"] = "leanprover/lean4:v4.99.0-fake"
+d["extractKey"]["manifestSha256"] = "0" * 64
+d["extractKey"]["irSchemaVersion"] = "1"
 json.dump(d, open(sys.argv[2], "w", encoding="utf-8"))
 PY
 deno run --allow-read --allow-write --allow-env "$LEDGER" check \
   --ledger "$WORK/e1-ledger-envfake.json" --ir "$IR" --changed-out "$WORK/e1-changed-envfake.txt" \
   --timings "$OUT/stage5b-e1-check-envfake.json" --concurrency 8 | tee -a "$OUT/stage5b-e1-ledger.txt"
-echo "changed-out lines after the envKey change: $(grep -c . "$WORK/e1-changed-envfake.txt" || true)" \
+echo "changed-out lines after the extract-key change: $(grep -c . "$WORK/e1-changed-envfake.txt" || true)" \
   | tee -a "$OUT/stage5b-e1-ledger.txt"
 
 echo "########## E2 — S2: does the impact set contain every page that changes? ##########"

@@ -34,9 +34,11 @@
 // usage:
 //   ledger.ts build --modules <list> --target <repo> --out <ledger.json>
 //                   [--algorithm sha256|lake] [--concurrency N]
-//                   [--ir <dir>] [--timings <path>]
+//                   [--ir <dir>] [--source-url <base>] [--timings <path>]
 //   ledger.ts check --ledger <ledger.json> [--algorithm ...] [--concurrency N]
-//                   [--changed-out <path>] [--timings <path>]
+//                   [--ir <dir>] [--source-url <base>] [--changed-out <path>]
+//                   [--removed-out <path>] [--render-all-out <path>]
+//                   [--timings <path>]
 //   ledger.ts touch --ledger <ledger.json> --module <M> [--out <path>]
 //
 //   `touch` is the honest fake this experiment is built on: the measurement
@@ -69,7 +71,8 @@ interface Ledger {
   algorithm: string;
   target: string;
   libDir: string;
-  envKey: Record<string, string>;
+  extractKey: Record<string, string>;
+  renderKey: Record<string, string>;
   modules: ModuleEntry[];
 }
 
@@ -153,7 +156,34 @@ async function mapPool<A, B>(items: A[], n: number, f: (a: A) => Promise<B>): Pr
   return out;
 }
 
-async function envKey(target: string, ir: string): Promise<Record<string, string>> {
+/* L1, THE GLOBAL KEY, IS TWO KEYS — SPLIT BY BLAST RADIUS
+ *
+ * One global key was correct but far too coarse: any change to it re-extracted
+ * all 432 modules. That is the wrong answer for the input that changes most
+ * often. `--source-url` carries a 40-hex git revision, so it changes on *every
+ * commit* — which is exactly when an incremental build runs. Folding it into a
+ * single key would make every real incremental build pay a full re-extraction
+ * (27 s, Lean started) on top of the full re-render it genuinely needs.
+ *
+ *   extractKey   inputs that can change the IR bytes.
+ *                changed => re-extract everything. Which pages are then stale
+ *                still follows from the IR diff, as usual — a re-extraction
+ *                that lands byte-identical rewrites no page.
+ *   renderKey    inputs that change the page bytes with the IR held fixed.
+ *                changed => re-extract *nothing*, re-render *everything*.
+ *
+ * The test for which side an input belongs on is not "does it change the
+ * output" (both do) but "can it change the IR" — i.e. does answering it require
+ * starting Lean. `--source-url` cannot: render.ts refuses `--pages` without it
+ * precisely because it is configuration doc-gen4 reads from lake + git and the
+ * IR does not carry it.
+ *
+ * Both keys are compared as the *union* of the stored and current key sets, so
+ * a key that vanished counts as a change (letting an absent `--ir` silently
+ * hide the IR schema was the S1 failure). A forgotten `--source-url` therefore
+ * reports the render key as changed and re-renders everything: over-rendering
+ * is the safe direction, and the reason is printed rather than swallowed. */
+async function extractKey(target: string, ir: string): Promise<Record<string, string>> {
   const key: Record<string, string> = {};
   key.leanToolchain = (await Deno.readTextFile(`${target}/lean-toolchain`)).trim();
   key.manifestSha256 = await sha256Text(await Deno.readTextFile(`${target}/lake-manifest.json`));
@@ -164,6 +194,23 @@ async function envKey(target: string, ir: string): Promise<Record<string, string
     key.irGenerator = String(idx.generator);
   }
   return key;
+}
+
+/** The generator id stands in for the renderer's configuration that has no flag
+ * of its own; everything that does have a flag and reaches the output bytes
+ * belongs here beside it. Values are stored in the clear, not hashed, so that a
+ * mismatch names itself in the log. */
+function renderKey(sourceUrl: string): Record<string, string> {
+  const key: Record<string, string> = {};
+  key.renderer = "lean-doc/experiments/stage4c";
+  if (sourceUrl) key.sourceUrl = sourceUrl.replace(/\/+$/, "");
+  return key;
+}
+
+/** Keys present in either set whose values differ. */
+function keyDiff(was: Record<string, string>, now: Record<string, string>): string[] {
+  return [...new Set([...Object.keys(was), ...Object.keys(now)])]
+    .filter((k) => was[k] !== now[k]).sort();
 }
 
 const t0 = performance.now();
@@ -183,7 +230,8 @@ if (cmd === "build") {
   const libDir = `${TARGET}/.lake/build/lib/lean`;
   const modules = readModuleList(MODULES);
   const tKey = performance.now();
-  const key = await envKey(TARGET, IR);
+  const xKey = await extractKey(TARGET, IR);
+  const rKey = renderKey(opt("--source-url"));
   const tHash0 = performance.now();
   const maybe = await mapPool(modules, CONC, (m) => hashModule(TARGET, libDir, m, ALGO));
   const tHash1 = performance.now();
@@ -194,11 +242,12 @@ if (cmd === "build") {
   }
   const entries = maybe as ModuleEntry[];
   const ledger: Ledger = {
-    ledgerSchema: 1,
+    ledgerSchema: 2, // 1 had a single `envKey`; 2 splits it into extract/render
     algorithm: ALGO,
     target: TARGET,
     libDir,
-    envKey: key,
+    extractKey: xKey,
+    renderKey: rKey,
     modules: entries,
   };
   await Deno.writeTextFile(OUT, JSON.stringify(ledger) + "\n");
@@ -211,7 +260,7 @@ if (cmd === "build") {
     modules: entries.length,
     files: entries.reduce((a, e) => a + e.files.length, 0),
     hashedBytes: bytes,
-    envKeySeconds: (tHash0 - tKey) / 1000,
+    keySeconds: (tHash0 - tKey) / 1000,
     hashSeconds: (tHash1 - tHash0) / 1000,
     writeSeconds: (tEnd - tHash1) / 1000,
     totalSeconds: (tEnd - t0) / 1000,
@@ -224,12 +273,13 @@ if (cmd === "build") {
   const LEDGER = opt("--ledger");
   const CHANGED = opt("--changed-out");
   const REMOVED = opt("--removed-out");
+  const RENDER_ALL = opt("--render-all-out");
   const MODULES = opt("--modules");
   const CONC = Number(opt("--concurrency", "1"));
   if (!LEDGER) {
     console.error(
       "usage: ledger.ts check --ledger <ledger.json> [--modules <list>] " +
-        "[--changed-out <path>] [--removed-out <path>]",
+        "[--changed-out <path>] [--removed-out <path>] [--render-all-out <path>]",
     );
     Deno.exit(2);
   }
@@ -237,14 +287,21 @@ if (cmd === "build") {
   const ledger = JSON.parse(await Deno.readTextFile(LEDGER)) as Ledger;
   const ALGO = opt("--algorithm", ledger.algorithm);
   const tRead1 = performance.now();
-  const key = await envKey(ledger.target, opt("--ir"));
+  if ((ledger.ledgerSchema ?? 1) < 2) {
+    console.error(
+      `${LEDGER} is ledgerSchema ${ledger.ledgerSchema ?? 1}; this build needs 2 ` +
+        `(the single envKey was split into extractKey/renderKey). Rebuild the ledger.`,
+    );
+    Deno.exit(3);
+  }
+  const xKey = await extractKey(ledger.target, opt("--ir"));
+  const rKey = renderKey(opt("--source-url"));
   const tKey = performance.now();
 
-  // L1, the global key. Compare the *union* of both key sets: a key that
-  // appeared and a key that vanished are both changes, and skipping them is how
-  // the previous version let `--ir` being absent hide the IR schema silently.
-  const envChanged = [...new Set([...Object.keys(ledger.envKey), ...Object.keys(key)])]
-    .filter((k) => ledger.envKey[k] !== key[k]).sort();
+  // L1 in two halves (see the comment on extractKey): one invalidates the IR,
+  // the other only the pages rendered from it.
+  const extractKeyChanged = keyDiff(ledger.extractKey, xKey);
+  const renderKeyChanged = keyDiff(ledger.renderKey ?? {}, rKey);
 
   // L2's module list must not be frozen at build time. With `--modules` the
   // current list is re-read, so a module that appeared since `build` is visible
@@ -273,12 +330,16 @@ if (cmd === "build") {
   for (const m of previous.keys()) {
     if (!current.includes(m) && !removed.includes(m)) removed.push(m);
   }
-  // A changed global key invalidates everything (L1). Computing `envChanged`
-  // and then not acting on it was the whole failure of S1.
-  const envInvalidated = envChanged.length > 0;
-  const reExtract = envInvalidated
+  // A changed extract key invalidates every module's IR (L1). Computing the key
+  // diff and then not acting on it was the whole failure of S1.
+  const extractInvalidated = extractKeyChanged.length > 0;
+  const reExtract = extractInvalidated
     ? present.map((e) => e.module)
     : [...changed, ...added].sort();
+  // A changed render key invalidates no IR at all, so it is deliberately *not*
+  // folded into `reExtract`. It is a separate signal because the re-extract set
+  // and the re-render set are derived separately (approach.md §5.5).
+  const renderAll = renderKeyChanged.length > 0;
   const tEnd = performance.now();
 
   if (CHANGED) {
@@ -286,6 +347,12 @@ if (cmd === "build") {
   }
   if (REMOVED) {
     await Deno.writeTextFile(REMOVED, removed.join("\n") + (removed.length ? "\n" : ""));
+  }
+  if (RENDER_ALL) {
+    // The reasons, one per line: an empty file means "the render set follows
+    // from the IR diff as usual", which is what the caller tests for.
+    const lines = renderKeyChanged.map((k) => `renderKey:${k}`);
+    await Deno.writeTextFile(RENDER_ALL, lines.join("\n") + (lines.length ? "\n" : ""));
   }
   const bytes = present.reduce((a, e) => a + e.files.reduce((b, f) => b + Math.max(f.bytes, 0), 0), 0);
   timings = {
@@ -296,8 +363,10 @@ if (cmd === "build") {
     moduleListSource: MODULES ? "list" : "ledger",
     files: present.reduce((a, e) => a + e.files.length, 0),
     hashedBytes: bytes,
-    envChanged,
-    envInvalidated,
+    extractKeyChanged,
+    extractInvalidated,
+    renderKeyChanged,
+    renderAll,
     changed: changed.length,
     changedModules: changed,
     added: added.length,
@@ -306,7 +375,7 @@ if (cmd === "build") {
     removedModules: removed,
     reExtract: reExtract.length,
     readLedgerSeconds: (tRead1 - tRead0) / 1000,
-    envKeySeconds: (tKey - tRead1) / 1000,
+    keySeconds: (tKey - tRead1) / 1000,
     hashSeconds: (tHash - tKey) / 1000,
     compareSeconds: (tEnd - tHash) / 1000,
     totalSeconds: (tEnd - t0) / 1000,
@@ -314,8 +383,11 @@ if (cmd === "build") {
   console.log(
     `check ${present.length} modules (${ALGO}, concurrency ${CONC}): ` +
       `${changed.length} changed, ${added.length} added, ${removed.length} removed` +
-      (envInvalidated
-        ? `; env key changed (${envChanged.join(",")}) -> all ${reExtract.length} re-extracted`
+      (extractInvalidated
+        ? `; extract key changed (${extractKeyChanged.join(",")}) -> all ${reExtract.length} re-extracted`
+        : "") +
+      (renderAll
+        ? `; render key changed (${renderKeyChanged.join(",")}) -> re-render all, re-extract ${reExtract.length}`
         : "") +
       ` — ${((tEnd - t0) / 1000).toFixed(4)} s`,
   );
