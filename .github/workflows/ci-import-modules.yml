@@ -1,0 +1,232 @@
+# Measures the number the CI axis is actually missing: how long `importModules`
+# takes on `ubuntu-latest`, at the moment documentation generation would really run.
+#
+# WHAT THE PREVIOUS WORKFLOW LEFT OPEN (ci-olean-residency.yml)
+#   It measured *residency* right after `lake exe cache get` (62.4%, n=1) and said so:
+#   residency is a proxy, not a time, and "which 62.4%" was unknown. This workflow
+#   measures the time directly, and answers "which" via major page faults — if the
+#   resident set covers what the import actually reads, major faults stay near zero.
+#
+# WHY THE MEASUREMENT POINT MOVED
+#   Real CI runs `cache get` -> `lake build` -> doc generation. The page cache at
+#   doc-generation time is therefore the state *after a full build*, not after
+#   `cache get`. Measuring right after `cache get` answers a question no pipeline
+#   ever asks. Both points are snapshotted here so the two are comparable.
+#
+# THE BRACKET
+#   Runner page cache can be dropped (`sudo drop_caches`), so cold and warm are
+#   measured on the SAME hardware in the SAME session — CLAUDE.md forbids comparing
+#   a cold number from one machine with a warm number from another.
+#
+#   after-build  : what CI would actually pay
+#   warm x N     : the floor on this hardware
+#   cold x N     : the ceiling on this hardware (cache dropped)
+#
+# COMPARABILITY
+#   The target is pinned by commit so the module list committed in this repo
+#   (benchmarks/results/it-modules.txt, 432 modules) matches the checkout. Local
+#   macOS numbers for the same list: importModules warm 2.49-2.59s, cold 14.96/15.66s.
+#
+# WHY IT IS `workflow_dispatch` ONLY
+#   It is a measurement, not a check. It must never run on a push.
+name: CI importModules (measurement)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: "commit of FujiHaruka/information-theory to measure (must match it-modules.txt)"
+        required: false
+        default: "ca4fd931952b5e93045d210007bdd7e14c118d34"
+      warm_runs:
+        description: "extractor runs after the first, with the cache left warm"
+        required: false
+        default: "4"
+      cold_runs:
+        description: "extractor runs with the page cache dropped before each"
+        required: false
+        default: "2"
+
+jobs:
+  import-modules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - name: Check out lean-doc (the measurement tools)
+        uses: actions/checkout@v5
+        with:
+          path: lean-doc
+
+      - name: Check out the measurement target (public), pinned
+        uses: actions/checkout@v5
+        with:
+          repository: FujiHaruka/information-theory
+          ref: ${{ github.event.inputs.target_ref }}
+          path: target
+
+      - name: Record the machine, before anything is downloaded
+        run: |
+          {
+            echo "## runner"
+            echo "date        $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "kernel      $(uname -srm)"
+            echo "nproc       $(nproc)"
+            echo "pagesize    $(getconf PAGESIZE)"
+            echo "runner      ${RUNNER_OS} / ${RUNNER_ARCH} / image ${ImageOS:-?} ${ImageVersion:-?}"
+            echo "target_ref  $(git -C target rev-parse HEAD)"
+            echo
+            echo "## /proc/meminfo"
+            grep -E '^(MemTotal|MemFree|MemAvailable|Cached|Buffers|SwapTotal)' /proc/meminfo
+            echo
+            echo "## df"
+            df -h / /mnt 2>/dev/null || df -h /
+            echo
+            echo "## toolchain requested by the target"
+            cat target/lean-toolchain
+          } | tee env-before.txt
+
+      - name: Install elan at the target's pinned toolchain
+        run: |
+          curl -sSfL https://github.com/leanprover/elan/releases/latest/download/elan-x86_64-unknown-linux-gnu.tar.gz \
+            | tar xz
+          ./elan-init -y --default-toolchain "$(cat target/lean-toolchain)"
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Build the residency probe
+        run: cc -O2 -o olean-residency lean-doc/benchmarks/tools/olean-residency.c
+
+      - name: lake exe cache get
+        working-directory: target
+        run: /usr/bin/time -v lake exe cache get 2>&1 | tail -20
+
+      - name: Snapshot residency after cache get (comparable to the earlier run)
+        run: |
+          find target -name '*.olean*' | sort > olean-paths.txt
+          echo "olean files: $(wc -l < olean-paths.txt)"
+          ./olean-residency < olean-paths.txt > residency-after-cache-get.jsonl
+          grep -E '^(MemTotal|MemFree|MemAvailable|Cached)' /proc/meminfo > meminfo-after-cache-get.txt
+
+      # The extractor lives outside the target and borrows its environment through
+      # `lake env` (see experiments/stage4b/build.sh). It is built before `lake build`
+      # so that the build below is the last thing to touch the cache before run 1.
+      - name: Build the extractor
+        env:
+          TARGET_REPO: ${{ github.workspace }}/target
+        run: |
+          /usr/bin/time -v lean-doc/experiments/stage4b/build.sh 2>&1 | tail -20
+          ls -l lean-doc/experiments/stage4b/build/extract
+
+      - name: lake build (the target's own 432 modules)
+        working-directory: target
+        run: |
+          /usr/bin/time -v lake build 2>&1 | tail -40
+
+      - name: Snapshot residency after lake build (the state CI really generates docs in)
+        run: |
+          ./olean-residency < olean-paths.txt > residency-after-lake-build.jsonl
+          grep -E '^(MemTotal|MemFree|MemAvailable|Cached)' /proc/meminfo > meminfo-after-lake-build.txt
+          df -h / | tail -1
+
+      # ---------------------------------------------------------------------------
+      # The measurement. Each run records the extractor's own phase timings (JSONL,
+      # `*.importModules` in microseconds) and the kernel's view (`/usr/bin/time -v`
+      # gives major faults — the direct answer to "which 62.4%").
+      # ---------------------------------------------------------------------------
+      - name: Run 1 — immediately after the build (what CI would actually pay)
+        working-directory: target
+        env:
+          MODULES: ${{ github.workspace }}/lean-doc/benchmarks/results/it-modules.txt
+        run: |
+          lake env /usr/bin/time -v \
+            "$GITHUB_WORKSPACE/lean-doc/experiments/stage4b/build/extract" \
+            "$MODULES" "$GITHUB_WORKSPACE/import-after-build.jsonl" \
+            2>&1 | tee "$GITHUB_WORKSPACE/time-after-build.txt" | tail -25
+
+      - name: Warm runs — the floor on this hardware
+        working-directory: target
+        env:
+          MODULES: ${{ github.workspace }}/lean-doc/benchmarks/results/it-modules.txt
+        run: |
+          n='${{ github.event.inputs.warm_runs }}'; n=${n:-4}
+          for i in $(seq 1 "$n"); do
+            lake env /usr/bin/time -v \
+              "$GITHUB_WORKSPACE/lean-doc/experiments/stage4b/build/extract" \
+              "$MODULES" "$GITHUB_WORKSPACE/import-warm-$i.jsonl" \
+              2>&1 | tee "$GITHUB_WORKSPACE/time-warm-$i.txt" | grep -E 'Major|Maximum resident' || true
+            echo "warm run $i done"
+          done
+
+      - name: Cold runs — the ceiling on this hardware (page cache dropped)
+        working-directory: target
+        env:
+          MODULES: ${{ github.workspace }}/lean-doc/benchmarks/results/it-modules.txt
+        run: |
+          n='${{ github.event.inputs.cold_runs }}'; n=${n:-2}
+          for i in $(seq 1 "$n"); do
+            sudo sh -c 'sync; echo 3 > /proc/sys/vm/drop_caches'
+            grep -E '^(MemFree|MemAvailable|Cached)' /proc/meminfo \
+              > "$GITHUB_WORKSPACE/meminfo-cold-$i.txt"
+            "$GITHUB_WORKSPACE/olean-residency" < "$GITHUB_WORKSPACE/olean-paths.txt" \
+              > "$GITHUB_WORKSPACE/residency-cold-$i.jsonl"
+            lake env /usr/bin/time -v \
+              "$GITHUB_WORKSPACE/lean-doc/experiments/stage4b/build/extract" \
+              "$MODULES" "$GITHUB_WORKSPACE/import-cold-$i.jsonl" \
+              2>&1 | tee "$GITHUB_WORKSPACE/time-cold-$i.txt" | grep -E 'Major|Maximum resident' || true
+            echo "cold run $i done"
+          done
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Summarise
+        if: always()
+        run: |
+          S=lean-doc/benchmarks/tools/summarize-residency.ts
+          {
+            echo "## conditions"
+            cat env-before.txt
+            echo
+            echo "## importModules per run (microseconds, from the extractor's own phase log)"
+            printf '%-22s %14s %14s %16s\n' run importModules_us total_us major_faults
+            for f in import-after-build.jsonl import-warm-*.jsonl import-cold-*.jsonl; do
+              [ -e "$f" ] || continue
+              t="time-${f#import-}"; t="${t%.jsonl}.txt"
+              imp=$(grep -o '"phase":"[^"]*\.importModules","pid":[0-9]*,"us":[0-9]*' "$f" \
+                    | grep -o '"us":[0-9]*$' | cut -d: -f2)
+              tot=$(grep -o '"phase":"[^"]*\.total","pid":[0-9]*,"us":[0-9]*' "$f" \
+                    | grep -o '"us":[0-9]*$' | cut -d: -f2)
+              maj=$(grep -o 'Major (requiring I/O) page faults: [0-9]*' "$t" 2>/dev/null \
+                    | grep -o '[0-9]*$')
+              printf '%-22s %14s %14s %16s\n' "${f%.jsonl}" "${imp:-?}" "${tot:-?}" "${maj:-?}"
+            done
+            echo
+            echo "## residency after 'lake exe cache get'"
+            deno run --allow-read "$S" residency-after-cache-get.jsonl || true
+            echo
+            echo "## residency after 'lake build' (the state docs are generated in)"
+            deno run --allow-read "$S" residency-after-lake-build.jsonl || true
+            for f in residency-cold-*.jsonl; do
+              [ -e "$f" ] || continue
+              echo
+              echo "## residency after drop_caches ($f) — should be ~0"
+              deno run --allow-read "$S" "$f" || true
+            done
+            echo
+            echo "## meminfo"
+            for f in meminfo-*.txt; do echo "### $f"; cat "$f"; done
+          } | tee import-modules-summary.txt
+
+      - name: Upload the raw logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-import-modules
+          path: |
+            env-before.txt
+            meminfo-*.txt
+            residency-*.jsonl
+            import-*.jsonl
+            time-*.txt
+            import-modules-summary.txt
+            olean-paths.txt
