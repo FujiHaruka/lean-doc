@@ -1,0 +1,45 @@
+date              2026-08-10T20:45:32Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+LEAN_NUM_THREADS  unset (Lean default)
+page cache        unrecorded
+target            /Users/haruka/dev/lean-projects
+modules           432 from /Users/haruka/dev/lean-doc/benchmarks/results/it-modules.txt
+binary            /Users/haruka/dev/lean-doc/experiments/stage7e/build/parse
+args              --env full --repeat 5
+
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+env               full (432 direct imports, 6021 loaded)
+initSearchPath    0.082 ms
+importModules     2627.968 ms
+round 0           wall 4291.548 ms  sum 4284.565 ms  p50 6.893 ms  p90 23.515 ms  max 55.051 ms  mean 9.917 ms  modules 432  errModules 215
+  of which header  sum 198.436 ms  p50 0.420 ms  p90 0.716 ms  max 1.806 ms  (mkEmptyEnvironment inside parseHeader)
+round 1           wall 4297.736 ms  sum 4292.016 ms  p50 6.960 ms  p90 23.774 ms  max 59.112 ms  mean 9.935 ms  modules 432  errModules 215
+  of which header  sum 198.054 ms  p50 0.417 ms  p90 0.726 ms  max 1.779 ms  (mkEmptyEnvironment inside parseHeader)
+round 2           wall 4263.917 ms  sum 4258.861 ms  p50 6.850 ms  p90 23.459 ms  max 54.952 ms  mean 9.858 ms  modules 432  errModules 215
+  of which header  sum 191.188 ms  p50 0.390 ms  p90 0.708 ms  max 2.031 ms  (mkEmptyEnvironment inside parseHeader)
+round 3           wall 4264.921 ms  sum 4259.937 ms  p50 6.751 ms  p90 23.581 ms  max 54.121 ms  mean 9.860 ms  modules 432  errModules 215
+  of which header  sum 191.381 ms  p50 0.399 ms  p90 0.695 ms  max 1.754 ms  (mkEmptyEnvironment inside parseHeader)
+round 4           wall 4258.088 ms  sum 4253.189 ms  p50 6.716 ms  p90 23.448 ms  max 55.667 ms  mean 9.845 ms  modules 432  errModules 215
+  of which header  sum 190.341 ms  p50 0.386 ms  p90 0.711 ms  max 2.148 ms  (mkEmptyEnvironment inside parseHeader)
+
+modules parsed    432
+errModules        215 / 432
+       24.23 real        22.73 user         1.36 sys
+          3267526656  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              253995  page reclaims
+                 372  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 563  voluntary context switches
+                2192  involuntary context switches
+        268609228618  instructions retired
+         75364071029  cycles elapsed
+           547008320  peak memory footprint

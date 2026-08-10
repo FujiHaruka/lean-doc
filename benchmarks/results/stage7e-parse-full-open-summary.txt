@@ -1,0 +1,124 @@
+date              2026-08-10T20:43:59Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+LEAN_NUM_THREADS  unset (Lean default)
+page cache        unrecorded
+target            /Users/haruka/dev/lean-projects
+modules           432 from /Users/haruka/dev/lean-doc/benchmarks/results/it-modules.txt
+binary            /Users/haruka/dev/lean-doc/experiments/stage7e/build/parse
+args              --env full --open Asymptotics,BigOperators,BroadcastCode,ChannelCoding,Classical,Code,Combinatorics,Complex,ComplexConjugate,ComplexInnerProductSpace,ContDiff,Convolution,Encodable,ENNReal,FeedbackCode,Filter,FiniteJointPMF,Finset,FourierTransform,Function,InformationTheory,InformationTheory.Asymptotic,InformationTheory.EPIG2KLFatou,InformationTheory.Kolmogorov,InformationTheory.MeasureFano,InformationTheory.Meta,InformationTheory.Shannon,InformationTheory.Shannon.ArithmeticCoding,InformationTheory.Shannon.AWGN,InformationTheory.Shannon.BroadcastChannel,InformationTheory.Shannon.BroadcastChannel.Marton,InformationTheory.Shannon.ChannelCoding,InformationTheory.Shannon.ChannelCodingConverseGeneral,InformationTheory.Shannon.ChannelCodingFeedback,InformationTheory.Shannon.Chernoff,InformationTheory.Shannon.Cramer,InformationTheory.Shannon.Cramer.TiltedLLN,InformationTheory.Shannon.CramerCltBoundary,InformationTheory.Shannon.CsiszarProjection,InformationTheory.Shannon.EntropyPowerInequality,InformationTheory.Shannon.EPIBlachmanDensity,InformationTheory.Shannon.EPIBlachmanGeneralDensity,InformationTheory.Shannon.EPICase1ProducerMeasurability,InformationTheory.Shannon.EPICase1RatioLimit,InformationTheory.Shannon.EPICase1SmoothingLimit,InformationTheory.Shannon.EPICase1TwoTime,InformationTheory.Shannon.EPIConvDensity,InformationTheory.Shannon.EPIConvDensityGaussianGateway,InformationTheory.Shannon.EPIConvDensityRegular,InformationTheory.Shannon.EPIConvDensitySecondDeriv,InformationTheory.Shannon.EPIDensityForm,InformationTheory.Shannon.EPIGaussianDensityRoute,InformationTheory.Shannon.EPIInfiniteVarianceTruncation,InformationTheory.Shannon.EPIL3Integration,InformationTheory.Shannon.EPINoiseExtension,InformationTheory.Shannon.EPIScoreCrossTermOrth,InformationTheory.Shannon.EPIStamDeBruijnConclusion,InformationTheory.Shannon.EPIStamSupplyTwoTime,InformationTheory.Shannon.EPIStamToBridge,InformationTheory.Shannon.FisherInfo,InformationTheory.Shannon.Gambling,InformationTheory.Shannon.GeneralDMC,InformationTheory.Shannon.HoeffdingBoundaryMinimizer,InformationTheory.Shannon.HoeffdingLagrange,InformationTheory.Shannon.HoeffdingMinimizerAttainment,InformationTheory.Shannon.HoeffdingMinimizerExistence,InformationTheory.Shannon.HoeffdingSandwich,InformationTheory.Shannon.HoeffdingTilt,InformationTheory.Shannon.HoeffdingTradeoff,InformationTheory.Shannon.HoeffdingTradeoffExp,InformationTheory.Shannon.Huffman,InformationTheory.Shannon.LpPointwise,InformationTheory.Shannon.MAC,InformationTheory.Shannon.MaxEntropy,InformationTheory.Shannon.MaxEntropyConstrained,InformationTheory.Shannon.MaxEntropyConstrainedKKT,InformationTheory.Shannon.NormalizedSinc,InformationTheory.Shannon.ParallelGaussian,InformationTheory.Shannon.Pinsker,InformationTheory.Shannon.PinskerSharp,InformationTheory.Shannon.Portfolio,InformationTheory.Shannon.Relay,InformationTheory.Shannon.ShannonCode,InformationTheory.Shannon.ShannonCodeKraftReverse,InformationTheory.Shannon.ShannonHartley,InformationTheory.Shannon.ShannonHartleyPreequalizer,InformationTheory.Shannon.StamConditionalCauchySchwarz,InformationTheory.Shannon.StamEPIBridge,InformationTheory.Shannon.StamFisherCoupling,InformationTheory.Shannon.StamInequality,InformationTheory.Shannon.StrongStein,InformationTheory.Shannon.TimeBandLimiting,InformationTheory.Shannon.TwoSided,InformationTheory.Shannon.WhittakerShannon,InformationTheory.Shannon.WynerZiv,InnerProductSpace,intervalIntegral,Joint3,Lean,LossyCode,LZ78Parsing,LZ78Phrase,MACCode,Marton,Matrix,MatrixOrder,MeasureTheory,MeasureTheory.Measure,Nat.Partrec,Nat.Partrec.Code,NNReal,ProbabilityTheory,Real,RealInnerProductSpace,SchwartzMap,Set,StationaryProcess,symmDiff,TimeBandLimiting,Topology,WithLp,WynerZivCode --print-errors
+
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+env               full (432 direct imports, 6021 loaded)
+initSearchPath    0.080 ms
+importModules     2669.725 ms
+activateScoped    7.806 ms  (Asymptotics, BigOperators, BroadcastCode, ChannelCoding, Classical, Code, Combinatorics, Complex, ComplexConjugate, ComplexInnerProductSpace, ContDiff, Convolution, Encodable, ENNReal, FeedbackCode, Filter, FiniteJointPMF, Finset, FourierTransform, Function, InformationTheory, InformationTheory.Asymptotic, InformationTheory.EPIG2KLFatou, InformationTheory.Kolmogorov, InformationTheory.MeasureFano, InformationTheory.Meta, InformationTheory.Shannon, InformationTheory.Shannon.ArithmeticCoding, InformationTheory.Shannon.AWGN, InformationTheory.Shannon.BroadcastChannel, InformationTheory.Shannon.BroadcastChannel.Marton, InformationTheory.Shannon.ChannelCoding, InformationTheory.Shannon.ChannelCodingConverseGeneral, InformationTheory.Shannon.ChannelCodingFeedback, InformationTheory.Shannon.Chernoff, InformationTheory.Shannon.Cramer, InformationTheory.Shannon.Cramer.TiltedLLN, InformationTheory.Shannon.CramerCltBoundary, InformationTheory.Shannon.CsiszarProjection, InformationTheory.Shannon.EntropyPowerInequality, InformationTheory.Shannon.EPIBlachmanDensity, InformationTheory.Shannon.EPIBlachmanGeneralDensity, InformationTheory.Shannon.EPICase1ProducerMeasurability, InformationTheory.Shannon.EPICase1RatioLimit, InformationTheory.Shannon.EPICase1SmoothingLimit, InformationTheory.Shannon.EPICase1TwoTime, InformationTheory.Shannon.EPIConvDensity, InformationTheory.Shannon.EPIConvDensityGaussianGateway, InformationTheory.Shannon.EPIConvDensityRegular, InformationTheory.Shannon.EPIConvDensitySecondDeriv, InformationTheory.Shannon.EPIDensityForm, InformationTheory.Shannon.EPIGaussianDensityRoute, InformationTheory.Shannon.EPIInfiniteVarianceTruncation, InformationTheory.Shannon.EPIL3Integration, InformationTheory.Shannon.EPINoiseExtension, InformationTheory.Shannon.EPIScoreCrossTermOrth, InformationTheory.Shannon.EPIStamDeBruijnConclusion, InformationTheory.Shannon.EPIStamSupplyTwoTime, InformationTheory.Shannon.EPIStamToBridge, InformationTheory.Shannon.FisherInfo, InformationTheory.Shannon.Gambling, InformationTheory.Shannon.GeneralDMC, InformationTheory.Shannon.HoeffdingBoundaryMinimizer, InformationTheory.Shannon.HoeffdingLagrange, InformationTheory.Shannon.HoeffdingMinimizerAttainment, InformationTheory.Shannon.HoeffdingMinimizerExistence, InformationTheory.Shannon.HoeffdingSandwich, InformationTheory.Shannon.HoeffdingTilt, InformationTheory.Shannon.HoeffdingTradeoff, InformationTheory.Shannon.HoeffdingTradeoffExp, InformationTheory.Shannon.Huffman, InformationTheory.Shannon.LpPointwise, InformationTheory.Shannon.MAC, InformationTheory.Shannon.MaxEntropy, InformationTheory.Shannon.MaxEntropyConstrained, InformationTheory.Shannon.MaxEntropyConstrainedKKT, InformationTheory.Shannon.NormalizedSinc, InformationTheory.Shannon.ParallelGaussian, InformationTheory.Shannon.Pinsker, InformationTheory.Shannon.PinskerSharp, InformationTheory.Shannon.Portfolio, InformationTheory.Shannon.Relay, InformationTheory.Shannon.ShannonCode, InformationTheory.Shannon.ShannonCodeKraftReverse, InformationTheory.Shannon.ShannonHartley, InformationTheory.Shannon.ShannonHartleyPreequalizer, InformationTheory.Shannon.StamConditionalCauchySchwarz, InformationTheory.Shannon.StamEPIBridge, InformationTheory.Shannon.StamFisherCoupling, InformationTheory.Shannon.StamInequality, InformationTheory.Shannon.StrongStein, InformationTheory.Shannon.TimeBandLimiting, InformationTheory.Shannon.TwoSided, InformationTheory.Shannon.WhittakerShannon, InformationTheory.Shannon.WynerZiv, InnerProductSpace, intervalIntegral, Joint3, Lean, LossyCode, LZ78Parsing, LZ78Phrase, MACCode, Marton, Matrix, MatrixOrder, MeasureTheory, MeasureTheory.Measure, Nat.Partrec, Nat.Partrec.Code, NNReal, ProbabilityTheory, Real, RealInnerProductSpace, SchwartzMap, Set, StationaryProcess, symmDiff, TimeBandLimiting, Topology, WithLp, WynerZivCode)
+  ERR InformationTheory.Shannon.StrongTypicality (2) 111:5  unexpected token 'ω'; expected ',' or 'in'
+  ERR InformationTheory.Shannon.MIChainRule (1) 126:12  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.CondMutualInfo (1) 287:49  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.Pi (5) 112:38  unexpected token ':='; expected ')', ',' or ':'
+  ERR InformationTheory.Shannon.BirkhoffErgodic (23) 89:77  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.CramerBoundaryUpstream (6) 87:8  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.CondEntropyMemoryless (3) 216:21  unexpected token 'ω'; expected '(', '[', '_', '{', '⦃' or identifier
+  ERR InformationTheory.Shannon.Bridge (2) 84:8  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.CondMIChainRule (1) 110:17  unexpected token 'ω'; expected '(', '[', '_', '{', '⦃' or identifier
+  ERR InformationTheory.Shannon.BackwardMartingale (8) 166:42  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.CramerGeneralLower (3) 65:21  unexpected token 'ω'; expected ',' or binderPred
+  ERR InformationTheory.Shannon.MeasurePiTiltedFactorization (4) 55:15  unexpected token 'ω'; expected ',' or 'in'
+  ERR InformationTheory.Shannon.CramerCltBoundaryClosure (7) 101:52  unexpected token 'ω'; expected '(', '[', '_', '{', '⦃' or identifier
+  ERR InformationTheory.Shannon.EntropyRate (2) 105:17  unexpected token 'ω'; expected '(', '[', '_', '{', '⦃' or identifier
+  ERR InformationTheory.Probability.TwoSidedExtension.Core (3) 174:32  unexpected token ':='; expected ')', ',' or ':'
+  ERR InformationTheory.Probability.TwoSidedExtension.PastBlockJointLaw (2) 223:6  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.ChannelCoding.CodeToAmbient (1) 438:44  unexpected token 'ω'; expected '(', '[', '_', '{', '⦃' or identifier
+  ERR InformationTheory.Shannon.ChannelCoding.Basic (2) 262:47  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.ChannelCoding.ConverseMemorylessChainRule (1) 186:25  unexpected token 'ω'; expected '(', '[', '_', '{', '⦃' or identifier
+  ERR InformationTheory.Shannon.ChannelCoding.ConverseMemoryless (2) 275:8  unexpected token 'ω'; expected ',' or 'in'
+  ERR InformationTheory.Shannon.ChannelCoding.ConverseMemorylessMarkov (2) 82:42  unexpected token ':='; expected ')', ',' or ':'
+  ERR InformationTheory.Shannon.ChannelCoding.Achievability.RandomCodebook (1) 775:8  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.SlepianWolf.ConditionalTypicalSlice (1) 127:8  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.SlepianWolf.Achievability (1) 130:8  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.Stationary.Kernel (7) 44:57  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.LZ78.ZivAchievabilityComposition (4) 85:5  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.LZ78.ZivCondContext (7) 67:6  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.LZ78.Basic (3) 195:17  unexpected token 'ω'; expected ',' or '∂'
+  ERR InformationTheory.Shannon.LZ78.ZivThreading (9) 67:43  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.LZ78.ZivEntropyBridge (7) 126:70  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.RateDistortion.ConverseNLetter (4) 213:41  unexpected token 'ω'; expected ',' or 'in'
+  ERR InformationTheory.Shannon.RateDistortion.ConverseMonotone (1) 80:11  unexpected token 'ω'; expected ',' or 'in'
+  ERR InformationTheory.Shannon.RateDistortion.AchievabilityUnconditional (1) 82:13  unexpected token 'ω'; expected ',' or 'in'
+  ERR InformationTheory.Shannon.RateDistortion.Converse (2) 126:9  unexpected token 'ω'; expected ',' or 'in'
+  ERR InformationTheory.Shannon.RateDistortion.AchievabilityAmbientMeasure (1) 237:7  unexpected token 'ω'; expected ',' or 'in'
+  ERR InformationTheory.Shannon.RateDistortion.AchievabilityJointTypicalEncoder (2) 91:3  unexpected token 'ω'; expected ',' or 'in'
+  ERR InformationTheory.Shannon.RateDistortion.Convexity (1) 165:8  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.Stein.Achievability (4) 106:5  unexpected token 'ω'; expected ',' or 'in'
+  ERR InformationTheory.Shannon.ShannonHartley.Converse (2) 342:8  unexpected token 'ω'; expected ',' or 'in'
+  ERR InformationTheory.Shannon.MultipleAccess.JointTypicality (1) 296:8  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.MultipleAccess.IIDAmbient (3) 87:36  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.Gambling.OperationalSequences (6) 78:5  unexpected token 'ω'; expected ',' or 'in'
+  ERR InformationTheory.Shannon.AEP.Rate (6) 43:46  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.BroadcastChannel.Thm7Region (1) 301:7  unexpected token 'ω'; expected ',' or 'in'
+  ERR InformationTheory.Shannon.Kolmogorov.EntropyRate (3) 542:23  unexpected token 'ω'; expected ',' or 'in'
+  ERR InformationTheory.Shannon.EPI.ScoreCrossTermOrth (1) 44:15  unexpected token 'ω'; expected ',' or 'in'
+  ERR InformationTheory.Shannon.ParallelGaussian.PerCoord (1) 385:10  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.IIDProductInput.Basic (2) 64:35  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.Portfolio.StationaryMarket (2) 71:6  unexpected token 'ω'; expected ',' or '∂'
+  ERR InformationTheory.Shannon.Portfolio.StationaryWinfty (27) 79:16  unexpected token 'ω'; expected '(', '[', '_', '{', '⦃' or identifier
+  ERR InformationTheory.Shannon.Portfolio.StationaryWinftyConcrete (1) 211:15  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.Portfolio.StationaryWinftyAEP (16) 142:14  unexpected token 'ω'; expected '(', '[', '_', '{', '⦃' or identifier
+  ERR InformationTheory.Shannon.Portfolio.OperationalSequences (2) 115:6  unexpected token 'ω'; expected ',' or '∂'
+  ERR InformationTheory.Shannon.SMB.McMillanBreiman (2) 91:18  unexpected token 'ω'; expected ',' or '∂'
+  ERR InformationTheory.Shannon.SMB.ChainRule (7) 87:41  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.Cramer.TiltedIID (3) 63:57  unexpected token 'ω'; expected '(', '[', '_', '{', '⦃' or identifier
+  ERR InformationTheory.Shannon.Cramer.TiltedLLN (7) 51:57  unexpected token 'ω'; expected '(', '[', '_', '{', '⦃' or identifier
+  ERR InformationTheory.Shannon.Cramer.InfinitePiTiltedChangeOfMeasure (6) 39:15  unexpected token 'ω'; expected ',' or 'in'
+  ERR InformationTheory.Shannon.Cramer.LC2PhaseC (3) 62:57  unexpected token 'ω'; expected '(', '[', '_', '{', '⦃' or identifier
+  ERR InformationTheory.Shannon.Cramer.Cramer (9) 102:44  unexpected token 'ω'; expected '(', '[', '_', '{', '⦃' or identifier
+  ERR InformationTheory.Shannon.Han.Basic (1) 100:21  unexpected token 'ω'; expected '(', '[', '_', '{', '⦃' or identifier
+  ERR InformationTheory.Shannon.AWGN.ConverseMIChainRule.Markov (3) 50:8  unexpected token 'ω'; expected ',' or 'in'
+  ERR InformationTheory.Shannon.SlepianWolf.FullRateRegion.Core (3) 91:5  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.SlepianWolf.FullRateRegion.PairBound (3) 114:8  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.SlepianWolf.FullRateRegion.AliasBound (5) 49:15  unexpected token 'ω'; expected '(', '[', '_', '{', '⦃' or identifier
+  ERR InformationTheory.Shannon.LZ78.AsymptoticOptimality.ParentBridgeConverse (4) 63:6  unexpected token 'ω'; expected ',' or '∂'
+  ERR InformationTheory.Shannon.LZ78.AsymptoticOptimality.ParentBridgeAchievability (5) 226:6  unexpected token 'ω'; expected ',' or '∂'
+  ERR InformationTheory.Shannon.RateDistortion.AchievabilityStrongTypicality.FailureTendstoZero (1) 260:59  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.WynerZiv.Converse.Prelim (1) 187:10  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.WynerZiv.Converse.SingleLetter (4) 287:12  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.WynerZiv.Achievability.Covering (2) 1184:6  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.WynerZiv.Achievability.Decomposition (1) 273:12  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.WynerZiv.Achievability.Concentration (1) 1068:10  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.AEP.Basic.Core (5) 33:54  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.BroadcastChannel.Marton.Covering (2) 81:8  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.BroadcastChannel.Marton.MutualCovering (6) 78:27  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.BroadcastChannel.Marton.CardinalityBound (1) 72:8  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.SMB.AlgoetCover.MarkovLikelihoodRatio (9) 385:41  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.SMB.AlgoetCover.Limsup (3) 28:6  unexpected token 'ω'; expected ',' or '∂'
+  ERR InformationTheory.Shannon.SMB.AlgoetCover.Liminf (3) 236:16  unexpected token 'ω'; expected ',' or '∂'
+  ERR InformationTheory.Shannon.SMB.AlgoetCover.KMarkovApproximation (3) 45:77  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.SMB.AlgoetCover.TwoSidedRatio (1) 101:82  unexpected token 'ω'; expected '_' or identifier
+  ERR InformationTheory.Shannon.SMB.AlgoetCover.Boundedness (2) 34:6  unexpected token 'ω'; expected ',' or '∂'
+  ERR InformationTheory.Shannon.EPI.InfiniteVariance.Truncation.Construction (4) 108:22  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.EPI.Unconditional.TruncationLimit.Limit (3) 79:44  unexpected token 'ω'; expected command
+  ERR InformationTheory.Shannon.EPI.Unconditional.TruncationLimit.Mono (2) 543:8  unexpected token 'ω'; expected command
+round 0           wall 4491.270 ms  sum 4485.732 ms  p50 7.114 ms  p90 25.364 ms  max 57.062 ms  mean 10.383 ms  modules 432  errModules 86
+  of which header  sum 187.228 ms  p50 0.386 ms  p90 0.686 ms  max 1.742 ms  (mkEmptyEnvironment inside parseHeader)
+
+modules parsed    432
+errModules        86 / 432
+        7.39 real         5.91 user         1.36 sys
+          3266347008  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              254617  page reclaims
+                 379  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 555  voluntary context switches
+                2901  involuntary context switches
+         75579488117  instructions retired
+         22760420466  cycles elapsed
+           546451264  peak memory footprint

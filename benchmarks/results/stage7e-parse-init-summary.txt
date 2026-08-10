@@ -1,0 +1,441 @@
+date              2026-08-10T20:42:35Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+LEAN_NUM_THREADS  unset (Lean default)
+page cache        unrecorded
+target            /Users/haruka/dev/lean-projects
+modules           432 from /Users/haruka/dev/lean-doc/benchmarks/results/it-modules.txt
+binary            /Users/haruka/dev/lean-doc/experiments/stage7e/build/parse
+args              --env init --print-errors
+
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+env               init (1 direct imports, 599 loaded)
+initSearchPath    0.151 ms
+importModules     212.349 ms
+  ERR InformationTheory.Asymptotic (9) 57:14  unexpected identifier; expected 'abbrev', 'axiom', 'binder_predicate', 'builtin_initialize', 'class', 'coinductive', 'def', 'elab', 'elab_rules', 'example', 'in
+  ERR InformationTheory.Fano (11) 55:3  unknown tactic
+  ERR InformationTheory.Probability.Mixture (3) 45:0  unexpected identifier; expected command
+  ERR InformationTheory.Probability.SingletonMass (1) 30:0  unexpected identifier; expected command
+  ERR InformationTheory.Polymatroid.Basic (5) 36:32  unexpected token ')'; expected term
+  ERR InformationTheory.Shannon.StrongTypicality (8) 50:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.SufficientStatistic (6) 45:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.NormalizedSinc (5) 92:53  unknown tactic
+  ERR InformationTheory.Shannon.MIChainRule (11) 26:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.TypedRV (21) 67:14  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.CondMutualInfoMixture (2) 33:25  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.CondMutualInfo (22) 50:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.LpPointwise (3) 54:24  expected token
+  ERR InformationTheory.Shannon.RelayCutset (17) 43:38  unexpected token ')'; expected term
+  ERR InformationTheory.Shannon.McMillanKraftBridge (6) 77:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.KLDivContinuous (4) 26:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.StamGaussianBound (2) 49:30  unknown tactic
+  ERR InformationTheory.Shannon.BoolLaw (4) 42:36  expected token
+  ERR InformationTheory.Shannon.Entropy (8) 31:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.GaussianPDFVarianceDerivative (4) 74:52  unknown tactic
+  ERR InformationTheory.Shannon.DPI (5) 36:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.FisherConvBound (6) 43:4  expected token
+  ERR InformationTheory.Shannon.DifferentialEntropy (20) 49:2  expected token
+  ERR InformationTheory.Shannon.Pi (7) 32:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BirkhoffErgodic (26) 70:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.MutualInfo (11) 30:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.CramerBoundaryUpstream (9) 37:20  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Converse (6) 36:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.DeLaValleePoussin (3) 33:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.CsiszarProjection (13) 51:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.CondEntropyMemoryless (23) 46:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BrascampLieb (4) 40:39  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.MutualInfoFiniteRange (8) 37:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.MultivariateDiffEntropy (15) 59:2  expected token
+  ERR InformationTheory.Shannon.Bridge (15) 34:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.CondMIChainRule (9) 32:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.StrongStein (5) 37:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.MutualInfoReencoding (1) 43:0  unexpected identifier; expected command
+  ERR InformationTheory.Shannon.BackwardMartingale (19) 80:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Polymatroid (6) 35:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.MinkowskiDet (5) 44:14  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.TypeClassLowerBound (4) 32:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.CramerGeneralLower (4) 42:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.CondKLIntegral (5) 52:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.LoomisWhitney (5) 41:14  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ConditionalAEP (6) 45:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.MeasurePiTiltedFactorization (5) 42:20  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.CramerCltBoundaryClosure (9) 47:41  unexpected token '}'; expected '=>'
+  ERR InformationTheory.Shannon.EntropyRate (13) 50:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.WhittakerShannon (8) 51:24  unknown tactic
+  ERR InformationTheory.Shannon.BackwardFiltration (7) 41:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ArithmeticCoding (6) 55:19  unexpected token '}'; expected term
+  ERR InformationTheory.Fano.Core (15) 42:21  unexpected token '}'; expected term
+  ERR InformationTheory.Fano.Entropy (5) 28:26  unexpected token '}'; expected term
+  ERR InformationTheory.Fano.DPI (8) 42:67  unexpected identifier; expected '#guard_msgs', 'abbrev', 'add_decl_doc', 'axiom', 'binder_predicate', 'builtin_cbv_simproc', 'builtin_cbv_simproc_decl', 'builti
+  ERR InformationTheory.Fano.CondEntropy (14) 35:23  unexpected token '}'; expected term
+  ERR InformationTheory.Fano.BinaryJensen (3) 27:61  unexpected identifier; expected '#guard_msgs', 'abbrev', 'add_decl_doc', 'axiom', 'binder_predicate', 'builtin_cbv_simproc', 'builtin_cbv_simproc_decl', 'builti
+  ERR InformationTheory.Fano.Measure (16) 71:19  unexpected token '}'; expected term
+  ERR InformationTheory.Probability.TwoSidedExtension.Core (22) 23:19  unexpected token '}'; expected term
+  ERR InformationTheory.Probability.TwoSidedExtension.CondExpMeasurePreserving (3) 23:19  unexpected token '}'; expected term
+  ERR InformationTheory.Probability.TwoSidedExtension.LogCondIntegral (19) 26:19  unexpected token '}'; expected term
+  ERR InformationTheory.Probability.TwoSidedExtension.PastBlockJointLaw (7) 25:19  unexpected token '}'; expected term
+  ERR InformationTheory.Probability.TwoSidedExtension.Backward (26) 24:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ChannelCoding.CodeToAmbient (18) 63:53  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ChannelCoding.ShannonTheoremMaxError (2) 37:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ChannelCoding.FeedbackMemoryless (13) 39:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ChannelCoding.ShannonTheorem (37) 47:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ChannelCoding.MIDecomp (13) 63:4  expected token
+  ERR InformationTheory.Shannon.ChannelCoding.Feedback (21) 42:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ChannelCoding.Basic (26) 41:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ChannelCoding.ConverseMemorylessChainRule (9) 45:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ChannelCoding.Converse (4) 20:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ChannelCoding.ConverseMemoryless (15) 27:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ChannelCoding.StrongConverse (7) 35:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ChannelCoding.StrongConverseAsymptotic (12) 47:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ChannelCoding.ConverseGeneral (4) 29:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ChannelCoding.ShannonTheoremGeneral (18) 37:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ChannelCoding.ConverseMemorylessMarkov (13) 41:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ConditionalMethodOfTypes.Core (18) 29:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Pinsker.Basic (6) 45:7  unexpected identifier; expected 'abbrev', 'axiom', 'builtin_initialize', 'class', 'coinductive', 'def', 'example', 'inductive', 'initialize', 'instance', 'opaqu
+  ERR InformationTheory.Shannon.Pinsker.Sharp (14) 50:7  unexpected identifier; expected 'abbrev', 'axiom', 'builtin_initialize', 'class', 'coinductive', 'def', 'example', 'inductive', 'initialize', 'instance', 'opaqu
+  ERR InformationTheory.Shannon.ChannelCoding.ShannonTheoremMaxError.PmfLogBounds (6) 24:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ChannelCoding.ShannonTheoremMaxError.SeedLemmas (3) 30:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ChannelCoding.ShannonTheoremMaxError.OuterN (8) 27:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ChannelCoding.ShannonTheoremMaxError.SmoothInstantiation (5) 22:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ChannelCoding.Achievability.Core (5) 23:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ChannelCoding.Achievability.RandomCodebook (18) 26:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ChannelCoding.Achievability.Main (5) 29:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ConditionalMethodOfTypes.Mass.SliceMass (3) 20:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ConditionalMethodOfTypes.Mass.Concentration (9) 27:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.AWGN.ConverseMutualInfoFiniteness (32) 67:30  expected token
+  ERR InformationTheory.Shannon.AWGN.CapacityConverseMaxent (19) 64:67  unknown tactic
+  ERR InformationTheory.Shannon.AWGN.MutualInfoBridge (2) 70:26  expected token
+  ERR InformationTheory.Shannon.AWGN.BindConvolution (2) 57:7  expected token
+  ERR InformationTheory.Shannon.AWGN.ContChannelMIDecomp (9) 78:6  expected token
+  ERR InformationTheory.Shannon.AWGN.ConverseCapacityBound (16) 62:18  expected token
+  ERR InformationTheory.Shannon.AWGN.AchievabilityTypicalDecoder (10) 129:56  unexpected token '}'; expected '=>'
+  ERR InformationTheory.Shannon.AWGN.JointlyTypicalSet (5) 44:5  expected token
+  ERR InformationTheory.Shannon.AWGN.Basic (8) 72:7  unexpected identifier; expected 'abbrev', 'axiom', 'binder_predicate', 'builtin_initialize', 'class', 'coinductive', 'def', 'elab', 'elab_rules', 'example', 'in
+  ERR InformationTheory.Shannon.AWGN.AchievabilityAEP (2) 39:14  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.AWGN.Converse (15) 63:7  unexpected identifier; expected 'abbrev', 'axiom', 'builtin_initialize', 'class', 'coinductive', 'def', 'example', 'inductive', 'initialize', 'instance', 'opaqu
+  ERR InformationTheory.Shannon.AWGN.AchievabilityExpurgation (4) 44:35  expected token
+  ERR InformationTheory.Shannon.AWGN.AchievabilityCodeExistence (6) 52:12  unexpected identifier; expected '#guard_msgs', 'abbrev', 'add_decl_doc', 'axiom', 'binder_predicate', 'builtin_cbv_simproc', 'builtin_cbv_simproc_decl', 'builti
+  ERR InformationTheory.Shannon.AWGN.KLCapacityAndAEP (16) 40:7  unexpected identifier; expected 'abbrev', 'axiom', 'builtin_initialize', 'class', 'coinductive', 'def', 'example', 'inductive', 'initialize', 'instance', 'opaqu
+  ERR InformationTheory.Shannon.AWGN.MIBridge (4) 128:9  expected token
+  ERR InformationTheory.Shannon.AWGN.ChannelMeasurability (3) 39:0  unexpected identifier; expected command
+  ERR InformationTheory.Shannon.AWGN.PerCodewordPowerConstraint (1) 64:58  expected token
+  ERR InformationTheory.Shannon.AWGN.Main (1) 86:50  expected token
+  ERR InformationTheory.Shannon.AWGN.MutualInfoDecomposition (3) 56:29  expected token
+  ERR InformationTheory.Shannon.ShannonCode.Basic (13) 45:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ShannonCode.KraftReverse (23) 35:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.SlepianWolf.ConditionalTypicalSlice (10) 40:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.SlepianWolf.Achievability (4) 35:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.SlepianWolf.Basic (8) 44:14  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.SlepianWolf.Binning (4) 44:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.MaxEntropy.Constrained (22) 60:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.MaxEntropy.ConstrainedKKT (16) 73:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.MaxEntropy.Basic (9) 44:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Hoeffding.Tradeoff (10) 52:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Hoeffding.Sandwich (4) 44:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Hoeffding.MinimizerAttainment (8) 75:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Hoeffding.BoundaryMinimizer (8) 73:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Hoeffding.MinimizerExistence (3) 46:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Hoeffding.Lagrange (8) 82:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Hoeffding.TradeoffExp (16) 53:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Hoeffding.Tilt (9) 64:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Sanov.Basic (8) 47:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Sanov.MultinomialLowerBound (15) 34:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Sanov.LDP (13) 52:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Sanov.TendstoSandwich (4) 34:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Sanov.LiminfBound (4) 29:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Sanov.RoundedTypeSequence (14) 34:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Stationary.Basic (13) 37:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Stationary.Kernel (4) 35:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.LZ78.ConverseUDObject (10) 62:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.LZ78.ZivCondGrouping (8) 54:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.LZ78.ZivAchievabilityComposition (8) 47:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.LZ78.ZivCondContext (11) 51:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.LZ78.Basic (21) 87:31  unexpected token ')'; expected term
+  ERR InformationTheory.Shannon.LZ78.PhraseCounting (10) 77:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.LZ78.ConverseAsymptotic (16) 56:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.LZ78.GreedyParsing (4) 46:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.LZ78.PhraseCountAsymptotics (6) 75:40  unknown tactic
+  ERR InformationTheory.Shannon.LZ78.ZivLengthGrouping (3) 49:14  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.LZ78.ZivThreading (11) 54:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.LZ78.EmpiricalEntropyMean (4) 57:14  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.LZ78.ZivMeasureBridge (5) 62:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.LZ78.ZivEntropyBridge (7) 57:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.LZ78.GreedyLongestPrefix (8) 63:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.LZ78.ZivInequality (12) 64:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EntropyPower.Ext (11) 53:13  unexpected identifier; expected 'abbrev', 'axiom', 'builtin_initialize', 'class', 'coinductive', 'def', 'example', 'inductive', 'initialize', 'instance', 'opaqu
+  ERR InformationTheory.Shannon.EntropyPower.Inequality (6) 90:63  unknown tactic
+  ERR InformationTheory.Shannon.RateDistortion.ConverseNLetter (13) 49:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.RateDistortion.AchievabilityStrongTypicality (4) 74:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.RateDistortion.ConverseMonotone (3) 32:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.RateDistortion.AchievabilityJointStrongTypicality (15) 52:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.RateDistortion.AchievabilityUnconditional (12) 48:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.RateDistortion.Achievability (20) 52:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.RateDistortion.Converse (9) 48:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.RateDistortion.AchievabilityAmbientMeasure (9) 49:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.RateDistortion.AchievabilityGeneralSource (23) 40:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.RateDistortion.AchievabilityAsymptoticFailureDecay (10) 39:63  unexpected identifier; expected '#guard_msgs', 'abbrev', 'add_decl_doc', 'axiom', 'binder_predicate', 'builtin_cbv_simproc', 'builtin_cbv_simproc_decl', 'builti
+  ERR InformationTheory.Shannon.RateDistortion.AchievabilityJointTypicalEncoder (6) 54:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.RateDistortion.AchievabilityCodebookMatchProbability (5) 30:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.RateDistortion.Convexity (11) 40:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Stein.Achievability (18) 53:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Stein.Converse (12) 28:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Stein.OptimalExponent (13) 28:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ShannonHartley.ConverseFinal (6) 63:67  unknown tactic
+  ERR InformationTheory.Shannon.ShannonHartley.Achievability (21) 68:10  expected token
+  ERR InformationTheory.Shannon.ShannonHartley.Waterfill (5) 28:7  unexpected identifier; expected 'abbrev', 'axiom', 'builtin_initialize', 'class', 'coinductive', 'def', 'example', 'inductive', 'initialize', 'instance', 'opaqu
+  ERR InformationTheory.Shannon.ShannonHartley.ConverseCount (6) 43:2  expected token
+  ERR InformationTheory.Shannon.ShannonHartley.Basic (1) 79:3  unknown tactic
+  ERR InformationTheory.Shannon.ShannonHartley.Converse (19) 50:11  expected token
+  ERR InformationTheory.Shannon.ShannonHartley.Preequalizer (1) 26:35  expected token
+  ERR InformationTheory.Shannon.ShannonHartley.Operational (17) 107:7  expected token
+  ERR InformationTheory.Shannon.ShannonHartley.Main (15) 65:50  expected token
+  ERR InformationTheory.Shannon.ShannonHartley.Rotation (27) 44:66  unknown tactic
+  ERR InformationTheory.Shannon.MultipleAccess.TimeSharing (16) 45:25  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.MultipleAccess.JointTypicality (9) 42:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.MultipleAccess.Basic (13) 27:25  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.MultipleAccess.Converse (13) 42:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.MultipleAccess.AchievabilityCore (6) 32:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.MultipleAccess.Reconciliation (8) 44:54  unexpected identifier; expected '#guard_msgs', 'abbrev', 'add_decl_doc', 'axiom', 'binder_predicate', 'builtin_cbv_simproc', 'builtin_cbv_simproc_decl', 'builti
+  ERR InformationTheory.Shannon.MultipleAccess.IIDAmbient (12) 41:25  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Gambling.Basic (7) 68:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Gambling.SideInformation (6) 40:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Gambling.OperationalSequences (10) 54:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.WynerZiv.RateMonotonicity (28) 40:23  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.WynerZiv.ObjectiveConvexity (24) 71:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.WynerZiv.FactorizableRate (48) 59:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.WynerZiv.ConverseGateway (4) 30:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.WynerZiv.Basic (28) 59:47  unexpected token ')'; expected term
+  ERR InformationTheory.Shannon.WynerZiv.ConditionalEntropyConvexity (8) 40:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.WynerZiv.Operational (7) 50:25  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.AEP.Rate (22) 27:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.DegradedFromCode (6) 40:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.OuterBound (15) 42:39  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.Thm7Region (21) 161:74  expected token
+  ERR InformationTheory.Shannon.BroadcastChannel.OuterBoundTransport (46) 145:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.ConverseGateway (5) 36:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.MartonUnion (14) 59:36  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.Basic (14) 34:25  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.Converse (12) 39:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.MoreCapableBinary (29) 77:7  unexpected identifier; expected 'abbrev', 'axiom', 'builtin_initialize', 'class', 'coinductive', 'def', 'example', 'inductive', 'initialize', 'instance', 'opaqu
+  ERR InformationTheory.Shannon.BroadcastChannel.Classes (6) 47:36  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.Operational (7) 41:25  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.OuterBoundUV (30) 60:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.MartonFullSupport (9) 42:23  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BlockwiseChannel.CapacityLimit (1) 31:16  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BlockwiseChannel.Definition (5) 48:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BlockwiseChannel.MemorylessCapacity (17) 52:16  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Huffman.Length (23) 54:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Huffman.Optimality (16) 46:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Huffman.SwapNormCompletion (6) 32:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Huffman.KraftSum (14) 36:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Huffman.ExpectedLength (7) 42:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Huffman.StrongForm (2) 50:17  expected token
+  ERR InformationTheory.Shannon.Huffman.SwapNormProof (3) 36:14  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.HypercubeEdge.BoundarySharp (13) 39:7  unexpected identifier; expected 'abbrev', 'axiom', 'builtin_initialize', 'class', 'coinductive', 'def', 'example', 'inductive', 'initialize', 'instance', 'opaqu
+  ERR InformationTheory.Shannon.HypercubeEdge.Boundary (14) 52:7  unexpected identifier; expected 'abbrev', 'axiom', 'binder_predicate', 'builtin_initialize', 'class', 'coinductive', 'def', 'elab', 'elab_rules', 'example', 'in
+  ERR InformationTheory.Shannon.Kolmogorov.UniversalMachine (3) 103:66  unexpected token '}'; expected '=>'
+  ERR InformationTheory.Shannon.Kolmogorov.SufficientStatistic (5) 91:56  unexpected token '}'; expected '=>'
+  ERR InformationTheory.Shannon.Kolmogorov.EntropyRateUpper (1) 43:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Kolmogorov.UniversalProbability (2) 36:12  expected token
+  ERR InformationTheory.Shannon.Kolmogorov.Counting (5) 100:64  unexpected token '}'; expected '=>'
+  ERR InformationTheory.Shannon.Kolmogorov.Levin (8) 78:64  unexpected token '}'; expected '=>'
+  ERR InformationTheory.Shannon.Kolmogorov.Noncomputable (1) 28:3  unknown tactic
+  ERR InformationTheory.Shannon.Kolmogorov.Incompressible (6) 45:35  unknown tactic
+  ERR InformationTheory.Shannon.Kolmogorov.PrefixMachine (10) 192:7  unknown tactic
+  ERR InformationTheory.Shannon.Kolmogorov.OmegaNoncomputable (21) 78:32  expected token
+  ERR InformationTheory.Shannon.Kolmogorov.Invariance (2) 27:65  unexpected token '}'; expected '=>'
+  ERR InformationTheory.Shannon.Kolmogorov.EntropyRate (21) 49:35  expected token
+  ERR InformationTheory.Shannon.Kolmogorov.Omega (6) 40:36  expected token
+  ERR InformationTheory.Shannon.EPI.NoiseExtension (1) 28:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EPI.L3Integration (24) 74:46  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EPI.Plumbing (9) 79:3  unknown tactic
+  ERR InformationTheory.Shannon.EPI.ScoreCrossTermOrth (2) 23:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EPI.ApproxIdentityL1 (13) 34:40  unexpected token '('; expected ':=', 'where' or '|'
+  ERR InformationTheory.Shannon.EPI.DensityForm (2) 42:14  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.TimeBandLimiting.Count (20) 29:58  expected token
+  ERR InformationTheory.Shannon.TimeBandLimiting.Operator (51) 38:36  expected token
+  ERR InformationTheory.Shannon.TimeBandLimiting.TraceBound (30) 40:60  unknown tactic
+  ERR InformationTheory.Shannon.TimeBandLimiting.SecondMoment (27) 23:48  expected token
+  ERR InformationTheory.Shannon.TimeBandLimiting.Enumeration (19) 29:13  expected token
+  ERR InformationTheory.Shannon.ParallelGaussian.Basic (10) 80:7  unexpected identifier; expected 'abbrev', 'axiom', 'binder_predicate', 'builtin_initialize', 'class', 'coinductive', 'def', 'elab', 'elab_rules', 'example', 'in
+  ERR InformationTheory.Shannon.ParallelGaussian.KKT (9) 40:54  unexpected identifier; expected '#guard_msgs', 'abbrev', 'add_decl_doc', 'axiom', 'binder_predicate', 'builtin_cbv_simproc', 'builtin_cbv_simproc_decl', 'builti
+  ERR InformationTheory.Shannon.ParallelGaussian.PerCoord (18) 60:91  expected token
+  ERR InformationTheory.Shannon.ParallelGaussian.PerCoordRegularity (1) 80:8  expected token
+  ERR InformationTheory.Shannon.IIDProductInput.Basic (17) 40:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.IIDProductInput.Joint (9) 28:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Portfolio.Universal (18) 69:69  expected token
+  ERR InformationTheory.Shannon.Portfolio.StationaryMarket (4) 48:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Portfolio.StationaryWinfty (34) 50:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Portfolio.Basic (8) 52:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Portfolio.StationaryWinftyConcrete (11) 34:7  unexpected identifier; expected 'abbrev', 'axiom', 'builtin_initialize', 'class', 'coinductive', 'def', 'example', 'inductive', 'initialize', 'instance', 'opaqu
+  ERR InformationTheory.Shannon.Portfolio.SideInformation (3) 48:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Portfolio.StationaryWinftyAEP (19) 31:7  unexpected identifier; expected 'abbrev', 'axiom', 'builtin_initialize', 'class', 'coinductive', 'def', 'example', 'inductive', 'initialize', 'instance', 'opaqu
+  ERR InformationTheory.Shannon.Portfolio.OperationalSequences (5) 59:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.SMB.McMillanBreiman (5) 50:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.SMB.ChainRule (10) 45:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Chernoff.NLetterZSum (1) 25:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Chernoff.Basic (37) 57:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Chernoff.Converse (23) 32:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.FisherInfo.Gaussian (11) 44:14  unexpected identifier; expected 'abbrev', 'axiom', 'binder_predicate', 'builtin_initialize', 'class', 'coinductive', 'def', 'elab', 'elab_rules', 'example', 'in
+  ERR InformationTheory.Shannon.FisherInfo.DeBruijnStandalone (7) 66:14  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.FisherInfo.DeBruijn (20) 55:74  expected token
+  ERR InformationTheory.Shannon.FisherInfo.Basic (10) 52:37  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.FisherInfo.DeBruijnPerTime (16) 39:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.FisherInfo.OfDensity (7) 49:55  expected token
+  ERR InformationTheory.Shannon.FisherInfo.DeBruijnGeneral (2) 37:14  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.FisherInfo.DeBruijnHeatFlow (12) 79:3  unknown tactic
+  ERR InformationTheory.Shannon.FisherInfo.HeatFlow (8) 66:3  unknown tactic
+  ERR InformationTheory.Shannon.GeneralDMC.Extension (1) 73:21  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.GeneralDMC.Basic (4) 78:27  unexpected token ')'; expected term
+  ERR InformationTheory.Shannon.Cramer.TiltedIID (7) 31:20  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Cramer.TiltedLLN (6) 39:20  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Cramer.InfinitePiTiltedChangeOfMeasure (7) 30:20  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Cramer.LC2PhaseC (5) 39:20  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Cramer.Cramer (16) 46:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Han.DShearer (3) 24:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Han.D (8) 30:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Han.DAverage (2) 24:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.Han.Basic (10) 29:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.AWGN.ConverseMIChainRule.PerLetterMI (15) 24:7  unexpected identifier; expected 'abbrev', 'axiom', 'builtin_initialize', 'class', 'coinductive', 'def', 'example', 'inductive', 'initialize', 'instance', 'opaqu
+  ERR InformationTheory.Shannon.AWGN.ConverseMIChainRule.PerLetterIntegrability (9) 42:30  expected token
+  ERR InformationTheory.Shannon.AWGN.ConverseMIChainRule.BlockMI (31) 61:29  expected token
+  ERR InformationTheory.Shannon.AWGN.ConverseMIChainRule.Markov (3) 33:36  expected token
+  ERR InformationTheory.Shannon.SlepianWolf.FullRateRegion.Core (13) 14:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.SlepianWolf.FullRateRegion.PairBound (28) 16:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.SlepianWolf.FullRateRegion.AliasBound (13) 15:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.LZ78.AsymptoticOptimality.ParentBridgeConverse (15) 28:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.LZ78.AsymptoticOptimality.EncodingLength (11) 27:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.LZ78.AsymptoticOptimality.ParentBridgeAchievability (13) 29:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.RateDistortion.AchievabilityStrongTypicality.FailureTendstoZero (4) 30:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.RateDistortion.AchievabilityStrongTypicality.SupportingBounds (11) 29:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.MultipleAccess.TimeSharingConverse.Assembly (13) 38:25  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.MultipleAccess.TimeSharingConverse.Bridge (26) 30:7  unexpected identifier; expected 'abbrev', 'axiom', 'builtin_initialize', 'class', 'coinductive', 'def', 'example', 'inductive', 'initialize', 'instance', 'opaqu
+  ERR InformationTheory.Shannon.MultipleAccess.Achievability.Codebook (23) 21:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.MultipleAccess.Achievability.RandomCoding (14) 18:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.WynerZiv.Converse.Prelim (10) 29:25  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.WynerZiv.Converse.SingleLetter (16) 20:25  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.WynerZiv.Converse.Headline (27) 19:25  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.WynerZiv.Achievability.Covering (25) 22:25  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.WynerZiv.Achievability.Decomposition (14) 16:25  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.WynerZiv.Achievability.MassBound (9) 16:25  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.WynerZiv.Achievability.Concentration (23) 17:25  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.WynerZiv.Achievability.MarkovCore (7) 16:25  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.WynerZiv.Achievability.ChosenWord (6) 16:25  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.WynerZiv.Achievability.Headline (7) 16:25  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.WynerZiv.Achievability.SourceTransport (11) 16:25  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.AEP.Basic.Core (17) 21:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.AEP.Basic.Achievability (13) 23:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.AEP.Basic.Converse (9) 22:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.Marton.Covering (28) 66:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.Marton.ObjectiveAssembly (19) 59:31  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.Marton.Swap (5) 30:31  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.Marton.ObjectiveConvexity (11) 52:25  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.Marton.Achievability (16) 37:31  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.Marton.SupportReduction (9) 35:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.Marton.ObjectiveVectorForm (24) 64:31  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.Marton.Basic (2) 52:45  unknown tactic
+  ERR InformationTheory.Shannon.BroadcastChannel.Marton.ErrorAnalysis (20) 62:31  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.Marton.Setup (5) 44:31  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.Marton.MutualCovering (38) 51:23  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.Marton.CardinalityBound (18) 59:0  unexpected identifier; expected command
+  ERR InformationTheory.Shannon.BroadcastChannel.Marton.RegionCardinality (13) 82:10  unknown tactic
+  ERR InformationTheory.Shannon.BroadcastChannel.OuterBoundUV.Gateway (18) 39:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.OuterBoundUV.Region (25) 90:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.OuterBoundUV.Assembly (27) 61:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.OuterBoundUV.Bridge (31) 109:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.OuterBoundUV.Quantization (16) 48:36  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.OuterBoundUV.MartonBridge (17) 59:31  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.Superposition.Region (9) 51:36  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.Superposition.TimeShare (32) 78:25  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.Superposition.MoreCapable (33) 89:25  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.Superposition.FullSupport (44) 54:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.Superposition.Assembly (6) 45:36  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.Achievability.Assembly (25) 25:27  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.Achievability.ErrorAnalysis (21) 20:27  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.Achievability.Setup (18) 31:27  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.FisherInfo.DeBruijnAssembly.Core (16) 13:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.FisherInfo.DeBruijnAssembly.Derivatives (16) 15:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.FisherInfo.DeBruijnAssembly.Domination (5) 14:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.FisherInfo.DeBruijnAssembly.Assembly (9) 16:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.SMB.AlgoetCover.MarkovLikelihoodRatio (22) 44:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.SMB.AlgoetCover.Limsup (5) 17:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.SMB.AlgoetCover.Liminf (10) 27:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.SMB.AlgoetCover.KMarkovApproximation (6) 15:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.SMB.AlgoetCover.TwoSidedRatio (32) 15:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.SMB.AlgoetCover.Boundedness (4) 17:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.Marton.MarkovCore.Prelim (7) 36:31  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.Marton.MarkovCore.Receiver2 (20) 44:31  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.BroadcastChannel.Marton.MarkovCore.Receiver1 (22) 54:31  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EPI.Stam.SupplyTwoTime (16) 58:35  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EPI.Stam.ToBridge (7) 81:29  unknown tactic
+  ERR InformationTheory.Shannon.EPI.Stam.EPIBridge (30) 71:34  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EPI.Stam.ConditionalCauchySchwarz (17) 111:3  unknown tactic
+  ERR InformationTheory.Shannon.EPI.Stam.Inequality (20) 74:37  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EPI.Stam.DeBruijnConclusion (5) 123:18  unknown tactic
+  ERR InformationTheory.Shannon.EPI.Stam.Standalone (3) 59:26  expected token
+  ERR InformationTheory.Shannon.EPI.Stam.FisherCoupling (4) 61:30  unknown tactic
+  ERR InformationTheory.Shannon.EPI.InfiniteVariance.Capstone (3) 38:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EPI.InfiniteVariance.Truncation (2) 57:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EPI.Vitali.UI (5) 65:50  expected token
+  ERR InformationTheory.Shannon.EPI.Vitali.UnifTight (4) 32:4  expected token
+  ERR InformationTheory.Shannon.EPI.Vitali.AE (1) 66:35  expected token
+  ERR InformationTheory.Shannon.EPI.Case1.SmoothingLimit (7) 49:14  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EPI.Case1.ProducerMeasurability (4) 65:8  expected token
+  ERR InformationTheory.Shannon.EPI.Conv.DensityRegular (6) 41:8  unexpected token '|'; expected term
+  ERR InformationTheory.Shannon.EPI.Conv.DensityNormalization (1) 34:16  expected token
+  ERR InformationTheory.Shannon.EPI.Conv.Density (5) 38:10  expected token
+  ERR InformationTheory.Shannon.EPI.Conv.DensityGaussianGateway (2) 37:27  unexpected token '|'; expected term
+  ERR InformationTheory.Shannon.EPI.Conv.DensityAssoc (8) 59:23  unexpected token '|'; expected term
+  ERR InformationTheory.Shannon.EPI.Conv.DensitySecondDeriv (2) 69:12  expected token
+  ERR InformationTheory.Shannon.EPI.Unconditional.MixedCase (6) 31:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EPI.Unconditional.DispatchFull (6) 32:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EPI.Unconditional.Dispatch (4) 37:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EPI.Blachman.GaussianDensityRoute (14) 42:61  unknown tactic
+  ERR InformationTheory.Shannon.EPI.Blachman.Density (28) 64:4  expected token
+  ERR InformationTheory.Shannon.EPI.Blachman.GeneralDensity (15) 70:50  expected token
+  ERR InformationTheory.Shannon.EPI.G2.KLFatouLSC (19) 45:57  expected token
+  ERR InformationTheory.Shannon.EPI.G2.KLVariationalLower (3) 31:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EPI.G2.ConvEntropyDensity (15) 93:5  unknown tactic
+  ERR InformationTheory.Shannon.EPI.G2.BridgeDensityHelpers (7) 55:13  expected token
+  ERR InformationTheory.Shannon.EPI.G2.HeatFlowContinuity (6) 73:50  expected token
+  ERR InformationTheory.Shannon.EPI.G2.ConvEntropyMonotone (10) 88:16  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.ParallelGaussian.Converse.Core (12) 31:52  expected token
+  ERR InformationTheory.Shannon.ParallelGaussian.Converse.Regularity (9) 46:30  expected token
+  ERR InformationTheory.Shannon.ParallelGaussian.Converse.MixtureDensity (24) 34:68  expected token
+  ERR InformationTheory.Shannon.EPI.InfiniteVariance.Truncation.Construction (22) 14:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EPI.InfiniteVariance.Truncation.Density (12) 15:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EPI.InfiniteVariance.Truncation.Convergence (7) 16:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EPI.Case1.RatioLimit.PathRegular (23) 21:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EPI.Case1.RatioLimit.Assembly (7) 22:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EPI.Case1.RatioLimit.Producer (5) 21:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EPI.Case1.TwoTime.Paths (5) 42:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EPI.Case1.TwoTime.Core (1) 43:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EPI.Case1.TwoTime.EntropyPowerInequality (6) 51:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EPI.Case1.TwoTime.GapDerivative (4) 48:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EPI.Case1.TwoTime.MonotonicityAndSaturation (10) 49:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EPI.Unconditional.TruncationLimit.Limit (12) 39:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EPI.Unconditional.TruncationLimit.Core (18) 50:19  unexpected token '}'; expected term
+  ERR InformationTheory.Shannon.EPI.Unconditional.TruncationLimit.Mono (19) 28:19  unexpected token '}'; expected term
+round 0           wall 2707.265 ms  sum 2700.145 ms  p50 4.326 ms  p90 15.058 ms  max 26.258 ms  mean 6.250 ms  modules 432  errModules 404
+  of which header  sum 169.735 ms  p50 0.342 ms  p90 0.640 ms  max 1.739 ms  (mkEmptyEnvironment inside parseHeader)
+
+modules parsed    432
+errModules        404 / 432
+        6.25 real         2.87 user         0.19 sys
+           394067968  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               24710  page reclaims
+                 184  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 432  voluntary context switches
+                 178  involuntary context switches
+         37695765102  instructions retired
+          9656581310  cycles elapsed
+            93657536  peak memory footprint
