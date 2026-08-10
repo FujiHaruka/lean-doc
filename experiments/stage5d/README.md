@@ -127,9 +127,18 @@ every page whatever else it touches. Two consequences:
    — is **moot for the revision component of a real commit**: the render set is
    `all` regardless. The mode still decides the *extra* pages a module change
    makes stale, but it is no longer what decides the render bill.
-2. The render bill it decides is small anyway: **0.87 s for all 432 pages**, most
-   of which is the fixed IR read. That is why the split is worth 13.7× —
-   the expensive half was never the rendering.
+2. The render bill it decides is small anyway: **0.87 s for all 432 pages**. That
+   is why the split is worth 13.7× — the expensive half was never the rendering.
+
+   **Corrected 2026-08-10.** This line used to add "most of which is the fixed IR
+   read", which the raw log contradicts. Per `stage5d-keysplit.jsonl`
+   (`stage5d-split`, run 2): the fixed part (`preMain` + `readIr` + `indexBuild`)
+   is **0.144 s = 18%** of the 0.7996 s in-process total; the page-proportional
+   part (`renderHeaders` + `renderPage` + `flatten` + `write`) is **0.653 s =
+   82%**. The fixed cost dominates only when **one** page is re-rendered (§(g)'s
+   `leaf-self`: 0.17 s of 0.1952 s), and that description slid across to the
+   432-page case. It matters for the open question below: what a
+   no-revision-in-the-bytes design removes is the **82%**, not the 18%.
 
 **An open design question this surfaces** (not measured, out of scope here):
 if the source URL were not baked into the page bytes — relative links plus the
