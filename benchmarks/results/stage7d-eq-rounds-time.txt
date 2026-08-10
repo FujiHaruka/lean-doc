@@ -1,0 +1,480 @@
+=== eq1 round 1  (cold, do not mix with warm) ===
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+       28.12 real        12.84 user         2.43 sys
+          3351920640  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              137608  page reclaims
+              123613  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+               23870  voluntary context switches
+              105147  involuntary context switches
+        145761733782  instructions retired
+         48053021462  cycles elapsed
+           551989568  peak memory footprint
+=== noeq1 round 1  (cold, do not mix with warm) ===
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+       12.66 real        11.24 user         1.31 sys
+          3299803136  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              258089  page reclaims
+                 421  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 215  voluntary context switches
+                2125  involuntary context switches
+        126976460277  instructions retired
+         39615927816  cycles elapsed
+           541339520  peak memory footprint
+=== eq8 round 1  (cold, do not mix with warm) ===
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+        6.98 real        25.09 user         3.35 sys
+          3363749888  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              261215  page reclaims
+                 606  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 209  voluntary context switches
+              192085  involuntary context switches
+        142779702317  instructions retired
+         74835124166  cycles elapsed
+           594982528  peak memory footprint
+=== noeq8 round 1  (cold, do not mix with warm) ===
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+        6.50 real        24.19 user         3.11 sys
+          3364782080  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              258838  page reclaims
+                 405  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 126  voluntary context switches
+              167249  involuntary context switches
+        130214173133  instructions retired
+         71692092294  cycles elapsed
+           578679744  peak memory footprint
+=== eq1 round 2 ===
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+       13.85 real        12.73 user         1.31 sys
+          3363799040  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              260193  page reclaims
+                 246  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 274  voluntary context switches
+                1488  involuntary context switches
+        139549181139  instructions retired
+         43998276291  cycles elapsed
+           555086080  peak memory footprint
+=== noeq1 round 2 ===
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+       12.67 real        11.28 user         1.28 sys
+          3329392640  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              257938  page reclaims
+                 420  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 234  voluntary context switches
+                1296  involuntary context switches
+        126433744086  instructions retired
+         39315014481  cycles elapsed
+           541060992  peak memory footprint
+=== eq8 round 2 ===
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+        6.74 real        25.44 user         2.58 sys
+          3346759680  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              263024  page reclaims
+                 375  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 233  voluntary context switches
+              125884  involuntary context switches
+        141374135227  instructions retired
+         73530907837  cycles elapsed
+           615216832  peak memory footprint
+=== noeq8 round 2 ===
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+        6.54 real        23.39 user         3.20 sys
+          3371384832  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              258847  page reclaims
+                 373  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 237  voluntary context switches
+              177295  involuntary context switches
+        130251021668  instructions retired
+         69987113030  cycles elapsed
+           581645248  peak memory footprint
+=== eq1 round 3 ===
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+       13.87 real        12.78 user         1.29 sys
+          3324313600  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              260255  page reclaims
+                 212  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 192  voluntary context switches
+                1828  involuntary context switches
+        139148194226  instructions retired
+         44027923052  cycles elapsed
+           552169792  peak memory footprint
+=== noeq1 round 3 ===
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+       12.68 real        11.27 user         1.30 sys
+          3331702784  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              257665  page reclaims
+                 730  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 386  voluntary context switches
+                1315  involuntary context switches
+        126485243589  instructions retired
+         39339323894  cycles elapsed
+           542306112  peak memory footprint
+=== eq8 round 3 ===
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+        6.76 real        25.82 user         2.68 sys
+          3396976640  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              261022  page reclaims
+                 372  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 290  voluntary context switches
+              126935  involuntary context switches
+        141883078595  instructions retired
+         74584798205  cycles elapsed
+           600667648  peak memory footprint
+=== noeq8 round 3 ===
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+        6.43 real        24.43 user         2.33 sys
+          3378561024  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              258854  page reclaims
+                 373  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 196  voluntary context switches
+              103501  involuntary context switches
+        127956248983  instructions retired
+         70121212667  cycles elapsed
+           585479104  peak memory footprint
+=== eq1 round 4 ===
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+       13.83 real        12.75 user         1.29 sys
+          3363225600  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              260216  page reclaims
+                 188  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 126  voluntary context switches
+                1452  involuntary context switches
+        139134909502  instructions retired
+         43950742447  cycles elapsed
+           555806976  peak memory footprint
+=== noeq1 round 4 ===
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+       12.74 real        11.29 user         1.31 sys
+          3326820352  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              257962  page reclaims
+                 460  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 282  voluntary context switches
+                1114  involuntary context switches
+        126908351738  instructions retired
+         39413585431  cycles elapsed
+           544173952  peak memory footprint
+=== eq8 round 4 ===
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+        6.87 real        24.78 user         3.52 sys
+          3396091904  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              260696  page reclaims
+                 657  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 273  voluntary context switches
+              202578  involuntary context switches
+        142785527971  instructions retired
+         74271988331  cycles elapsed
+           602338816  peak memory footprint
+=== noeq8 round 4 ===
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+        6.53 real        25.06 user         2.51 sys
+          3356557312  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              258858  page reclaims
+                 372  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 184  voluntary context switches
+              112450  involuntary context switches
+        129138615268  instructions retired
+         72193627812  cycles elapsed
+           571175872  peak memory footprint
+=== eq1 round 5 ===
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+       14.03 real        12.89 user         1.28 sys
+          3317727232  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              263121  page reclaims
+                 338  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 245  voluntary context switches
+                4099  involuntary context switches
+        138439619368  instructions retired
+         44241926722  cycles elapsed
+           552268032  peak memory footprint
+=== noeq1 round 5 ===
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+       12.64 real        11.27 user         1.30 sys
+          3331194880  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              257976  page reclaims
+                 388  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 285  voluntary context switches
+                 365  involuntary context switches
+        126439887089  instructions retired
+         39317854236  cycles elapsed
+           543207232  peak memory footprint
+=== eq8 round 5 ===
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+        6.77 real        23.98 user         3.12 sys
+          3388801024  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              261372  page reclaims
+                 377  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 347  voluntary context switches
+              172926  involuntary context switches
+        142382071458  instructions retired
+         71735878922  cycles elapsed
+           613839744  peak memory footprint
+=== noeq8 round 5 ===
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+        6.46 real        23.87 user         2.46 sys
+          3330686976  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              258861  page reclaims
+                 408  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 279  voluntary context switches
+              108788  involuntary context switches
+        129073433057  instructions retired
+         69232911525  cycles elapsed
+           573551552  peak memory footprint
+=== eq1 round 6 ===
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+       13.84 real        12.75 user         1.29 sys
+          3363602432  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              260251  page reclaims
+                 189  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 157  voluntary context switches
+                1546  involuntary context switches
+        139133518243  instructions retired
+         43937157634  cycles elapsed
+           552415552  peak memory footprint
+=== noeq1 round 6 ===
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+       12.68 real        11.27 user         1.32 sys
+          3306733568  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              258806  page reclaims
+                 473  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 265  voluntary context switches
+                1414  involuntary context switches
+        126748705911  instructions retired
+         39392327627  cycles elapsed
+           539471680  peak memory footprint
+=== eq8 round 6 ===
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+        6.75 real        25.27 user         2.58 sys
+          3343056896  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              261250  page reclaims
+                 478  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 336  voluntary context switches
+              119211  involuntary context switches
+        141621930575  instructions retired
+         73038740990  cycles elapsed
+           616592192  peak memory footprint
+=== noeq8 round 6 ===
+warning: doc-gen4: repository '/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4' has local changes
+        6.59 real        23.73 user         3.25 sys
+          3304669184  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              259009  page reclaims
+                 400  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 155  voluntary context switches
+              181449  involuntary context switches
+        130675587846  instructions retired
+         70900168984  cycles elapsed
+           575108224  peak memory footprint

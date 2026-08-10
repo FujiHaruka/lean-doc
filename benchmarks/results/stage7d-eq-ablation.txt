@@ -1,0 +1,22 @@
+# stage7d — 筋 2 (equation 生成を切る): 取り分と代償
+
+date              2026-08-10T17:15:01Z
+extractor         experiments/stage7d/build/extract
+採点              experiments/stage4c/coverage.ts (無改変)
+source-url        https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec
+
+## IR
+    PASS  equations を切っても --jobs 1 と --jobs 8 の IR は byte 一致
+    equations あり IR  16021632 B
+    equations なし IR  14918331 B
+
+## 生成したページ
+    equations あり  29740469 B / 432 files
+    equations なし  29117575 B / 432 files
+
+## 再現率 (母数 22,028,728 B / 348 ページ)
+    equations あり  21,919,956 B = 99.506%   byte 完全一致 304 / 348
+    equations なし  21,391,362 B = 97.107%   byte 完全一致 133 / 348
+    差              -528,594 B = -2.400 pt、-171 ページ (equations 領域 653/653 -> 0/653)
+
+ログ: stage7d-coverage.txt / stage7d-coverage-noeq.txt / stage7d-eq-rounds.jsonl

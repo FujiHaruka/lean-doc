@@ -1,0 +1,133 @@
+# stage7d — IR identity + acceptance oracle
+
+date              2026-08-10T17:13:30Z
+source-url        https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec
+link-index        /private/tmp/lean-doc-relay/w7c/linkindex/link-index.lidx  (built by stage 7c; unchanged)
+
+## 1. IR identity — every configuration against the stage-7c control
+
+each directory is the last round's output of that configuration
+    PASS  ir-j1 == ir-7c
+    PASS  ir-bd == ir-7c
+    PASS  ir-j2 == ir-7c
+    PASS  ir-j4 == ir-7c
+    PASS  ir-j8 == ir-7c
+    PASS  ir-j16 == ir-7c
+
+two independent --jobs 8 runs (smoke run vs last round):
+    PASS  identical
+
+bytes: 16021632
+
+counts the extractor reports, per configuration (last round):
+    cfg  considered produced blacklisted failed equations refOccurrences spans
+    7c         8824     4750        4074      0       863         143121 408956
+    j1         8824     4750        4074      0       863         143121 408956
+    bd         8824     4750        4074      0       863         143121 408956
+    j2         8824     4750        4074      0       863         143121 408956
+    j4         8824     4750        4074      0       863         143121 408956
+    j8         8824     4750        4074      0       863         143121 408956
+    j16        8824     4750        4074      0       863         143121 408956
+
+## 2. IR invariants (check-spans.ts, on the --jobs 8 IR)
+
+  … units a whole-run heuristic would wrongly rewrite        8403
+
+schema 4 — attributes, instance index, structure members
+  declarations with attributes 145 carrying 167 strings
+  attribute histogram          [["simp",69],["reducible",69],["inline",22],["implicit_reducible",4],["irreducible",2],["deprecated InformationTheory.Shannon.ParallelGaussian.parallel_gaussian_capacity_formula (since := \"2026-05-21\")",1]]
+  instances with a type index  91, 91 type names
+  structure fields             156 (4 inherited)
+  … binders / docstrings       49 / 121
+
+non-ASCII const samples (slice -> constant):
+  "(V₁ × V₂)" -> Prod   in "(pV : MeasureTheory.Measure (V₁ × V₂))"
+  "×" -> Prod   in "(pV : MeasureTheory.Measure (V₁ × V₂))"
+  "(V₁ × V₂)" -> Prod   in "(K : ProbabilityTheory.Kernel (V₁ × V₂) α)"
+  "×" -> Prod   in "(K : ProbabilityTheory.Kernel (V₁ × V₂) α)"
+  "martonInfo₁ pV K W + martonInfo₂ pV K W - martonInfoV₁V₂ pV K W ≤ (uvInfoSum₂ (martonAuxSwapLaw pV K W)).toReal" -> LE.le   in "martonInfo₁ pV K W + martonInfo₂ pV K W - martonInfoV₁V₂ pV K W ≤ (uvI"
+  "martonInfo₁ pV K W + martonInfo₂ pV K W - martonInfoV₁V₂ pV K W" -> HSub.hSub   in "martonInfo₁ pV K W + martonInfo₂ pV K W - martonInfoV₁V₂ pV K W ≤ (uvI"
+  "martonInfo₁ pV K W + martonInfo₂ pV K W" -> HAdd.hAdd   in "martonInfo₁ pV K W + martonInfo₂ pV K W - martonInfoV₁V₂ pV K W ≤ (uvI"
+  "martonInfo₁" -> InformationTheory.Shannon.BroadcastChannel.Marton.martonInfo₁   in "martonInfo₁ pV K W + martonInfo₂ pV K W - martonInfoV₁V₂ pV K W ≤ (uvI"
+
+OK — every span is in bounds, properly nested and trimmed.
+
+## 3. render the --jobs 8 IR and score it with the stage-4c oracle
+
+link index entries               258,760
+flatten sink (keeps the probe alive) 29519359
+
+## A. 領域別 (母数 = doc-gen4 の 348 ページ = 22,028,728 バイト)
+
+「再現」= **その領域が byte 完全一致した**もの。それらしい HTML を出しただけのものは 0 と数える。
+
+| 領域 | doc-gen4 のバイト | 比 | 生成側のバイト | 再現できたバイト | 再現率 | 領域数 | 一致 | 生成側に無い | 生成側にしか無い |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `decl_header` | 15,661,530 | 71.1% | 15,661,530 | 15,661,530 | 100.0% | 3,477 | 3,477 | 0 | 0 |
+| `nav_links` | 976,075 | 4.4% | 976,075 | 976,075 | 100.0% | 3,477 | 3,477 | 0 | 0 |
+| `docstring` | 1,080,205 | 4.9% | 1,080,205 | 1,080,205 | 100.0% | 2,646 | 2,646 | 0 | 0 |
+| `mod_doc` | 1,244,831 | 5.7% | 1,244,831 | 1,244,831 | 100.0% | 1,232 | 1,232 | 0 | 0 |
+| `head` | 428,608 | 1.9% | 428,608 | 428,608 | 100.0% | 348 | 348 | 0 | 0 |
+| `equations` | 528,594 | 2.4% | 528,594 | 528,594 | 100.0% | 653 | 653 | 0 | 0 |
+| `decl_frame` | 405,937 | 1.8% | 405,937 | 405,937 | 100.0% | 6,954 | 6,954 | 0 | 0 |
+| `nav_imports` | 376,102 | 1.7% | 376,102 | 376,102 | 100.0% | 348 | 348 | 0 | 0 |
+| `gh_link` | 724,922 | 3.3% | 724,922 | 624,418 | 86.1% | 3,477 | 2,980 | 0 | 0 |
+| `instances` | 129,898 | 0.6% | 129,898 | 129,898 | 100.0% | 686 | 686 | 0 | 0 |
+| `header` | 166,883 | 0.8% | 166,883 | 166,883 | 100.0% | 348 | 348 | 0 | 0 |
+| `members` | 138,059 | 0.6% | 138,059 | 138,059 | 100.0% | 36 | 36 | 0 | 0 |
+| `frame` | 69,717 | 0.3% | 69,717 | 69,717 | 100.0% | 1,392 | 1,392 | 0 | 0 |
+| `nav_frame` | 11,136 | 0.1% | 11,136 | 11,136 | 100.0% | 696 | 696 | 0 | 0 |
+| `nav_top` | 13,572 | 0.1% | 13,572 | 13,572 | 100.0% | 348 | 348 | 0 | 0 |
+| `nav_gh` | 69,008 | 0.3% | 69,008 | 60,740 | 88.0% | 348 | 305 | 0 | 0 |
+| `attributes` | 3,651 | 0.0% | 3,651 | 3,651 | 100.0% | 89 | 89 | 0 | 0 |
+| **合計** | **22,028,728** | 100.0% | **22,028,728** | **21,919,956** | **99.5%** | | | | |
+
+### 一致しなかった領域の内訳
+
+`bytes.ts` と同じ 3 分類。「空白のみ」は長さが同じで違いが空白同士だけのもの —
+stage4b README の `splitWhitespaces` の欠落がこれに当たる。
+
+| 領域 | 不一致 | 空白のみ (長さ同じ) | 長さが違う | 長さ同じ・空白以外 |
+|---|---:|---:|---:|---:|
+| `gh_link` | 497 | 0 | 0 | 497 |
+| `nav_gh` | 43 | 0 | 0 | 43 |
+
+領域に切ったバイトの合計 22,028,728 と 348 ページの実バイト 22,028,728 は一致する (領域は隙間なくページを覆っている)。
+
+### 再現できなかったバイトの原因 (規則で機械的に振り分け、手作業の割り当てなし)
+
+| 原因 | バイト | 母数比 | 領域数 |
+|---|---:|---:|---:|
+| 設定値 (rev) — IR に無い | 108,772 | 0.5% | 540 |
+| **合計 (= 母数 − 再現できたバイト)** | **108,772** | 0.5% | |
+
+再現できたバイト 21,919,956 + 再現できなかったバイト 108,772 = 22,028,728 = 母数。
+
+**バイトの帰属は全か無かであることに注意。** 1 文字違えば領域まるごと未再現に数える。
+長さが変わらない不一致で実際に食い違っている文字は全領域あわせて **0** 文字しかなく、その領域の合計バイトは 0 バイトある。
+この 2 つの数の差が、次の担当が「あと何を直せばページが byte 一致するか」を読むときの罠。
+
+## C. ページ単位
+
+| | |
+|---|---:|
+| doc-gen4 のページ | 348 |
+| 生成側に同名のページがあった | 348 |
+| **byte 完全一致したページ** | **304** |
+| 差が docstring / mod_doc にしか無いページ (完全一致を含む) | 305 |
+| 差が gh_link/nav_gh の rev にしか無いページ (完全一致を含む) | 348 |
+| 領域に切れなかったページ | 0 |
+
+下の 2 行は完全一致ページを含む上位集合で、互いに排他でもない。**「あと 1 つ直せば
+一致するページ数」ではない** — その領域はいま一致していない。差がどこに集中しているかを
+次の担当が読むための内訳として出している。
+
+## D. `gh_link` の不一致の内訳
+
+| | |
+|---|---:|
+| 不一致 | 497 |
+| … rev (40 桁 hex) だけが違う | 497 |
+
+(full report: /private/tmp/lean-doc-relay/w7d/coverage.txt)
+DONE

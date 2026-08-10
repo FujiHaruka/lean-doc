@@ -1,0 +1,85 @@
+# decl profile — /private/tmp/lean-doc-relay/w7d/decl-profile-r2.jsonl
+
+candidates                8824
+  produced a declaration  4750
+  blacklisted             4074
+  failed                  0
+
+sum of per-candidate wall 10.6924 s   (the analyze phase minus the loop's own overhead)
+  of which pp             9.3969 s  87.88%
+  of which eq             1.0644 s  9.95%
+  of which refs           1.3243 s  12.38%  (inside the two above)
+  of which blacklist test 0.0202 s  0.19%
+
+## 1. the 4074 blacklisted candidates
+
+total wall               0.0226 s  = 0.21% of the analyzed time
+  of which the test      0.0086 s
+  pretty printing        0.0000 s   (must be 0: they return before any pp)
+mean per candidate       6 us
+slowest 5:
+        25 us  InformationTheory.Asymptotic.«_aux_InformationTheory_Asymptotic___macroRules_InformationTheory_Asymptotic_term_≐__1»
+        22 us  _private.InformationTheory.Shannon.BroadcastChannel.Marton.RegionCardinality.0.InformationTheory.Shannon.BroadcastChannel.Marton.exists_weights_dominating
+        19 us  InformationTheory.Shannon.FisherInfo.convDensityAdd_pos._simp_1_2
+        15 us  _private.InformationTheory.Shannon.BroadcastChannel.MoreCapableBinary.0.InformationTheory.Shannon.BroadcastChannel.gapFunDeriv2_nonpos
+        15 us  _private.InformationTheory.Shannon.SlepianWolf.FullRateRegion.AliasBound.0.InformationTheory.Shannon.ChannelCoding.conditionalTypicalSliceY_empty_of_x_not_typical
+
+## 2. distribution over the 4750 declarations that produced output
+
+total 10.6698 s, mean 2246 us/declaration
+
+| slice | declarations | time | share |
+|---|---:|---:|---:|
+| top 0.1% | 5 | 0.1299 s | 1.22% |
+| top 1.0% | 48 | 0.7442 s | 6.97% |
+| top 5.0% | 238 | 2.2527 s | 21.11% |
+| top 10.0% | 475 | 3.5129 s | 32.92% |
+| top 25.0% | 1188 | 5.9778 s | 56.03% |
+| top 50.0% | 2375 | 8.4549 s | 79.24% |
+| top 100.0% | 4750 | 10.6698 s | 100.00% |
+
+median 1597 us   p90 4580 us   p99 10865 us   max 33341 us
+ratio max/median 21x, p99/median 6.8x
+
+slowest 15 declarations:
+| us | kind | eqs | bytes | name |
+|---:|---|---:|---:|---|
+| 33341 | definition | 1 | 14658 | `InformationTheory.Shannon.BroadcastChannel.thm7Slots` |
+| 26731 | theorem | 0 | 6223 | `InformationTheory.Shannon.entropyPowerExt_add_ge_dispatch_skeleton` |
+| 24609 | structure | 0 | 4507 | `InformationTheory.Shannon.EPIBlachmanDensity.IsBlachmanConvReady` |
+| 23713 | definition | 1 | 6135 | `InformationTheory.Shannon.EPICase1RatioLimit.IsRescaledPathRegular` |
+| 21466 | theorem | 0 | 4890 | `InformationTheory.Shannon.EPICase1RatioLimit.rescaledPath_indep_regular` |
+| 20111 | theorem | 0 | 4370 | `InformationTheory.Shannon.BroadcastChannel.bc_uv_converse` |
+| 19105 | theorem | 0 | 3740 | `InformationTheory.Shannon.negMulLog_convDensity_entropy_ge` |
+| 19098 | theorem | 0 | 4005 | `InformationTheory.Shannon.wz_coveringFamily_of_testChannel` |
+| 19068 | theorem | 0 | 3097 | `InformationTheory.Shannon.wz_perDelta_covering_binning` |
+| 19017 | theorem | 0 | 3085 | `InformationTheory.Shannon.wz_perDelta_covering_binning_eventual` |
+| 18904 | theorem | 0 | 3012 | `InformationTheory.Shannon.wz_perN_covering_binning_code` |
+| 18067 | theorem | 0 | 4379 | `InformationTheory.Shannon.EPICase1RatioLimit.entropyPower_add_ge_case1_of_regular` |
+| 16786 | theorem | 0 | 3466 | `InformationTheory.Shannon.MAC.mac_converse_rate_extract` |
+| 16495 | theorem | 0 | 2600 | `InformationTheory.Shannon.wz_exists_binning_E2_bound` |
+| 16247 | theorem | 0 | 3359 | `InformationTheory.Shannon.MAC.mac_converse_from_code` |
+
+## 3. by kind
+
+| kind | n | total | share | mean us | median us | max us | bytes/decl |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| theorem | 3742 | 8.7018 s | 81.55% | 2325 | 1651 | 26731 | 456 |
+| definition | 842 | 1.6627 s | 15.58% | 1975 | 1510 | 33341 | 388 |
+| structure | 37 | 0.1463 s | 1.37% | 3953 | 2544 | 24609 | 756 |
+| instance | 91 | 0.0845 s | 0.79% | 929 | 872 | 2477 | 240 |
+| constructor | 37 | 0.0744 s | 0.70% | 2012 | 1292 | 12365 | 415 |
+| opaque | 1 | 0.0001 s | 0.00% | 99 | 99 | 99 | 17 |
+
+## 4. equations
+
+declarations with equations 845 (863 lemmas)
+their eq time               1.0644 s
+their total time            1.6662 s
+
+## 5. what a striding parallel run has to balance
+
+jobs= 2  heaviest stride 5.4847 s, mean 5.3462 s → best possible speedup 1.95x of 2x
+jobs= 4  heaviest stride 2.7728 s, mean 2.6731 s → best possible speedup 3.86x of 4x
+jobs= 8  heaviest stride 1.4323 s, mean 1.3366 s → best possible speedup 7.47x of 8x
+jobs=16  heaviest stride 0.7238 s, mean 0.6683 s → best possible speedup 14.77x of 16x
