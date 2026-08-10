@@ -52,15 +52,22 @@
 #
 # usage:
 # RESIDENCY (stage 6a)
-#   `--serve-dir <d>` sends the extraction of rounds >= `--serve-from` (default 2)
-#   to a resident extractor instead of starting a process. Round 1 is deliberately
-#   never served by default: its modules are the ones whose oleans just moved.
-#   **Whether rounds 2+ may be served depends on the server's olean generation,
-#   which this script cannot check** — a server imported before the edit still
-#   holds the old owner for every name that moved, and the owner column is exactly
-#   what L3-1 re-extracts to repair (`ownership.ts:8-20`, `Extract.lean:1352`).
-#   Stage 6a measures what that costs in bytes; the flag exists to make both
-#   variants runnable through the same pipeline.
+#   `--serve-dir <d>` sends the extraction of rounds >= `--serve-from` (default 1,
+#   i.e. all of them) to a resident extractor instead of starting a process.
+#
+#   **Correctness comes from the server's olean generation, never from the round
+#   number.** Stage 6a measured both: a server imported *before* the edit returns
+#   the pre-edit owner for every name that moved — the exact stale pair L3-1 exists
+#   to repair (`ownership.ts:8-20`, `Extract.lean:1352`) — and the site it produces
+#   is wrong. With such a server no round is safe, including round 2, which is what
+#   stage 5h had assumed was the safe one. With a server started *after* `lake
+#   build`, every round is safe.
+#
+#   The default is 1 because that is the configuration the measurement favours:
+#   serving only rounds 2+ removes one environment load but adds a whole server
+#   startup, which is a net loss (8.788 s vs 7.940 s), while serving every round
+#   removes both loads for the same startup and wins (6.168 s vs 7.940 s). The
+#   caller is responsible for pointing `--serve-dir` at a post-build server.
 #
 # usage:
 #   incremental.sh --module M --ir <live ir> --pages <live pages> --ledger <file>
@@ -78,7 +85,7 @@ LD="$(cd "$HERE/../.." && pwd)"
 SOURCE_URL="https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec"
 
 MODULE=""; IR=""; PAGES=""; LEDGER=""; WORK=""; MODE=self; TIMINGS=""; MODULES=""
-L31=on; MAXROUNDS=5; SERVEDIR=""; SERVEFROM=2
+L31=on; MAXROUNDS=5; SERVEDIR=""; SERVEFROM=1
 while [ $# -gt 0 ]; do
   case "$1" in
     --serve-dir) SERVEDIR="$2"; shift 2 ;;

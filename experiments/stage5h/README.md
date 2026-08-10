@@ -108,15 +108,23 @@ different generator.
 
 Lean has no way to swap a changed module out of an imported environment, so the
 server's view of the oleans is frozen at import time. That makes it **wrong for
-the module the user just edited** and right for everything else. Which is
-precisely the split L3-1 creates:
+the module the user just edited** and right for everything else.
 
-* **round 1** re-extracts the changed modules — their oleans moved, so a resident
-  process must not serve them;
-* **rounds 2+** re-extract modules whose oleans did *not* move — that is exactly
-  why L2 could not see them — so a resident process serves them correctly.
+> **Refuted by stage 6a (2026-08-10).** This section used to continue: "Which is
+> precisely the split L3-1 creates: round 1 re-extracts the changed modules …
+> rounds 2+ re-extract modules whose oleans did *not* move … so a resident process
+> serves them correctly." **The second half is false.** A module's IR is not a
+> function of its own olean: `Extract.lean:1352` resolves every reference's owner
+> from the *environment*, and repairing that owner column is the only reason L3-1
+> re-extracts a round-2 module at all. A pre-edit environment returns the stale
+> owner, so serving round 2 from it reproduces exactly the error L3-1 was added to
+> fix — measured: the referrer's IR came out 10,263 B against the correct 10,267 B,
+> owner `…Huffman.Length` where it should be `…Huffman.LengthCore`, and 1 of 439
+> pages was wrong. **"Right for everything else" means everything downstream of no
+> change at all, which in an edit loop is nothing.** What is safe is a server
+> started *after* `lake build`; see `stage6a/README.md`.
 
-### H5 — what this is worth on stage 5e's two-round case 【外挿】
+### H5 — what this is worth on stage 5e's two-round case 【外挿、後に否定】
 
 Combining two measurements: stage 5e's L3-1 run (7.989 s total, 6.170 s of
 extraction over 2 rounds, of which round 1 was 3.199 s) and this stage's
@@ -132,6 +140,14 @@ per-request cost.
 **≈ −2.9 s, i.e. the whole of round 2 but the first.** This is an extrapolation,
 not a measurement of the assembled pipeline: the resident server has not been
 wired into `incremental.sh`.
+
+> **Assembled in stage 6a, and this row does not survive.** The `pre` shape this
+> table describes measured **5.284 s**, so the clock was close — but its output is
+> **wrong** (see the refutation above). The reachable-and-correct number is
+> **6.168 s**, from a server started after `lake build` and serving *every* round,
+> against 7.940 s for the current pipeline. Serving only round 2, as this table
+> assumes, is a **net loss** once the server's own startup is inside the run
+> (8.788 s).
 
 ### What this does *not* say
 
