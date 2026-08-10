@@ -1,0 +1,61 @@
+date        2026-08-10T15:24:37Z
+kernel      Linux 6.17.0-1020-azure x86_64
+nproc       2
+pagesize    4096
+runner      Linux / X64 / image ubuntu24 20260720.247.2
+target_ref  ca4fd931952b5e93045d210007bdd7e14c118d34
+reps        2   jobs 16
+MemTotal:        8128888 kB
+SwapTotal:       3145724 kB
+leanprover/lean4:v4.31.0
+
+SET=closure
+prefetch set: 17199 files / blind: 52142
+
+variant                    importModules_us       total_us   major_faults      wall_ms
+baseline-1                       20390289       39894068          30424        46273
+baseline-2                       21144364       38475009          30426        44804
+overlapped-madvise-1              5190381       22174731           4945        44452
+overlapped-madvise-2              5192701       21707168           4945        43989
+overlapped-read-1                 4796324       21756495           4301        45300
+overlapped-read-2                 4864709       22184249           4372        45410
+sequential-1                      5092825       22455011           4945        44746
+sequential-2                      5178522       21920920           4945        44271
+
+## prefetcher throughput (its own JSON)
+pf-honesty-madvise.json: {"mode":"madvise","jobs":16,"files":17199,"bytes":4140732648,"elapsed_s":18.756,"mb_per_s":220.8,"failed":0}
+pf-honesty-read.json: {"mode":"read","jobs":16,"files":17199,"bytes":4140732648,"elapsed_s":19.966,"mb_per_s":207.4,"failed":0}
+pf-overlapped-madvise-1.json: {"mode":"madvise","jobs":16,"files":17199,"bytes":4140732648,"elapsed_s":19.438,"mb_per_s":213.0,"failed":0}
+pf-overlapped-madvise-2.json: {"mode":"madvise","jobs":16,"files":17199,"bytes":4140732648,"elapsed_s":19.445,"mb_per_s":212.9,"failed":0}
+pf-overlapped-read-1.json: {"mode":"read","jobs":16,"files":17199,"bytes":4140732648,"elapsed_s":20.955,"mb_per_s":197.6,"failed":0}
+pf-overlapped-read-2.json: {"mode":"read","jobs":16,"files":17199,"bytes":4140732648,"elapsed_s":20.668,"mb_per_s":200.3,"failed":0}
+pf-sequential-1.json: {"mode":"madvise","jobs":16,"files":17199,"bytes":4140732648,"elapsed_s":18.841,"mb_per_s":219.8,"failed":0}
+pf-sequential-2.json: {"mode":"madvise","jobs":16,"files":17199,"bytes":4140732648,"elapsed_s":18.868,"mb_per_s":219.5,"failed":0}
+
+## honesty check — residency of ALL oleans after a prefetch and nothing else
+### read
+  importGraph              2.91 MiB   read       2.91 MiB  100.0%   cache       2.98 MiB   files 30/60
+  LeanSearchClient         2.81 MiB   read       2.81 MiB  100.0%   cache       2.84 MiB   files 12/24
+
+by flavour:
+  .olean                1998.59 MiB   read     955.72 MiB   47.8%   cache     962.95 MiB   files 3763/35058
+  .olean.server           96.94 MiB   read      48.05 MiB   49.6%   cache      54.47 MiB   files 3331/8542
+  .olean.private        3449.08 MiB   read    1403.99 MiB   40.7%   cache    1410.53 MiB   files 3331/8542
+
+  TOTAL                 5544.61 MiB   read    2407.77 MiB   43.4%   cache    2427.95 MiB   files 10425/52142
+  apparent bytes       5,813,949,109
+  bytes read           2,524,728,048   <- file bytes covered by resident pages
+  page-cache bytes     2,545,889,280   <- resident pages * the host page size (comparable with peak RSS)
+### madvise
+  importGraph              2.91 MiB   read       2.91 MiB  100.0%   cache       2.98 MiB   files 30/60
+  LeanSearchClient         2.81 MiB   read       2.81 MiB  100.0%   cache       2.84 MiB   files 12/24
+
+by flavour:
+  .olean                1998.59 MiB   read     951.90 MiB   47.6%   cache     959.11 MiB   files 3763/35058
+  .olean.server           96.94 MiB   read      48.05 MiB   49.6%   cache      54.47 MiB   files 3331/8542
+  .olean.private        3449.08 MiB   read    1366.98 MiB   39.6%   cache    1373.43 MiB   files 3331/8542
+
+  TOTAL                 5544.61 MiB   read    2366.93 MiB   42.7%   cache    2387.00 MiB   files 10425/52142
+  apparent bytes       5,813,949,109
+  bytes read           2,481,907,856   <- file bytes covered by resident pages
+  page-cache bytes     2,502,955,008   <- resident pages * the host page size (comparable with peak RSS)

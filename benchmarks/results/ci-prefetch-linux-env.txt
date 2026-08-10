@@ -1,0 +1,10 @@
+date        2026-08-10T15:24:37Z
+kernel      Linux 6.17.0-1020-azure x86_64
+nproc       2
+pagesize    4096
+runner      Linux / X64 / image ubuntu24 20260720.247.2
+target_ref  ca4fd931952b5e93045d210007bdd7e14c118d34
+reps        2   jobs 16
+MemTotal:        8128888 kB
+SwapTotal:       3145724 kB
+leanprover/lean4:v4.31.0

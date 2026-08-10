@@ -1,0 +1,8 @@
+pf-honesty-madvise.json: {"mode":"madvise","jobs":16,"files":17199,"bytes":4140732648,"elapsed_s":18.756,"mb_per_s":220.8,"failed":0}
+pf-honesty-read.json: {"mode":"read","jobs":16,"files":17199,"bytes":4140732648,"elapsed_s":19.966,"mb_per_s":207.4,"failed":0}
+pf-overlapped-madvise-1.json: {"mode":"madvise","jobs":16,"files":17199,"bytes":4140732648,"elapsed_s":19.438,"mb_per_s":213.0,"failed":0}
+pf-overlapped-madvise-2.json: {"mode":"madvise","jobs":16,"files":17199,"bytes":4140732648,"elapsed_s":19.445,"mb_per_s":212.9,"failed":0}
+pf-overlapped-read-1.json: {"mode":"read","jobs":16,"files":17199,"bytes":4140732648,"elapsed_s":20.955,"mb_per_s":197.6,"failed":0}
+pf-overlapped-read-2.json: {"mode":"read","jobs":16,"files":17199,"bytes":4140732648,"elapsed_s":20.668,"mb_per_s":200.3,"failed":0}
+pf-sequential-1.json: {"mode":"madvise","jobs":16,"files":17199,"bytes":4140732648,"elapsed_s":18.841,"mb_per_s":219.8,"failed":0}
+pf-sequential-2.json: {"mode":"madvise","jobs":16,"files":17199,"bytes":4140732648,"elapsed_s":18.868,"mb_per_s":219.5,"failed":0}
