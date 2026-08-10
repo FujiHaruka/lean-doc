@@ -1,0 +1,252 @@
+target modules       432
+loaded modules       6021
+importModules        2.609s
+indexLookup          0.004s  enumerated 8849, unique 8824
+moduleDocs           0.001s  1515 docs in 424 modules, 3935 imports
+tactics              0.012s  421 in env, 0 in target modules
+analyze              13.529s  considered 8824, produced 4750, blacklisted 4074, failed 0
+  of which signature 13.136s
+  of which equations 0.000s  (0 lemmas, 0 failed)
+  of which docstring 0.092s
+total                16.172s
+genEquations         false   tagCode false   refs false   open []
+kinds                theorem=3742 definition=842 instance=91 structure=37 constructor=37 opaque=1
+	Command being timed: "/home/runner/work/lean-doc/lean-doc/lean-doc/experiments/stage4b/build/extract /home/runner/work/lean-doc/lean-doc/lean-doc/benchmarks/results/it-modules.txt /home/runner/work/lean-doc/lean-doc/import-after-build.jsonl"
+	User time (seconds): 15.01
+	System time (seconds): 1.28
+	Percent of CPU this job got: 99%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:16.44
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 4017148
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 26
+	Minor (reclaiming a frame) page faults: 82143
+	Voluntary context switches: 32
+	Involuntary context switches: 2463
+	Swaps: 0
+	File system inputs: 17432
+	File system outputs: 8
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+target modules       432
+loaded modules       6021
+importModules        63.369s
+indexLookup          0.004s  enumerated 8849, unique 8824
+moduleDocs           0.001s  1515 docs in 424 modules, 3935 imports
+tactics              0.012s  421 in env, 0 in target modules
+analyze              11.393s  considered 8824, produced 4750, blacklisted 4074, failed 0
+  of which signature 11.044s
+  of which equations 0.000s  (0 lemmas, 0 failed)
+  of which docstring 0.075s
+total                74.784s
+genEquations         false   tagCode false   refs false   open []
+kinds                theorem=3742 definition=842 instance=91 structure=37 constructor=37 opaque=1
+	Command being timed: "/home/runner/work/lean-doc/lean-doc/lean-doc/experiments/stage4b/build/extract /home/runner/work/lean-doc/lean-doc/lean-doc/benchmarks/results/it-modules.txt /home/runner/work/lean-doc/lean-doc/import-cold-1.jsonl"
+	User time (seconds): 13.37
+	System time (seconds): 2.25
+	Percent of CPU this job got: 20%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:15.65
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 3999876
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 11949
+	Minor (reclaiming a frame) page faults: 89155
+	Voluntary context switches: 32371
+	Involuntary context switches: 161
+	Swaps: 0
+	File system inputs: 8039992
+	File system outputs: 16
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+target modules       432
+loaded modules       6021
+importModules        70.628s
+indexLookup          0.004s  enumerated 8849, unique 8824
+moduleDocs           0.001s  1515 docs in 424 modules, 3935 imports
+tactics              0.012s  421 in env, 0 in target modules
+analyze              11.356s  considered 8824, produced 4750, blacklisted 4074, failed 0
+  of which signature 11.004s
+  of which equations 0.000s  (0 lemmas, 0 failed)
+  of which docstring 0.076s
+total                82.007s
+genEquations         false   tagCode false   refs false   open []
+kinds                theorem=3742 definition=842 instance=91 structure=37 constructor=37 opaque=1
+	Command being timed: "/home/runner/work/lean-doc/lean-doc/lean-doc/experiments/stage4b/build/extract /home/runner/work/lean-doc/lean-doc/lean-doc/benchmarks/results/it-modules.txt /home/runner/work/lean-doc/lean-doc/import-cold-2.jsonl"
+	User time (seconds): 13.17
+	System time (seconds): 2.37
+	Percent of CPU this job got: 18%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:22.88
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 3999776
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 11949
+	Minor (reclaiming a frame) page faults: 89079
+	Voluntary context switches: 32375
+	Involuntary context switches: 155
+	Swaps: 0
+	File system inputs: 8039760
+	File system outputs: 16
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+target modules       432
+loaded modules       6021
+importModules        2.626s
+indexLookup          0.004s  enumerated 8849, unique 8824
+moduleDocs           0.001s  1515 docs in 424 modules, 3935 imports
+tactics              0.012s  421 in env, 0 in target modules
+analyze              11.388s  considered 8824, produced 4750, blacklisted 4074, failed 0
+  of which signature 11.041s
+  of which equations 0.000s  (0 lemmas, 0 failed)
+  of which docstring 0.076s
+total                14.034s
+genEquations         false   tagCode false   refs false   open []
+kinds                theorem=3742 definition=842 instance=91 structure=37 constructor=37 opaque=1
+	Command being timed: "/home/runner/work/lean-doc/lean-doc/lean-doc/experiments/stage4b/build/extract /home/runner/work/lean-doc/lean-doc/lean-doc/benchmarks/results/it-modules.txt /home/runner/work/lean-doc/lean-doc/import-warm-1.jsonl"
+	User time (seconds): 12.96
+	System time (seconds): 1.25
+	Percent of CPU this job got: 99%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:14.22
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 4017152
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 82223
+	Voluntary context switches: 5
+	Involuntary context switches: 297
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 8
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+target modules       432
+loaded modules       6021
+importModules        2.575s
+indexLookup          0.004s  enumerated 8849, unique 8824
+moduleDocs           0.001s  1515 docs in 424 modules, 3935 imports
+tactics              0.012s  421 in env, 0 in target modules
+analyze              11.208s  considered 8824, produced 4750, blacklisted 4074, failed 0
+  of which signature 10.871s
+  of which equations 0.000s  (0 lemmas, 0 failed)
+  of which docstring 0.074s
+total                13.803s
+genEquations         false   tagCode false   refs false   open []
+kinds                theorem=3742 definition=842 instance=91 structure=37 constructor=37 opaque=1
+	Command being timed: "/home/runner/work/lean-doc/lean-doc/lean-doc/experiments/stage4b/build/extract /home/runner/work/lean-doc/lean-doc/lean-doc/benchmarks/results/it-modules.txt /home/runner/work/lean-doc/lean-doc/import-warm-2.jsonl"
+	User time (seconds): 12.73
+	System time (seconds): 1.25
+	Percent of CPU this job got: 99%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:13.99
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 4016980
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 82597
+	Voluntary context switches: 23
+	Involuntary context switches: 282
+	Swaps: 0
+	File system inputs: 16
+	File system outputs: 8
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+target modules       432
+loaded modules       6021
+importModules        2.607s
+indexLookup          0.004s  enumerated 8849, unique 8824
+moduleDocs           0.001s  1515 docs in 424 modules, 3935 imports
+tactics              0.012s  421 in env, 0 in target modules
+analyze              11.383s  considered 8824, produced 4750, blacklisted 4074, failed 0
+  of which signature 11.036s
+  of which equations 0.000s  (0 lemmas, 0 failed)
+  of which docstring 0.075s
+total                14.011s
+genEquations         false   tagCode false   refs false   open []
+kinds                theorem=3742 definition=842 instance=91 structure=37 constructor=37 opaque=1
+	Command being timed: "/home/runner/work/lean-doc/lean-doc/lean-doc/experiments/stage4b/build/extract /home/runner/work/lean-doc/lean-doc/lean-doc/benchmarks/results/it-modules.txt /home/runner/work/lean-doc/lean-doc/import-warm-3.jsonl"
+	User time (seconds): 12.89
+	System time (seconds): 1.30
+	Percent of CPU this job got: 99%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:14.20
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 4016912
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 81982
+	Voluntary context switches: 4
+	Involuntary context switches: 327
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 8
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+target modules       432
+loaded modules       6021
+importModules        2.686s
+indexLookup          0.004s  enumerated 8849, unique 8824
+moduleDocs           0.001s  1515 docs in 424 modules, 3935 imports
+tactics              0.012s  421 in env, 0 in target modules
+analyze              11.247s  considered 8824, produced 4750, blacklisted 4074, failed 0
+  of which signature 10.912s
+  of which equations 0.000s  (0 lemmas, 0 failed)
+  of which docstring 0.073s
+total                13.955s
+genEquations         false   tagCode false   refs false   open []
+kinds                theorem=3742 definition=842 instance=91 structure=37 constructor=37 opaque=1
+	Command being timed: "/home/runner/work/lean-doc/lean-doc/lean-doc/experiments/stage4b/build/extract /home/runner/work/lean-doc/lean-doc/lean-doc/benchmarks/results/it-modules.txt /home/runner/work/lean-doc/lean-doc/import-warm-4.jsonl"
+	User time (seconds): 12.91
+	System time (seconds): 1.23
+	Percent of CPU this job got: 99%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:14.16
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 4016556
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 82443
+	Voluntary context switches: 4
+	Involuntary context switches: 243
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 8
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
