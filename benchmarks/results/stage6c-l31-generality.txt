@@ -1,0 +1,47 @@
+# stage6c — how general is L3-1?
+
+date              2026-08-10T13:38:10Z
+host              Darwin 25.6.0 arm64 / Apple M1 / 16 GB
+lean-toolchain    leanprover/lean4:v4.31.0
+target            APFS clone of /Users/haruka/dev/lean-projects, reset before each scenario
+oracle            byte equality of the whole page tree with a from-scratch post-move build
+
+## N0 — the census
+N0 kinds with a witness: abbrev, instance
+
+### instance
+  InformationTheory.Shannon.BroadcastChannel.Superposition.TimeShare     9 instance(s), 0 of them named in a signature elsewhere, 2 referring module(s) overall
+  InformationTheory.Shannon.BroadcastChannel.OuterBoundUV.Region         7 instance(s), 0 of them named in a signature elsewhere, 8 referring module(s) overall
+  InformationTheory.Shannon.BroadcastChannel.OuterBoundUV.Bridge         5 instance(s), 0 of them named in a signature elsewhere, 9 referring module(s) overall
+  InformationTheory.Shannon.MultipleAccess.TimeSharingConverse.Bridge    4 instance(s), 0 of them named in a signature elsewhere, 1 referring module(s) overall
+  InformationTheory.Shannon.TimeBandLimiting.Operator                    4 instance(s), 0 of them named in a signature elsewhere, 7 referring module(s) overall
+  chosen: InformationTheory.Shannon.BroadcastChannel.Superposition.TimeShare
+
+### simp
+  NO WITNESS on this target — no @[simp] declaration is named in another module's signature. Reported as untestable.
+
+### abbrev
+  InformationTheory.Fano                                                 1 abbrev(s), referenced from 2 module(s), e.g. InformationTheory.FiniteJointPMF.mass
+  InformationTheory.Shannon.AWGN.Basic                                   2 abbrev(s), referenced from 7 module(s), e.g. InformationTheory.Shannon.AWGN.AwgnCode.encoder
+  InformationTheory.Shannon.BroadcastChannel.Achievability.Setup         2 abbrev(s), referenced from 2 module(s), e.g. InformationTheory.Shannon.BroadcastChannel.BCSatelliteCodebook
+  InformationTheory.Shannon.BroadcastChannel.Basic                       4 abbrev(s), referenced from 33 module(s), e.g. InformationTheory.Shannon.BroadcastChannel.BCChannel
+  InformationTheory.Shannon.BroadcastChannel.MartonUnion                 1 abbrev(s), referenced from 7 module(s), e.g. InformationTheory.Shannon.BroadcastChannel.Marton.bcAuxAlphabet
+  chosen: InformationTheory.Fano
+
+## N1..N6 — one scenario per kind
+
+## instance — moved InformationTheory.Shannon.BroadcastChannel.Superposition.TimeShare (REFERENCE: 439 files)
+  --l3-1 on  : 439 files, missing 0, extra 0, differing 0 -> byte-identical
+             rounds 1, changed 4, staleFound 0, globalStale 0, pages 4
+  --l3-1 off : 439 files, missing 0, extra 0, differing 0 -> byte-identical
+             rounds 1, changed 4, staleFound 0, globalStale 0, pages 4
+  N-verdict: L3-1 on is correct; L3-1 off is correct -> L3-1 is NOT what saves it for this kind
+
+## abbrev — moved InformationTheory.Fano (REFERENCE: 439 files)
+  --l3-1 on  : 439 files, missing 0, extra 0, differing 0 -> byte-identical
+             rounds 2, changed 2, staleFound 3, globalStale 0, pages 5
+             ownership round 2: lostNames 0, gainedNames 0, stale 0 (the structural bound holds)
+  --l3-1 off : 439 files, missing 0, extra 0, differing 3 -> WRONG
+             rounds 1, changed 2, staleFound 0, globalStale 0, pages 2
+             differing: InformationTheory/Fano/Core.html, InformationTheory/Fano/DPI.html, InformationTheory/Fano/Measure.html
+  N-verdict: L3-1 on is correct; L3-1 off is wrong -> L3-1 is necessary for this kind

@@ -154,7 +154,13 @@ report("instance", inst, "no module defines an instance")
 simp = []
 for name, m in mods.items():
     own = {d["name"] for d in m["declarations"]}
-    simp_here = {n for n in own if n.split(".")[-1] in simp_names or n in simp_names}
+    # The source name is namespace-relative (`Channel.smooth_apply`) while the IR
+    # name is fully qualified (`InformationTheory.Channel.smooth_apply`), so the
+    # match is by suffix. Comparing only the last component under-detects
+    # (`smooth_apply` is not in the source set) and comparing the whole name
+    # under-detects too; both were wrong before this line.
+    simp_here = {n for n in own
+                 if n in simp_names or any(n.endswith("." + s) for s in simp_names)}
     if not simp_here:
         continue
     hits = [(rm, n) for (rm, n) in refs_in.get(name, ()) if n in simp_here]
@@ -177,6 +183,11 @@ for name, m in mods.items():
     else:
         abb.append((name, "%d abbrev(s), referenced from 0 module(s)" % len(own)))
 abb = [c for c in abb if "from 0 module(s)" not in c[1]] or []
+# Sort by how many modules refer in, then by how many abbrevs: the strongest
+# witness exercises the most of L3-1. This was missing, so the pick used to be
+# whatever the IR index happened to yield first.
+abb.sort(key=lambda t: (-int(t[1].split("referenced from ")[1].split()[0]),
+                        -int(t[1].split()[0]), t[0]))
 report("abbrev", abb, "no abbrev is named in another module's signature")
 
 json.dump(chosen, open(out_json, "w", encoding="utf-8"), indent=2)
@@ -215,11 +226,16 @@ scenario () { # scenario <kind> <module>
   echo "$kind $A" >> "$W/scenarios.txt"
 }
 
-for kind in instance simp abbrev; do
+# `KINDS` and `A_<KIND>` exist so that a stronger witness can be pinned without
+# re-deriving it: the census picks a candidate, but "the census picked it" is not
+# a reason to believe it is the hardest case available.
+for kind in ${KINDS:-instance simp abbrev}; do
   A=$(python3 -c "
 import json
 c = json.load(open('$W/census.json'))
 print(c.get('$kind', ''))")
+  ov="A_$(echo "$kind" | tr '[:lower:]' '[:upper:]')"
+  A="${!ov:-$A}"
   if [ -z "$A" ]; then
     echo "### scenario $kind — skipped, no witness on this target"
     continue
@@ -301,5 +317,5 @@ PY
   echo
   echo "## N1..N6 — one scenario per kind"
   cat "$OUT/verdict.txt"
-} > "$RESULTS/stage6c-l31-generality.txt"
-echo "-> $RESULTS/stage6c-l31-generality.txt"
+} > "$RESULTS/stage6c-l31-generality${SUFFIX:-}.txt"
+echo "-> $RESULTS/stage6c-l31-generality${SUFFIX:-}.txt"
