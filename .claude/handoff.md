@@ -1,17 +1,21 @@
 # Handoff — 2026-08-10 (8)
 
 ## Relay control
-- Mode: DONE
-- Goal: handoff (7) の「次にやるなら」1〜5 を全部完遂する
-- Leg: 1 / cap 8
+- Mode: ON
+- Goal: **段階 7「完成品の値を出す」** — approach.md §6 の主要な数字から「出力範囲の差」と
+  「外挿」の留保を外し、§7 に残った ◐ を閉じる。優先順 **7b → 7c → 7a → 7d → 7e → 7f**:
+  - **7b** 生成側の未実装を埋めて byte 再現率 **63.6%** を上げる
+    (CommonMark・docstring autolink 索引・`div.attributes`・メンバ binder・検索ページ・静的資産)
+  - **7c** 意味解析 **10.58 秒** (最適化後の 77%) を段別に割り、削れる筋を 1 本以上実測する
+  - **7a** 抽出側の未実装 (属性収集・instance 索引・構造体メンバ binder) を埋める
+  - **7d** 前 handoff の 1〜4 (常駐の本配線 / L3-3 増分化 / rev 残り 2 点 / ソーク)
+  - **7e** プレビュー (1) 構文近似のコスト計測 (**決定はユーザーに残す** — 測るだけ)
+  - **7f** Linux で `importModules` 自体を実測 (**CI 課金はユーザー承認済み**、無料枠を使うだけ)
+- Leg: 1 / cap 12
 - Predecessor: none
-- Stop-on: completion
+- Stop-on: completion | user-decision | no-progress×2 | leg-cap
 - Progress ledger:
-  - r1: **1〜5 を全部完遂。** 段階 6a (常駐の配線) / 6b (rev 非埋め込み) / 6c (L3-1 の一般性) /
-    6d (プレビュー) を新設し、CI 軸は `ubuntu-latest` で実測 (ユーザー承認のうえ run
-    `31395165118`)。判定はすべて**フルビルドとのバイト一致**。数字の訂正 4 件、潜在バグ 1 件、
-    ツールの欠陥 1 件を修正。approach.md を 634 → 599 行に圧縮。
-    `a68f205`〜、全部 push 済み。
+  - (r0) 前ゴール完遂ぶん: 段階 6a〜6d + CI 軸。`a68f205`〜`9c45073`、push 済み。
 
 ## State
 

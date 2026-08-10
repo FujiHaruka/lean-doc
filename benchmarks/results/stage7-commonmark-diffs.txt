@@ -1,0 +1,187 @@
+### InformationTheory.Shannon.ShannonHartley.Operational mod_doc:0 (9342 B, first diff @453)
+mine : "efinition of the capacity of\nthe continuous-time band-limited AWGN channel and states the Shannon-Hartley identity</p><p><code><a href=\"../../.././InformationTheory/Shannon/ShannonHartley/Operational.html#InformationTheory.Shannon.ShannonHartley.contAwgnOperationalCapacity\">contAwgnOperationalCapacity</a> W N₀ P = W · "
+their: "efinition of the capacity of\nthe continuous-time band-limited AWGN channel and states the Shannon-Hartley identity</p><pre><code>`contAwgnOperationalCapacity W N₀ P = W · log(1 + P / (N₀ · W))`\n</code></pre><p>as <code>contAwgn_eq_shannonHartley</code> (proved in <code>ConverseFinal.lean</code>).\nThe converse half land"
+
+### InformationTheory.Shannon.EPI.Stam.ConditionalCauchySchwarz mod_doc:0 (7752 B, first diff @2353)
+mine : "e proof consumes are therefore exposed as typed\npredicates, with the surrounding algebra discharged in full:</p><ul><li>Step 1 (<code><a href=\"../../../.././InformationTheory/Shannon/EPI/Stam/ConditionalCauchySchwarz.html#InformationTheory.Shannon.StamConditionalCauchySchwarz.IsStamScoreConvHyp\">IsStamScoreConvHyp</a><"
+their: "e proof consumes are therefore exposed as typed\npredicates, with the surrounding algebra discharged in full:</p><ul><li><p>Step 1 (<code><a href=\"../../../.././InformationTheory/Shannon/EPI/Stam/ConditionalCauchySchwarz.html#InformationTheory.Shannon.StamConditionalCauchySchwarz.IsStamScoreConvHyp\">IsStamScoreConvHyp</"
+
+### InformationTheory.Shannon.Hoeffding.Lagrange mod_doc:0 (7099 B, first diff @1796)
+mine : "g\">Approach <a class=\"hover-link\" href=\"#Approach\">#</a></h2><p>The constraint functional along the tilt family is</p><p><code>g(λ) := klDivPmf (hoeffdingTilt P₁ P₂ λ) P₁</code>.</p><p>At the endpoints the tilt collapses to the data distributions\n(<code>chernoffMediator_lam_zero/one</code>):</p><p><code>g(0) = klDivPmf"
+their: "g\">Approach <a class=\"hover-link\" href=\"#Approach\">#</a></h2><p>The constraint functional along the tilt family is</p><pre><code>  `g(λ) := klDivPmf (hoeffdingTilt P₁ P₂ λ) P₁`.\n</code></pre><p>At the endpoints the tilt collapses to the data distributions\n(<code>chernoffMediator_lam_zero/one</code>):</p><pre><code>  `g"
+
+### InformationTheory.Shannon.Hoeffding.MinimizerAttainment mod_doc:0 (5484 B, first diff @603)
+mine : "dingLagrangeHyp</code> from the IVT and reduced the <code>realises</code> half to the\nstrictly-primitive predicate</p><p><code>IsHoeffdingTiltMinimal P₁ P₂ α λ</code>\n:= <code><a href=\"../../.././Mathlib/Order/Filter/Extr.html#IsMinOn\">IsMinOn</a> (klDivPmf · P₂) (hoeffdingConstraintSet P₁ α) (hoeffdingTilt P₁ P₂ λ)</c"
+their: "dingLagrangeHyp</code> from the IVT and reduced the <code>realises</code> half to the\nstrictly-primitive predicate</p><pre><code>  `IsHoeffdingTiltMinimal P₁ P₂ α λ`\n    := `IsMinOn (klDivPmf · P₂) (hoeffdingConstraintSet P₁ α) (hoeffdingTilt P₁ P₂ λ)`,\n</code></pre><p>the Csiszár I-projection minimality of the exponen"
+
+### InformationTheory.Shannon.Hoeffding.BoundaryMinimizer mod_doc:0 (5253 B, first diff @1926)
+mine : "ndary values of α the full-support claim is fully discharged from\nexisting Mathlib + InformationTheory API:</p><ul><li><code>α = 0</code>: <code>klDivPmf Q P₁ ≤ 0</code> combined with <code>klDivPmf_nonneg</code> forces\n<code>klDivPmf Q P₁ = 0</code>. By <code>klDivPmf_eq_zero_iff_pmf</code>, <code>Q = P₁</code>. Hence"
+their: "ndary values of α the full-support claim is fully discharged from\nexisting Mathlib + InformationTheory API:</p><ul><li><p><code>α = 0</code>: <code>klDivPmf Q P₁ ≤ 0</code> combined with <code>klDivPmf_nonneg</code> forces\n<code>klDivPmf Q P₁ = 0</code>. By <code>klDivPmf_eq_zero_iff_pmf</code>, <code>Q = P₁</code>. He"
+
+### InformationTheory.Shannon.BirkhoffErgodic mod_doc:0 (4868 B, first diff @721)
+mine : "n of a\nprobability space <code>(Ω, μ)</code>, and let <code>f : Ω → ℝ</code> be integrable. Then\nthe time averages</p><p>A_n ω := (∑_{i=0}^{n} f (T^[i] ω)) / (n + 1)</p><p>converge almost everywhere to the spatial mean <code>∫ f dμ</code>.</p></blockquote><h2 id=\"Strategy-Garsia-1965-maximal-ergodic-inequality-+-sandwi"
+their: "n of a\nprobability space <code>(Ω, μ)</code>, and let <code>f : Ω → ℝ</code> be integrable. Then\nthe time averages</p><pre><code>A_n ω := (∑_{i=0}^{n} f (T^[i] ω)) / (n + 1)\n</code></pre><p>converge almost everywhere to the spatial mean <code>∫ f dμ</code>.</p></blockquote><h2 id=\"Strategy-Garsia-1965-maximal-ergodic-i"
+
+### InformationTheory.Shannon.LZ78.PhraseCounting mod_doc:0 (4846 B, first diff @1600)
+mine : "ower bound on\nthe total length <code>T</code> of <code>c</code> distinct non-empty strings. Two\ningredients:</p><ol><li>Geometric stratification (<code><a href=\"../../.././InformationTheory/Shannon/LZ78/PhraseCounting.html#InformationTheory.Shannon.card_short_le\">card_short_le</a></code>) — the number of\n<em>distinct</"
+their: "ower bound on\nthe total length <code>T</code> of <code>c</code> distinct non-empty strings. Two\ningredients:</p><ol><li><p>Geometric stratification (<code><a href=\"../../.././InformationTheory/Shannon/LZ78/PhraseCounting.html#InformationTheory.Shannon.card_short_le\">card_short_le</a></code>) — the number of\n<em>distinc"
+
+### InformationTheory.Shannon.WynerZiv.ObjectiveConvexity mod_doc:0 (4533 B, first diff @1131)
+mine : ">.  Two exact\nalgebraic cancellations make the deep content explicit and isolate it from\nthe trivial parts:</p><ul><li><code>H(U)</code> cancellation (any <code>q</code>): the <code>U</code>-marginal of <code>wzMarginalXU U q</code>\nand of <code>wzMarginalYU U q</code> coincide — both equal <code>P_U(u) = ∑_{x,y} q(x,y"
+their: ">.  Two exact\nalgebraic cancellations make the deep content explicit and isolate it from\nthe trivial parts:</p><ul><li><p><code>H(U)</code> cancellation (any <code>q</code>): the <code>U</code>-marginal of <code>wzMarginalXU U q</code>\nand of <code>wzMarginalYU U q</code> coincide — both equal <code>P_U(u) = ∑_{x,y} q("
+
+### InformationTheory.Shannon.EntropyRate mod_doc:0 (4292 B, first diff @2923)
+mine : "| X_{&lt;n})</code> non-increasing, from\nstationarity (joint pushforward equality via <code>MeasurePreserving T</code>)</li><li>conditioning monotonicity (<code>condEntropy_le_condEntropy_of_pair</code>).</li><li><code><a href=\"../.././InformationTheory/Shannon/EntropyRate.html#InformationTheory.Shannon.entropyRate_exi"
+their: "| X_{&lt;n})</code> non-increasing, from\nstationarity (joint pushforward equality via <code>MeasurePreserving T</code>)<ul><li>conditioning monotonicity (<code>condEntropy_le_condEntropy_of_pair</code>).</li></ul></li><li><code><a href=\"../.././InformationTheory/Shannon/EntropyRate.html#InformationTheory.Shannon.entrop"
+
+### InformationTheory.Shannon.Hoeffding.Tilt mod_doc:0 (4090 B, first diff @466)
+mine : "ár I-projection\nof <code>P₂</code> onto the constraint set <code>K(α)</code> is the one-parameter exponential tilt</p><p><code>Qstar a = c(λ) · P₁ a ^ (1 - λ) · P₂ a ^ λ</code>,</p><p>which is exactly <code>Chernoff.chernoffMediator P₁ P₂ λ</code>. This file reuses that\nfamily (no new definition) and proves its definin"
+their: "ár I-projection\nof <code>P₂</code> onto the constraint set <code>K(α)</code> is the one-parameter exponential tilt</p><pre><code>  `Qstar a = c(λ) · P₁ a ^ (1 - λ) · P₂ a ^ λ`,\n</code></pre><p>which is exactly <code>Chernoff.chernoffMediator P₁ P₂ λ</code>. This file reuses that\nfamily (no new definition) and proves it"
+
+### InformationTheory.Shannon.LZ78.ConverseUDObject mod_doc:0 (4016 B, first diff @567)
+mine : "elivers\" class=\"markdown-heading\">What this delivers <a class=\"hover-link\" href=\"#What-this-delivers\">#</a></h2><ul><li>§1 — <code><a href=\"../../.././InformationTheory/Shannon/LZ78/ConverseUDObject.html#InformationTheory.uniquelyDecodable_of_constantLength\">uniquelyDecodable_of_constantLength</a></code> (general, reus"
+their: "elivers\" class=\"markdown-heading\">What this delivers <a class=\"hover-link\" href=\"#What-this-delivers\">#</a></h2><ul><li><p>§1 — <code><a href=\"../../.././InformationTheory/Shannon/LZ78/ConverseUDObject.html#InformationTheory.uniquelyDecodable_of_constantLength\">uniquelyDecodable_of_constantLength</a></code> (general, r"
+
+### InformationTheory.Shannon.LZ78.ZivMeasureBridge mod_doc:0 (3848 B, first diff @1333)
+mine : "converts the inner <code>c_ℓ · log c_ℓ</code>\nterms into negative-log marginal probabilities and aggregates:</p><ol><li>Per-length sub-distribution (<code><a href=\"../../.././InformationTheory/Shannon/LZ78/ZivMeasureBridge.html#InformationTheory.Shannon.sum_marginal_real_le_one\">sum_marginal_real_le_one</a></code>): fo"
+their: "converts the inner <code>c_ℓ · log c_ℓ</code>\nterms into negative-log marginal probabilities and aggregates:</p><ol><li><p>Per-length sub-distribution (<code><a href=\"../../.././InformationTheory/Shannon/LZ78/ZivMeasureBridge.html#InformationTheory.Shannon.sum_marginal_real_le_one\">sum_marginal_real_le_one</a></code>):"
+
+### InformationTheory.Shannon.EPI.Case1.RatioLimit.Assembly docstring:InformationTheory.Shannon.EPICase1RatioLimit.entropyPower_add_ge_case1_of_methodX (3706 B, first diff @2232)
+mine : "a.c. (<code>hZX_ac</code>/<code>hZY_ac</code>/<code>hZXZY_ac</code>) via <code>gaussianReal_absolutelyContinuous</code></li><li><code>map_add_absolutelyContinuous</code>;</li><li>the four individual independences from the single 4-tuple\n<code>iIndepFun ![X,Y,Z_X,Z_Y] P</code> (pairwise via <code>iIndepFun.indepFun</cod"
+their: "a.c. (<code>hZX_ac</code>/<code>hZY_ac</code>/<code>hZXZY_ac</code>) via <code>gaussianReal_absolutelyContinuous</code><ul><li><code>map_add_absolutelyContinuous</code>;</li></ul></li><li>the four individual independences from the single 4-tuple\n<code>iIndepFun ![X,Y,Z_X,Z_Y] P</code> (pairwise via <code>iIndepFun.inde"
+
+### InformationTheory.Shannon.ShannonHartley.Basic mod_doc:0 (3388 B, first diff @486)
+mine : " and flat noise PSD <code>N₀ / 2</code>. Under average\npower constraint <code>E[X(t)²] ≤ P</code>, the capacity is</p><p><code>C = W · log(1 + P / (N₀ · W))</code>   (nats/second; divide by <code>log 2</code> for bits/second).</p><h2 id=\"Main-definitions\" class=\"markdown-heading\">Main definitions <a class=\"hover-link\" "
+their: " and flat noise PSD <code>N₀ / 2</code>. Under average\npower constraint <code>E[X(t)²] ≤ P</code>, the capacity is</p><pre><code>`C = W · log(1 + P / (N₀ · W))`   (nats/second; divide by `log 2` for bits/second).\n</code></pre><h2 id=\"Main-definitions\" class=\"markdown-heading\">Main definitions <a class=\"hover-link\" href"
+
+### InformationTheory.Shannon.LZ78.ZivCondGrouping mod_doc:0 (3260 B, first diff @1386)
+mine : "e>markovFactor</code>) as\nthe grouping vehicle, fibering phrases by the pair <code>(k-state, length)</code>:</p><ol><li>Group over <code>ι = (Fin k → α) × ℕ</code>: apply\n<code>card_mul_log_le_sum_group_mul_log_add_card_log</code> to the image\n<code>G = phrases.image (st w, w.length)</code>, giving\n<code>c · log c ≤ ∑_"
+their: "e>markovFactor</code>) as\nthe grouping vehicle, fibering phrases by the pair <code>(k-state, length)</code>:</p><ol><li><p>Group over <code>ι = (Fin k → α) × ℕ</code>: apply\n<code>card_mul_log_le_sum_group_mul_log_add_card_log</code> to the image\n<code>G = phrases.image (st w, w.length)</code>, giving\n<code>c · log c ≤"
+
+### InformationTheory.Shannon.EPI.Blachman.Density docstring:InformationTheory.Shannon.EPIBlachmanDensity.convex_fisher_bound (2961 B, first diff @2637)
+mine : "li><li>the 3-term Tonelli evaluation <code>convex_fisher_term1/2/cross</code> (<code>integral_integral_swap</code></li><li>translation invariance <code>integral_sub_right_eq_self</code> + normalization /\n<code>integral_logDeriv_density_eq_zero</code> for the cross term) yields\n<code>λ²·J_X + (1-λ)²·J_Y</code> (cross te"
+their: "li><li>the 3-term Tonelli evaluation <code>convex_fisher_term1/2/cross</code> (<code>integral_integral_swap</code></li></ul><ul><li>translation invariance <code>integral_sub_right_eq_self</code> + normalization /\n<code>integral_logDeriv_density_eq_zero</code> for the cross term) yields\n<code>λ²·J_X + (1-λ)²·J_Y</code> "
+
+### InformationTheory.Shannon.Cramer.Cramer mod_doc:0 (2840 B, first diff @2768)
+mine : "=\"#References\">#</a></h2><ul><li>T. M. Cover and J. A. Thomas, <em>Elements of Information Theory</em> (2nd ed.), Wiley,</li><li>Theorem 11.4.1.</li></ul></div>"
+their: "=\"#References\">#</a></h2><ul><li>T. M. Cover and J. A. Thomas, <em>Elements of Information Theory</em> (2nd ed.), Wiley,\n2006. Theorem 11.4.1.</li></ul></div>"
+
+### InformationTheory.Shannon.CramerGeneralLower mod_doc:0 (2823 B, first diff @2760)
+mine : "=\"#References\">#</a></h2><ul><li>T. M. Cover and J. A. Thomas, <em>Elements of Information Theory</em> (2nd ed.), Wiley,</li><li>Theorem 11.4.1.</li></ul></div>"
+their: "=\"#References\">#</a></h2><ul><li>T. M. Cover and J. A. Thomas, <em>Elements of Information Theory</em> (2nd ed.), Wiley,\n2006. Theorem 11.4.1.</li></ul></div>"
+
+### InformationTheory.Shannon.Hoeffding.MinimizerExistence mod_doc:3 (2766 B, first diff @844)
+mine : "code> converges to <code>D(P₁‖P₂)</code>, <em>not</em> <code>E₂(alpha)</code>.\nTwo concrete contradictions:</p><ul><li><code>alpha = 0</code>: with full-support <code>P₁</code>, the only Type-I-exact-<code>0</code> test is\n<code>s = univ</code> (every other <code><a href=\"../../.././Mathlib/Data/Finset/Defs.html#Finset"
+their: "code> converges to <code>D(P₁‖P₂)</code>, <em>not</em> <code>E₂(alpha)</code>.\nTwo concrete contradictions:</p><ul><li><p><code>alpha = 0</code>: with full-support <code>P₁</code>, the only Type-I-exact-<code>0</code> test is\n<code>s = univ</code> (every other <code><a href=\"../../.././Mathlib/Data/Finset/Defs.html#Fin"
+
+### InformationTheory.Shannon.Huffman.StrongForm mod_doc:0 (2752 B, first diff @2098)
+mine : "es <a class=\"hover-link\" href=\"#Implementation-notes\">#</a></h2><p>The swap normalization proof proceeds in three steps:\n1. Shorten <code>ll</code> to a complete code <code>l1</code> (Kraft = 1) via <code>shorten_to_kraft_one</code>.\n2. Find two equal-longest leaves <code>c₁ ≠ c₂</code> of <code>l1</code> via <code>exi"
+their: "es <a class=\"hover-link\" href=\"#Implementation-notes\">#</a></h2><p>The swap normalization proof proceeds in three steps:</p><ol><li>Shorten <code>ll</code> to a complete code <code>l1</code> (Kraft = 1) via <code>shorten_to_kraft_one</code>.</li><li>Find two equal-longest leaves <code>c₁ ≠ c₂</code> of <code>l1</code> "
+
+### InformationTheory.Shannon.Hoeffding.Sandwich mod_doc:0 (2469 B, first diff @1304)
+mine : "s=\"markdown-heading\">What this file publishes <a class=\"hover-link\" href=\"#What-this-file-publishes\">#</a></h2><ul><li><code><a href=\"../../.././InformationTheory/Shannon/Hoeffding/Sandwich.html#InformationTheory.Shannon.HoeffdingSandwich.hoeffding_rate_isBoundedUnder_ge\">hoeffding_rate_isBoundedUnder_ge</a></code>: th"
+their: "s=\"markdown-heading\">What this file publishes <a class=\"hover-link\" href=\"#What-this-file-publishes\">#</a></h2><ul><li><p><code><a href=\"../../.././InformationTheory/Shannon/Hoeffding/Sandwich.html#InformationTheory.Shannon.HoeffdingSandwich.hoeffding_rate_isBoundedUnder_ge\">hoeffding_rate_isBoundedUnder_ge</a></code>:"
+
+### InformationTheory.Shannon.ConditionalMethodOfTypes.Mass.Concentration mod_doc:2 (2468 B, first diff @659)
+mine : "ss_card_ge</code>) with the per-y Y-product mass shape to yield the\njoint exponential lower bound.</p><p>Proof strategy:\n1. From <code>conditionalTypeClass_card_ge</code>, take logs:\n<code>log card ≥ -|β|·∑_a log(T_a+1) + ∑_a (T_a · log T_a - ∑_b c(a,b) · log c(a,b))</code>.\n2. Combine with <code>n·log n</code> to expr"
+their: "ss_card_ge</code>) with the per-y Y-product mass shape to yield the\njoint exponential lower bound.</p><p>Proof strategy:</p><ol><li>From <code>conditionalTypeClass_card_ge</code>, take logs:\n<code>log card ≥ -|β|·∑_a log(T_a+1) + ∑_a (T_a · log T_a - ∑_b c(a,b) · log c(a,b))</code>.</li><li>Combine with <code>n·log n</"
+
+### InformationTheory.Shannon.EPI.Case1.RatioLimit.Producer mod_doc:1 (2249 B, first diff @725)
+mine : "a href=\"../../../../.././EPI/Blachman/Density.html\">EPI/Blachman/Density.lean</a></code>, <code>@audit:ok</code>):</p><p><code>J(conv) ≤ lam²·J(fX) + (1-lam)²·J(fY)</code>  →  (<code>lam = 1</code>)  →  <code>J(conv) ≤ J(fX)</code>.</p><p>It is conditioned on the <em>regularity</em> preconditions that the Stam machiner"
+their: "a href=\"../../../../.././EPI/Blachman/Density.html\">EPI/Blachman/Density.lean</a></code>, <code>@audit:ok</code>):</p><pre><code>`J(conv) ≤ lam²·J(fX) + (1-lam)²·J(fY)`  →  (`lam = 1`)  →  `J(conv) ≤ J(fX)`.\n</code></pre><p>It is conditioned on the <em>regularity</em> preconditions that the Stam machinery\nactually requ"
+
+### InformationTheory.Shannon.AWGN.KLCapacityAndAEP mod_doc:2 (1924 B, first diff @1735)
+mine : "he\n<code>arrowProdEquivProdArrow</code> reshape (<code>klDiv_map_measurableEquiv</code>) + <code>klDiv_pi_eq_sum</code></li><li>i.i.d. <code>Finset.sum_const</code> collapse. </li></ul></div>"
+their: "he\n<code>arrowProdEquivProdArrow</code> reshape (<code>klDiv_map_measurableEquiv</code>) + <code>klDiv_pi_eq_sum</code><ul><li>i.i.d. <code><a href=\"../../.././Mathlib/Algebra/BigOperators/Group/Finset/Basic.html#Finset.sum_const\">Finset.sum_const</a></code> collapse.</li></ul></li></ul></div>"
+
+### InformationTheory.Shannon.EPI.Blachman.Density docstring:InformationTheory.Shannon.EPIBlachmanDensity.score_conv_eq_weighted_integral (1714 B, first diff @831)
+mine : "teway <code><a href=\"../../../.././Mathlib/Analysis/Calculus/Deriv/Basic.html#HasDerivAt\">HasDerivAt</a></code> + <code>logDeriv_apply</code>).</li><li><code>∫ W_λ · p_{X|Z} = (1/p_Z) ∫ W_λ · fX(x) fY(z-x)</code>.</li><li>`W_λ · fX(x) fY(z-x) = λ (logDeriv fX x · fX x) fY(z-x)</li><li>(1-λ) fX x (logDeriv fY(z-x) · fY("
+their: "teway <code><a href=\"../../../.././Mathlib/Analysis/Calculus/Deriv/Basic.html#HasDerivAt\">HasDerivAt</a></code> + <code><a href=\"../../../.././Mathlib/Analysis/Calculus/LogDeriv.html#logDeriv_apply\">logDeriv_apply</a></code>).</li><li><code>∫ W_λ · p_{X|Z} = (1/p_Z) ∫ W_λ · fX(x) fY(z-x)</code>.</li><li>`W_λ · fX(x) fY"
+
+### InformationTheory.Shannon.EPI.L3Integration docstring:InformationTheory.Shannon.EPIL3Integration.isDeBruijnTailHyp_of_gaussian (1657 B, first diff @1165)
+mine : "t_left</code>;</li><li>scale by <code>2 π e &gt; 0</code> via <code>Tendsto.const_mul_atTop</code>;</li><li>apply <code>Real.tendsto_log_atTop</code>;</li><li>scale by <code>(1/2) &gt; 0</code> via <code>Tendsto.const_mul_atTop</code>;</li><li>congr with the closed-form identity on <code>[0, ∞)</code> via <code>Tendsto"
+their: "t_left</code>;</li><li>scale by <code>2 π e &gt; 0</code> via <code>Tendsto.const_mul_atTop</code>;</li><li>apply <code><a href=\"../../.././Mathlib/Analysis/SpecialFunctions/Log/Basic.html#Real.tendsto_log_atTop\">Real.tendsto_log_atTop</a></code>;</li><li>scale by <code>(1/2) &gt; 0</code> via <code>Tendsto.const_mul_a"
+
+### InformationTheory.Shannon.EPI.ApproxIdentityL1 mod_doc:0 (1530 B, first diff @1118)
+mine : "lementation notes <a class=\"hover-link\" href=\"#Implementation-notes\">#</a></h2><p>The proof assembles three ingredients:\n1. Difference representation via <code>∫ g_t = 1</code>: <code>(pX ∗ g_t − pX)(z) = ∫ (pX(z−y) − pX(z)) g_t(y) dy</code>.\n2. Continuous Minkowski inequality (L¹, Fubini detour): <code>‖∫ y, F(·,y) dν"
+their: "lementation notes <a class=\"hover-link\" href=\"#Implementation-notes\">#</a></h2><p>The proof assembles three ingredients:</p><ol><li>Difference representation via <code>∫ g_t = 1</code>: <code>(pX ∗ g_t − pX)(z) = ∫ (pX(z−y) − pX(z)) g_t(y) dy</code>.</li><li>Continuous Minkowski inequality (L¹, Fubini detour): <code>‖∫"
+
+### InformationTheory.Shannon.SMB.AlgoetCover.MarkovLikelihoodRatio docstring:InformationTheory.Shannon.integral_MRatioUp_le_one (1482 B, first diff @95)
+mine : "<p>Markov inequality input: the upward ratio integrates to at most <code>1</code>.</p><p>Proof:\n1. Bridge <code><a href=\"../../../.././InformationTheory/Shannon/SMB/AlgoetCover/MarkovLikelihoodRatio.html#InformationTheory.Shannon.MRatioUp\">MRatioUp</a></code> to the ratio form <code><a href=\".."
+their: "<p>Markov inequality input: the upward ratio integrates to at most <code>1</code>.</p><p>Proof:</p><ol><li>Bridge <code><a href=\"../../../.././InformationTheory/Shannon/SMB/AlgoetCover/MarkovLikelihoodRatio.html#InformationTheory.Shannon.MRatioUp\">MRatioUp</a></code> to the ratio form <code><a "
+
+### InformationTheory.Shannon.ConditionalMethodOfTypes.Mass.Concentration mod_doc:1 (1352 B, first diff @182)
+mine : "ading\">Main assembly <a class=\"hover-link\" href=\"#Main-assembly\">#</a></h3><p>The main theorem combines the four pieces:\n1. <code>floorMatrix</code> construction: pick a single c_floor with\nrow sums = typeCount x, total = n, and entries close to <code>n · qZ</code>.\n2. <code>floorMatrix_dist_le</code>: the rounding sta"
+their: "ading\">Main assembly <a class=\"hover-link\" href=\"#Main-assembly\">#</a></h3><p>The main theorem combines the four pieces:</p><ol><li><code>floorMatrix</code> construction: pick a single c_floor with\nrow sums = typeCount x, total = n, and entries close to <code>n · qZ</code>.</li><li><code>floorMatrix_dist_le</code>: the"
+
+### InformationTheory.Shannon.RateDistortion.AchievabilityJointStrongTypicality docstring:InformationTheory.Shannon.jointStronglyTypicalSet_indep_prob_ge (1300 B, first diff @347)
+mine : "de> and <code>μ.map (Ys 0)</code>,\nand any <code>η &gt; 0</code>, eventually for all <code>n</code> large enough,</p><p>`(1 - η) ·\nexp(n · ((H(Z) - H(X) - H(Y))</p><ul><li>((Fintype.card β · L_X + Fintype.card α · L_Y + L_Z) · ε + 3 δ)))\n≤ (μ_X^n × μ_Y^n).real (jointStronglyTypicalSet ε)`,</li></ul><p>where <code>L_X :"
+their: "de> and <code>μ.map (Ys 0)</code>,\nand any <code>η &gt; 0</code>, eventually for all <code>n</code> large enough,</p><p><code>(1 - η) · exp(n · ((H(Z) - H(X) - H(Y)) - ((Fintype.card β · L_X + <a href=\"../../.././Mathlib/Data/Fintype/Card.html#Fintype.card\">Fintype.card</a> α · L_Y + L_Z) · ε + 3 δ))) ≤ (μ_X^n × μ_Y^n)"
+
+### InformationTheory.Shannon.AEP.Basic.Achievability mod_doc:5 (1152 B, first diff @1118)
+mine : "icalSet_card_ge</a></code>: size lower bound <code>(1-η) · exp(n(H-ε)) ≤ |T_ε^n|</code> whenever <code>μ(T) ≥ 1-η</code> </li></ul></div>"
+their: "icalSet_card_ge</a></code>: size lower bound <code>(1-η) · exp(n(H-ε)) ≤ |T_ε^n|</code> whenever <code>μ(T) ≥ 1-η</code></li></ul></div>"
+
+### InformationTheory.Shannon.EntropyRate mod_doc:2 (1152 B, first diff @414)
+mine : "onicity-of-conditionalEntropyTail\">#</a></h2><p><code>H(X_{n+1} | X_0, …, X_n) ≤ H(X_n | X_0, …, X_{n-1})</code>. Proof:\n1. By stationarity (apply shift <code>T</code>), the joint pushforward\n<code>μ.map (X_n, (X_0, …, X_{n-1}))</code> equals <code>μ.map (X_{n+1}, (X_1, …, X_n))</code>,\nso the corresponding conditional"
+their: "onicity-of-conditionalEntropyTail\">#</a></h2><p><code>H(X_{n+1} | X_0, …, X_n) ≤ H(X_n | X_0, …, X_{n-1})</code>. Proof:</p><ol><li>By stationarity (apply shift <code>T</code>), the joint pushforward\n<code>μ.map (X_n, (X_0, …, X_{n-1}))</code> equals <code>μ.map (X_{n+1}, (X_1, …, X_n))</code>,\nso the corresponding con"
+
+### InformationTheory.Shannon.Bridge mod_doc:1 (989 B, first diff @250)
+mine : "ink\" href=\"#Helper-lemmas-for-the-bridge\">#</a></h3><p>The bridge proof goes via three independent helpers:</p><ul><li><code>klDiv_compProd_const_eq_lintegral</code>: fiberwise expansion of conditional KL,\n<code>klDiv (μ ⊗ₘ κ) (μ ⊗ₘ Kernel.const _ ν) = ∫⁻ x, klDiv (κ x) ν ∂μ</code>. The\nMathlib chain rule (<code>klDiv_"
+their: "ink\" href=\"#Helper-lemmas-for-the-bridge\">#</a></h3><p>The bridge proof goes via three independent helpers:</p><ul><li><p><code>klDiv_compProd_const_eq_lintegral</code>: fiberwise expansion of conditional KL,\n<code>klDiv (μ ⊗ₘ κ) (μ ⊗ₘ Kernel.const _ ν) = ∫⁻ x, klDiv (κ x) ν ∂μ</code>. The\nMathlib chain rule (<code>klD"
+
+### InformationTheory.Shannon.WynerZiv.Converse.SingleLetter mod_doc:2 (984 B, first diff @954)
+mine : "distortion budget;</li><li><code>wz_singleletter_rate_le</code> — conjunct (c), the conditional-MI chain (deepest atom). </li></ul></div>"
+their: "distortion budget;</li><li><code>wz_singleletter_rate_le</code> — conjunct (c), the conditional-MI chain (deepest atom).</li></ul></div>"
+
+### InformationTheory.Shannon.WynerZiv.Basic docstring:InformationTheory.Shannon.WynerZivConstraint (881 B, first diff @76)
+mine : "<p>Wyner–Ziv constraint set — feasible <code>(q, f)</code> pairs satisfying:\n1. <code>q ∈ <a href=\"../../.././Mathlib/Analysis/Convex/StdSimplex.html#stdSimplex\">stdSimplex</a> ℝ (α × β × U)</code> — non-negative pmf with total mass 1.\n2. <code><a href=\"../../.././Information"
+their: "<p>Wyner–Ziv constraint set — feasible <code>(q, f)</code> pairs satisfying:</p><ol><li><code>q ∈ <a href=\"../../.././Mathlib/Analysis/Convex/StdSimplex.html#stdSimplex\">stdSimplex</a> ℝ (α × β × U)</code> — non-negative pmf with total mass 1.</li><li><code><a href=\"../../../"
+
+### InformationTheory.Probability.TwoSidedExtension.LogCondIntegral docstring:InformationTheory.Shannon.TwoSided.integral_pmfLogCondPast_eq_conditionalEntropyTail (867 B, first diff @172)
+mine : "LogCondPast k</code> against <code>μZ</code>\ngives <code>conditionalEntropyTail μ p k</code>.</p><p>The proof structure:\n1. Decompose <code>∫ pmfLogCondPast k dμZ</code> into a finite sum of\n<code>∫ negMulLog(condProbPast a k) dμZ</code> (via <code>integral_pmfLogCondPast_eq_sum</code>).\n2. Identify each <code>condProb"
+their: "LogCondPast k</code> against <code>μZ</code>\ngives <code>conditionalEntropyTail μ p k</code>.</p><p>The proof structure:</p><ol><li>Decompose <code>∫ pmfLogCondPast k dμZ</code> into a finite sum of\n<code>∫ negMulLog(condProbPast a k) dμZ</code> (via <code>integral_pmfLogCondPast_eq_sum</code>).</li><li>Identify each <"
+
+### InformationTheory.Shannon.WynerZiv.FactorizableRate docstring:InformationTheory.Shannon.WynerZivFactorizableConstraint (830 B, first diff @81)
+mine : "<p>Factorizable Wyner–Ziv constraint set. A <code>(q, f)</code> pair belongs iff:\n1. <code>q</code> is <code><a href=\"../../.././InformationTheory/Shannon/WynerZiv/FactorizableRate.html#InformationTheory.Shannon.IsWynerZivFactorizable\">IsWynerZivFactorizable</a> U P_XY</code> — fa"
+their: "<p>Factorizable Wyner–Ziv constraint set. A <code>(q, f)</code> pair belongs iff:</p><ol><li><code>q</code> is <code><a href=\"../../.././InformationTheory/Shannon/WynerZiv/FactorizableRate.html#InformationTheory.Shannon.IsWynerZivFactorizable\">IsWynerZivFactorizable</a> U P_XY</co"
+
+### InformationTheory.Probability.TwoSidedExtension.LogCondIntegral docstring:InformationTheory.Shannon.TwoSided.integral_pmfLogCondInfty_eq_entropyRate (794 B, first diff @764)
+mine : ")</code>;</li><li><code>entropyRate_eq_lim_condEntropy</code> — <code>conditionalEntropyTail μ p k → entropyRate</code>. </li></ul>"
+their: ")</code>;</li><li><code>entropyRate_eq_lim_condEntropy</code> — <code>conditionalEntropyTail μ p k → entropyRate</code>.</li></ul>"
+
+### InformationTheory.Shannon.EPI.Case1.RatioLimit.Producer docstring:InformationTheory.Shannon.EPICase1RatioLimit.fisherInfoOfDensity_convDensityAdd_le (786 B, first diff @379)
+mine : "he <code>IsBlachmanConvReady</code> integrability /\nboundedness bundle), convolution decreases Fisher information:</p><p><code>(J(convDensityAdd fX fY)).toReal ≤ (J fX).toReal</code>.</p><p>Derivation: specialize <code>convex_fisher_bound_of_ready</code> at <code>lam = 1</code> (RHS collapses to\n<code>1²·J(fX) + 0²·J(f"
+their: "he <code>IsBlachmanConvReady</code> integrability /\nboundedness bundle), convolution decreases Fisher information:</p><pre><code>`(J(convDensityAdd fX fY)).toReal ≤ (J fX).toReal`.\n</code></pre><p>Derivation: specialize <code>convex_fisher_bound_of_ready</code> at <code>lam = 1</code> (RHS collapses to\n<code>1²·J(fX) +"
+
+### InformationTheory.Shannon.Hoeffding.Tilt docstring:InformationTheory.Shannon.HoeffdingTilt.hoeffdingTilt_log_ratio_const (645 B, first diff @276)
+mine : "tionTheory.Shannon.HoeffdingTilt.hoeffdingTilt\">hoeffdingTilt</a> P₁ P₂ lam</code>, the log-likelihood combination</p><p><code>log (Qstar a) - (1 - lam) · log (P₁ a) - lam · log (P₂ a)</code></p><p>is constant in <code>a</code> (it equals <code>-log Z(λ)</code>). This is the Csiszár Lagrange\nfirst-order condition <code"
+their: "tionTheory.Shannon.HoeffdingTilt.hoeffdingTilt\">hoeffdingTilt</a> P₁ P₂ lam</code>, the log-likelihood combination</p><pre><code>`log (Qstar a) - (1 - lam) · log (P₁ a) - lam · log (P₂ a)`\n</code></pre><p>is constant in <code>a</code> (it equals <code>-log Z(λ)</code>). This is the Csiszár Lagrange\nfirst-order conditio"
+
+### InformationTheory.Shannon.EPI.Stam.Inequality docstring:InformationTheory.Shannon.StamInequality.IsStamCauchySchwarz (606 B, first diff @299)
+mine : "s_Z(z)² = E[λ s_X + (1 - λ) s_Y | sum = z]²</code>,\nthen take total expectation against <code>p_Z</code> to obtain</p><p><code>J(Z) ≤ λ² J(X) + (1 - λ)² J(Y)</code>.</p><p>Phrased here as: there exists <code>λ ∈ [0, 1]</code> with the inequality between\nreal-valued Fisher info projections. The predicate enforces only t"
+their: "s_Z(z)² = E[λ s_X + (1 - λ) s_Y | sum = z]²</code>,\nthen take total expectation against <code>p_Z</code> to obtain</p><pre><code>`J(Z) ≤ λ² J(X) + (1 - λ)² J(Y)`.\n</code></pre><p>Phrased here as: there exists <code>λ ∈ [0, 1]</code> with the inequality between\nreal-valued Fisher info projections. The predicate enforces"
+
+### InformationTheory.Shannon.ConditionalMethodOfTypes.Core docstring:InformationTheory.Shannon.conditionalTypeClass_card_eq_prod_typeClass (541 B, first diff @261)
+mine : "=\"../../.././Init/Prelude.html#Fin\">Fin</a> (typeCount x a) → β</code>.</p><p>Construction: composition of three Equivs.\n1. <code>e_fib : (Fin n → β) ≃ ∀ a, ({i // x i = a} → β)</code> (direct construction).\n2. <code>e_card : ({i // x i = a} → β) ≃ (Fin (typeCount x a) → β)</code> via cardinality.\n3. Transport the memb"
+their: "=\"../../.././Init/Prelude.html#Fin\">Fin</a> (typeCount x a) → β</code>.</p><p>Construction: composition of three Equivs.</p><ol><li><code>e_fib : (Fin n → β) ≃ ∀ a, ({i // x i = a} → β)</code> (direct construction).</li><li><code>e_card : ({i // x i = a} → β) ≃ (Fin (typeCount x a) → β)</code> via cardinality.</li><li>"
+
+### InformationTheory.Probability.TwoSidedExtension.LogCondIntegral docstring:InformationTheory.Shannon.TwoSided.integrable_pmfLogCondPast (532 B, first diff @134)
+mine : "ty of <code>pmfLogCondPast k</code>.</p><p>The integrand <code>-log(condProbPast (coord0 x) k x)</code> decomposes as `∑_a 1_{coord0=a}(x)</p><ul><li>(-log condProbPast a k x)<code>. Each summand is integrable via </code>integrable_indicator_mul_negLog_of_condExp<code>applied at</code>m := pastFiltration k<code>, using"
+their: "ty of <code>pmfLogCondPast k</code>.</p><p>The integrand <code>-log(condProbPast (coord0 x) k x)</code> decomposes as `∑<em>a 1</em>{coord0=a}(x)</p><ul><li>(-log condProbPast a k x)<code>. Each summand is integrable via </code>integrable_indicator_mul_negLog_of_condExp<code>applied at</code>m := pastFiltration k<code>"
+
+### InformationTheory.Shannon.Hoeffding.MinimizerAttainment docstring:InformationTheory.Shannon.HoeffdingMinimizerAttainment.hoeffdingTilt_kl_master (472 B, first diff @290)
+mine : "e KL divergences against <code>P₂</code>, <code>P₁</code>, and the tilt collapses to the flat\n<code>-log Z</code>:</p><p><code>λ · klDivPmf Q P₂ + (1-λ) · klDivPmf Q P₁ - klDivPmf Q (tilt) = -log Z(λ)</code>.</p><p>This holds with no full-support hypothesis on <code>Q</code>.</p>"
+their: "e KL divergences against <code>P₂</code>, <code>P₁</code>, and the tilt collapses to the flat\n<code>-log Z</code>:</p><pre><code>`λ · klDivPmf Q P₂ + (1-λ) · klDivPmf Q P₁ - klDivPmf Q (tilt) = -log Z(λ)`.\n</code></pre><p>This holds with no full-support hypothesis on <code>Q</code>.</p>"
+
+### InformationTheory.Shannon.BirkhoffErgodic docstring:InformationTheory.Shannon.birkhoff_ergodic_ae (384 B, first diff @227)
+mine : "nsformation <code>T : Ω → Ω</code> and an\nintegrable observable <code>f : Ω → ℝ</code>, the Birkhoff time averages</p><p>A_n ω := (∑_{i=0}^{n} f (T^[i] ω)) / (n + 1)</p><p>converge almost everywhere to the spatial mean <code>∫ f dμ</code>.</p>"
+their: "nsformation <code>T : Ω → Ω</code> and an\nintegrable observable <code>f : Ω → ℝ</code>, the Birkhoff time averages</p><pre><code>A_n ω := (∑_{i=0}^{n} f (T^[i] ω)) / (n + 1)\n</code></pre><p>converge almost everywhere to the spatial mean <code>∫ f dμ</code>.</p>"
+
+### InformationTheory.Shannon.Hoeffding.MinimizerAttainment docstring:InformationTheory.Shannon.HoeffdingMinimizerAttainment.hoeffdingTilt_kl_pythagoras_diff (299 B, first diff @171)
+mine : "acting the master\nidentity at <code>Q</code> and at the tilt <code>T</code> (where <code>klDivPmf T T = 0</code>):</p><p><code>λ (klDivPmf Q P₂ - klDivPmf T P₂) + (1-λ)(klDivPmf Q P₁ - klDivPmf T P₁) = klDivPmf Q T</code>.</p>"
+their: "acting the master\nidentity at <code>Q</code> and at the tilt <code>T</code> (where <code>klDivPmf T T = 0</code>):</p><pre><code>`λ (klDivPmf Q P₂ - klDivPmf T P₂) + (1-λ)(klDivPmf Q P₁ - klDivPmf T P₁)\n   = klDivPmf Q T`. \n</code></pre>"
+
+### InformationTheory.Shannon.BroadcastChannel.OuterBoundTransport docstring:InformationTheory.Shannon.BroadcastChannel.singleAuxFirstUserBoundFromZ (283 B, first diff @259)
+mine : "W̃; Z) + min {0, I(W; Y) - I(W; Z)}, I(W̃; J) + I(Ŵ; Y) - I(Ŵ; J)}</p><ul><li>I(Ũ; J | W̃) + I(Û; Y | Ŵ) - I(Û; J | Ŵ)`. </li></ul>"
+their: "W̃; Z) + min {0, I(W; Y) - I(W; Z)}, I(W̃; J) + I(Ŵ; Y) - I(Ŵ; J)}</p><ul><li>I(Ũ; J | W̃) + I(Û; Y | Ŵ) - I(Û; J | Ŵ)`.</li></ul>"
