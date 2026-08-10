@@ -1,0 +1,35 @@
+ir                 /private/tmp/lean-doc-relay/w7a/ir3
+modules            432
+declarations       4750
+fragments          55465 (55465 carrying a span list)
+spans              408804 — 142181 const, 7550 sort, 259073 other
+max nesting depth  40
+const inside const 81055  (doc-gen4 drops the outer anchor for these)
+sort span texts    [["Type",7464],["Prop",86]]
+fragments with non-ASCII   45466 (81.97%)
+fragments with non-BMP     41   <- where UTF-16 units != code points
+spans whose slice is non-BMP 105
+const spans        142181; non-ASCII slice 48432 (34.06%)
+ASCII identifier slices whose last component matches the name: 61870/62111 (99.61%)
+
+schema 3 — splitWhitespaces widths
+  const spans with front/back  29248 (20.57% of const spans)
+  whitespace units described   75318
+  … of which not already ' '   3417   <- the units doc-gen4 rewrites visibly
+  runs (front + back)          54742
+  … not maximal                0 (0.00%)   <- adjacent whitespace outside the tag
+  all-whitespace tags (empty anchor) 0
+  const-span sides with no run but whitespace next to them  135316
+  … units a whole-run heuristic would wrongly rewrite        8403
+
+non-ASCII const samples (slice -> constant):
+  "(V₁ × V₂)" -> Prod   in "(pV : MeasureTheory.Measure (V₁ × V₂))"
+  "×" -> Prod   in "(pV : MeasureTheory.Measure (V₁ × V₂))"
+  "(V₁ × V₂)" -> Prod   in "(K : ProbabilityTheory.Kernel (V₁ × V₂) α)"
+  "×" -> Prod   in "(K : ProbabilityTheory.Kernel (V₁ × V₂) α)"
+  "martonInfo₁ pV K W + martonInfo₂ pV K W - martonInfoV₁V₂ pV K W ≤ (uvInfoSum₂ (martonAuxSwapLaw pV K W)).toReal" -> LE.le   in "martonInfo₁ pV K W + martonInfo₂ pV K W - martonInfoV₁V₂ pV K W ≤ (uvI"
+  "martonInfo₁ pV K W + martonInfo₂ pV K W - martonInfoV₁V₂ pV K W" -> HSub.hSub   in "martonInfo₁ pV K W + martonInfo₂ pV K W - martonInfoV₁V₂ pV K W ≤ (uvI"
+  "martonInfo₁ pV K W + martonInfo₂ pV K W" -> HAdd.hAdd   in "martonInfo₁ pV K W + martonInfo₂ pV K W - martonInfoV₁V₂ pV K W ≤ (uvI"
+  "martonInfo₁" -> InformationTheory.Shannon.BroadcastChannel.Marton.martonInfo₁   in "martonInfo₁ pV K W + martonInfo₂ pV K W - martonInfoV₁V₂ pV K W ≤ (uvI"
+
+OK — every span is in bounds, properly nested and trimmed.

@@ -1,0 +1,19 @@
+# stage7a — renderer pitfall re-check (experiments/stage4c/README.md "Pitfalls")
+
+date              2026-08-10T14:48:35Z
+renderer          experiments/stage7a/render.ts
+ir                /private/tmp/lean-doc-relay/w7a/ir3 (schema 3)
+source-url        https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec
+
+(a) --out JSONL byte identical with and without --pages
+    PASS  cmp reports no difference; 23353796 bytes, 4560 lines
+
+(b) '## decl_header path' block of --stats character identical
+    PASS  identical, 21 lines / 735 chars
+
+(c) two --pages runs into two directories identical under diff -r
+    PASS  432 files, 29671173 bytes, no difference
+
+(d) cross-check against the schema-2 pages (not part of the three, kept for the record)
+    same lengths everywhere, 2,725 differing UTF-16 code units, all of them a newline rewritten to a space.
+    2,725 = render.ts wsWidthChars 2,461 (decl_header path) + 264 (page path).

@@ -1,0 +1,149 @@
+# stage7a — IR schema 3 (splitWhitespaces widths): 再現率と代償
+
+すべて **実測**。条件は下記、生ログは各行の「ログ」列。
+
+## 条件
+
+| | |
+|---|---|
+| 日付 | 2026-08-10 (UTC) |
+| 機材 | Apple M1 / 8 cores / 16 GB (Darwin 25.6.0 arm64) |
+| 計測対象 | /Users/haruka/dev/lean-projects (InformationTheory, 432 モジュール) |
+| lean-toolchain | leanprover/lean4:v4.31.0 |
+| doc-gen4 | v4.31.0 (`.lake/packages/doc-gen4`、計装パッチ当て) |
+| Deno | 2.7.14 / V8 14.7.173.20-rusty |
+| 並列度 | 1 プロセス (LEAN_NUM_THREADS unset) |
+| page cache | **warm**。抽出は連続 6 回のうち run 1 を cold として捨て、runs 2-6 の median。壁時計 ≒ user+sys で warm を確認 (13.72-14.01 real 対 12.6+1.3 CPU) |
+| cold 側 | `stage7a-tag-cold-*` (壁 29.90s / CPU 15.60s / page faults 117,095) と `stage7a-tag-1-*` (壁 23.45s) に残してある。**warm と混ぜて引用しないこと** |
+
+schema 2 の数字は**同じセッションで測り直した対照** (`stage7a-schema2-*`)。
+2026-08-09 の `stage4b-alt-tag-*` とは条件が一致している保証がないので、比較には使っていない。
+
+## 1. 再現率 (受け入れオラクル = experiments/stage4c/coverage.ts)
+
+母数は doc-gen4 がディスクに出した 348 ページ = 22,028,728 B。領域は隙間なくページを覆う
+(coverage.ts のタイル検査が通っている)。「再現」= その領域が **byte 完全一致**したもの。
+
+| | schema 2 | schema 3 | |
+|---|---:|---:|---|
+| 再現できたバイト | 14,007,303 | **21,258,979** | +7,251,676 |
+| 再現率 | 63.587% | **96.506%** | +32.919 pt |
+| byte 完全一致したページ | 34 / 348 | **148 / 348** | +114 |
+| `decl_header` 領域一致 | 2,705 / 3,477 | **3,477 / 3,477** | |
+| `equations` 領域一致 | 452 / 653 | **653 / 653** | |
+
+ログ: `stage7a-coverage.txt` (schema 3) / `stage7-coverage-baseline.txt` (schema 2)。
+
+### 原因別の未再現バイト
+
+| 原因 | schema 2 | 母数比 | schema 3 | 母数比 | 領域数 |
+|---|---:|---:|---:|---:|---:|
+| **splitWhitespaces — IR schema 2 の既知欠落** | **7,251,676** | 32.919% | **0** | 0% | 973 → 0 |
+| docstring の autolink 索引が IR に無い | 401,987 | 1.825% | 401,987 | 1.825% | 208 |
+| IR に情報が無い (メンバの binder / docstring) | 135,078 | 0.613% | 135,078 | 0.613% | 33 |
+| CommonMark 未実装 | 120,261 | 0.546% | 120,261 | 0.546% | 47 |
+| 設定値 (rev) — IR に無い | 108,772 | 0.494% | 108,772 | 0.494% | 540 |
+| IR に情報が無い (領域ごと欠落、`div.attributes`) | 3,651 | 0.017% | 3,651 | 0.017% | 89 |
+| **合計** | **8,021,425** | 36.413% | **769,749** | 3.494% | |
+
+**splitWhitespaces 以外の 5 原因は 1 バイトも動いていない。** 増えた 7,251,676 B は
+splitWhitespaces 原因の 7,251,676 B と**完全に一致**する — 他を壊さずにこの原因だけを
+閉じたことの確認であって、レンダラ全体が良くなったという意味ではない。
+
+ログ: `stage7a-coverage-breakdown.txt` (§X1 原因×領域、§X2 ページ別)。
+
+### 帰属が全か無かであることの内訳
+
+schema 2 のページと schema 3 のページを突き合わせると、**長さはどこも同じで、
+違う UTF-16 code unit は 2,725 個**、すべて改行 → スペース。この 2,725 文字が
+7,251,676 B (母数の 32.9%) を 0 点から満点に動かした。
+
+2,725 = render.ts の `wsWidthChars` 2,461 (decl_header 経路) + 264 (ページ経路)。
+ログ: `stage7a-render-stats.txt`、`stage7a-pitfall-recheck.txt` の (d)。
+
+## 2. schema 3 の代償
+
+| | schema 2 | schema 3 | 差 | ログ |
+|---|---:|---:|---:|---|
+| IR バイト | 15,867,059 (15.13 MiB) | **15,984,731 (15.24 MiB)** | +117,672 (+0.74%) | `stage7a-schema2-*-summary.txt` / `stage7a-tag-*-summary.txt` |
+| 書き込み `writeIR` (median, warm) | 0.5300 s | **0.5927 s** | +0.0627 (+11.8%) | 同上 (.jsonl の `stage4b.writeIR`) |
+| 抽出全体 `total` (median, warm) | 13.6362 s | **13.7084 s** | +0.0722 (+0.53%) | 同上 (.jsonl の `stage4b.total`) |
+| 読み出し (in-process median, warm) | 0.0981 s | **0.0981 s** | ±0.0000 | `stage7a-readir-schema2.txt` / `stage7a-readir-schema3.txt` |
+| 読み出し (プロセスを毎回作り直す median) | 0.1020 s | **0.1031 s** | +0.0011 (+1.1%) | 同上 |
+| HTML 生成 `total` (in-process median, warm) | 0.7711 s | **0.7967 s** | +0.0256 (+3.3%) | `stage7a-render-timings.jsonl` |
+
+各 run (warm、run 1 を捨てた 5 本):
+
+```
+writeIR  schema2  0.5275 0.5276 0.5300 0.5361 0.5514
+         schema3  0.5883 0.5909 0.5927 0.5978 0.6064   <- 範囲が重ならない
+total    schema2  13.5458 13.5700 13.6362 13.6397 13.7760
+         schema3  13.6357 13.6729 13.7084 13.8314 13.9165  <- 範囲は重なる
+```
+
+`total` の +0.07 s は run 間のばらつき (±0.15 s) より小さい。**この計測で言えるのは
+「writeIR が 0.06 s 増えた」までで、合計の増分は分離できていない。**
+
+HTML 生成の内訳 (7 回中 runs 2-7 の median、秒):
+
+```
+phase            schema2   schema3     delta
+readIr            0.1272    0.1292    +0.0021
+indexBuild        0.0088    0.0092    +0.0004
+renderHeaders     0.2127    0.2206    +0.0079
+renderPage        0.2456    0.2523    +0.0067
+flatten           0.0479    0.0489    +0.0010
+write             0.1238    0.1322    +0.0084
+total             0.7711    0.7967    +0.0256
+```
+
+この 0.77 s / 0.80 s は**このセッションの対照ペア**。既存の committed な warm 0.82s
+(`stage4c-render-warm.txt`) とは別セッションなので並べないこと。
+
+peak RSS (抽出、`/usr/bin/time -l`): schema2 3,402,809,344 B / schema3 3,337,502,720 B —
+差はセッション内のばらつきの範囲で、schema 3 が減ったという主張はしない。
+
+## 3. 幅そのものの統計 (experiments/stage7a/check-spans.ts, ログ `stage7a-checkspans.txt`)
+
+| | |
+|---|---:|
+| `kind 1` (const) span | 142,181 |
+| うち front/back を持つ | 29,248 (20.57%) |
+| 記述している空白の UTF-16 単位 | 75,318 |
+| … うちもともとスペースでない (doc-gen4 が見た目を変える分) | 3,417 |
+| 空白の run (front + back) | 54,742 |
+| … maximal でない (タグの外に空白が続く) | 0 (0.00%) |
+
+そして **stage4c の `--ws-heuristic` が壊していた母数**:
+
+| | |
+|---|---:|
+| run を持たないのに隣に空白がある const span の辺 | 135,316 |
+| … run 丸ごとを塗る推測が誤って書き換える単位 | **8,403** |
+
+正しく書き換えるべき 3,417 単位に対し、推測は 8,403 単位を巻き添えにしうる。
+これが「407 直して 100 壊す」の正体で、**幅が無い限り推測では閉じない**。
+
+## 4. 再現手順
+
+```sh
+# 抽出 (schema 3)
+experiments/stage7a/build.sh
+experiments/stage7a/run.sh stage7a-tag-1 -- \
+  --equations --refs --tagged-code --write-ir --ir-dir <IR_DIR>   # 6 回、run 1 は cold
+
+# 生成 — 採点用は必ず具体的な rev を埋めた --source-url で描く
+deno run --allow-read --allow-write --allow-env experiments/stage7a/render.ts \
+  --ir <IR_DIR> --pages <PAGES> \
+  --source-url https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec \
+  --stats <STATS>
+
+# 採点 (--ws-heuristic は stage7a には存在しない)
+deno run --allow-read --allow-write --allow-env experiments/stage4c/coverage.ts \
+  --pages <PAGES> --report <OUT>
+deno run --allow-read --allow-write --allow-env benchmarks/tools/coverage-breakdown.ts \
+  --pages <PAGES> --report <OUT>
+
+# IR の不変条件
+deno run --allow-read experiments/stage7a/check-spans.ts --ir <IR_DIR>
+```
