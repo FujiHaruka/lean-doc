@@ -187,7 +187,7 @@ URL はベース URL (パッケージごとの設定) と §5.3 の相対規則�
 |---|---|---|---|
 | **M1-a** | **IR リーダ** (schema 4、UTF-16 スパン) | — (IR そのもの) | 着手済み |
 | **M1-b** | **下回り** — `escapeHtml` (330-341) / `applyWsWidths` (555-593) / `leanQuote` (785-797) / `stringLt`・`nameLt` (800-825) / `.lidx` パーサ (2067-2084) | 上記 | |
-| **M1-c** | **docstring** — md4c FFI + AST → HTML + autolink 解決 (925-1077) | 925-1672 | **FFI + AST + AST → HTML 完了** → §7。残りは `nameToLink?` の解決だけ |
+| **M1-c** | **docstring** — md4c FFI + AST → HTML + autolink 解決 (925-1077) | 925-1672 | **完了** → §7 |
 | **M1-d** | **ページ描画と主ループ** — 宣言・署名・equations・members・instances・出力 | 残り | |
 
 **M1-c で自前 CommonMark 594 行 (1079-1672) が消え、autolink 153 行 (925-1077) は残る**【実測】。
@@ -212,6 +212,13 @@ Rust 側が正しい**場合がありうる。判定手順を先に決めてお�
 
 **期待は「差はほぼ出ない」だった**【外挿】 — ゲート A の実走で**不足 108,772 B は全部 rev**
 と判定されている (§1) ので、実データ上の CommonMark 由来の差分は既に見えていない。
+
+**ゆるむのは CommonMark 層だけではなかった (2026-08-11)**【実測】 — autolink 解決にも
+**プロトタイプが doc-gen4 と割れる箇所が 1 つある**: doc-gen4 の `renderText` は `inLink` を持ち
+`<a>` の中の code span を素通しする (`DocString.lean:264`) が、`render.ts:1622` は無条件に
+autolink する。**リンクを引かない状態では両者は同一バイト**なので、M1-c 後半の 4,987 件比較では
+見えなかった。判定は上と同じ (doc-gen4 側が正) で、**実 docstring 4,858 件中 0 件**なので
+ゲート A のバイトは動かない。オラクルは `crates/lean-doc-render/tests/docgen4_linked.rs`。
 
 **docstring 層については実測で決着した (2026-08-11)**【実測。`crates/lean-doc-md/tests/ts_docstring.rs`】 —
 同じ 4,987 入力 (実 docstring 4,858 + 手書き 129) を TS の `renderDocString` と doc-gen4 の
@@ -241,6 +248,8 @@ reference link / strikethrough / backslash escape / CRLF / NUL)。
    `metadata().len()` から再現しようとすると静かにずれる
 6. **`knownModules` は 3 つの供給源の和集合** (`render.ts:2051-2052, 2079`: IR のモジュール名 ∪
    `known` の値 ∪ `.lidx` の `@` 節)。**`LinkIndex` 単体で autolink を解決すると取りこぼす**
+   → M1-c で `NameIndexBuilder::build` が `.lidx` を**引数で要求する**形にして構造的に塞いだ。
+   取りこぼしは「リンクが 1 本消える」形で出るのでテストが弱いと通る (mutation で確認済み)
 7. **`.lidx` パーサにはエラー経路が無い** — 不明な行は無条件にグループ見出し、`#lidx1` すら検証しない。
    **そのまま写してある**。厳しくするのは「移設のついでの設計改良」なので分離する
 
@@ -249,6 +258,14 @@ reference link / strikethrough / backslash escape / CRLF / NUL)。
 - **M1**: `render.ts` は `--only` が無いと**全モジュールを描く**。rev を外した今、**空の再生成集合は
   常時通る経路**なので、Rust 版で「`--only` を 0 個渡す」が「全部描く」に化ける穴を**再現しない**
   (→ approach.md §5.5)。**空集合と未指定を型で区別する**
+- **M1-d**: `suppressed` (= 他の宣言の `members` に出る名前) は**全モジュール横断の集合**
+  (`render.ts:2043-2048`)。モジュール単位で作ると余分なページ項目が出る。
+  **`Member.isDirect` の既定値は TS と Rust で逆**【M1-c で気づいた】 — TS は
+  `f.isDirect === false` で判定するので**キーが無ければ direct**、Rust の
+  `Member::is_direct` は `#[serde(default)]` で **`false` = 継承**に落ちる。
+  今のところ実害は無い (`Extract.lean:1878-1883` は tagged な `field` に必ずキーを出し、
+  **実 IR の field 156 件すべてに存在する**【実測】) が、**tagged でない出力と
+  `field` 以外の member では既定値が効く**ので、`fieldToHtml` を書くときに確認する
 - **M2**: `global.ts` の **module doc 由来の autolink トークンは死んでいる**【実測】 — `md.doc` を
   読んでいるが IR の `moduleDocs` 要素のキーは `line` / `col` / `text` で `doc` は無い
   (書き手 `Extract.lean:2004-2006`)。**そのまま写す** — 直すと全域成果物のバイトが動くので、
@@ -443,6 +460,41 @@ Unicode 一般カテゴリだけで、リンク索引は要らない。**実 doc
 crate 依存は `lean-doc-render` → `lean-doc-md` の向きなので、**実装を 1 つにするなら下側に置くしかない**。
 `lean_doc_render::escape_html` は再エクスポートにしたので、M1-b が TS 差分で押さえている
 テストがそのまま両方をカバーし続ける。
+
+#### M1-c 最終段の結果 — autolink 解決は完了【実測 2026-08-11】
+
+`crates/lean-doc-render/src/autolink.rs` (`nameToLink` / `isNameLit` / `isLetterLike` /
+`moduleLink` / `getRoot` / `NameIndex`)。**合わせる相手は doc-gen4 ではなく `render.ts`** —
+両者の `nameToLink` は別物 (doc-gen4 は `isPrivateName` + 自動生成 eliminator の親フォールバック +
+`sameEnd`、`render.ts` は `PRIVATE_PREFIX` 前方一致 + `known`/`linkIndex` + `knownModules` +
+接尾一致) で、**439/439 を出しているのは後者**。オラクルは 3 段:
+
+| | 何と比べたか | 母数 | 結果 |
+|---|---|---|---|
+| **主** | `render.ts` の `renderDocString` を切り出し、**本物の IR + 本物の `.lidx` (8,508,273 B)** を食わせた出力とバイト比較 | 実 docstring 重複除去 **4,858** 件 | **4,857 / 4,857 一致**。除外 1 件は既知の CommonMark サブセット乖離、**新規の乖離 0** |
+| **副** | **参照ページ 432 枚**から docstring 区間を切り出してバイト比較 (`tests/ref_pages.rs`) | 出現 **4,909** 箇所 (module doc 1,515 / 宣言 doc 3,277 / field doc 117)、アンカー **5,498** 本 | 差分 **1 件** = 同じ既知乖離のみ |
+| **referee** | **doc-gen4 本体**に `name2ModIdx` / `moduleNames` を詰めて実走 (`dump-html-linked.lean`) | **139** 件 (手書き 19 + 実 docstring 120) | **139 / 139 バイト一致** |
+
+コーパスの数字【実測】: `known` 5,296 / `.lidx` 258,760 / `knownModules` 6,158
+(= IR の 432 ∪ `.lidx` の `@` 6,115 ∪ `known` の値)。**アンカーは 5,495 本 / 1,904 docstring**。
+
+**副オラクルが要るのは「入力が両側で同じ」を破るため** — 主オラクルの `moduleDeclNames`
+(接尾一致が舐める並び) だけは関数を切り出せず `pageHtml` から式を持ち上げている。
+持ち上げが間違っていれば**両側が同じ誤った入力で一致してしまう**。参照ページは
+`render.ts` 全体の出力なので、そこだけは独立している。
+
+**referee は「プロトタイプが常に正しい」を仮定しないために作った** — doc-gen4 の
+`AnalyzerResult` は `name2ModIdx` と `moduleNames` の 2 フィールドだけ埋めれば
+`nameToLink?` の第 1〜3 分岐が動く (`moduleInfo` が要るのは第 4 分岐だけで、
+`currentName := none` で構造的に無効化できる)。**両仕様が一致する範囲**
+(private 名なし / 自動生成 eliminator の接尾辞なし / `«»` なし / 第 4 分岐なし) に
+コーパスを絞れば doc-gen4 が審判になる。**これで `inLink` の乖離が出た** (→ §5)。
+
+**mutation で確認した**【実測。8 変異すべてが少なくとも 1 つのテストで落ちる】 —
+`knownModules` の 3 供給源をそれぞれ落とす / `isNameLit` から `'` を外す /
+`isLetterLike` の BMP 外レンジを落とす / 空文字列を name literal にする /
+接尾一致をやめる / ソースパス分岐を注入点の向こうに送る。
+最後のものは `lean-doc-md` 側のテストも落とす。
 
 ### byte 一致で Rust の既定が壊す箇所【すべて実測】
 

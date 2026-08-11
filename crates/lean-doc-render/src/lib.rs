@@ -16,7 +16,7 @@
 //! presence or absence of a flag, which collapsed "empty set" into "every
 //! module" and silently re-rendered all 432 pages. See plan §5.
 //!
-//! # What is here so far (M1-b)
+//! # What is here so far (M1-b, M1-c)
 //!
 //! The pieces the page builder is written on top of, each a transcription of a
 //! named function in the frozen prototype (`experiments/stage7d/render.ts`):
@@ -27,6 +27,7 @@
 //! | `String.lt` / `Name.lt` | `stringLt`, `nameLt` | [`order`] |
 //! | schema-3 whitespace replay | `applyWsWidths` | [`whitespace`] |
 //! | the dependency closure's map | `render.ts:2067-2084` | [`link_index`] |
+//! | docstring name resolution | `nameToLink`, `isNameLit`, `isLetterLike` | [`autolink`] |
 //!
 //! The fifth item of plan §7's list — UTF-16 code unit order — is in
 //! [`lean_doc_ir::cmp_utf16`] instead: M2's global artifacts and M3's ledger
@@ -35,11 +36,16 @@
 //! Each of the five is checked against the prototype's own answers rather than
 //! against a reading of it; see `tests/differential.rs`.
 
+pub mod autolink;
 pub mod escape;
 pub mod link_index;
 pub mod order;
 pub mod whitespace;
 
+pub use autolink::{
+    NameIndex, NameIndexBuilder, PRIVATE_PREFIX, PageLinks, is_letter_like, is_name_lit,
+    module_decl_names, module_link, page_root,
+};
 pub use escape::{escape_html, escape_html_into, lean_quote, lean_quote_into};
 pub use link_index::LinkIndex;
 pub use order::{cmp_name, cmp_name_components, cmp_string, name_lt, sort_names, string_lt};
