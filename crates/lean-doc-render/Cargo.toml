@@ -6,6 +6,9 @@ rust-version.workspace = true
 
 [dependencies]
 lean-doc-ir = { path = "../lean-doc-ir" }
+# For `Html.escape`, which the docstring renderer needs too. The dependency
+# points this way on purpose (plan §7): pages are built on top of docstrings.
+lean-doc-md = { path = "../lean-doc-md" }
 
 [dev-dependencies]
 serde = { workspace = true }

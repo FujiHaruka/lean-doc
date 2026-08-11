@@ -87,6 +87,7 @@ name = "lean-doc-render"
 version = "0.1.0"
 dependencies = [
  "lean-doc-ir",
+ "lean-doc-md",
  "serde",
  "serde_json",
 ]

@@ -187,7 +187,7 @@ URL はベース URL (パッケージごとの設定) と §5.3 の相対規則�
 |---|---|---|---|
 | **M1-a** | **IR リーダ** (schema 4、UTF-16 スパン) | — (IR そのもの) | 着手済み |
 | **M1-b** | **下回り** — `escapeHtml` (330-341) / `applyWsWidths` (555-593) / `leanQuote` (785-797) / `stringLt`・`nameLt` (800-825) / `.lidx` パーサ (2067-2084) | 上記 | |
-| **M1-c** | **docstring** — md4c FFI + AST → HTML + autolink 解決 (925-1077) | 925-1672 | **前半 (FFI + AST) 完了** → §7。残りは AST → HTML と autolink |
+| **M1-c** | **docstring** — md4c FFI + AST → HTML + autolink 解決 (925-1077) | 925-1672 | **FFI + AST + AST → HTML 完了** → §7。残りは `nameToLink?` の解決だけ |
 | **M1-d** | **ページ描画と主ループ** — 宣言・署名・equations・members・instances・出力 | 残り | |
 
 **M1-c で自前 CommonMark 594 行 (1079-1672) が消え、autolink 153 行 (925-1077) は残る**【実測】。
@@ -210,10 +210,19 @@ Rust 側が正しい**場合がありうる。判定手順を先に決めてお�
 3. その場合は既知の乖離としてこの節に記録し、最終判定は `coverage.ts` (再現率が**上がる**
    方向に出るはず) で行う。**TS に合わせて md4c を歪めない** — それは移設ではなく劣化の移植
 
-**現時点の期待は「差はほぼ出ない」**【外挿】 — ゲート A の実走で**不足 108,772 B は全部 rev**
+**期待は「差はほぼ出ない」だった**【外挿】 — ゲート A の実走で**不足 108,772 B は全部 rev**
 と判定されている (§1) ので、実データ上の CommonMark 由来の差分は既に見えていない。
-**ただし rev 不一致の 44 ページの中に隠れている可能性は潰していない** — M1-c 完了時に
-revless 正規化後の差分で確認する。
+
+**docstring 層については実測で決着した (2026-08-11)**【実測。`crates/lean-doc-md/tests/ts_docstring.rs`】 —
+同じ 4,987 入力 (実 docstring 4,858 + 手書き 129) を TS の `renderDocString` と doc-gen4 の
+`docStringToHtml` の両方に通すと、**TS が外れるのは 41 件、うち実 docstring は 1 件だけ**
+(`InformationTheory.Shannon.TimeBandLimiting.Count module doc 1` — バッククォートの入れ子が
+壊れた code span で、TS の `indexOf` ベースの走査と md4c の規則が割れる)。
+残り 40 件は TS が「この対象には出現しないので実装しない」と宣言した機能
+(`render.ts:1091-1096`: table / task list / image / hard break / entity / permissive autolink /
+reference link / strikethrough / backslash escape / CRLF / NUL)。
+**Rust は 41 件すべてで doc-gen4 側**。ページ単位の差分は M1-d で見るが、
+**docstring 由来の容疑者はこの 41 件に閉じている**。
 
 #### M1-b が元コードから掘り出した落とし穴 (M1-c / M1-d 向け)
 
@@ -397,6 +406,43 @@ wrapper は LI 直下にテキストが来たら `P` を開き、兄弟ブロッ
 | **autolink 解決系** | `render.ts:925-1077` | **153** | **残る** — `nameToLink` / `isNameLit` (Lean の `decodeNameLit` の移植) / `isLetterLike` / `autoLinkInline` / `headingId` / `extendLink`。**md4c の外側 = doc-gen4 の `Output/DocString.lean` の移植**なので書き直すしかない |
 
 つまり **approach.md §5.6 の「Rust なら本物のパーサに置き換えられる」は 594 行に効き、153 行には効かない。**
+
+#### M1-c 後半の結果 — AST → HTML は完了【実測 2026-08-11】
+
+- **オラクルは doc-gen4 本体**。`docStringToHtml` を対象環境で走らせて HTML をダンプし、
+  Rust の出力とバイト比較する (`tests/oracle/dump-html.lean` + `gen-docgen4-expected.ts`)。
+  **4,987 件中 4,987 件がバイト一致**【実測。`cargo test -p lean-doc-md --test docgen4`】。
+  除外は**上表の 2 件だけ** (Lean 側が落ちる入力なので比較対象が存在しない)。
+- **環境が要らないのが鍵** — `nameToLink?` が読むのは `SiteContext.result` だけなので、
+  **空の `AnalyzerResult` を渡すと全ルックアップが外れ**、Rust 側の `NoLinks` と同じ挙動になる。
+  だから「autolink が出る分を除外・正規化」をせずに**全件をそのまま比較できた**。
+- **`getRoot` は 3 通り振ってある** (`./` / `.././` / `../.././`)。root はリンクのバイトに入るので、
+  1 通りだけだと root を無視する実装が通ってしまう。
+- **committed fixture は 327 件 (226 KB)**。出力側の特徴 (タグ・属性・`start=`・checkbox・
+  `find/?pattern=` など) の貪欲被覆 + 等間隔サンプル + **TS と割れる唯一の実 docstring**。
+  全件は `--full` で再生成する (中間 4.6 MB はリポジトリに入れない)。
+
+**`mdGetHeadingId` は「autolink 解決」ではないので後半に入れた**【判断】 — 必要なのは
+Unicode 一般カテゴリだけで、リンク索引は要らない。**実 docstring 4,858 件のうち 1,496 件 (30.8%)
+が見出しを含む**【実測】ので、これを次段に送ると「見出しのある docstring は全部オラクルから外す」ことになり、
+第一オラクルの価値が消える。同じ理由で `extendLink` も後半に入っている
+(`nameToLink?` への問い合わせは注入点越し)。
+
+**Unicode の表は UnicodeBasic から吐かせた**【実測】 — doc-gen4 は `UnicodeBasic` に
+一般カテゴリを訊く。Rust の crate を持ってくると**別の UCD 版**になり、V8 の
+`\p{P}\p{Z}\p{C}` と UnicodeBasic は **4,802 コードポイントで食い違う**【実測】。
+そこで `dump-gc.lean` が同じ UnicodeBasic ビルドから範囲表を吐き、`src/gc.rs` (839 + 742 範囲) を生成する。
+**この crate で唯一の生成コード**で、`gen-gc-table.ts --check` が陳腐化を検出する。
+
+**`nameToLink?` の第 1 分岐だけは注入点の外に置いた**【実測で必要と判明】 —
+`Foo/Bar.lean` のような**ソースパス**は索引を引かず root だけで解ける
+(`DocString.lean:41-42`)。これを注入点の向こうに置くと **4,987 件中 131 件が外れる**ので、
+`Renderer::resolve_link` がここだけ自分で答え、残りを `LinkResolver` に委ねる形にした。
+
+**`escapeHtml` は `lean-doc-md` に移した**【判断】 — docstring レンダラも `Html.escape` を使う。
+crate 依存は `lean-doc-render` → `lean-doc-md` の向きなので、**実装を 1 つにするなら下側に置くしかない**。
+`lean_doc_render::escape_html` は再エクスポートにしたので、M1-b が TS 差分で押さえている
+テストがそのまま両方をカバーし続ける。
 
 ### byte 一致で Rust の既定が壊す箇所【すべて実測】
 
