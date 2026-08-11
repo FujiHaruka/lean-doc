@@ -1,0 +1,608 @@
+{
+  "suite": "cost",
+  "tag": "cost",
+  "origin": "http://127.0.0.1:8931",
+  "page": "InformationTheory/Asymptotic.html",
+  "decl": "InformationTheory.Asymptotic.DotEq",
+  "startedAt": "2026-08-11T07:01:11.156Z",
+  "chrome": {
+    "Browser": "Chrome/151.0.7922.76",
+    "Protocol-Version": "1.3",
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.0.0 Safari/537.36",
+    "V8-Version": "15.1.206.10",
+    "WebKit-Version": "537.36 (@031bfd60f544af71d8dd7246970d1af3e1acf3ad)",
+    "webSocketDebuggerUrl": "ws://127.0.0.1:9331/devtools/browser/790de30a-66ea-401f-9ea0-b7fa18155ba2"
+  },
+  "deno": {
+    "deno": "2.7.14",
+    "v8": "14.7.173.20-rusty",
+    "typescript": "5.9.2"
+  },
+  "cost": {
+    "clockResolutionMs": [
+      0.1,
+      0.2
+    ],
+    "min": {
+      "page": "InformationTheory/Probability/TwoSidedExtension.html",
+      "tokensInFile": 1,
+      "dom": {
+        "elements": 141,
+        "htmlBytes": 6844
+      },
+      "onLoad": [
+        {
+          "matched": 1,
+          "rewritten": 1,
+          "ms": 0.09999996423721313,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 1,
+          "rewritten": 1,
+          "ms": 0,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 1,
+          "rewritten": 1,
+          "ms": 0,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 1,
+          "rewritten": 1,
+          "ms": 0.09999996423721313,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 1,
+          "rewritten": 1,
+          "ms": 0.10000002384185791,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 1,
+          "rewritten": 1,
+          "ms": 0.10000002384185791,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 1,
+          "rewritten": 1,
+          "ms": 0.10000002384185791,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 1,
+          "rewritten": 1,
+          "ms": 0,
+          "readyState": "interactive"
+        }
+      ],
+      "loop": [
+        {
+          "matched": 1,
+          "rewritten": 1,
+          "totalMs": 6.600000023841858,
+          "passes": 400,
+          "msPerPass": 0.016500000059604645
+        },
+        {
+          "matched": 1,
+          "rewritten": 1,
+          "totalMs": 8.100000023841858,
+          "passes": 400,
+          "msPerPass": 0.020250000059604645
+        },
+        {
+          "matched": 1,
+          "rewritten": 1,
+          "totalMs": 7.400000035762787,
+          "passes": 400,
+          "msPerPass": 0.018500000089406967
+        },
+        {
+          "matched": 1,
+          "rewritten": 1,
+          "totalMs": 7.800000011920929,
+          "passes": 400,
+          "msPerPass": 0.019500000029802324
+        },
+        {
+          "matched": 1,
+          "rewritten": 1,
+          "totalMs": 7.100000023841858,
+          "passes": 400,
+          "msPerPass": 0.017750000059604646
+        },
+        {
+          "matched": 1,
+          "rewritten": 1,
+          "totalMs": 7.699999988079071,
+          "passes": 400,
+          "msPerPass": 0.019249999970197676
+        },
+        {
+          "matched": 1,
+          "rewritten": 1,
+          "totalMs": 2.899999976158142,
+          "passes": 400,
+          "msPerPass": 0.007249999940395355
+        },
+        {
+          "matched": 1,
+          "rewritten": 1,
+          "totalMs": 7.799999952316284,
+          "passes": 400,
+          "msPerPass": 0.01949999988079071
+        }
+      ]
+    },
+    "p50": {
+      "page": "InformationTheory/Fano/DPI.html",
+      "tokensInFile": 9,
+      "dom": {
+        "elements": 908,
+        "htmlBytes": 37014
+      },
+      "onLoad": [
+        {
+          "matched": 9,
+          "rewritten": 9,
+          "ms": 0.19999998807907104,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 9,
+          "rewritten": 9,
+          "ms": 0.10000002384185791,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 9,
+          "rewritten": 9,
+          "ms": 0,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 9,
+          "rewritten": 9,
+          "ms": 0.09999996423721313,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 9,
+          "rewritten": 9,
+          "ms": 0.19999998807907104,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 9,
+          "rewritten": 9,
+          "ms": 0.10000002384185791,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 9,
+          "rewritten": 9,
+          "ms": 0,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 9,
+          "rewritten": 9,
+          "ms": 0.19999998807907104,
+          "readyState": "interactive"
+        }
+      ],
+      "loop": [
+        {
+          "matched": 9,
+          "rewritten": 9,
+          "totalMs": 45,
+          "passes": 400,
+          "msPerPass": 0.1125
+        },
+        {
+          "matched": 9,
+          "rewritten": 9,
+          "totalMs": 41.80000001192093,
+          "passes": 400,
+          "msPerPass": 0.10450000002980232
+        },
+        {
+          "matched": 9,
+          "rewritten": 9,
+          "totalMs": 44.10000002384186,
+          "passes": 400,
+          "msPerPass": 0.11025000005960464
+        },
+        {
+          "matched": 9,
+          "rewritten": 9,
+          "totalMs": 42,
+          "passes": 400,
+          "msPerPass": 0.105
+        },
+        {
+          "matched": 9,
+          "rewritten": 9,
+          "totalMs": 44.09999996423721,
+          "passes": 400,
+          "msPerPass": 0.11024999991059303
+        },
+        {
+          "matched": 9,
+          "rewritten": 9,
+          "totalMs": 43.59999996423721,
+          "passes": 400,
+          "msPerPass": 0.10899999991059303
+        },
+        {
+          "matched": 9,
+          "rewritten": 9,
+          "totalMs": 43.60000002384186,
+          "passes": 400,
+          "msPerPass": 0.10900000005960464
+        },
+        {
+          "matched": 9,
+          "rewritten": 9,
+          "totalMs": 43.89999997615814,
+          "passes": 400,
+          "msPerPass": 0.10974999994039536
+        }
+      ]
+    },
+    "target": {
+      "page": "InformationTheory/Asymptotic.html",
+      "tokensInFile": 10,
+      "dom": {
+        "elements": 665,
+        "htmlBytes": 27956
+      },
+      "onLoad": [
+        {
+          "matched": 10,
+          "rewritten": 10,
+          "ms": 0.19999998807907104,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 10,
+          "rewritten": 10,
+          "ms": 0.09999996423721313,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 10,
+          "rewritten": 10,
+          "ms": 0.19999998807907104,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 10,
+          "rewritten": 10,
+          "ms": 0.10000002384185791,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 10,
+          "rewritten": 10,
+          "ms": 0.10000002384185791,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 10,
+          "rewritten": 10,
+          "ms": 0,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 10,
+          "rewritten": 10,
+          "ms": 0.09999996423721313,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 10,
+          "rewritten": 10,
+          "ms": 0.09999996423721313,
+          "readyState": "interactive"
+        }
+      ],
+      "loop": [
+        {
+          "matched": 10,
+          "rewritten": 10,
+          "totalMs": 37.90000003576279,
+          "passes": 400,
+          "msPerPass": 0.09475000008940697
+        },
+        {
+          "matched": 10,
+          "rewritten": 10,
+          "totalMs": 34.5,
+          "passes": 400,
+          "msPerPass": 0.08625
+        },
+        {
+          "matched": 10,
+          "rewritten": 10,
+          "totalMs": 37.89999997615814,
+          "passes": 400,
+          "msPerPass": 0.09474999994039536
+        },
+        {
+          "matched": 10,
+          "rewritten": 10,
+          "totalMs": 35.39999997615814,
+          "passes": 400,
+          "msPerPass": 0.08849999994039535
+        },
+        {
+          "matched": 10,
+          "rewritten": 10,
+          "totalMs": 38.59999996423721,
+          "passes": 400,
+          "msPerPass": 0.09649999991059303
+        },
+        {
+          "matched": 10,
+          "rewritten": 10,
+          "totalMs": 37.30000001192093,
+          "passes": 400,
+          "msPerPass": 0.09325000002980233
+        },
+        {
+          "matched": 10,
+          "rewritten": 10,
+          "totalMs": 34.69999998807907,
+          "passes": 400,
+          "msPerPass": 0.08674999997019768
+        },
+        {
+          "matched": 10,
+          "rewritten": 10,
+          "totalMs": 37.5,
+          "passes": 400,
+          "msPerPass": 0.09375
+        }
+      ]
+    },
+    "max": {
+      "page": "InformationTheory/Shannon/TimeBandLimiting/Operator.html",
+      "tokensInFile": 73,
+      "dom": {
+        "elements": 3871,
+        "htmlBytes": 203982
+      },
+      "onLoad": [
+        {
+          "matched": 73,
+          "rewritten": 73,
+          "ms": 0.3999999761581421,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 73,
+          "rewritten": 73,
+          "ms": 0.699999988079071,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 73,
+          "rewritten": 73,
+          "ms": 0.3999999761581421,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 73,
+          "rewritten": 73,
+          "ms": 0.5,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 73,
+          "rewritten": 73,
+          "ms": 0.40000003576278687,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 73,
+          "rewritten": 73,
+          "ms": 0.5,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 73,
+          "rewritten": 73,
+          "ms": 0.5,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 73,
+          "rewritten": 73,
+          "ms": 0.3999999761581421,
+          "readyState": "interactive"
+        }
+      ],
+      "loop": [
+        {
+          "matched": 73,
+          "rewritten": 73,
+          "totalMs": 144.60000002384186,
+          "passes": 400,
+          "msPerPass": 0.36150000005960464
+        },
+        {
+          "matched": 73,
+          "rewritten": 73,
+          "totalMs": 126.59999996423721,
+          "passes": 400,
+          "msPerPass": 0.316499999910593
+        },
+        {
+          "matched": 73,
+          "rewritten": 73,
+          "totalMs": 131.9000000357628,
+          "passes": 400,
+          "msPerPass": 0.32975000008940697
+        },
+        {
+          "matched": 73,
+          "rewritten": 73,
+          "totalMs": 132.30000001192093,
+          "passes": 400,
+          "msPerPass": 0.3307500000298023
+        },
+        {
+          "matched": 73,
+          "rewritten": 73,
+          "totalMs": 130.69999998807907,
+          "passes": 400,
+          "msPerPass": 0.32674999997019766
+        },
+        {
+          "matched": 73,
+          "rewritten": 73,
+          "totalMs": 129.4000000357628,
+          "passes": 400,
+          "msPerPass": 0.323500000089407
+        },
+        {
+          "matched": 73,
+          "rewritten": 73,
+          "totalMs": 131,
+          "passes": 400,
+          "msPerPass": 0.3275
+        },
+        {
+          "matched": 73,
+          "rewritten": 73,
+          "totalMs": 132.60000002384186,
+          "passes": 400,
+          "msPerPass": 0.33150000005960467
+        }
+      ]
+    },
+    "biggest": {
+      "page": "InformationTheory/Shannon/BroadcastChannel/OuterBoundTransport.html",
+      "tokensInFile": 47,
+      "dom": {
+        "elements": 13562,
+        "htmlBytes": 555904
+      },
+      "onLoad": [
+        {
+          "matched": 47,
+          "rewritten": 47,
+          "ms": 0.8999999761581421,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 47,
+          "rewritten": 47,
+          "ms": 0.8999999761581421,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 47,
+          "rewritten": 47,
+          "ms": 0.7999999523162842,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 47,
+          "rewritten": 47,
+          "ms": 0.800000011920929,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 47,
+          "rewritten": 47,
+          "ms": 0.8999999761581421,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 47,
+          "rewritten": 47,
+          "ms": 0.800000011920929,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 47,
+          "rewritten": 47,
+          "ms": 0.800000011920929,
+          "readyState": "interactive"
+        },
+        {
+          "matched": 47,
+          "rewritten": 47,
+          "ms": 0.7999999523162842,
+          "readyState": "interactive"
+        }
+      ],
+      "loop": [
+        {
+          "matched": 47,
+          "rewritten": 47,
+          "totalMs": 263.30000001192093,
+          "passes": 400,
+          "msPerPass": 0.6582500000298023
+        },
+        {
+          "matched": 47,
+          "rewritten": 47,
+          "totalMs": 265,
+          "passes": 400,
+          "msPerPass": 0.6625
+        },
+        {
+          "matched": 47,
+          "rewritten": 47,
+          "totalMs": 265.89999997615814,
+          "passes": 400,
+          "msPerPass": 0.6647499999403954
+        },
+        {
+          "matched": 47,
+          "rewritten": 47,
+          "totalMs": 263.0999999642372,
+          "passes": 400,
+          "msPerPass": 0.657749999910593
+        },
+        {
+          "matched": 47,
+          "rewritten": 47,
+          "totalMs": 265.69999998807907,
+          "passes": 400,
+          "msPerPass": 0.6642499999701976
+        },
+        {
+          "matched": 47,
+          "rewritten": 47,
+          "totalMs": 264.30000001192093,
+          "passes": 400,
+          "msPerPass": 0.6607500000298023
+        },
+        {
+          "matched": 47,
+          "rewritten": 47,
+          "totalMs": 264.19999998807907,
+          "passes": 400,
+          "msPerPass": 0.6604999999701977
+        },
+        {
+          "matched": 47,
+          "rewritten": 47,
+          "totalMs": 263,
+          "passes": 400,
+          "msPerPass": 0.6575
+        }
+      ]
+    }
+  },
+  "finishedAt": "2026-08-11T07:02:20.694Z"
+}

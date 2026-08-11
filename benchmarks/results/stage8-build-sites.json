@@ -1,0 +1,32 @@
+[
+  {
+    "config": "b0",
+    "htmlFiles": 432,
+    "patched": 0,
+    "unmatched": []
+  },
+  {
+    "config": "m1",
+    "htmlFiles": 432,
+    "patched": 432,
+    "unmatched": []
+  },
+  {
+    "config": "m2",
+    "htmlFiles": 432,
+    "patched": 432,
+    "unmatched": []
+  },
+  {
+    "config": "m3",
+    "htmlFiles": 432,
+    "patched": 432,
+    "unmatched": []
+  },
+  {
+    "config": "m3b",
+    "htmlFiles": 432,
+    "patched": 432,
+    "unmatched": []
+  }
+]

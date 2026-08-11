@@ -1,0 +1,848 @@
+### build the trees (pages-ph is copied, never written to)
+b0: html=432 patched=0 unmatched=0
+m1: html=432 patched=432 unmatched=0
+m2: html=432 patched=432 unmatched=0
+m3: html=432 patched=432 unmatched=0
+m3b: html=432 patched=432 unmatched=0
+### can location.replace be wrapped from JS?
+curl: (7) Failed to connect to 127.0.0.1 port 8931 after 0 ms: Couldn't connect to server
+{
+  "ownDescriptor": {
+    "configurable": false,
+    "writable": false,
+    "type": "function"
+  },
+  "protoIsLocationPrototype": true,
+  "prototypeHasOwnReplace": false,
+  "patchOwn": "TypeError: Cannot redefine property: replace",
+  "patchPrototype": "ok",
+  "replaceStillOriginal": true
+}
+wrote /private/tmp/lean-doc-relay/w8/probe-hook.json
+### V1..V4 (?jump=src) and V6 (no ?jump=src)
+curl: (7) Failed to connect to 127.0.0.1 port 8931 after 0 ms: Couldn't connect to server
+b0-jump: 5 runs, 1 distinct outcome(s) -> ["http://127.0.0.1:8931/b0/InformationTheory/%7B%7BSOURCE_URL%7D%7D/InformationTheory/Asymptotic.lean#L44-L52"]
+m1-jump: 5 runs, 1 distinct outcome(s) -> ["https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec/InformationTheory/Asymptotic.lean#L44-L52"]
+m2-jump: 5 runs, 1 distinct outcome(s) -> ["https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec/InformationTheory/Asymptotic.lean#L44-L52"]
+m3-jump: 5 runs, 1 distinct outcome(s) -> ["http://127.0.0.1:8931/m3/InformationTheory/%7B%7BSOURCE_URL%7D%7D/InformationTheory/Asymptotic.lean#L44-L52"]
+m3b-jump: 5 runs, 1 distinct outcome(s) -> ["https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec/InformationTheory/Asymptotic.lean#L44-L52"]
+b0-nojump: 5 runs, 1 distinct outcome(s) -> []
+m1-nojump: 5 runs, 1 distinct outcome(s) -> []
+m2-nojump: 5 runs, 1 distinct outcome(s) -> []
+m3-nojump: 5 runs, 1 distinct outcome(s) -> []
+m3b-nojump: 5 runs, 1 distinct outcome(s) -> []
+wrote /private/tmp/lean-doc-relay/w8/probe-nav.json
+### V5 rewrite cost (min 1 / p50 9 / target 10 / max-links 73 / biggest page 47)
+curl: (7) Failed to connect to 127.0.0.1 port 8931 after 0 ms: Couldn't connect to server
+min (1): [{"matched":1,"rewritten":1,"totalMs":6.600000023841858,"passes":400,"msPerPass":0.016500000059604645},{"matched":1,"rewritten":1,"totalMs":8.100000023841858,"passes":400,"msPerPass":0.020250000059604645},{"matched":1,"rewritten":1,"totalMs":7.400000035762787,"passes":400,"msPerPass":0.018500000089406967},{"matched":1,"rewritten":1,"totalMs":7.800000011920929,"passes":400,"msPerPass":0.019500000029802324},{"matched":1,"rewritten":1,"totalMs":7.100000023841858,"passes":400,"msPerPass":0.017750000059604646},{"matched":1,"rewritten":1,"totalMs":7.699999988079071,"passes":400,"msPerPass":0.019249999970197676},{"matched":1,"rewritten":1,"totalMs":2.899999976158142,"passes":400,"msPerPass":0.007249999940395355},{"matched":1,"rewritten":1,"totalMs":7.799999952316284,"passes":400,"msPerPass":0.01949999988079071}]
+p50 (9): [{"matched":9,"rewritten":9,"totalMs":45,"passes":400,"msPerPass":0.1125},{"matched":9,"rewritten":9,"totalMs":41.80000001192093,"passes":400,"msPerPass":0.10450000002980232},{"matched":9,"rewritten":9,"totalMs":44.10000002384186,"passes":400,"msPerPass":0.11025000005960464},{"matched":9,"rewritten":9,"totalMs":42,"passes":400,"msPerPass":0.105},{"matched":9,"rewritten":9,"totalMs":44.09999996423721,"passes":400,"msPerPass":0.11024999991059303},{"matched":9,"rewritten":9,"totalMs":43.59999996423721,"passes":400,"msPerPass":0.10899999991059303},{"matched":9,"rewritten":9,"totalMs":43.60000002384186,"passes":400,"msPerPass":0.10900000005960464},{"matched":9,"rewritten":9,"totalMs":43.89999997615814,"passes":400,"msPerPass":0.10974999994039536}]
+target (10): [{"matched":10,"rewritten":10,"totalMs":37.90000003576279,"passes":400,"msPerPass":0.09475000008940697},{"matched":10,"rewritten":10,"totalMs":34.5,"passes":400,"msPerPass":0.08625},{"matched":10,"rewritten":10,"totalMs":37.89999997615814,"passes":400,"msPerPass":0.09474999994039536},{"matched":10,"rewritten":10,"totalMs":35.39999997615814,"passes":400,"msPerPass":0.08849999994039535},{"matched":10,"rewritten":10,"totalMs":38.59999996423721,"passes":400,"msPerPass":0.09649999991059303},{"matched":10,"rewritten":10,"totalMs":37.30000001192093,"passes":400,"msPerPass":0.09325000002980233},{"matched":10,"rewritten":10,"totalMs":34.69999998807907,"passes":400,"msPerPass":0.08674999997019768},{"matched":10,"rewritten":10,"totalMs":37.5,"passes":400,"msPerPass":0.09375}]
+max (73): [{"matched":73,"rewritten":73,"totalMs":144.60000002384186,"passes":400,"msPerPass":0.36150000005960464},{"matched":73,"rewritten":73,"totalMs":126.59999996423721,"passes":400,"msPerPass":0.316499999910593},{"matched":73,"rewritten":73,"totalMs":131.9000000357628,"passes":400,"msPerPass":0.32975000008940697},{"matched":73,"rewritten":73,"totalMs":132.30000001192093,"passes":400,"msPerPass":0.3307500000298023},{"matched":73,"rewritten":73,"totalMs":130.69999998807907,"passes":400,"msPerPass":0.32674999997019766},{"matched":73,"rewritten":73,"totalMs":129.4000000357628,"passes":400,"msPerPass":0.323500000089407},{"matched":73,"rewritten":73,"totalMs":131,"passes":400,"msPerPass":0.3275},{"matched":73,"rewritten":73,"totalMs":132.60000002384186,"passes":400,"msPerPass":0.33150000005960467}]
+biggest (47): [{"matched":47,"rewritten":47,"totalMs":263.30000001192093,"passes":400,"msPerPass":0.6582500000298023},{"matched":47,"rewritten":47,"totalMs":265,"passes":400,"msPerPass":0.6625},{"matched":47,"rewritten":47,"totalMs":265.89999997615814,"passes":400,"msPerPass":0.6647499999403954},{"matched":47,"rewritten":47,"totalMs":263.0999999642372,"passes":400,"msPerPass":0.657749999910593},{"matched":47,"rewritten":47,"totalMs":265.69999998807907,"passes":400,"msPerPass":0.6642499999701976},{"matched":47,"rewritten":47,"totalMs":264.30000001192093,"passes":400,"msPerPass":0.6607500000298023},{"matched":47,"rewritten":47,"totalMs":264.19999998807907,"passes":400,"msPerPass":0.6604999999701977},{"matched":47,"rewritten":47,"totalMs":263,"passes":400,"msPerPass":0.6575}]
+wrote /private/tmp/lean-doc-relay/w8/probe-cost.json
+### V7a no artificial delay, plus the cache walk
+curl: (7) Failed to connect to 127.0.0.1 port 8931 after 0 ms: Couldn't connect to server
+b0: [{"responseEnd":28,"domInteractive":53.09999996423721,"domContentLoadedEventStart":116.09999996423721,"domComplete":116.89999997615814},{"responseEnd":22.5,"domInteractive":81.59999996423721,"domContentLoadedEventStart":84.59999996423721,"domComplete":85.39999997615814},{"responseEnd":19.69999998807907,"domInteractive":76.80000001192093,"domContentLoadedEventStart":80.10000002384186,"domComplete":80.89999997615814},{"responseEnd":19.899999976158142,"domInteractive":76.39999997615814,"domContentLoadedEventStart":78.89999997615814,"domComplete":80.59999996423721},{"responseEnd":22,"domInteractive":38.10000002384186,"domContentLoadedEventStart":91.5,"domComplete":92.30000001192093},{"responseEnd":19.200000047683716,"domInteractive":34.60000002384186,"domContentLoadedEventStart":89.80000001192093,"domComplete":91},{"responseEnd":19.399999976158142,"domInteractive":78.60000002384186,"domContentLoadedEventStart":81.69999998807907,"domComplete":82.60000002384186},{"responseEnd":21.19999998807907,"domInteractive":84.30000001192093,"domContentLoadedEventStart":88,"domComplete":88.80000001192093}]
+m1: [{"responseEnd":20.899999976158142,"domInteractive":44.5,"domContentLoadedEventStart":94.09999996423721,"domComplete":94.89999997615814},{"responseEnd":20,"domInteractive":35.5,"domContentLoadedEventStart":91.09999996423721,"domComplete":91.89999997615814},{"responseEnd":19.599999964237213,"domInteractive":33.89999997615814,"domContentLoadedEventStart":89.79999995231628,"domComplete":90.5},{"responseEnd":21,"domInteractive":34.80000001192093,"domContentLoadedEventStart":93.90000003576279,"domComplete":95.20000004768372},{"responseEnd":20.399999976158142,"domInteractive":76,"domContentLoadedEventStart":79.69999998807907,"domComplete":80.39999997615814},{"responseEnd":20.600000023841858,"domInteractive":77.69999998807907,"domContentLoadedEventStart":81.30000001192093,"domComplete":82},{"responseEnd":20.399999976158142,"domInteractive":78.30000001192093,"domContentLoadedEventStart":82.5,"domComplete":83.19999998807907},{"responseEnd":20.80000001192093,"domInteractive":36.5,"domContentLoadedEventStart":94.5,"domComplete":95.30000001192093}]
+m2: [{"responseEnd":21.299999952316284,"domInteractive":37.799999952316284,"domContentLoadedEventStart":93.19999998807907,"domComplete":94.39999997615814},{"responseEnd":24.69999998807907,"domInteractive":83.19999998807907,"domContentLoadedEventStart":85.80000001192093,"domComplete":86.80000001192093},{"responseEnd":21.69999998807907,"domInteractive":83.89999997615814,"domContentLoadedEventStart":86.69999998807907,"domComplete":87.80000001192093},{"responseEnd":20.30000001192093,"domInteractive":78.5,"domContentLoadedEventStart":81.30000001192093,"domComplete":82.5},{"responseEnd":20.5,"domInteractive":79.39999997615814,"domContentLoadedEventStart":82.19999998807907,"domComplete":83.69999998807907},{"responseEnd":20.5,"domInteractive":34.69999998807907,"domContentLoadedEventStart":89,"domComplete":90.09999996423721},{"responseEnd":21,"domInteractive":35.60000002384186,"domContentLoadedEventStart":91.80000001192093,"domComplete":92.80000001192093},{"responseEnd":20.19999998807907,"domInteractive":35.30000001192093,"domContentLoadedEventStart":89.40000003576279,"domComplete":90.5}]
+m3: [{"responseEnd":21.200000047683716,"domInteractive":79.10000002384186,"domContentLoadedEventStart":82.40000003576279,"domComplete":83.5},{"responseEnd":20.399999976158142,"domInteractive":78.69999998807907,"domContentLoadedEventStart":82.19999998807907,"domComplete":83.19999998807907},{"responseEnd":20.5,"domInteractive":78.69999998807907,"domContentLoadedEventStart":81.80000001192093,"domComplete":83.30000001192093},{"responseEnd":20.5,"domInteractive":35.69999998807907,"domContentLoadedEventStart":88.80000001192093,"domComplete":90.30000001192093},{"responseEnd":21.30000001192093,"domInteractive":77.90000003576279,"domContentLoadedEventStart":81,"domComplete":82},{"responseEnd":20.80000001192093,"domInteractive":80.80000001192093,"domContentLoadedEventStart":84.19999998807907,"domComplete":85.30000001192093},{"responseEnd":21.400000035762787,"domInteractive":45.80000001192093,"domContentLoadedEventStart":105,"domComplete":106.5},{"responseEnd":20.600000023841858,"domInteractive":80.10000002384186,"domContentLoadedEventStart":83.39999997615814,"domComplete":84.60000002384186}]
+wrote /private/tmp/lean-doc-relay/w8/probe-v7-d0.json
+### V7b source-url.js delayed 400 ms — does the synchronous tag stall the parse?
+curl: (7) Failed to connect to 127.0.0.1 port 8931 after 0 ms: Couldn't connect to server
+b0: [{"responseEnd":21.899999976158142,"domInteractive":51.09999996423721,"domContentLoadedEventStart":104.09999996423721,"domComplete":104.89999997615814},{"responseEnd":21.5,"domInteractive":78.80000001192093,"domContentLoadedEventStart":82.10000002384186,"domComplete":82.89999997615814},{"responseEnd":26.099999964237213,"domInteractive":84.89999997615814,"domContentLoadedEventStart":87.59999996423721,"domComplete":89.39999997615814},{"responseEnd":22.100000023841858,"domInteractive":78.40000003576279,"domContentLoadedEventStart":81.40000003576279,"domComplete":82.10000002384186},{"responseEnd":21,"domInteractive":77.5,"domContentLoadedEventStart":82.80000001192093,"domComplete":83.60000002384186},{"responseEnd":20.80000001192093,"domInteractive":77.09999996423721,"domContentLoadedEventStart":80.19999998807907,"domComplete":81},{"responseEnd":31.100000023841858,"domInteractive":47.30000001192093,"domContentLoadedEventStart":103.19999998807907,"domComplete":104},{"responseEnd":20.30000001192093,"domInteractive":77.39999997615814,"domContentLoadedEventStart":80.5,"domComplete":81.39999997615814}]
+m1: [{"responseEnd":25,"domInteractive":83.10000002384186,"domContentLoadedEventStart":448,"domComplete":450},{"responseEnd":20.5,"domInteractive":78.30000001192093,"domContentLoadedEventStart":440.10000002384186,"domComplete":442},{"responseEnd":19.900000035762787,"domInteractive":76.90000003576279,"domContentLoadedEventStart":439.4000000357628,"domComplete":441.30000001192093},{"responseEnd":20,"domInteractive":79.09999996423721,"domContentLoadedEventStart":439.5999999642372,"domComplete":441.5},{"responseEnd":20.5,"domInteractive":35.89999997615814,"domContentLoadedEventStart":440.69999998807907,"domComplete":442.69999998807907},{"responseEnd":20,"domInteractive":37.799999952316284,"domContentLoadedEventStart":440.5,"domComplete":442.39999997615814},{"responseEnd":20.30000001192093,"domInteractive":76.59999996423721,"domContentLoadedEventStart":440.5,"domComplete":442.39999997615814},{"responseEnd":18.899999976158142,"domInteractive":35.30000001192093,"domContentLoadedEventStart":440.80000001192093,"domComplete":442.69999998807907}]
+m2: [{"responseEnd":19.80000001192093,"domInteractive":508.19999998807907,"domContentLoadedEventStart":512.6999999880791,"domComplete":513.8000000119209},{"responseEnd":21.5,"domInteractive":512.8999999761581,"domContentLoadedEventStart":518,"domComplete":519.0999999642372},{"responseEnd":21.69999998807907,"domInteractive":515.1999999880791,"domContentLoadedEventStart":520.5,"domComplete":521.5999999642372},{"responseEnd":21.600000023841858,"domInteractive":515,"domContentLoadedEventStart":519.6000000238419,"domComplete":520.6000000238419},{"responseEnd":23.600000023841858,"domInteractive":509.7000000476837,"domContentLoadedEventStart":515,"domComplete":516},{"responseEnd":19,"domInteractive":511.80000001192093,"domContentLoadedEventStart":516.1000000238419,"domComplete":517.1999999880791},{"responseEnd":20.19999998807907,"domInteractive":510.80000001192093,"domContentLoadedEventStart":516,"domComplete":517},{"responseEnd":20.399999976158142,"domInteractive":512,"domContentLoadedEventStart":517.0999999642372,"domComplete":518.1999999880791}]
+m3: [{"responseEnd":21.5,"domInteractive":80.70000004768372,"domContentLoadedEventStart":441.2000000476837,"domComplete":443.60000002384186},{"responseEnd":21.80000001192093,"domInteractive":79.69999998807907,"domContentLoadedEventStart":443.19999998807907,"domComplete":445.5999999642372},{"responseEnd":20.69999998807907,"domInteractive":78.79999995231628,"domContentLoadedEventStart":441,"domComplete":442.89999997615814},{"responseEnd":23.100000023841858,"domInteractive":82.10000002384186,"domContentLoadedEventStart":441.80000001192093,"domComplete":444.39999997615814},{"responseEnd":21.799999952316284,"domInteractive":80.39999997615814,"domContentLoadedEventStart":444.2999999523163,"domComplete":446.7999999523163},{"responseEnd":20.30000001192093,"domInteractive":36.10000002384186,"domContentLoadedEventStart":439.5,"domComplete":442.89999997615814},{"responseEnd":19.599999964237213,"domInteractive":34.09999996423721,"domContentLoadedEventStart":437.0999999642372,"domComplete":439.5},{"responseEnd":21.100000023841858,"domInteractive":36,"domContentLoadedEventStart":441.60000002384186,"domComplete":444.30000001192093}]
+wrote /private/tmp/lean-doc-relay/w8/probe-v7-d400.json
+### V7c does source-url.js come back over the wire on pages 2..N?
+curl: (7) Failed to connect to 127.0.0.1 port 8931 after 0 ms: Couldn't connect to server
+{
+  "config": "m2",
+  "fetchDomain": "disabled",
+  "pages": [
+    "InformationTheory/Asymptotic.html",
+    "InformationTheory/Fano/DPI.html",
+    "InformationTheory/Shannon/TimeBandLimiting/Operator.html",
+    "InformationTheory/Probability/TwoSidedExtension.html",
+    "InformationTheory.html"
+  ],
+  "observed": [
+    {
+      "lap": 0,
+      "page": "InformationTheory/Asymptotic.html",
+      "sourceUrlResponses": [
+        {
+          "url": "http://127.0.0.1:8931/m2/source-url.js",
+          "status": 200
+        }
+      ],
+      "externalRequested": [
+        "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+        "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+        "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+        "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css"
+      ],
+      "externalFailed": [
+        {
+          "requestId": "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        }
+      ]
+    },
+    {
+      "lap": 0,
+      "page": "InformationTheory/Fano/DPI.html",
+      "sourceUrlResponses": [
+        {
+          "url": "http://127.0.0.1:8931/m2/source-url.js",
+          "status": 200
+        }
+      ],
+      "externalRequested": [
+        "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+        "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+        "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+        "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css"
+      ],
+      "externalFailed": [
+        {
+          "requestId": "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        }
+      ]
+    },
+    {
+      "lap": 0,
+      "page": "InformationTheory/Shannon/TimeBandLimiting/Operator.html",
+      "sourceUrlResponses": [
+        {
+          "url": "http://127.0.0.1:8931/m2/source-url.js",
+          "status": 200
+        }
+      ],
+      "externalRequested": [
+        "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+        "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+        "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+        "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css"
+      ],
+      "externalFailed": [
+        {
+          "requestId": "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        }
+      ]
+    },
+    {
+      "lap": 0,
+      "page": "InformationTheory/Probability/TwoSidedExtension.html",
+      "sourceUrlResponses": [
+        {
+          "url": "http://127.0.0.1:8931/m2/source-url.js",
+          "status": 200
+        }
+      ],
+      "externalRequested": [
+        "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+        "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+        "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+        "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css"
+      ],
+      "externalFailed": [
+        {
+          "requestId": "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        }
+      ]
+    },
+    {
+      "lap": 0,
+      "page": "InformationTheory.html",
+      "sourceUrlResponses": [
+        {
+          "url": "http://127.0.0.1:8931/m2/source-url.js",
+          "status": 200
+        }
+      ],
+      "externalRequested": [
+        "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+        "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+        "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+        "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css"
+      ],
+      "externalFailed": [
+        {
+          "requestId": "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        }
+      ]
+    },
+    {
+      "lap": 1,
+      "page": "InformationTheory/Asymptotic.html",
+      "sourceUrlResponses": [
+        {
+          "url": "http://127.0.0.1:8931/m2/source-url.js",
+          "status": 200
+        }
+      ],
+      "externalRequested": [
+        "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+        "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+        "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+        "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css"
+      ],
+      "externalFailed": [
+        {
+          "requestId": "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        }
+      ]
+    },
+    {
+      "lap": 1,
+      "page": "InformationTheory/Fano/DPI.html",
+      "sourceUrlResponses": [
+        {
+          "url": "http://127.0.0.1:8931/m2/source-url.js",
+          "status": 200
+        }
+      ],
+      "externalRequested": [
+        "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+        "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+        "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+        "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css"
+      ],
+      "externalFailed": [
+        {
+          "requestId": "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        }
+      ]
+    },
+    {
+      "lap": 1,
+      "page": "InformationTheory/Shannon/TimeBandLimiting/Operator.html",
+      "sourceUrlResponses": [
+        {
+          "url": "http://127.0.0.1:8931/m2/source-url.js",
+          "status": 200
+        }
+      ],
+      "externalRequested": [
+        "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+        "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+        "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+        "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css"
+      ],
+      "externalFailed": [
+        {
+          "requestId": "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        }
+      ]
+    },
+    {
+      "lap": 1,
+      "page": "InformationTheory/Probability/TwoSidedExtension.html",
+      "sourceUrlResponses": [
+        {
+          "url": "http://127.0.0.1:8931/m2/source-url.js",
+          "status": 200
+        }
+      ],
+      "externalRequested": [
+        "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+        "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+        "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+        "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css"
+      ],
+      "externalFailed": [
+        {
+          "requestId": "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        }
+      ]
+    },
+    {
+      "lap": 1,
+      "page": "InformationTheory.html",
+      "sourceUrlResponses": [
+        {
+          "url": "http://127.0.0.1:8931/m2/source-url.js",
+          "status": 200
+        }
+      ],
+      "externalRequested": [
+        "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+        "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+        "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+        "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css"
+      ],
+      "externalFailed": [
+        {
+          "requestId": "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        }
+      ]
+    }
+  ]
+}
+wrote /private/tmp/lean-doc-relay/w8/probe-cache-nocc.json
+curl: (7) Failed to connect to 127.0.0.1 port 8931 after 0 ms: Couldn't connect to server
+{
+  "config": "m2",
+  "fetchDomain": "disabled",
+  "pages": [
+    "InformationTheory/Asymptotic.html",
+    "InformationTheory/Fano/DPI.html",
+    "InformationTheory/Shannon/TimeBandLimiting/Operator.html",
+    "InformationTheory/Probability/TwoSidedExtension.html",
+    "InformationTheory.html"
+  ],
+  "observed": [
+    {
+      "lap": 0,
+      "page": "InformationTheory/Asymptotic.html",
+      "sourceUrlResponses": [
+        {
+          "url": "http://127.0.0.1:8931/m2/source-url.js",
+          "status": 200
+        }
+      ],
+      "externalRequested": [
+        "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+        "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+        "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+        "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css"
+      ],
+      "externalFailed": [
+        {
+          "requestId": "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        }
+      ]
+    },
+    {
+      "lap": 0,
+      "page": "InformationTheory/Fano/DPI.html",
+      "sourceUrlResponses": [
+        {
+          "url": "http://127.0.0.1:8931/m2/source-url.js",
+          "status": 200
+        }
+      ],
+      "externalRequested": [
+        "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+        "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+        "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+        "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+      ],
+      "externalFailed": [
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+          "errorText": "",
+          "blockedReason": "inspector"
+        }
+      ]
+    },
+    {
+      "lap": 0,
+      "page": "InformationTheory/Shannon/TimeBandLimiting/Operator.html",
+      "sourceUrlResponses": [
+        {
+          "url": "http://127.0.0.1:8931/m2/source-url.js",
+          "status": 200
+        }
+      ],
+      "externalRequested": [
+        "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+        "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+        "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+        "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+      ],
+      "externalFailed": [
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+          "errorText": "",
+          "blockedReason": "inspector"
+        }
+      ]
+    },
+    {
+      "lap": 0,
+      "page": "InformationTheory/Probability/TwoSidedExtension.html",
+      "sourceUrlResponses": [
+        {
+          "url": "http://127.0.0.1:8931/m2/source-url.js",
+          "status": 200
+        }
+      ],
+      "externalRequested": [
+        "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+        "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+        "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+        "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+      ],
+      "externalFailed": [
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+          "errorText": "",
+          "blockedReason": "inspector"
+        }
+      ]
+    },
+    {
+      "lap": 0,
+      "page": "InformationTheory.html",
+      "sourceUrlResponses": [
+        {
+          "url": "http://127.0.0.1:8931/m2/source-url.js",
+          "status": 200
+        }
+      ],
+      "externalRequested": [
+        "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+        "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+        "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+        "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+      ],
+      "externalFailed": [
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+          "errorText": "",
+          "blockedReason": "inspector"
+        }
+      ]
+    },
+    {
+      "lap": 1,
+      "page": "InformationTheory/Asymptotic.html",
+      "sourceUrlResponses": [
+        {
+          "url": "http://127.0.0.1:8931/m2/source-url.js",
+          "status": 200
+        }
+      ],
+      "externalRequested": [
+        "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+        "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+        "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+        "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+      ],
+      "externalFailed": [
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+          "errorText": "",
+          "blockedReason": "inspector"
+        }
+      ]
+    },
+    {
+      "lap": 1,
+      "page": "InformationTheory/Fano/DPI.html",
+      "sourceUrlResponses": [
+        {
+          "url": "http://127.0.0.1:8931/m2/source-url.js",
+          "status": 200
+        }
+      ],
+      "externalRequested": [
+        "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+        "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+        "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+        "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+      ],
+      "externalFailed": [
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+          "errorText": "",
+          "blockedReason": "inspector"
+        }
+      ]
+    },
+    {
+      "lap": 1,
+      "page": "InformationTheory/Shannon/TimeBandLimiting/Operator.html",
+      "sourceUrlResponses": [
+        {
+          "url": "http://127.0.0.1:8931/m2/source-url.js",
+          "status": 200
+        }
+      ],
+      "externalRequested": [
+        "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+        "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+        "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+        "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+      ],
+      "externalFailed": [
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+          "errorText": "",
+          "blockedReason": "inspector"
+        }
+      ]
+    },
+    {
+      "lap": 1,
+      "page": "InformationTheory/Probability/TwoSidedExtension.html",
+      "sourceUrlResponses": [
+        {
+          "url": "http://127.0.0.1:8931/m2/source-url.js",
+          "status": 200
+        }
+      ],
+      "externalRequested": [
+        "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+        "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+        "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+        "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+      ],
+      "externalFailed": [
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+          "errorText": "",
+          "blockedReason": "inspector"
+        }
+      ]
+    },
+    {
+      "lap": 1,
+      "page": "InformationTheory.html",
+      "sourceUrlResponses": [
+        {
+          "url": "http://127.0.0.1:8931/m2/source-url.js",
+          "status": 200
+        }
+      ],
+      "externalRequested": [
+        "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+        "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+        "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+        "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+      ],
+      "externalFailed": [
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.051/juliamono.css",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6",
+          "errorText": "",
+          "blockedReason": "inspector"
+        },
+        {
+          "requestId": "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+          "errorText": "",
+          "blockedReason": "inspector"
+        }
+      ]
+    }
+  ]
+}
+wrote /private/tmp/lean-doc-relay/w8/probe-cache-maxage.json
+done. artefacts in /private/tmp/lean-doc-relay/w8

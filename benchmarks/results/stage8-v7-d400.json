@@ -1,0 +1,224 @@
+{
+  "suite": "v7",
+  "tag": "v7-d400",
+  "origin": "http://127.0.0.1:8931",
+  "page": "InformationTheory/Asymptotic.html",
+  "decl": "InformationTheory.Asymptotic.DotEq",
+  "startedAt": "2026-08-11T07:03:36.851Z",
+  "chrome": {
+    "Browser": "Chrome/151.0.7922.76",
+    "Protocol-Version": "1.3",
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.0.0 Safari/537.36",
+    "V8-Version": "15.1.206.10",
+    "WebKit-Version": "537.36 (@031bfd60f544af71d8dd7246970d1af3e1acf3ad)",
+    "webSocketDebuggerUrl": "ws://127.0.0.1:9331/devtools/browser/cf89ffc6-604a-4318-b7fc-b3beccd1a028"
+  },
+  "deno": {
+    "deno": "2.7.14",
+    "v8": "14.7.173.20-rusty",
+    "typescript": "5.9.2"
+  },
+  "timings": {
+    "b0": [
+      {
+        "responseEnd": 21.899999976158142,
+        "domInteractive": 51.09999996423721,
+        "domContentLoadedEventStart": 104.09999996423721,
+        "domComplete": 104.89999997615814
+      },
+      {
+        "responseEnd": 21.5,
+        "domInteractive": 78.80000001192093,
+        "domContentLoadedEventStart": 82.10000002384186,
+        "domComplete": 82.89999997615814
+      },
+      {
+        "responseEnd": 26.099999964237213,
+        "domInteractive": 84.89999997615814,
+        "domContentLoadedEventStart": 87.59999996423721,
+        "domComplete": 89.39999997615814
+      },
+      {
+        "responseEnd": 22.100000023841858,
+        "domInteractive": 78.40000003576279,
+        "domContentLoadedEventStart": 81.40000003576279,
+        "domComplete": 82.10000002384186
+      },
+      {
+        "responseEnd": 21,
+        "domInteractive": 77.5,
+        "domContentLoadedEventStart": 82.80000001192093,
+        "domComplete": 83.60000002384186
+      },
+      {
+        "responseEnd": 20.80000001192093,
+        "domInteractive": 77.09999996423721,
+        "domContentLoadedEventStart": 80.19999998807907,
+        "domComplete": 81
+      },
+      {
+        "responseEnd": 31.100000023841858,
+        "domInteractive": 47.30000001192093,
+        "domContentLoadedEventStart": 103.19999998807907,
+        "domComplete": 104
+      },
+      {
+        "responseEnd": 20.30000001192093,
+        "domInteractive": 77.39999997615814,
+        "domContentLoadedEventStart": 80.5,
+        "domComplete": 81.39999997615814
+      }
+    ],
+    "m1": [
+      {
+        "responseEnd": 25,
+        "domInteractive": 83.10000002384186,
+        "domContentLoadedEventStart": 448,
+        "domComplete": 450
+      },
+      {
+        "responseEnd": 20.5,
+        "domInteractive": 78.30000001192093,
+        "domContentLoadedEventStart": 440.10000002384186,
+        "domComplete": 442
+      },
+      {
+        "responseEnd": 19.900000035762787,
+        "domInteractive": 76.90000003576279,
+        "domContentLoadedEventStart": 439.4000000357628,
+        "domComplete": 441.30000001192093
+      },
+      {
+        "responseEnd": 20,
+        "domInteractive": 79.09999996423721,
+        "domContentLoadedEventStart": 439.5999999642372,
+        "domComplete": 441.5
+      },
+      {
+        "responseEnd": 20.5,
+        "domInteractive": 35.89999997615814,
+        "domContentLoadedEventStart": 440.69999998807907,
+        "domComplete": 442.69999998807907
+      },
+      {
+        "responseEnd": 20,
+        "domInteractive": 37.799999952316284,
+        "domContentLoadedEventStart": 440.5,
+        "domComplete": 442.39999997615814
+      },
+      {
+        "responseEnd": 20.30000001192093,
+        "domInteractive": 76.59999996423721,
+        "domContentLoadedEventStart": 440.5,
+        "domComplete": 442.39999997615814
+      },
+      {
+        "responseEnd": 18.899999976158142,
+        "domInteractive": 35.30000001192093,
+        "domContentLoadedEventStart": 440.80000001192093,
+        "domComplete": 442.69999998807907
+      }
+    ],
+    "m2": [
+      {
+        "responseEnd": 19.80000001192093,
+        "domInteractive": 508.19999998807907,
+        "domContentLoadedEventStart": 512.6999999880791,
+        "domComplete": 513.8000000119209
+      },
+      {
+        "responseEnd": 21.5,
+        "domInteractive": 512.8999999761581,
+        "domContentLoadedEventStart": 518,
+        "domComplete": 519.0999999642372
+      },
+      {
+        "responseEnd": 21.69999998807907,
+        "domInteractive": 515.1999999880791,
+        "domContentLoadedEventStart": 520.5,
+        "domComplete": 521.5999999642372
+      },
+      {
+        "responseEnd": 21.600000023841858,
+        "domInteractive": 515,
+        "domContentLoadedEventStart": 519.6000000238419,
+        "domComplete": 520.6000000238419
+      },
+      {
+        "responseEnd": 23.600000023841858,
+        "domInteractive": 509.7000000476837,
+        "domContentLoadedEventStart": 515,
+        "domComplete": 516
+      },
+      {
+        "responseEnd": 19,
+        "domInteractive": 511.80000001192093,
+        "domContentLoadedEventStart": 516.1000000238419,
+        "domComplete": 517.1999999880791
+      },
+      {
+        "responseEnd": 20.19999998807907,
+        "domInteractive": 510.80000001192093,
+        "domContentLoadedEventStart": 516,
+        "domComplete": 517
+      },
+      {
+        "responseEnd": 20.399999976158142,
+        "domInteractive": 512,
+        "domContentLoadedEventStart": 517.0999999642372,
+        "domComplete": 518.1999999880791
+      }
+    ],
+    "m3": [
+      {
+        "responseEnd": 21.5,
+        "domInteractive": 80.70000004768372,
+        "domContentLoadedEventStart": 441.2000000476837,
+        "domComplete": 443.60000002384186
+      },
+      {
+        "responseEnd": 21.80000001192093,
+        "domInteractive": 79.69999998807907,
+        "domContentLoadedEventStart": 443.19999998807907,
+        "domComplete": 445.5999999642372
+      },
+      {
+        "responseEnd": 20.69999998807907,
+        "domInteractive": 78.79999995231628,
+        "domContentLoadedEventStart": 441,
+        "domComplete": 442.89999997615814
+      },
+      {
+        "responseEnd": 23.100000023841858,
+        "domInteractive": 82.10000002384186,
+        "domContentLoadedEventStart": 441.80000001192093,
+        "domComplete": 444.39999997615814
+      },
+      {
+        "responseEnd": 21.799999952316284,
+        "domInteractive": 80.39999997615814,
+        "domContentLoadedEventStart": 444.2999999523163,
+        "domComplete": 446.7999999523163
+      },
+      {
+        "responseEnd": 20.30000001192093,
+        "domInteractive": 36.10000002384186,
+        "domContentLoadedEventStart": 439.5,
+        "domComplete": 442.89999997615814
+      },
+      {
+        "responseEnd": 19.599999964237213,
+        "domInteractive": 34.09999996423721,
+        "domContentLoadedEventStart": 437.0999999642372,
+        "domComplete": 439.5
+      },
+      {
+        "responseEnd": 21.100000023841858,
+        "domInteractive": 36,
+        "domContentLoadedEventStart": 441.60000002384186,
+        "domComplete": 444.30000001192093
+      }
+    ]
+  },
+  "finishedAt": "2026-08-11T07:04:44.690Z"
+}

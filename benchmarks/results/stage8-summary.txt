@@ -1,0 +1,240 @@
+# stage 8 — JS 実行時注入の順序制約を本物のブラウザで閉じる
+
+段階 7e-rev の B-3 (b) が唯一の未検証点だった。DOM シムではなく Chrome で測った。
+新しい速度の主張はしない。判定は**見た目ではなく `location.replace` に渡った URL**。
+
+## 計測条件
+
+date            2026-08-11T06:58:35Z 〜 07:05:15Z (UTC)  ← 最終 run の window
+machine         MacBookAir10,1 / Apple M1 / 16 GiB (17,179,869,184 B)
+OS              macOS 26.6 (25G72) / Darwin 25.6.0 arm64
+browser         Google Chrome 151.0.7922.76 (HeadlessChrome/151.0.0.0)
+                V8 15.1.206.10 / WebKit 537.36 (@031bfd60f544)
+                --headless=new --remote-debugging-port=9331 --user-data-dir=<毎回削除>
+deno            2.7.14 (stable, aarch64-apple-darwin) / V8 14.7.173.20-rusty / TS 5.9.2
+node / npm      **使っていない** (この環境では署名不正で SIGKILL する)
+puppeteer 等    使っていない。CDP を deno の WebSocket から直接叩いている
+                (experiments/stage8/cdp.ts、これがクライアントの全体)
+配信            ローカル HTTP (127.0.0.1:8931、experiments/stage8/serve.ts)。
+                **file:// では測っていない**
+外部への通信    **出していない。** 外部ホスト宛のリクエストは CDP の `Fetch` ドメインで
+                `failRequest(BlockedByClient)`、cache スイートだけは `Fetch` が
+                キャッシュの交絡になるので `Network.setBlockedURLs`。
+                どちらも `Network.loadingFailed` を記録して中断を裏取りしている
+                (errorText=net::ERR_BLOCKED_BY_CLIENT、blockedReason=inspector)。
+                nav スイート 215 件 / cache スイート 40 件 × 2 条件を遮断し、
+                **未中断の外部リクエストは 0 件**
+ページ木        /private/tmp/lean-doc-relay/w7e/pages-ph (432 ファイル、{{SOURCE_URL}} 版)
+                **原本は書き換えていない。**`cp -R` で写した木に <script> を足している
+                (b0 は pages-ph と byte 一致、`diff -r` の差分は静的資産の追加のみ)
+静的資産        /Users/haruka/dev/lean-projects/.lake/packages/doc-gen4/static を丸ごと配置。
+                `jump-src.js` は **doc-gen4 のバイトそのまま** (md5 da16801c56b912949095621ad2f9a507)
+rev             https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec
+                (段階 7e-rev と同一)
+対象ページ      InformationTheory/Asymptotic.html / declId InformationTheory.Asymptotic.DotEq
+                (段階 7e-rev の B-2 と同一)
+回数            V1〜V4 / V6: 10 ケース × **5 回**、毎回まっさらな target
+                V5: 5 ページ × **8 回** (各回さらに 400 パスの償却計測)
+                V7: 4 構成 × **8 回** × 遅延 2 条件、キャッシュは 5 ページ × 2 周 × ヘッダ 2 条件
+暖機            ページ木は同一セッションで 4 回目の実行なので page cache に載っている (warm)。
+                Chrome は **スイートごとに user-data-dir を削除して起動** — HTTP キャッシュは
+                毎回空から始まる (V7 のキャッシュ計測はこれが前提)
+並列度          サーバもハーネスも単一プロセス。ブラウザの target は同時に 1 つだけ
+Lean            **1 度も走らせていない**
+driver          experiments/stage8/run.sh (これ 1 本で全部再現できる)
+
+## 構成 (README の表のとおり。m3b だけ追加)
+
+  B0   注入なし (pages-ph そのまま)
+  M1   <script type="module" src=source-url.js data-schedule=auto>  jump-src.js の**前**
+  M2   <script src=source-url.js data-schedule=auto> (**同期**)      jump-src.js の**前**
+  M3   <script type="module" src=source-url.js data-schedule=listener> jump-src.js の**後**
+  m3b  <script type="module" src=source-url.js data-schedule=auto>   jump-src.js の**後**
+
+  m3b は README 本文が「これは M3 ではない」と名指ししているケース
+  (module を後ろに置いて即時書き換え)。**言明のままにせず測った。**
+  M3 の壊れが「後ろに置いたから」ではなく「リスナ登録が後だから」であることを分離する。
+
+  rev は**ページのバイトに戻していない**。全ページ共通の外部 1 ファイル
+  `source-url.js` が唯一の供給元で、432 ページの HTML には rev が 1 バイトも入らない
+  (b0/m1/m2/m3/m3b いずれの HTML にも `573793b…` は出現しない)。
+
+## V1〜V4 【実測】— 5 回とも同一結果、distinct outcome は各ケース 1 つ
+
+  | 構成 | `location.replace` に渡った URL | 判定 |
+  |---|---|---|
+  | **B0**  | `http://127.0.0.1:8931/b0/InformationTheory/%7B%7BSOURCE_URL%7D%7D/InformationTheory/Asymptotic.lean#L44-L52` | **壊れる** |
+  | **M1**  | `https://github.com/…/blob/573793b243fb1343636088eb62d1789ab2b14cec/InformationTheory/Asymptotic.lean#L44-L52` | **通る** |
+  | **M2**  | 同上 (M1 と完全に同一文字列) | **通る** |
+  | **M3**  | `http://127.0.0.1:8931/m3/InformationTheory/%7B%7BSOURCE_URL%7D%7D/InformationTheory/Asymptotic.lean#L44-L52` | **壊れる** |
+  | m3b     | M1 / M2 と同一の GitHub URL | 通る |
+
+  URL の出所は `Page.frameRequestedNavigation` (reason=scriptInitiated、メインフレーム)。
+  **フラグメント `#L44-L52` まで含む**ので、`location.replace()` の引数そのもの。
+  `location.replace` を JS で包む案は**採れない**ことを実測で確認した
+  (→ stage8-hook.json: `replace` は Location の own property で
+   configurable=false / writable=false、`Object.defineProperty` は
+   `TypeError: Cannot redefine property: replace`。Location.prototype 側は書けるが
+   own が勝つので効かない — `replaceStillOriginal: true`)。
+
+  **B0 / M3 の遷移先はローカルサーバで実際に 404 になった**【実測、サーバ側ログ】:
+    stage8-server-nav.jsonl に
+      {"path":"/b0/InformationTheory/{{SOURCE_URL}}/InformationTheory/Asymptotic.lean","status":404}
+      {"path":"/m3/InformationTheory/{{SOURCE_URL}}/InformationTheory/Asymptotic.lean","status":404}
+    が 5 本ずつ、計 10 本。`{{` `}}` は %7B%7B / %7D%7D に percent-encode される。
+    段階 7e-rev B-2 の DOM シム結論が**ブラウザで裏取りできた**。
+
+  → V1 成立 / V2 成立 / V3 成立 / V4 成立。
+
+## V4 の裏取り — M3 は「注入が走らなかった」のではない 【実測】
+
+  自分に有利な方に転ばないよう、M3 が壊れた理由を 3 通り潰した。
+
+  1. **source-url.js は 200 で配信され、実行され、10 本すべて書き換えた。**
+     M3 のコンソールに `[SOURCE-URL] rewrote 10/10 in 0.1000 ms` が出ている。
+     セレクタが 0 件を返したわけではない (matched=10 / rewritten=10)。
+  2. **リスナ登録順が意図どおり。** `document.addEventListener` を包んで登録元を記録した:
+       M2: seq=1 source-url.js:57 → seq=2 jump-src.js:1   (注入が先)
+       M3: seq=1 jump-src.js:1    → seq=2 source-url.js:57 (注入が後)  ← 壊れる
+     同一イベントのリスナは登録順に発火するので、M3 では jump-src.js が
+     **書き換え前の** href を読む。書き換え自体はその直後に成功している。
+  3. **`?jump=src` を外して M3 を開くと、5 回とも `matched:10, rewritten:10` で
+     書き換えが完了している** (window.__sourceUrlRewrite)。M3 の注入は健全で、
+     壊れているのは**タイミングだけ**。
+
+  m3b (同じ位置・即時書き換え) が通ることと合わせて、制約は
+  **「注入の完了が jump-src.js の DOMContentLoaded ハンドラ実行より前」**であって
+  「タグの位置」ではない、と確定した。7e-rev B-3 (b) の言明どおり。
+
+## V5 書き換えの実行時間 【実測】
+
+  **分母の訂正**: 1 ページあたりの書き換え本数は「木全体 4,992」ではない。
+  432 ファイルの実測分布は **min 1 / p50 9 / p90 24 / max 73**、合計 4,992。
+  以下はすべて **1 ページあたり N 本**の話。
+
+  `performance.now()` の分解能を先に測った → **0.1 ms** (最小の非零差分。Chrome の
+  時刻粗視化)。単発の値はこの粒度に量子化されているので、償却計測も併記する。
+
+  | ページ | 本数 | 要素数 | DOM byte | 単発 (on load) 8 回の中央値 | 償却 400 パスの ms/pass 中央値 [min,max] |
+  |---|---:|---:|---:|---:|---:|
+  | min     |  1 |    141 |   6,844 | 0.10 ms | 0.0189 [0.0072, 0.0203] |
+  | p50     |  9 |    908 |  37,014 | 0.10 ms | 0.1094 [0.1045, 0.1125] |
+  | 対象    | 10 |    665 |  27,956 | 0.10 ms | 0.0935 [0.0862, 0.0965] |
+  | max 本数| 73 |  3,871 | 203,982 | 0.45 ms | 0.3286 [0.3165, 0.3615] |
+  | **最大ページ** | 47 | 13,562 | 555,904 | **0.80 ms** | 0.6606 [0.6575, 0.6647] |
+
+  単発は毎回まっさらな target に読み込んだ実際の 1 パス (source-url.js が自分で計時)。
+  償却は同じ処理を forward/backward 400 パス回して総時間 ÷ 400 (往路と復路は
+  querySelectorAll + N 回 setAttribute で仕事量が同じ)。両者は同じ桁で整合する。
+  単発が償却よりやや大きいのは JIT が冷えている 1 回目だから。
+
+  **予測と食い違った点が 2 つある。**
+
+  (a) **コストは本数に比例しない。** 9 本のページ (0.109 ms) が 10 本のページ
+      (0.094 ms) より高く、47 本のページ (0.66 ms) が 73 本のページ (0.33 ms) の
+      2 倍かかる。**要素数に対しては 5 点すべて単調**で、本数に対しては単調でない。
+      書き換えは `querySelectorAll` で文書全体を歩くので、支配項がページの大きさ側に
+      あることが説明として自然だが、**5 点では「要素数」と「本数」を分離できていない**
+      (要素数だけの線形当てはめも中間 2 点を 0.03 ms 過小に予測する)。**未分離**。
+
+  (b) **「max ページ = 73 本」という前提が誤り。** 本数最大のページは
+      TimeBandLimiting/Operator.html (73 本 / 203,982 B) だが、木で最大のページは
+      BroadcastChannel/OuterBoundTransport.html (**47 本 / 555,904 B / 13,562 要素**) で、
+      こちらが 0.80 ms と最も高い。(a) を見つけてから探し直して足した。
+
+  → **V5 は成立するが、余裕は予測より小さい。** 「max ページでも 1 ms のオーダー」は
+     正しい (最悪 0.80 ms 中央値、観測最大 0.9 ms)。ただし **1 ms を大きく下回るのではなく、
+     1 ms の直下**。432 ページ中の最悪ケースの話であって、p50 のページは 0.1 ms。
+
+## V6 `?jump=src` 無しでは `location.replace` が走らない 【実測】
+
+  B0 / M1 / M2 / M3 / m3b の 5 構成 × 5 回 = 25 回、
+  `Page.frameRequestedNavigation(reason=scriptInitiated)` は**メインフレームで 0 件**。
+  `location.href` も開いた URL のまま (`…/Asymptotic.html#InformationTheory.Asymptotic.DotEq`)。
+  M1 / M2 / M3 / m3b では書き換え自体は毎回完了している (matched 10 / rewritten 10)。
+
+  → V6 成立。**壊れ方は `?jump=src` 付きのディープリンクに限られる**という
+     7e-rev B-3 の注記がブラウザで確認できた。
+
+## V7 source-url.js の追加往復 【実測 + 未分離】
+
+  (a) **同期版 (M2) は parse をブロックする。成立。**
+      source-url.js の応答を 400 ms 遅らせて、`domInteractive` (= parse 完了) を見る:
+
+      | 構成 | 遅延 0 の domInteractive 中央値 | 遅延 400 の domInteractive 中央値 | 遅延 400 の DOMContentLoaded 開始 |
+      |---|---:|---:|---:|
+      | B0 (注入なし) | 76.6 ms | 77.4 ms | 82.5 ms |
+      | M1 (module)   | 40.5 ms | 76.8 ms | **440.5 ms** |
+      | M2 (同期)     | 58.1 ms | **511.9 ms** | 516.6 ms |
+      | M3 (module)   | 78.7 ms | 79.2 ms | **441.4 ms** |
+
+      M2 だけ parse 完了が遅延ぶん丸ごと押し出される (+約 430 ms、8 回の範囲 508〜515 ms)。
+      M1 / M3 の parse は B0 と区別できない。**予測どおり。**
+
+      **予測に無かった点**: module 版 (M1/M3) は parse をブロックしないが
+      **DOMContentLoaded は同じだけ遅れる** (440 ms 台)。defer スクリプトは DCL 発火より
+      前に実行されるので当然だが、「module にすればコストが消える」わけではない
+      — jump-src.js のハンドラ実行はどちらの版でも往復ぶん遅れる。
+      遅延なし (ローカル配信) では 4 構成の差は**ノイズに埋もれて分離できない**
+      (中央値 40〜79 ms、8 回の範囲が互いに重なる)。**未分離**。
+
+  (b) **2 ページ目以降キャッシュに載るか — 配信ヘッダ次第。成立とは言えない。**
+      同一 target で 5 ページ × 2 周 = 10 回のナビゲーション。判定はサーバ側の
+      アクセスログ (レンダラ側の `Network.responseReceived` はキャッシュヒットでも
+      発火するので判定に使えない — 実際どちらの条件でも 10 件出る)。
+
+      | サーバの応答ヘッダ | source-url.js への実リクエスト | サーバ総リクエスト |
+      |---|---:|---:|
+      | 何も付けない (素朴な静的配信) | **10 / 10** | 142 |
+      | `Cache-Control: max-age=3600` | **1 / 10** | 47 |
+
+      検証子 (ETag / Last-Modified) も鮮度も無ければ Chrome は毎回取りに来る。
+      `max-age` を付ければ 2 ページ目以降は取りに来ない。
+      → 「全ページ共通なので 2 ページ目以降はキャッシュに載る」は**無条件には成立しない。
+        配信側が鮮度ヘッダを付けたときだけ成立する**。これは製品側の要件になる
+        (かつ rev 更新時に古い source-url.js を掴ませない設計が要る)。
+
+      注: このスイートだけ `Fetch` ドメインを有効にしていない。全リクエストを
+      intercept すること自体がキャッシュの交絡になるため。外部遮断は
+      `Network.setBlockedURLs` で行い、`Network.loadingFailed` で中断を裏取りした
+      (未中断の外部リクエスト 0 件 / 4 URL × 10 ナビゲーション)。
+
+## この段階でやっていないこと・注意
+
+  * Lean を 1 度も走らせていない。抽出・レンダリング・byte の数字は一切更新していない。
+    `stage4c/coverage.ts` は呼んでいない (点 A は 7e-rev で閉じている)。
+  * `experiments/stage1`〜`stage7h` を 1 行も変えていない。
+  * 測ったのは **Chrome 151 のみ**。Safari / Firefox は測っていない。
+    仕様 (HTML Standard の script 実行順と DOMContentLoaded) から他エンジンでも
+    同じになるはずだが、**それは仮定であって実測ではない**。
+  * `source-url.js` は M1/M2/M3/m3b で**同一ファイル**。スケジューリングだけ
+    タグの `data-schedule` で切り替えている。README の表は M1 を「即時」、
+    M2/M3 を「リスナ内」と定義しているので、**構成間の差はタグの置き方だけ、
+    ではなく `data-schedule` 属性も違う**。README 本文の「置き方だけ」という
+    要約とはここがずれる (表の定義のほうに従った)。
+  * ページは navbar.html / declarations/declaration-data.bmp を 404 で取り損ねる
+    (pages-ph はモジュールページだけの木で、これらの成果物が無い)。
+    jump-src.js の経路には関係しないが、ログにこの 404 が出るのはそのため。
+  * **この段階の探索中に、CDP のスパイクが 1 度だけ github.com と
+    github.githubassets.com へ実リクエストを出している** (Fetch ハンドラを
+    continueRequest のまま試した回)。本計測ではすべて遮断済みで、
+    上表の数字はどれもそのスパイクからは取っていない。
+
+## 生ログ
+
+  stage8-summary.txt          この文書
+  stage8-nav.json             V1〜V4 / V6。10 ケース × 5 回の全観測
+                              (frameRequestedNavigation / Fetch / console / 最終 URL)
+  stage8-server-nav.jsonl     同上のサーバ側ログ。**404 の一次証拠**
+  stage8-cost.json            V5。5 ページ × 8 回の単発 + 償却、時計分解能、DOM サイズ
+  stage8-v7-d0.json           V7 (a) 遅延なし
+  stage8-v7-d400.json         V7 (a) source-url.js を 400 ms 遅延
+  stage8-cache-nocc.json      V7 (b) 鮮度ヘッダなし (レンダラ側)
+  stage8-cache-maxage.json    V7 (b) max-age=3600 (レンダラ側)
+  stage8-server-cache-*.jsonl 同上のサーバ側ログ。**キャッシュ判定の一次証拠**
+  stage8-hook.json            location.replace を JS で包めないことの実測
+  stage8-build-sites.json     5 構成の生成結果 (432 ファイル中 432 に注入、unmatched 0)
+  stage8-run.txt              driver の全出力 (`benchmarks/results/*.log` は gitignore
+                              なので `.txt` で置いている)
+
+  再現: experiments/stage8/run.sh (引数不要。W / PAGES / OUT を環境変数で差せる)
