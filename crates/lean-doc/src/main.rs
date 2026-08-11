@@ -1,11 +1,13 @@
 //! The `lean-doc` command line tool.
 //!
-//! **The subcommand surface is milestone M4's.** What is here is the one
-//! subcommand M1 needs to be judged: `render`, which turns an IR tree into a
-//! tree of module pages and is what `tools/render-compare.sh` runs against the
-//! frozen prototype's output. Everything else — extraction, the global
-//! artifacts, the incremental pipeline, the resident server — arrives with its
-//! own milestone, and guessing at its flags now would only have to be undone.
+//! **The subcommand surface is milestone M4's.** What is here is the two
+//! subcommands M1 and M2 need to be judged: `render`, which turns an IR tree
+//! into a tree of module pages, and `global`, which turns the same tree into the
+//! six whole-package artifacts. `tools/render-compare.sh` and
+//! `tools/global-compare.sh` run them against the frozen prototype's output.
+//! Everything else — extraction, the incremental pipeline, the resident server —
+//! arrives with its own milestone, and guessing at its flags now would only have
+//! to be undone.
 //!
 //! Two flags are deliberately more awkward than the prototype's:
 //!
@@ -22,12 +24,14 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+use lean_doc_global::{GlobalOptions, build_global};
 use lean_doc_render::{ModuleSet, RenderOptions, render_site};
 
 const USAGE: &str = "\
 usage: lean-doc render --ir <dir> --pages <dir> --source-url <url>
                        (--link-index <file> | --no-link-index)
                        [--only <Module>]... [--only-from <file>]
+       lean-doc global --ir <dir> --out <dir>
 
   --ir           an IR tree written by the extractor (schema 4)
   --pages        where the pages go; directories are created
@@ -36,6 +40,7 @@ usage: lean-doc render --ir <dir> --pages <dir> --source-url <url>
   --only         render only this module; repeatable
   --only-from    render only the modules named in this file, one per line.
                  An empty file renders nothing.
+  --out          the site root the six whole-package artifacts go under
 ";
 
 fn main() -> ExitCode {
@@ -66,6 +71,7 @@ fn usage<T>(message: impl Into<String>) -> Result<T, Failure> {
 fn run(args: &[String]) -> Result<(), Failure> {
     match args.first().map(String::as_str) {
         Some("render") => render(&args[1..]),
+        Some("global") => global(&args[1..]),
         Some("--help" | "-h") | None => {
             println!("{USAGE}");
             Ok(())
@@ -76,6 +82,58 @@ fn run(args: &[String]) -> Result<(), Failure> {
         }
         Some(other) => usage(format!("unknown subcommand `{other}`")),
     }
+}
+
+/// The six whole-package artifacts.
+///
+/// No `--only`: the derivation is over the whole package by construction, and
+/// M2-b's cache makes it cheap rather than partial. No `--source-url` either —
+/// none of the six carries a source link.
+fn global(args: &[String]) -> Result<(), Failure> {
+    let mut ir: Option<PathBuf> = None;
+    let mut out: Option<PathBuf> = None;
+
+    let mut rest = args.iter();
+    while let Some(arg) = rest.next() {
+        let mut value = |flag: &str| -> Result<String, Failure> {
+            match rest.next() {
+                Some(value) => Ok(value.clone()),
+                None => usage(format!("{flag} needs a value")),
+            }
+        };
+        match arg.as_str() {
+            "--ir" => ir = Some(value("--ir")?.into()),
+            "--out" => out = Some(value("--out")?.into()),
+            "--help" | "-h" => {
+                println!("{USAGE}");
+                return Ok(());
+            }
+            other => return usage(format!("unknown argument `{other}`")),
+        }
+    }
+
+    let Some(ir) = ir else {
+        return usage("--ir is required");
+    };
+    let Some(out) = out else {
+        return usage("--out is required");
+    };
+    let summary = build_global(&GlobalOptions { ir: &ir, out: &out })
+        .map_err(|e| Failure::Failed(e.to_string()))?;
+
+    println!(
+        "modules {}  declarations {} + {} dependency names  instance classes {}  tactic docs {}",
+        summary.modules,
+        summary.declarations,
+        summary.dependency_names,
+        summary.instance_classes,
+        summary.tactic_docs,
+    );
+    println!(
+        "declaration data {} B  name map {} B",
+        summary.bmp_bytes, summary.name_map_bytes,
+    );
+    Ok(())
 }
 
 fn render(args: &[String]) -> Result<(), Failure> {

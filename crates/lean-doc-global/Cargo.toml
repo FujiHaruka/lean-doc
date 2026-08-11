@@ -5,3 +5,17 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+lean-doc-ir = { path = "../lean-doc-ir" }
+# `escapeHtml` and the Unicode general-category table both live here: the
+# docstring renderer needs them too, and a second copy is a second thing that
+# has to stay equal. See plan §7 (crate boundary note).
+lean-doc-md = { path = "../lean-doc-md" }
+# `preserve_order` is set on the workspace dependency and is load-bearing here:
+# see src/artifacts.rs.
+serde_json = { workspace = true }
+
+[dev-dependencies]
+serde = { workspace = true }
+# Only to check that this crate's URL-path rule and the renderer's filesystem
+# one are the same rule. Not a runtime dependency: nothing here renders a page.
+lean-doc-render = { path = "../lean-doc-render" }
