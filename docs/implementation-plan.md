@@ -187,7 +187,7 @@ URL はベース URL (パッケージごとの設定) と §5.3 の相対規則�
 |---|---|---|---|
 | **M1-a** | **IR リーダ** (schema 4、UTF-16 スパン) | — (IR そのもの) | 着手済み |
 | **M1-b** | **下回り** — `escapeHtml` (330-341) / `applyWsWidths` (555-593) / `leanQuote` (785-797) / `stringLt`・`nameLt` (800-825) / `.lidx` パーサ (2067-2084) | 上記 | |
-| **M1-c** | **docstring** — md4c FFI + AST → HTML + autolink 解決 (925-1077) | 925-1672 | md4c は vendor 済み |
+| **M1-c** | **docstring** — md4c FFI + AST → HTML + autolink 解決 (925-1077) | 925-1672 | **前半 (FFI + AST) 完了** → §7。残りは AST → HTML と autolink |
 | **M1-d** | **ページ描画と主ループ** — 宣言・署名・equations・members・instances・出力 | 残り | |
 
 **M1-c で自前 CommonMark 594 行 (1079-1672) が消え、autolink 153 行 (925-1077) は残る**【実測】。
@@ -353,9 +353,41 @@ md4c を FFI で直接リンクできる」と言っていた。**対象環境�
 `MD4Lean.renderHtml` を公開しているからで、**doc-gen4 はそちらを通らない**。
 doc-gen4 は entity を**生のまま通す** (`DocString.lean:211` → `Html.raw s`)【実測】ので実体表も要らない。
 
-**AST が MD4Lean 独自に歪んでいるリスクは潰した**【実測 → `MD4Lean/wrapper/wrapper.c:157-191`】 —
-wrapper は md4c の push API を Lean の ADT に **1:1 で写しているだけ**で、正規化も実体展開もしない。
-つまり Rust 側が md4c を同じフラグで直接叩けば、**AST は定義上同じ**になる。
+**AST が MD4Lean 独自に歪んでいるリスクは潰した**【実測 → `MD4Lean/wrapper/wrapper.c`】 —
+wrapper は正規化も実体展開もしない。**ただし「1:1」は言い過ぎだった**【M1-c で訂正】 —
+**リスト項目の暗黙 `P` だけは wrapper が足している**: md4c は `MD_BLOCK_LI` の直下に
+テキストとブロックを混ぜて流すが、Lean の `Li` はブロックしか持てないので、
+wrapper は LI 直下にテキストが来たら `P` を開き、兄弟ブロックか項目末尾で閉じる
+(`wrapper.c:47-77`)。doc-gen4 の `renderLi` はブロックを回すので**これは効いている**。
+→ **Rust 側は wrapper の写経で作る**のが正しく、実際そうした (`crates/lean-doc-md/src/parse.rs`)。
+
+#### M1-c 前半の結果 — FFI + AST は完了【実測 2026-08-11】
+
+- **オラクルは MD4Lean 本体**。`lake env lean` で `MD4Lean.parse` を対象環境で走らせ、
+  AST を JSON でダンプして Rust の AST と構造比較する
+  (`crates/lean-doc-md/tests/oracle/`)。コーパスは**対象パッケージの IR の docstring 全件
+  (重複除去 4,858 件) + 手書き 83 件 + 方言を振ったもの 9 件**、MD4Lean が落ちる 3 件 (下記) を
+  除いて **4,947 件全一致**【実測。`cargo test -p lean-doc-md -- --nocapture` が件数を出す】。
+  **リポジトリに入るのは 533 件 (468 KB)** — 構成子の貪欲被覆 + 等間隔サンプルで、
+  対象パッケージが無い機械でも `cargo test` が通る (M1-b の流儀)。**全件は再生成して確かめる**
+  (`tests/oracle/gen-md4lean-expected.ts --full <path>`)。生成器がコミットされているので、
+  中間の 5.1 MB を残さなくても 4,947 件は再現できる。
+- **ヘッダのレイアウトは C コンパイラに答え合わせさせる** — `csrc/layout_probe.c` が
+  `sizeof` / `_Alignof` / `offsetof` / 全 enum 値 / 全フラグを吐き、`tests/abi.rs` が
+  Rust 側の転写と名前ごとに突き合わせる (123 項目)。**間違ったレイアウトがたまたまリンクする**のが
+  この crate の最大の失敗様式なので、読んで確認するのではなく機械で確認する。
+
+**MD4Lean は 2 つの入力で死ぬ**【実測。M1-d と受け入れ判定の両方に効く】:
+
+| 入力 | 何が起きる | 原因 |
+|---|---|---|
+| **fenced code block の中の NUL** | **SIGSEGV** | md4c は verbatim でも `MD_TEXT_NULLCHAR` を出す (`md4c.c:404`) が、Lean 側の型は `Array String`。wrapper がスカラを配列に押し込む (`wrapper.c:558`) |
+| **本文行の無い GFM テーブル** (ヘッダ + 区切り線だけ) | **SIGABRT** (`wrapper.c:389` の assert) | md4c は本文が 0 行なら `MD_BLOCK_TBODY` を**出さない** (`md4c.c:4632`) のに wrapper は 2 個目の子を読む |
+
+どちらも Lean 側では未定義動作なのでバイト一致のしようがない。**Rust 版は落ちない方に倒した**
+(前者は U+FFFD 置換 = CommonMark と `DocString.lean:208` に一致、後者は空の body)。
+対象パッケージの docstring には**どちらも出現しない**【実測。4,858 件を通して確認】ので
+ゲート A のバイトには影響しない。
 
 **移設のコストはここで 2 つに割れる**【実測】:
 

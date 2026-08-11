@@ -13,48 +13,45 @@
 //! TypeScript prototype needed. It does **not** remove the 153 lines of
 //! autolink resolution around it (`nameToLink`, `isNameLit`, `autoLinkInline`,
 //! ...) — that part is doc-gen4's, not md4c's, and has to be ported.
+//!
+//! # What is here (M1-c, first half)
+//!
+//! The binding and the tree, not the HTML:
+//!
+//! | | |
+//! |---|---|
+//! | [`ffi`] | `md4c.h` transcribed: enums, detail structs, `MD_PARSER`, `md_parse` |
+//! | [`flags`] | `MD_FLAG_*`, and [`flags::DOCSTRING_FLAGS`], the combination doc-gen4 uses |
+//! | [`ast`] | the tree, shaped like MD4Lean's Lean ADT because that is what doc-gen4 matches on |
+//! | [`parse`] | the callbacks, transliterated from `MD4Lean/wrapper/wrapper.c` |
+//!
+//! ```
+//! use lean_doc_md::{Block, Text};
+//!
+//! let doc = lean_doc_md::parse("`Nat.succ` is *fine*").unwrap();
+//! let Block::P(texts) = &doc.blocks[0] else { panic!() };
+//! assert_eq!(texts[0], Text::Code(vec!["Nat.succ".to_owned()]));
+//! ```
+//!
+//! # How this is checked
+//!
+//! Two oracles, neither of which is a reading of this code:
+//!
+//! - `tests/abi.rs` compares every size, alignment, field offset and
+//!   enumerator in [`ffi`] against the values the **C compiler** computes from
+//!   the vendored header. A struct layout that merely happens to link is the
+//!   failure this crate is most exposed to.
+//! - `tests/md4lean.rs` compares the tree against **MD4Lean's own**
+//!   `MD4Lean.parse`, run under Lean on the target package's docstrings. The
+//!   generator is `tests/oracle/`.
 
-use std::ffi::{c_int, c_uint, c_void};
+pub mod ast;
+mod error;
+pub mod ffi;
+pub mod flags;
+mod parse;
 
-// The real binding — the `MD_PARSER` callback table, the block and span enums,
-// and a safe wrapper that turns them into an AST — is milestone M1-c. What is
-// here is deliberately only enough to prove that the vendored C compiles and
-// links on this toolchain, so that M1-c starts from a working build rather than
-// discovering a toolchain problem halfway through a port.
-//
-// `md_parse` is declared with an opaque parser pointer on purpose: writing the
-// struct layout down is part of M1-c, and a wrong layout that happens to link
-// is worse than no layout at all.
-unsafe extern "C" {
-    fn md_parse(
-        text: *const u8,
-        size: c_uint,
-        parser: *const c_void,
-        userdata: *mut c_void,
-    ) -> c_int;
-}
-
-/// Address of md4c's entry point.
-///
-/// Exists so that something in this crate references the C library and the
-/// linker is obliged to resolve it. Calling it needs a valid `MD_PARSER`, which
-/// M1-c defines.
-#[must_use]
-pub fn md4c_entry_point_address() -> usize {
-    // Through a function pointer rather than casting the function item
-    // directly, which rustc warns about.
-    let entry: unsafe extern "C" fn(*const u8, c_uint, *const c_void, *mut c_void) -> c_int =
-        md_parse;
-    entry as usize
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Fails at link time, not at run time, if the vendored md4c did not build.
-    #[test]
-    fn vendored_md4c_links() {
-        assert_ne!(md4c_entry_point_address(), 0);
-    }
-}
+pub use ast::{AttrText, Block, Document, Li, Text};
+pub use error::{Error, Result};
+pub use flags::DOCSTRING_FLAGS;
+pub use parse::{parse, parse_with_flags};
