@@ -29,6 +29,14 @@
 //! | the dependency closure's map | `render.ts:2067-2084` | [`link_index`] |
 //! | docstring name resolution | `nameToLink`, `isNameLit`, `isLetterLike` | [`autolink`] |
 //!
+//! # What is here so far (M1-d1)
+//!
+//! [`code`] — one printed code fragment (a signature, a binder, an equation, a
+//! structure field) to HTML: `buildTree`, `Renderer`, and the name handling
+//! around them. It is the leaf the page builder calls, and the only part of the
+//! page that resolves constants against the IR's own map rather than against
+//! the dependency closure's.
+//!
 //! The fifth item of plan §7's list — UTF-16 code unit order — is in
 //! [`lean_doc_ir::cmp_utf16`] instead: M2's global artifacts and M3's ledger
 //! sort with it too, and one comparator with one set of tests is the point.
@@ -37,6 +45,7 @@
 //! against a reading of it; see `tests/differential.rs`.
 
 pub mod autolink;
+pub mod code;
 pub mod escape;
 pub mod link_index;
 pub mod order;
@@ -45,6 +54,10 @@ pub mod whitespace;
 pub use autolink::{
     NameIndex, NameIndexBuilder, PRIVATE_PREFIX, PageLinks, is_letter_like, is_name_lit,
     module_decl_names, module_link, page_root,
+};
+pub use code::{
+    CodeRenderer, Refs, Rendered, break_within, css_kind, decl_refs, find_linkable_parent,
+    kind_description, module_from_private_prefix, private_to_user_name,
 };
 pub use escape::{escape_html, escape_html_into, lean_quote, lean_quote_into};
 pub use link_index::LinkIndex;

@@ -188,7 +188,7 @@ URL はベース URL (パッケージごとの設定) と §5.3 の相対規則�
 | **M1-a** | **IR リーダ** (schema 4、UTF-16 スパン) | — (IR そのもの) | 着手済み |
 | **M1-b** | **下回り** — `escapeHtml` (330-341) / `applyWsWidths` (555-593) / `leanQuote` (785-797) / `stringLt`・`nameLt` (800-825) / `.lidx` パーサ (2067-2084) | 上記 | |
 | **M1-c** | **docstring** — md4c FFI + AST → HTML + autolink 解決 (925-1077) | 925-1672 | **完了** → §7 |
-| **M1-d** | **ページ描画と主ループ** — 宣言・署名・equations・members・instances・出力 | 残り | |
+| **M1-d** | **ページ描画と主ループ** — 宣言・署名・equations・members・instances・出力 | 残り | **d1 完了** → §7 |
 
 **M1-c で自前 CommonMark 594 行 (1079-1672) が消え、autolink 153 行 (925-1077) は残る**【実測】。
 `--only` の扱い (`2088-2092`) は M1-d で**型に分ける** (→ §5 の穴)。
@@ -495,6 +495,34 @@ crate 依存は `lean-doc-render` → `lean-doc-md` の向きなので、**実�
 `isLetterLike` の BMP 外レンジを落とす / 空文字列を name literal にする /
 接尾一致をやめる / ソースパス分岐を注入点の向こうに送る。
 最後のものは `lean-doc-md` 側のテストも落とす。
+
+#### M1-d1 の結果 — コード片レンダラは完了【実測 2026-08-11】
+
+`crates/lean-doc-render/src/code.rs` (`CodeRenderer` / `buildTree` / `findLinkableParent` /
+`privateToUserName` / `moduleFromPrivatePrefix` / `kindDescription` / `cssKind` / `breakWithin`)。
+**オラクルは `render.ts` の `Renderer.fragment` を切り出したもの** (doc-gen4 は使えない —
+`renderedCodeToHtmlAux` は**平坦化前**の `CodeWithInfos` を取るので、両者に共通の入力が無い)。
+
+| | 母数の定義 | 結果 |
+|---|---|---|
+| **全件** | IR のスパン付きフラグメント**全件 55,514** (`Decl.type` / `binders[i]` / `equations[i]` / `Member.text` / `Member.binders[i]`。432 モジュール / 4,750 宣言) | **55,514 / 55,514 バイト一致** (`hasAnchor` 込み) |
+| **fixture** | 貪欲被覆 + 等間隔で絞った 201 + 手書き 24 = **225 件** (626 KB) | 225 / 225 |
+| **付随** | `kindDescription`/`cssKind` の (kind, modifiers) 組 **10**、`breakWithin` の名前 **4,750**、`_private.` 名 **9** | 全一致 |
+
+コーパスの数字【実測】: アンカー **120,868** 本 (うち sort 7,550) / リンクのあるフラグメント
+54,452 / `known` **5,296** (M1-c の値と一致) / root は **5 通り**。
+
+**実コーパスが 10 分岐のうち 3 つに一度も到達しない**【実測。`branchTotals`】 —
+`constSpansUnlinkable` / `constSpansViaParent` / `constSpansNameNotInRefs` が **0**。
+つまり `findLinkableParent` を丸ごと落としても**全件比較は緑のまま**で、手書きケースだけが
+これを止める。テストがこの事実に依存していることを `the_curated_cases_cover_what_the_package_does_not`
+が明示的に守る。**mutation 5 件すべてが少なくとも 1 テストで落ちる**【実測】 —
+直接ヒット分岐 / `findLinkableParent` / private の module fallback / kind 2 の `hasAnchor` 抑制 /
+`buildTree` の `>=` → `>`。**`findLinkableParent` と kind 2 抑制の 2 件は手書きケースでしか
+落ちない** (全件比較は緑のまま)。
+
+**カウンタ (`FragCounters` / `sink`) は移さなかった**【判断】 — バイトに一切届かず
+(`--report` 用)、分岐構造の第 2 の定義になって本体とずれる。分岐被覆は**出力側**で判定する。
 
 ### byte 一致で Rust の既定が壊す箇所【すべて実測】
 
