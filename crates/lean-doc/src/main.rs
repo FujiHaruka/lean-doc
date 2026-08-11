@@ -10,6 +10,11 @@
 //! incremental pipeline, the resident server — arrives with its own milestone,
 //! and guessing at its flags now would only have to be undone.
 //!
+//! **`site` is provisional in exactly the same way** (M3-d1): it is full
+//! generation in one command because the gate needs one command, and **M4
+//! decides what the product's build command is actually called and what it takes
+//! from a repository rather than from an IR tree that already exists.**
+//!
 //! Two flags are deliberately more awkward than the prototype's:
 //!
 //! - **`--only` and `--only-from` are the same option in two spellings, and
@@ -22,20 +27,25 @@
 //!   out costs 150 of 432 pages their correct bytes, and it does so silently.
 
 use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::ExitCode;
 
-use lean_doc_global::{GlobalOptions, build_global};
+use std::time::Instant;
+
+use lean_doc_global::{GlobalOptions, GlobalSummary, build_global};
 use lean_doc_incr::{
     Algorithm, BuildOptions, CheckOptions, ImpactOptions, MergeOptions, Mode, ORPHANS_IN_LOG,
     OwnershipOptions, PruneOptions, TouchOptions, WITNESSES_IN_LOG, build_ledger, check_ledger,
     impact as run_impact, merge as run_merge, ownership as run_ownership, prune as run_prune,
     read_module_list, touch_ledger, verify as run_verify,
 };
-use lean_doc_render::{ModuleSet, RenderOptions, render_site};
+use lean_doc_render::{ModuleSet, RenderOptions, RenderSummary, render_site};
 
 const USAGE: &str = "\
-usage: lean-doc render --ir <dir> --pages <dir> --source-url <url>
+usage: lean-doc site   --ir <dir> --out <dir> --source-url <url>
+                       (--link-index <file> | --no-link-index)
+                       [--state <dir>] [--timings <file>]
+       lean-doc render --ir <dir> --pages <dir> --source-url <url>
                        (--link-index <file> | --no-link-index)
                        [--only <Module>]... [--only-from <file>]
        lean-doc global --ir <dir> --out <dir> [--state <dir>]
@@ -68,8 +78,9 @@ usage: lean-doc render --ir <dir> --pages <dir> --source-url <url>
   --only         render only this module; repeatable
   --only-from    render only the modules named in this file, one per line.
                  An empty file renders nothing.
-  --out          the site root the six whole-package artifacts go under, or the
-                 ledger file `ledger build` writes
+  --out          the site root the six whole-package artifacts go under — for
+                 `site` the module pages go under it too — or the ledger file
+                 `ledger build` writes
   --state        directory holding the contentHash cache (global-state.json).
                  Without it every module is read: the from-scratch build.
   --before       a previous declarations/name-map.json. Turns the delta on.
@@ -156,6 +167,7 @@ fn usage<T>(message: impl Into<String>) -> Result<T, Failure> {
 
 fn run(args: &[String]) -> Result<(), Failure> {
     match args.first().map(String::as_str) {
+        Some("site") => site(&args[1..]),
         Some("render") => render(&args[1..]),
         Some("global") => global(&args[1..]),
         Some("ledger") => ledger(&args[1..]),
@@ -172,6 +184,225 @@ fn run(args: &[String]) -> Result<(), Failure> {
             Ok(())
         }
         Some(other) => usage(format!("unknown subcommand `{other}`")),
+    }
+}
+
+/// Why one of `--link-index` / `--no-link-index` always has to be spelled out.
+///
+/// Shared by `render` and `site` so that the two cannot drift apart on the one
+/// question this project has answered wrongly twice: the prototype's `render()`
+/// (`stage7h/run.sh:78-80`) passed no dependency map, and without it **150 of
+/// the target package's 432 pages change bytes** 【実測, plan 決定 4】. It fails
+/// silently — a docstring name that did not become a link looks exactly like a
+/// name that was never linkable — so the guard is in the shape of the flags
+/// rather than in a default.
+const LINK_INDEX_REQUIRED: &str = "pass --link-index <file>, or --no-link-index to say so on \
+     purpose: without the dependency map 150 of the target package's 432 pages change bytes \
+     (plan 決定 4)";
+
+/// Full generation: the module pages **and** the six whole-package artifacts,
+/// into one tree, from one IR tree, in one command.
+///
+/// **The prototype has no script for this.** `stage7h/run.sh:78-80`'s `render()`
+/// is three lines of shell — `render.ts` and then `global.ts build` over the
+/// same IR and the same output directory — and every reference site this project
+/// owns was made by it. The order is kept because the comparison is stated
+/// against it, not because the stages talk: the cache `global` reads is keyed on
+/// the IR, and the two write disjoint files 【実測, plan §7, M2】.
+///
+/// **The incremental round runs the same two stages the other way round**
+/// (`incremental.sh` steps 6 and 7), and that is not an inconsistency to tidy
+/// away: there, `global`'s map delta is half of the render set, so it has to
+/// precede the renderer (plan §6, constraint 2). Here there is no delta and no
+/// set, so nothing constrains the order — which is exactly why M3-d2 must not
+/// read this function as saying render comes first.
+///
+/// Five of the two subcommands' flags are deliberately **not** accepted:
+///
+/// - **`--only` / `--only-from`.** Full generation is every module; that is what
+///   the word means. A subset is `render`'s job, and the page set here is
+///   [`ModuleSet::All`] with no way to say otherwise.
+/// - **`--before` / `--print-set` / `--delta-json`.** The map delta answers
+///   "which pages can have gone stale", which only an incremental round (M3-d2)
+///   asks. A full run re-renders all of them, so a delta here would be a
+///   diagnostic nobody reads — and one that quietly suggests the run was
+///   partial.
+fn site(args: &[String]) -> Result<(), Failure> {
+    let mut ir: Option<PathBuf> = None;
+    let mut out: Option<PathBuf> = None;
+    let mut source_url: Option<String> = None;
+    let mut link_index: Option<PathBuf> = None;
+    let mut no_link_index = false;
+    let mut state: Option<PathBuf> = None;
+    let mut timings: Option<PathBuf> = None;
+
+    let mut rest = args.iter();
+    while let Some(arg) = rest.next() {
+        let mut value = |flag: &str| -> Result<String, Failure> {
+            match rest.next() {
+                Some(value) => Ok(value.clone()),
+                None => usage(format!("{flag} needs a value")),
+            }
+        };
+        match arg.as_str() {
+            "--ir" => ir = Some(value("--ir")?.into()),
+            "--out" => out = Some(value("--out")?.into()),
+            "--source-url" => source_url = Some(value("--source-url")?),
+            "--link-index" => link_index = Some(value("--link-index")?.into()),
+            "--no-link-index" => no_link_index = true,
+            "--state" => state = Some(value("--state")?.into()),
+            "--timings" => timings = Some(value("--timings")?.into()),
+            // Refused by name rather than as "unknown argument": each of these
+            // is a real flag of the subcommand `site` calls, so the answer a
+            // caller needs is *why it is not here*, not that it was misspelled.
+            "--only" | "--only-from" => {
+                return usage(format!(
+                    "{arg} is not a `site` flag: full generation renders every module, which \
+                     is what makes it full. Use `lean-doc render {arg} ...` for a subset",
+                ));
+            }
+            "--before" | "--print-set" | "--delta-json" => {
+                return usage(format!(
+                    "{arg} is not a `site` flag: the map delta names the pages an incremental \
+                     round has to re-render, and this command re-renders all of them. Use \
+                     `lean-doc global {arg} ...`",
+                ));
+            }
+            "--pages" => {
+                return usage(
+                    "`site` writes the pages and the six whole-package artifacts into one tree: \
+                     name it with --out",
+                );
+            }
+            "--help" | "-h" => {
+                println!("{USAGE}");
+                return Ok(());
+            }
+            other => return usage(format!("unknown argument `{other}`")),
+        }
+    }
+
+    let Some(ir) = ir else {
+        return usage("--ir is required");
+    };
+    let Some(out) = out else {
+        return usage("--out is required");
+    };
+    let Some(source_url) = source_url.filter(|url| !url.is_empty()) else {
+        return usage(
+            "--source-url is required: doc-gen4 reads it from lake plus git, and it is not in the IR",
+        );
+    };
+    if link_index.is_some() == no_link_index {
+        return usage(LINK_INDEX_REQUIRED);
+    }
+
+    let started = Instant::now();
+    let rendered = render_site(&RenderOptions {
+        ir: &ir,
+        pages: &out,
+        source_url: &source_url,
+        link_index: link_index.as_deref(),
+        // Not a parameter. See this function's own documentation.
+        only: &ModuleSet::All,
+    })
+    .map_err(|e| Failure::Failed(e.to_string()))?;
+    let render_done = started.elapsed();
+
+    let mut options = GlobalOptions::new(&ir, &out);
+    options.state = state.as_deref();
+    let derived = build_global(&options).map_err(|e| Failure::Failed(e.to_string()))?;
+    let total = started.elapsed();
+
+    // Both stages' counts, each labelled with the stage that produced it. One
+    // merged line would lose which half of the tree a number is about, and the
+    // two stages count different things under the same word ("modules").
+    print_render_summary("render  ", &rendered);
+    print_global_summary("global  ", &derived);
+
+    if let Some(path) = timings {
+        // `renderSeconds` / `globalSeconds` / `totalSeconds` are
+        // `incremental.sh:416-419`'s names for the same two phases, so a full
+        // run and an incremental one subtract.
+        let record = serde_json::json!({
+            "command": "site",
+            "pagesWritten": rendered.pages_written,
+            "modulesInIr": rendered.modules_in_ir,
+            "pageBytes": rendered.bytes_written,
+            "cacheHits": derived.cache_hits,
+            "cacheMisses": derived.cache_misses,
+            "renderSeconds": render_done.as_secs_f64(),
+            "globalSeconds": (total - render_done).as_secs_f64(),
+            "totalSeconds": total.as_secs_f64(),
+        });
+        let line = serde_json::to_string(&record).expect("counts and durations serialise") + "\n";
+        if let Some(dir) = path.parent().filter(|dir| !dir.as_os_str().is_empty()) {
+            std::fs::create_dir_all(dir)
+                .map_err(|e| Failure::Failed(format!("{}: {e}", dir.display())))?;
+        }
+        std::fs::write(&path, line)
+            .map_err(|e| Failure::Failed(format!("{}: {e}", path.display())))?;
+    }
+    Ok(())
+}
+
+/// The renderer's counts. Every number is a denominator something else is quoted
+/// against, so a run that says "done" and nothing else is not comparable to the
+/// prototype's numbers at all.
+///
+/// `lead` is what each line starts with: empty for `render`, which has one
+/// stage, and the stage's name for `site`, which has two.
+fn print_render_summary(lead: &str, summary: &RenderSummary) {
+    println!(
+        "{lead}modules {}/{}  declarations {}/{} ({} suppressed)  module docs {}  bytes {}",
+        summary.pages_written,
+        summary.modules_in_ir,
+        summary.declarations_rendered,
+        summary.declarations_in_ir,
+        summary.declarations_suppressed,
+        summary.module_docs_rendered,
+        summary.bytes_written,
+    );
+    println!(
+        "{lead}known {}  link index {}  known modules {}",
+        summary.known_entries, summary.link_index_entries, summary.known_modules,
+    );
+}
+
+/// The whole-package derivation's counts, including the delta when there is one.
+fn print_global_summary(lead: &str, summary: &GlobalSummary) {
+    println!(
+        "{lead}modules {}  declarations {} + {} dependency names  instance classes {}  \
+         tactic docs {}",
+        summary.modules,
+        summary.declarations,
+        summary.dependency_names,
+        summary.instance_classes,
+        summary.tactic_docs,
+    );
+    println!(
+        "{lead}declaration data {} B  name map {} B",
+        summary.bmp_bytes, summary.name_map_bytes,
+    );
+    // The hit/miss counts are what the cache's oracle reads, and it reads them
+    // twice: here and out of `--timings`. A cache that is silent about how often
+    // it hit is one nobody notices has stopped hitting.
+    println!(
+        "{lead}cache {} hit / {} miss  state {} B",
+        summary.cache_hits, summary.cache_misses, summary.state_bytes,
+    );
+    if let Some(delta) = &summary.delta {
+        println!(
+            "{lead}delta: {} name(s) moved in or out of the map ({} -> {}) -> {} page(s) to \
+             re-render",
+            delta.changed.len(),
+            delta.before_names,
+            delta.after_names,
+            delta.affected.len(),
+        );
+        for witness in delta.witnesses.iter().take(10) {
+            println!("{lead}  {}  (mentions `{}`)", witness.module, witness.name);
+        }
     }
 }
 
@@ -230,37 +461,7 @@ fn global(args: &[String]) -> Result<(), Failure> {
     options.timings = timings.as_deref();
     let summary = build_global(&options).map_err(|e| Failure::Failed(e.to_string()))?;
 
-    println!(
-        "modules {}  declarations {} + {} dependency names  instance classes {}  tactic docs {}",
-        summary.modules,
-        summary.declarations,
-        summary.dependency_names,
-        summary.instance_classes,
-        summary.tactic_docs,
-    );
-    println!(
-        "declaration data {} B  name map {} B",
-        summary.bmp_bytes, summary.name_map_bytes,
-    );
-    // The hit/miss counts are what the cache's oracle reads, and it reads them
-    // twice: here and out of `--timings`. A cache that is silent about how often
-    // it hit is one nobody notices has stopped hitting.
-    println!(
-        "cache {} hit / {} miss  state {} B",
-        summary.cache_hits, summary.cache_misses, summary.state_bytes,
-    );
-    if let Some(delta) = &summary.delta {
-        println!(
-            "delta: {} name(s) moved in or out of the map ({} -> {}) -> {} page(s) to re-render",
-            delta.changed.len(),
-            delta.before_names,
-            delta.after_names,
-            delta.affected.len(),
-        );
-        for witness in delta.witnesses.iter().take(10) {
-            println!("  {}  (mentions `{}`)", witness.module, witness.name);
-        }
-    }
+    print_global_summary("", &summary);
     Ok(())
 }
 
@@ -685,7 +886,8 @@ fn impact(args: &[String]) -> Result<(), Failure> {
 /// The `prune` stage: the deletion path's page third.
 ///
 /// **The one subcommand that deletes.** Two guards are in the library
-/// (containment, and paths built by concatenation rather than [`Path::join`]);
+/// (containment, and paths built by concatenation rather than
+/// [`std::path::Path::join`]);
 /// the third is here, in the shape of the flag: `--dry-run` computes the whole
 /// answer and writes nothing, so "what would this remove" is a question that can
 /// be asked of a tree nobody is willing to lose.
@@ -831,10 +1033,7 @@ fn render(args: &[String]) -> Result<(), Failure> {
         );
     };
     if link_index.is_some() == no_link_index {
-        return usage(
-            "pass --link-index <file>, or --no-link-index to say so on purpose: without the \
-             dependency map 150 of the target package's 432 pages change bytes (plan 決定 4)",
-        );
+        return usage(LINK_INDEX_REQUIRED);
     }
 
     let only = match only {
@@ -845,26 +1044,11 @@ fn render(args: &[String]) -> Result<(), Failure> {
         ir: &ir,
         pages: &pages,
         source_url: &source_url,
-        link_index: link_index.as_deref().map(Path::new),
+        link_index: link_index.as_deref(),
         only: &only,
     })
     .map_err(|e| Failure::Failed(e.to_string()))?;
 
-    // Counts, not a checkmark: every number here is a denominator something
-    // else gets quoted against.
-    println!(
-        "modules {}/{}  declarations {}/{} ({} suppressed)  module docs {}  bytes {}",
-        summary.pages_written,
-        summary.modules_in_ir,
-        summary.declarations_rendered,
-        summary.declarations_in_ir,
-        summary.declarations_suppressed,
-        summary.module_docs_rendered,
-        summary.bytes_written,
-    );
-    println!(
-        "known {}  link index {}  known modules {}",
-        summary.known_entries, summary.link_index_entries, summary.known_modules,
-    );
+    print_render_summary("", &summary);
     Ok(())
 }

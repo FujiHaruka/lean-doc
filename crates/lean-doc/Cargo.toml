@@ -10,3 +10,7 @@ lean-doc-incr = { path = "../lean-doc-incr" }
 lean-doc-ir = { path = "../lean-doc-ir" }
 lean-doc-md = { path = "../lean-doc-md" }
 lean-doc-render = { path = "../lean-doc-render" }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

@@ -109,6 +109,7 @@ dependencies = [
  "lean-doc-ir",
  "lean-doc-md",
  "lean-doc-render",
+ "serde_json",
 ]
 
 [[package]]
