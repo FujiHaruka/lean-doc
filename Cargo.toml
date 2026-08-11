@@ -7,6 +7,12 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.97"
 
+# SHA-256 is 20x slower unoptimised, and the ledger's corpus test hashes about
+# 4 GB of olean. Only the hash crate is optimised — everything under test stays
+# a debug build, so a panic still names a line.
+[profile.dev.package.sha2]
+opt-level = 3
+
 [workspace.dependencies]
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }

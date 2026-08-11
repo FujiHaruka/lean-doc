@@ -5,3 +5,24 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+# Only for `cmp_utf16`: every sort whose result reaches a generated file has to
+# be JavaScript's, and the ledger has two of them (plan §7, U1).
+lean-doc-ir = { path = "../lean-doc-ir" }
+# The ledger file is written from these types and its key order is their field
+# order: see src/ledger.rs.
+serde = { workspace = true }
+# `preserve_order` is set on the workspace dependency; nothing here builds a
+# `Value` tree that depends on it, but `extractKey` is read back in file order.
+serde_json = { workspace = true }
+# `--algorithm sha256` is `crypto.subtle.digest("SHA-256")` over the olean bytes
+# (plan §7). `--algorithm lake` needs no hash at all: it reads Lake's.
+#
+# `asm` is what puts the ARMv8 SHA-256 instructions under it (`src/sha256/
+# aarch64.rs`, chosen at run time by `cpufeatures`); without it sha2 falls back
+# to the portable implementation and the same 237,909,832 B take **0.8631 s
+# instead of 0.3022 s**【実測 2026-08-12、同一セッション warm】. The bytes are
+# identical either way — this is which instructions compute them, not which
+# hash. The prototype's `crypto.subtle.digest` reaches the same instructions
+# through BoringSSL, so leaving it off would have made the two implementations
+# incomparable.
+sha2 = { version = "0.10", features = ["asm"] }
