@@ -572,10 +572,15 @@ fn observe_failure(error: &Error, fire: &mut impl FnMut(&'static str)) {
             }
         }
         Error::Json { .. } => panic!("no exercise here hands the ledger unparseable JSON"),
-        // The two the IR stages raise (M3-b). `detect` never reads an IR tree
-        // beyond `index.json`'s two key fields, so neither can arrive here.
-        Error::Ir(_) | Error::IndexShape { .. } => {
-            panic!("the ledger stage does not read the IR")
+        // The ones the IR and page stages raise (M3-b, M3-c). `detect` never
+        // reads an IR tree beyond `index.json`'s two key fields and never
+        // touches the page tree, so none of them can arrive here.
+        Error::Ir(_)
+        | Error::IndexShape { .. }
+        | Error::NotAModule { .. }
+        | Error::UnknownMode { .. }
+        | Error::OutsidePageRoot { .. } => {
+            panic!("the ledger stage does not read the IR or the pages")
         }
     }
 }

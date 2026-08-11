@@ -27,8 +27,9 @@ use std::process::ExitCode;
 
 use lean_doc_global::{GlobalOptions, build_global};
 use lean_doc_incr::{
-    Algorithm, BuildOptions, CheckOptions, MergeOptions, OwnershipOptions, TouchOptions,
-    WITNESSES_IN_LOG, build_ledger, check_ledger, merge as run_merge, ownership as run_ownership,
+    Algorithm, BuildOptions, CheckOptions, ImpactOptions, MergeOptions, Mode, ORPHANS_IN_LOG,
+    OwnershipOptions, PruneOptions, TouchOptions, WITNESSES_IN_LOG, build_ledger, check_ledger,
+    impact as run_impact, merge as run_merge, ownership as run_ownership, prune as run_prune,
     read_module_list, touch_ledger, verify as run_verify,
 };
 use lean_doc_render::{ModuleSet, RenderOptions, render_site};
@@ -54,6 +55,11 @@ usage: lean-doc render --ir <dir> --pages <dir> --source-url <url>
        lean-doc merge --base <ir> [--inc <ir>] [--out <ir>] [--remove <file>]
                        [--changed-out <file>] [--timings <file>]
        lean-doc merge --verify <ir> --against <ir>
+       lean-doc impact --ir <dir> [--changed <Module>]... [--changed-file <file>]
+                       [--mode self|referrers|importers|all] [--census <file>]
+                       [--print-set <file>] [--json <file>]
+       lean-doc prune --pages <dir> [--remove <file>] [--ir <dir>] [--dry-run]
+                       [--json <file>]
 
   --ir           an IR tree written by the extractor (schema 4)
   --pages        where the pages go; directories are created
@@ -94,6 +100,15 @@ usage: lean-doc render --ir <dir> --pages <dir> --source-url <url>
   --exclude      modules already scheduled for re-extraction, one per line.
                  They are fresh by definition and are never reported.
   --verify       compare two IR trees; --against names the second
+  --changed      a module that changed; repeatable (`impact`)
+  --changed-file the same list in a file, one name per line
+  --mode         which modules the change reaches: self, referrers (direct),
+                 importers (the sound transitive bound, the default), or all —
+                 which is valid with an empty changed set and is what a moved
+                 render key selects
+  --census       a per-module TSV of |IMPORTERS| / |REFERRERS| / declarations
+  --pages        (`prune`) the page tree; nothing outside it is ever deleted
+  --dry-run      report what would be deleted and delete nothing
 ";
 
 fn main() -> ExitCode {
@@ -146,6 +161,8 @@ fn run(args: &[String]) -> Result<(), Failure> {
         Some("ledger") => ledger(&args[1..]),
         Some("ownership") => ownership(&args[1..]),
         Some("merge") => merge(&args[1..]),
+        Some("impact") => impact(&args[1..]),
+        Some("prune") => prune(&args[1..]),
         Some("--help" | "-h") | None => {
             println!("{USAGE}");
             Ok(())
@@ -589,6 +606,145 @@ fn merge(args: &[String]) -> Result<(), Failure> {
             format!(": {}", summary.ir_changed.join(", "))
         },
     );
+    Ok(())
+}
+
+/// The `impact` stage (L3-2): a changed module set in, the modules to re-render
+/// out.
+///
+/// **`global` runs before this** (plan §6, constraint 2) — but not into it. The
+/// whole-package map's delta is the other half of the render set and it reaches
+/// the renderer by being *unioned* with this stage's `--print-set`, which is the
+/// pipeline's job (M3-d, `incremental.sh:354-360`). Two things M3-d inherits:
+/// a delta with no changes is a **0-byte file, not a blank line**, and this
+/// command writes **no `--print-set` at all** when the changed set is empty and
+/// the mode is not `all` — a missing file is the empty set.
+fn impact(args: &[String]) -> Result<(), Failure> {
+    let mut ir: Option<PathBuf> = None;
+    let mut changed: Vec<String> = Vec::new();
+    let mut changed_file: Option<PathBuf> = None;
+    let mut mode: Option<String> = None;
+    let mut census: Option<PathBuf> = None;
+    let mut print_set: Option<PathBuf> = None;
+    let mut json: Option<PathBuf> = None;
+
+    let mut rest = args.iter();
+    while let Some(arg) = rest.next() {
+        let mut value = |flag: &str| -> Result<String, Failure> {
+            match rest.next() {
+                Some(value) => Ok(value.clone()),
+                None => usage(format!("{flag} needs a value")),
+            }
+        };
+        match arg.as_str() {
+            "--ir" => ir = Some(value("--ir")?.into()),
+            "--changed" => changed.push(value("--changed")?),
+            "--changed-file" => changed_file = Some(value("--changed-file")?.into()),
+            "--mode" => mode = Some(value("--mode")?),
+            "--census" => census = Some(value("--census")?.into()),
+            "--print-set" => print_set = Some(value("--print-set")?.into()),
+            "--json" => json = Some(value("--json")?.into()),
+            "--help" | "-h" => {
+                println!("{USAGE}");
+                return Ok(());
+            }
+            other => return usage(format!("unknown argument `{other}`")),
+        }
+    }
+
+    let Some(ir) = ir else {
+        return usage("--ir is required");
+    };
+    // The flags first, then the file's lines: the order reaches the summary's
+    // `changed` array, and repeats are kept rather than folded.
+    if let Some(path) = &changed_file {
+        changed.extend(read_module_list(path).map_err(refused)?);
+    }
+    let mode = mode.as_deref().map_or_else(Mode::default, Mode::parse);
+    let run = run_impact(&ImpactOptions {
+        ir: &ir,
+        changed: &changed,
+        mode: &mode,
+        census: census.as_deref(),
+        print_set: print_set.as_deref(),
+        json: json.as_deref(),
+    })
+    .map_err(refused)?;
+
+    if let (Some(modules), Some(path)) = (run.census_modules, &census) {
+        println!("census -> {} ({modules} modules)", path.display());
+    }
+    // The whole summary, as the prototype prints it: every count in it is a
+    // denominator, and `selected` is the one the renderer is about to be given.
+    if let Some(summary) = &run.summary {
+        println!("{}", summary.to_json());
+    }
+    Ok(())
+}
+
+/// The `prune` stage: the deletion path's page third.
+///
+/// **The one subcommand that deletes.** Two guards are in the library
+/// (containment, and paths built by concatenation rather than [`Path::join`]);
+/// the third is here, in the shape of the flag: `--dry-run` computes the whole
+/// answer and writes nothing, so "what would this remove" is a question that can
+/// be asked of a tree nobody is willing to lose.
+fn prune(args: &[String]) -> Result<(), Failure> {
+    let mut pages: Option<PathBuf> = None;
+    let mut remove: Option<PathBuf> = None;
+    let mut ir: Option<PathBuf> = None;
+    let mut json: Option<PathBuf> = None;
+    let mut dry_run = false;
+
+    let mut rest = args.iter();
+    while let Some(arg) = rest.next() {
+        let mut value = |flag: &str| -> Result<String, Failure> {
+            match rest.next() {
+                Some(value) => Ok(value.clone()),
+                None => usage(format!("{flag} needs a value")),
+            }
+        };
+        match arg.as_str() {
+            "--pages" => pages = Some(value("--pages")?.into()),
+            "--remove" => remove = Some(value("--remove")?.into()),
+            "--ir" => ir = Some(value("--ir")?.into()),
+            "--json" => json = Some(value("--json")?.into()),
+            "--dry-run" => dry_run = true,
+            "--help" | "-h" => {
+                println!("{USAGE}");
+                return Ok(());
+            }
+            other => return usage(format!("unknown argument `{other}`")),
+        }
+    }
+
+    // The prototype's own refusal: a page tree with neither a deletion list nor
+    // an IR to call orphans against has nothing to do, and doing nothing quietly
+    // is how a deleted module's page survives.
+    let Some(pages) = pages.filter(|_| remove.is_some() || ir.is_some()) else {
+        return usage("prune needs --pages <dir> and at least one of --remove <file> / --ir <dir>");
+    };
+    let summary = run_prune(&PruneOptions {
+        pages: &pages,
+        remove: remove.as_deref(),
+        ir: ir.as_deref(),
+        dry_run,
+        json: json.as_deref(),
+    })
+    .map_err(refused)?;
+
+    println!(
+        "prune-pages{}: deleted {}/{} requested, {} orphan(s), {} empty dir(s) — {:.4} s",
+        if summary.dry_run { " (dry run)" } else { "" },
+        summary.deleted.len(),
+        summary.requested,
+        summary.orphans.len(),
+        summary.emptied.len(),
+        summary.total_seconds,
+    );
+    for orphan in summary.orphans.iter().take(ORPHANS_IN_LOG) {
+        println!("  orphan  {orphan}");
+    }
     Ok(())
 }
 

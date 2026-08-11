@@ -550,7 +550,8 @@ pub enum Error {
     /// flattened so the reader's own message — which names the module file and
     /// the schema it wanted — survives.
     Ir(lean_doc_ir::Error),
-    /// `merge`: an `index.json` that parses as JSON but is not an index.
+    /// `merge` / `prune`: an `index.json` that parses as JSON but is not an
+    /// index.
     ///
     /// The prototype reads `e.file` off whatever the JSON held and would write a
     /// file called `undefined`; there is no shape of index this can reach from a
@@ -558,6 +559,27 @@ pub enum Error {
     IndexShape {
         path: PathBuf,
         message: String,
+    },
+    /// `impact`: a `--changed` module the IR's index does not have. The
+    /// prototype's **exit 3** — under-rendering has to be loud (plan §5, M3).
+    NotAModule {
+        module: String,
+    },
+    /// `impact`: a `--mode` nobody recognises. The prototype's **exit 2**, and
+    /// it is only reached when there was something to select — see
+    /// [`crate::impact::Mode::Unrecognised`].
+    UnknownMode {
+        mode: String,
+    },
+    /// `prune`: a path that would be deleted outside the page root.
+    ///
+    /// Not reachable from a module name — [`crate::prune::page_of`] turns every
+    /// dot into a separator, so the `..` cannot survive — which is exactly why
+    /// it is a check and not a comment. Exit 3: the world and the files
+    /// disagree, and retrying will not help.
+    OutsidePageRoot {
+        root: PathBuf,
+        path: PathBuf,
     },
 }
 
@@ -567,10 +589,13 @@ impl Error {
     pub fn exit_code(&self) -> u8 {
         match self {
             Self::Io { .. } | Self::Json { .. } | Self::Ir(_) => 1,
+            Self::UnknownMode { .. } => 2,
             Self::NoOlean { .. }
             | Self::LedgerSchema { .. }
             | Self::NoSuchModule { .. }
-            | Self::IndexShape { .. } => 3,
+            | Self::IndexShape { .. }
+            | Self::NotAModule { .. }
+            | Self::OutsidePageRoot { .. } => 3,
         }
     }
 }
@@ -596,6 +621,15 @@ impl std::fmt::Display for Error {
             ),
             Self::Ir(source) => write!(f, "{source}"),
             Self::IndexShape { path, message } => write!(f, "{}: {message}", path.display()),
+            // The prototype's exact wording: `impact.ts:182` and `:207`.
+            Self::NotAModule { module } => write!(f, "not a module of this package: {module}"),
+            Self::UnknownMode { mode } => write!(f, "unknown --mode {mode}"),
+            Self::OutsidePageRoot { root, path } => write!(
+                f,
+                "refusing to delete {} — it is not under the page root {}",
+                path.display(),
+                root.display()
+            ),
         }
     }
 }

@@ -1,9 +1,12 @@
 //! Incremental rebuild: what to re-extract and what to re-render.
 //!
-//! Milestone **M3** — see `docs/implementation-plan.md`. **M3-a and M3-b are
+//! Milestone **M3** — see `docs/implementation-plan.md`. **All five stages are
 //! here**: `detect` (from `experiments/stage5/ledger.ts`), `ownership` (from
-//! `ownership.ts`) and `merge` (from `merge-ir.ts`), all frozen prototypes. The
-//! remaining two stages (impact, prune) and the pipeline attach to them later.
+//! `ownership.ts`), `merge` (from `merge-ir.ts`), `impact` (from `impact.ts`)
+//! and `prune` (from `prune-pages.ts`), all frozen prototypes. The pipeline that
+//! sequences them is **M3-d** — it is the piece that owns the module-list glob,
+//! the round loop and the union of the two render-set derivations, none of which
+//! belong to a stage.
 //!
 //! These are two questions asked at two different times, not one question
 //! asked twice. What to re-extract is decided before Lean runs, from the
@@ -48,14 +51,17 @@
 //! ```
 
 pub mod detect;
+pub mod impact;
 pub mod ledger;
 pub mod merge;
 pub mod ownership;
+pub mod prune;
 
 pub use detect::{
     BuildOptions, BuildSummary, CheckOptions, CheckSummary, Error, TouchOptions, build_ledger,
     check_ledger, read_module_list, touch_ledger,
 };
+pub use impact::{ImpactOptions, ImpactRun, ImpactSummary, Mode, impact};
 pub use ledger::{
     Algorithm, EXTRACTOR_ID, FileEntry, KeySet, LEDGER_SCHEMA, Ledger, ModuleEntry, OLEAN_SUFFIXES,
     RENDERER_ID, extract_key, hash_module, module_paths, render_key, sha256_hex, sha256_text,
@@ -63,6 +69,10 @@ pub use ledger::{
 pub use merge::{
     DepMapRecord, JsonObject, MergeOptions, MergeSummary, VerifyReport, merge, verify,
 };
+pub use prune::{
+    ORPHANS_IN_LOG, ORPHANS_IN_SUMMARY, PageRoot, PruneOptions, PruneSummary, page_of, prune,
+};
+
 pub use ownership::{
     OwnershipOptions, OwnershipSummary, RULE_LOST_OWNER, RULE_MOVED_ELSEWHERE, WITNESSES_IN_LOG,
     WITNESSES_IN_SUMMARY, Witness, ownership,
