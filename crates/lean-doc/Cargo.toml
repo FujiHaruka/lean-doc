@@ -1,0 +1,12 @@
+[package]
+name = "lean-doc"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+lean-doc-global = { path = "../lean-doc-global" }
+lean-doc-incr = { path = "../lean-doc-incr" }
+lean-doc-ir = { path = "../lean-doc-ir" }
+lean-doc-md = { path = "../lean-doc-md" }
+lean-doc-render = { path = "../lean-doc-render" }

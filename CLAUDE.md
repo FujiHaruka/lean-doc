@@ -1,9 +1,11 @@
 # lean-doc プロジェクト規則
 
 Mathlib に依存する Lean パッケージのための、高速ドキュメント生成基盤。
-**検証段階は完了** (計画 §7 の 1〜7 + CI 軸)。**残る検証は段階 8 の 1 つだけで、あとは実装
-フェーズ** — `experiments/` の使い捨てプロトタイプから製品コードへの移設になる。
-計画の SoT は `docs/approach.md`、数字の SoT は `docs/verification-log.md`。
+**検証段階は全部完了** (計画 §7 の 1〜8 + CI 軸)。**いまは実装フェーズ** — `experiments/` の
+使い捨てプロトタイプ (TS + シェル) から Rust の製品ツリー `crates/` への移設で、
+遠いゴールは **v0.1 = 使える CLI**。
+アプローチの SoT は `docs/approach.md`、**実装の SoT は `docs/implementation-plan.md`**、
+数字の SoT は `docs/verification-log.md`。
 
 このリポジトリは private。対して計測対象の `lean-projects` は public なので、
 そちらに何かを書き戻すときは公開物として扱う。
@@ -12,16 +14,19 @@ Mathlib に依存する Lean パッケージのための、高速ドキュメン
 
 | | |
 |---|---|
-| `docs/approach.md` | アプローチ計画。**計画の SoT**。実装レベルの詳細は書かない |
-| `docs/verification-log.md` | 計画 §7 の検証段階の結果。**予測と食い違ったらこちらが SoT** |
+| `docs/approach.md` | アプローチ計画。**アプローチの SoT**。実装レベルの詳細は書かない |
+| `docs/implementation-plan.md` | v0.1 のゲート / 移設の順序 / ファイル別内訳。**実装の SoT** |
+| `docs/verification-log.md` | 検証段階の結果。**予測と食い違ったらこちらが SoT** |
 | `benchmarks/` | 実測レポート・計装パッチ・ツール・生ログ。**数字の出所** |
-| `experiments/` | 検証段階ごとの実験プログラム (Lean)。製品コードではない |
+| `crates/` | **製品コード (Rust)**。マイルストーン M1〜M6 で埋まる |
+| `experiments/` | 検証段階ごとの使い捨てプロトタイプ。**2026-08-11 に凍結** (→ `experiments/README.md`) |
 | `.claude/handoff.md` | セッション間の引き継ぎ (tracked、コミットする) |
 
-`experiments/stageN/` は段階 N の判断を出すための使い捨てで、**後の段階で書き直してよい**。
-新しい段階は既存を壊さず新ディレクトリを足す (数字の再現性のため)。
-ビルドは `lake env` で計測対象リポジトリの環境を借りる — lean-doc 側に toolchain も
-lakefile も Mathlib も置かない。
+**`experiments/` はもう変更しない** — 数字の出所として verification-log が指しているので、
+書き換えると過去の実測が再現できなくなる。移設元として読むだけ。
+新しい検証段階が要るなら従来どおり新ディレクトリを足す。
+Lean 側のビルドは `lake env` で計測対象リポジトリの環境を借りる — lean-doc 側に toolchain も
+lakefile も Mathlib も置かない。**Rust 側は `cargo build` で完結する** (Rust 1.97.1 / rustup)。
 
 **抽出器は Lean、その外側 (IR 消費・レンダリング・増分・検索索引) は Rust** (2026-08-11 決定
 → 計画 §5.6)。**選定理由は速度ではない** — 外側の速度差は言語ではなく **IR 全読みの回数**で

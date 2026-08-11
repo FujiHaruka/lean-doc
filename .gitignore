@@ -1,6 +1,9 @@
 .DS_Store
 node_modules/
 
+# Rust build output (Cargo.lock is committed — this ships as a binary)
+/target/
+
 # session-local scratch
 .claude/.resume-pending
 .claude/worktrees/
