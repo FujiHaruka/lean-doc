@@ -75,6 +75,14 @@ struct Counts {
     tactics: usize,
     members: usize,
     members_field: usize,
+    /// Field members that actually carry `isDirect`.
+    ///
+    /// Counted because it is what makes the byte comparison blind to the
+    /// default: if every field has the key, `Option<bool>` and a `false`
+    /// default produce the same pages, and only the type says which reading is
+    /// right (plan §5, `Member::is_direct`).
+    members_field_is_direct_present: usize,
+    members_field_inherited: usize,
     members_ctor: usize,
     members_parent: usize,
     with_attrs: usize,
@@ -127,7 +135,15 @@ impl Counts {
     fn add_member(&mut self, member: &Member) {
         self.members += 1;
         match member.label.as_str() {
-            "field" => self.members_field += 1,
+            "field" => {
+                self.members_field += 1;
+                if member.is_direct.is_some() {
+                    self.members_field_is_direct_present += 1;
+                }
+                if member.is_inherited() {
+                    self.members_field_inherited += 1;
+                }
+            }
             "ctor" => self.members_ctor += 1,
             "parent" => self.members_parent += 1,
             other => panic!("unknown member label {other:?}"),
@@ -137,7 +153,7 @@ impl Counts {
             || !member.implicits.is_empty()
             || !member.binder_code.is_empty()
             || member.doc.is_some()
-            || member.is_direct;
+            || member.is_direct.is_some();
         assert!(
             member.is_field() || !has_extras,
             "{} is a {:?} member but carries schema-4 field keys",
@@ -293,6 +309,11 @@ fn reads_every_module_of_the_target_package() {
     assert_eq!(counts.tactics, 0, "this package declares no tactics");
     assert_eq!(counts.members, 194);
     assert_eq!(counts.members_field, 156);
+    // Every field carries `isDirect`, which is exactly why the default cannot
+    // be checked by comparing pages: `Option<bool>` and a `false` default agree
+    // on all 156. Only 4 of them are inherited.
+    assert_eq!(counts.members_field_is_direct_present, 156);
+    assert_eq!(counts.members_field_inherited, 4);
     assert_eq!(counts.members_ctor, 37);
     assert_eq!(counts.members_parent, 1);
     assert_eq!(counts.with_attrs, 145);

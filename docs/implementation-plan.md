@@ -188,7 +188,7 @@ URL はベース URL (パッケージごとの設定) と §5.3 の相対規則�
 | **M1-a** | **IR リーダ** (schema 4、UTF-16 スパン) | — (IR そのもの) | 着手済み |
 | **M1-b** | **下回り** — `escapeHtml` (330-341) / `applyWsWidths` (555-593) / `leanQuote` (785-797) / `stringLt`・`nameLt` (800-825) / `.lidx` パーサ (2067-2084) | 上記 | |
 | **M1-c** | **docstring** — md4c FFI + AST → HTML + autolink 解決 (925-1077) | 925-1672 | **完了** → §7 |
-| **M1-d** | **ページ描画と主ループ** — 宣言・署名・equations・members・instances・出力 | 残り | **d1 完了** → §7 |
+| **M1-d** | **ページ描画と主ループ** — 宣言・署名・equations・members・instances・出力 | 残り | **d1・d2 完了、残りは `pageHtml` と主ループ (1900-2129)** → §7 |
 
 **M1-c で自前 CommonMark 594 行 (1079-1672) が消え、autolink 153 行 (925-1077) は残る**【実測】。
 `--only` の扱い (`2088-2092`) は M1-d で**型に分ける** (→ §5 の穴)。
@@ -260,12 +260,9 @@ reference link / strikethrough / backslash escape / CRLF / NUL)。
   (→ approach.md §5.5)。**空集合と未指定を型で区別する**
 - **M1-d**: `suppressed` (= 他の宣言の `members` に出る名前) は**全モジュール横断の集合**
   (`render.ts:2043-2048`)。モジュール単位で作ると余分なページ項目が出る。
-  **`Member.isDirect` の既定値は TS と Rust で逆**【M1-c で気づいた】 — TS は
-  `f.isDirect === false` で判定するので**キーが無ければ direct**、Rust の
-  `Member::is_direct` は `#[serde(default)]` で **`false` = 継承**に落ちる。
-  今のところ実害は無い (`Extract.lean:1878-1883` は tagged な `field` に必ずキーを出し、
-  **実 IR の field 156 件すべてに存在する**【実測】) が、**tagged でない出力と
-  `field` 以外の member では既定値が効く**ので、`fieldToHtml` を書くときに確認する
+  **`Member.isDirect` の既定値は TS と Rust で逆**だった (TS は `=== false` 判定なので
+  キーが無ければ direct、`#[serde(default)] bool` は `false` = 継承)。実 IR の field 156 件
+  すべてにキーがあり**バイトでは検出できない**【実測】 → M1-d2 で `Option<bool>` にして塞いだ
 - **M2**: `global.ts` の **module doc 由来の autolink トークンは死んでいる**【実測】 — `md.doc` を
   読んでいるが IR の `moduleDocs` 要素のキーは `line` / `col` / `text` で `doc` は無い
   (書き手 `Extract.lean:2004-2006`)。**そのまま写す** — 直すと全域成果物のバイトが動くので、
@@ -523,6 +520,28 @@ crate 依存は `lean-doc-render` → `lean-doc-md` の向きなので、**実�
 
 **カウンタ (`FragCounters` / `sink`) は移さなかった**【判断】 — バイトに一切届かず
 (`--report` 用)、分岐構造の第 2 の定義になって本体とずれる。分岐被覆は**出力側**で判定する。
+
+#### M1-d2 の結果 — 宣言ページの部品は完了【実測 2026-08-11】
+
+`src/decl.rs` (`declHeader` / `equationsHtml` / instance stub 2 種 / `declNameToLink` /
+`containedNames` / `structureHtml` / `declHtml`) と `src/frame.rs` (`headHtml` /
+`pageHeaderHtml` / `internalNavHtml` / `getSourceUrl`)。オラクルは d1 と同じ `render.ts` の切り出し。
+
+| | 母数の定義 | 結果 |
+|---|---|---|
+| **主** | `declHeader` = IR の**全宣言 4,750** | **4,750 / 4,750 バイト一致** |
+| **主** | `declHtml` = ページに出る宣言 **4,560** (= 4,750 − `suppressed` **190**、全モジュール横断) | **4,560 / 4,560 一致** |
+| **副** | `headHtml` / `pageHeaderHtml` / `internalNavHtml` = **432 モジュール** | **432 / 432 一致** |
+| **fixture** | 貪欲被覆 (feature/byte) + 等間隔 167 + 手書き 20 = 187 宣言 + 29 frame (849 KB) | 全一致 |
+
+**41 分岐のうち 9 つが実コーパスで 1 度も発火しない**【実測。`branchTotals`】 — `class` /
+`inductive` / `class_inductive` の宣言が無く、`mk` 以外の ctor も ctor 無し structure も無く、
+継承フィールドの `id` 分岐・field の暗黙束縛・import 0 のモジュールも無い。**9 つ全部を
+手書きケースで埋め**、`the_curated_cases_cover_what_the_package_does_not` が固定する。
+**`suppressed` は 190**【実測。`render.ts:2042` のコメントの 186 は古い】。
+**mutation 6 件すべてが落ちる**【実測】 — うち `isDirect` 反転 / `structure_ext` 潰し /
+`inductive` の extra 削除 / `containedNames` の `>=` strict 化の **4 件は全件比較が緑のまま**で、
+手書きケースだけが止める。バイトを全件合わせても分岐は守れない、が d1 に続いて再現した。
 
 ### byte 一致で Rust の既定が壊す箇所【すべて実測】
 

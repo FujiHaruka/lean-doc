@@ -200,9 +200,8 @@ pub struct Decl {
 /// Only `label == "field"` members carry the five schema-4 keys
 /// (`binders` / `implicits` / `binder_code` / `doc` / `is_direct`); the writer
 /// omits them for `ctor` and `parent` rather than paying five empty keys per
-/// structure. They default here, so `is_direct == false` on a non-field member
-/// means "absent", which is also how the prototype read it (`undefined`, and
-/// only `fieldToHtml` ever looks).
+/// structure. They default here — and for [`Member::is_direct`] the default has
+/// to be a third state rather than `false`, see below.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Member {
@@ -219,14 +218,31 @@ pub struct Member {
     pub binder_code: Vec<Vec<Span>>,
     #[serde(default)]
     pub doc: Option<String>,
+    /// Whether the field is declared by this structure rather than inherited —
+    /// **three-valued on purpose**.
+    ///
+    /// `fieldToHtml` selects the inherited branch with `f.isDirect === false`
+    /// (`render.ts:1799`), so in the prototype a *missing* key is a direct
+    /// field. A plain `#[serde(default)] bool` would make a missing key
+    /// `false` = inherited: the opposite reading, and one that no byte
+    /// comparison on this package can catch, because all 156 field members of
+    /// the target package's IR carry the key 【実測】. The default is therefore
+    /// `None`, and [`Member::is_inherited`] is the only thing that reads it.
     #[serde(default)]
-    pub is_direct: bool,
+    pub is_direct: Option<bool>,
 }
 
 impl Member {
     /// True for the members that carry the schema-4 field keys.
     pub fn is_field(&self) -> bool {
         self.label == "field"
+    }
+
+    /// `f.isDirect === false` — the inherited branch of `fieldToHtml`.
+    ///
+    /// Absent is **not** inherited. See [`Member::is_direct`].
+    pub fn is_inherited(&self) -> bool {
+        self.is_direct == Some(false)
     }
 }
 

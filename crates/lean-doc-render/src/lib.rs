@@ -43,10 +43,23 @@
 //!
 //! Each of the five is checked against the prototype's own answers rather than
 //! against a reading of it; see `tests/differential.rs`.
+//!
+//! # What is here so far (M1-d2)
+//!
+//! The parts a declaration's block on a page is made of, and the frame around
+//! them. [`decl`] is `div.decl` — header, attributes, docstring, structure
+//! members, equations, instance stubs — and [`frame`] is `<head>`, `<header>`
+//! and the left-hand navigation. Both are byte-compared against the prototype
+//! over the real IR (`tests/page_parts.rs`).
+//!
+//! `pageHtml` and the main loop are **not** here: assembling the page and
+//! deciding which declarations get one is the next step.
 
 pub mod autolink;
 pub mod code;
+pub mod decl;
 pub mod escape;
+pub mod frame;
 pub mod link_index;
 pub mod order;
 pub mod whitespace;
@@ -59,7 +72,14 @@ pub use code::{
     CodeRenderer, Refs, Rendered, break_within, css_kind, decl_refs, find_linkable_parent,
     kind_description, module_from_private_prefix, private_to_user_name,
 };
+pub use decl::{
+    DeclRenderer, EQUATION_LIMIT, UnplaceableName, class_instances_html, contained_names,
+    decl_header, decl_name_to_link, equations_html, instances_for_html,
+};
 pub use escape::{escape_html, escape_html_into, lean_quote, lean_quote_into};
+pub use frame::{
+    head_html, internal_nav_html, module_source_url, page_header_html, sorted_imports,
+};
 pub use link_index::LinkIndex;
 pub use order::{cmp_name, cmp_name_components, cmp_string, name_lt, sort_names, string_lt};
 pub use whitespace::{WsRewrite, apply_ws_widths};
