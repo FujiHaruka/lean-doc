@@ -5,7 +5,7 @@
 - Goal: **lean-doc v0.1 = 使える CLI**。`docs/implementation-plan.md` が実装の SoT で、
   M1→M2→M3→M4→M5→M6 を順に完遂する
 - Leg: 6 / cap 8
-- Predecessor: none
+- Predecessor: leandoc-v01-r5
 - Stop-on: completion | user-decision | no-progress×2 | leg-cap
 - Progress ledger:
   - r1: 実装計画 + 未決 3 件 + M0 + **M1-a** + **M1-b** + バイト差分オラクル。`26df736` → `4fdc8d4`
