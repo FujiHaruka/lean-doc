@@ -4658,8 +4658,55 @@ M3 が壊れた理由は 3 通り潰してある: `source-url.js` は 200 で配
 432 ファイル) との製品上の選択はまだ決めていない** — この段階は JS 注入版が**成立する**ことを
 示しただけで、どちらを採るかは別の判断。
 
+> **その判断は 2026-08-11 に出た: 製品は配信時 (ビルド時) 置換を採る**
+> (→ [実装計画](implementation-plan.md) §4 決定 3)。0.1552 秒で制約ゼロの側に対し、
+> JS 注入は順序制約・鮮度ヘッダ・Chrome のみ実測の 3 つを負う。**この段階の数字は
+> 選択肢の保存として残す** — 静的ホスティングを使えない配信形態が出たら成立する形がある。
+
 **直した文書**: `approach.md` の冒頭状態 / §5.6 の出力契約 (未検証 → 閉じた、配信要件を追加) /
 §7 の段階 8 行 (✅、および**「4,992 か所」の分母混同を訂正**) / この文書の冒頭の状態表。
+
+---
+
+## 実装フェーズの実測
+
+検証段階ではないが、実装計画が引用する数字なのでここに置く。
+
+### 依存写像の配布経路 — 公開サイトは使えない (2026-08-11)
+
+**計測条件**: ネットワーク越しの HTTP HEAD / GET のみ。Lean も lake も走らせていない。
+
+| 問い | 実測 |
+|---|---|
+| 公開サイトに `declaration-data.bmp` はあるか | **ある** — `https://leanprover-community.github.io/mathlib4_docs/declarations/declaration-data.bmp` が **HTTP 200 / `image/bmp` / 66,418,003 B / `last-modified: Tue, 11 Aug 2026 01:10:04 GMT`**。**ルート直下は 404** (`declarations/` の下にある) |
+| 公開サイトのバージョン | **Lean 4.33.0** (`index.html` 本文)、**mathlib `c3a9a08f698aab9788592d1efa32383bdda23396`** (ページ内 blob URL から) |
+| 対象リポジトリのバージョン | **Lean v4.31.0** (`lean-toolchain`)、**mathlib `fabf563a7c95a166b8d7b6efca11c8b4dc9d911f`** (`lake-manifest.json`) |
+
+**判断**: **公開サイト経路は使えない。** **2 マイナー版ずれている**うえ、下流プロジェクトは
+古い Mathlib に固定される。公開サイトがバージョン別アーカイブを持たない**【仮定・未確認】**以上、
+対応する写像は原理的に取れない。→ **写像は生成側で作る** (`approach.md` §8 を更新した)。
+
+**未検証**: 環境走査で作った写像が bmp 由来 (258,760 宣言、段階 7c) と**同じ結果を出すか** —
+実装計画の V1 で測る。**否定されたら M5 の設計をやり直す。**
+
+### md4c の所在と doc-gen4 の使い方 (2026-08-11)
+
+**計測条件**: ソースを読んだだけ (実行していない)。対象は `lean-projects/.lake/packages/`。
+
+| 事実 | 出所 |
+|---|---|
+| md4c の C ソースは**対象環境に vendored されている** | `MD4Lean/md4c/` に `md4c.c` `md4c.h` `entity.c` `entity.h` `md4c-html.c` `md4c-html.h` |
+| MD4Lean は 3 本ともビルドする | `MD4Lean/lakefile.lean:10` の `srcNames := #["entity", "md4c", "md4c-html"]` |
+| doc-gen4 が渡すフラグ | `MD_DIALECT_GITHUB ||| MD_FLAG_LATEXMATHSPANS ||| MD_FLAG_NOHTML` (`doc-gen4/DocGen4/Output/DocString.lean:393`) |
+| doc-gen4 は md4c の **HTML レンダラを使わない** | `MD4Lean.parse` で AST を取り `renderBlock` / `renderText` で自前に組む (`DocString.lean:202-393`) |
+| entity は**生のまま通る** | `DocString.lean:211` — `\| .entity s => return #[Html.raw s]` |
+| MD4Lean の wrapper は AST を**正規化しない** | `MD4Lean/wrapper/wrapper.c:157-191` — push API を Lean の ADT に 1:1 で写すのみ |
+| `md4c.c` は `entity.h` を include しない | `md4c.c:26-32` は `md4c.h` と標準ヘッダだけ |
+
+**判断**: Rust 側は **`md4c.c` / `md4c.h` だけ vendor すれば足りる**。同じフラグで叩けば
+**AST は定義上同じ**になるので、approach.md §5.6 の「本物のパーサに置き換えられる」は成立する。
+ただし**効くのは自前サブセット 594 行のほうだけ**で、autolink 解決系 153 行
+(doc-gen4 の `Output/DocString.lean` 相当) は書き直しが残る → 実装計画 §7。
 
 ---
 
