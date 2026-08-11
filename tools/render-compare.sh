@@ -6,6 +6,14 @@
 # A percentage is not useful while porting — a path and an offset are.
 #
 # usage: tools/render-compare.sh REFERENCE_DIR CANDIDATE_DIR [--show N]
+#
+# The candidate tree comes from the Rust renderer; the whole loop is
+#   cargo build --release -p lean-doc && ./target/release/lean-doc render \
+#     --ir /private/tmp/lean-doc-relay/w7h/base-ir --pages /tmp/rust-pages \
+#     --source-url "$URL" --link-index /private/tmp/lean-doc-relay/w7c/linkindex/link-index.lidx
+# with the same $URL as render-reference.sh. `cargo test -p lean-doc-render
+# --test pages` makes the same comparison in process, and pins the one page the
+# prototype and md4c disagree on so that a second divergence fails.
 
 set -uo pipefail
 

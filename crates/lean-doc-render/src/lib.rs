@@ -52,8 +52,16 @@
 //! and the left-hand navigation. Both are byte-compared against the prototype
 //! over the real IR (`tests/page_parts.rs`).
 //!
-//! `pageHtml` and the main loop are **not** here: assembling the page and
-//! deciding which declarations get one is the next step.
+//! # What is here so far (M1-d3)
+//!
+//! [`page`] assembles one module's page — which declarations get an entry
+//! ([`Suppressed`], site-wide) and in what order they and the module
+//! docstrings appear — and [`site`] is the run: read the IR, build the maps in
+//! the order that decides what links where, write one file per wanted module.
+//!
+//! [`site::render_site`] is the whole of M1 as one call. Its output is
+//! compared to the frozen prototype's, byte for byte, by
+//! `tools/render-compare.sh`.
 
 pub mod autolink;
 pub mod code;
@@ -62,6 +70,8 @@ pub mod escape;
 pub mod frame;
 pub mod link_index;
 pub mod order;
+pub mod page;
+pub mod site;
 pub mod whitespace;
 
 pub use autolink::{
@@ -82,4 +92,6 @@ pub use frame::{
 };
 pub use link_index::LinkIndex;
 pub use order::{cmp_name, cmp_name_components, cmp_string, name_lt, sort_names, string_lt};
+pub use page::{PageItem, Suppressed, page_html, page_items, page_path};
+pub use site::{ModuleSet, RenderOptions, RenderSummary, render_site};
 pub use whitespace::{WsRewrite, apply_ws_widths};
