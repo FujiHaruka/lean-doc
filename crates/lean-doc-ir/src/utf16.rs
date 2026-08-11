@@ -1,0 +1,310 @@
+//! Strings that are addressed in UTF-16 code units.
+//!
+//! # Why this type exists
+//!
+//! Every position in the IR — a tag span's `start`/`stop`, the `front`/`back`
+//! whitespace widths — counts **UTF-16 code units**, because the extractor
+//! computes them that way (`Extract.lean`'s `charUtf16` / `utf16Len`) and the
+//! TypeScript prototype consumed them by indexing a JavaScript string directly.
+//! Rust's `String` is indexed in UTF-8 bytes. The two agree only on ASCII.
+//!
+//! # Why offsets are carried, not the code units
+//!
+//! Two shapes were available (plan §7, U2): re-encode each fragment into
+//! `Vec<u16>` and work there, or keep UTF-8 and translate offsets. This type
+//! does the second, for three reasons:
+//!
+//! 1. Everything downstream wants UTF-8 again. The renderer escapes a slice
+//!    into an HTML buffer and md4c takes UTF-8 bytes, so a `Vec<u16>` would be
+//!    decoded back on every slice — a re-encode per emitted fragment, against a
+//!    one-off offset table per fragment that is actually indexed.
+//! 2. Slicing stays borrow-only. `slice()` hands out a `&str` into the original
+//!    allocation; the `Vec<u16>` form has to allocate a `String` per slice.
+//! 3. The common case costs nothing. A fragment whose UTF-16 length equals its
+//!    UTF-8 length is pure ASCII, and then the offsets are already equal — no
+//!    table is ever built. In the target package's IR that is 10,016 of 55,514
+//!    tagged fragments; the other 45,498 build a table only if something
+//!    actually slices them.
+//!
+//! The table is built on first use ([`OnceLock`]) rather than at parse time,
+//! because a full IR read touches every fragment's *text* but only renders the
+//! modules in the regeneration set — for an incremental build that is a handful
+//! of modules out of 432.
+//!
+//! # Why byte offsets cannot leak out
+//!
+//! `Utf16Text` deliberately does **not** implement `Deref<Target = str>`: with
+//! it, `text.len()` and `&text[a..b]` would compile and silently mean bytes.
+//! The only way to a `&str` is through [`Utf16Text::slice`] /
+//! [`Utf16Text::get`], which take UTF-16 offsets, or [`Utf16Text::as_str`],
+//! which takes no offsets at all. That is what makes span arithmetic safe to
+//! leave as plain `u32` in [`crate::Span`].
+
+use std::fmt;
+use std::ops::Range;
+use std::sync::OnceLock;
+
+use serde::de::{Deserialize, Deserializer};
+
+/// Table entry for a UTF-16 index that is the *second* unit of a surrogate
+/// pair, i.e. not a position a slice may start or end at. A real byte offset
+/// can never reach this value: [`Utf16Text::new`] rejects longer strings.
+const NOT_A_BOUNDARY: u32 = u32::MAX;
+
+/// A string from the IR whose positions are UTF-16 code unit offsets.
+///
+/// The payload is ordinary UTF-8; only the *addressing* is UTF-16.
+#[derive(Default)]
+pub struct Utf16Text {
+    text: String,
+    /// Length in UTF-16 code units.
+    units: u32,
+    /// UTF-16 index -> byte offset, `units + 1` entries, [`NOT_A_BOUNDARY`] at
+    /// low-surrogate positions. Never built for ASCII text, where the identity
+    /// map is correct.
+    offsets: OnceLock<Box<[u32]>>,
+}
+
+impl Utf16Text {
+    /// Takes ownership of a decoded JSON string.
+    ///
+    /// # Panics
+    ///
+    /// If the string does not fit in a `u32` in either unit. The IR's largest
+    /// fragment is four decimal digits wide; a 4 GiB one is a corrupt file, not
+    /// a case to degrade gracefully on.
+    pub fn new(text: String) -> Self {
+        assert!(
+            u32::try_from(text.len()).is_ok(),
+            "IR fragment of {} bytes does not fit a u32 offset",
+            text.len()
+        );
+        let units = if text.is_ascii() {
+            text.len()
+        } else {
+            text.chars().map(char::len_utf16).sum()
+        };
+        let units = u32::try_from(units).expect("UTF-16 length is at most the byte length");
+        Self {
+            text,
+            units,
+            offsets: OnceLock::new(),
+        }
+    }
+
+    /// The whole string, for the paths that have no offsets to honour:
+    /// docstring rendering, hashing, writing.
+    pub fn as_str(&self) -> &str {
+        &self.text
+    }
+
+    /// Length in UTF-16 code units — the unit every IR offset is in.
+    pub fn len_utf16(&self) -> u32 {
+        self.units
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.units == 0
+    }
+
+    /// True when UTF-16 offsets and byte offsets coincide, i.e. the text is
+    /// pure ASCII. Exact, not a heuristic: a non-ASCII scalar takes 2..=4 bytes
+    /// and 1..=2 UTF-16 units, and the two counts are equal only for 1 and 1.
+    pub fn is_ascii(&self) -> bool {
+        self.units as usize == self.text.len()
+    }
+
+    fn offsets(&self) -> &[u32] {
+        self.offsets.get_or_init(|| {
+            let mut table = Vec::with_capacity(self.units as usize + 1);
+            for (byte, ch) in self.text.char_indices() {
+                table.push(byte as u32);
+                if ch.len_utf16() == 2 {
+                    table.push(NOT_A_BOUNDARY);
+                }
+            }
+            table.push(self.text.len() as u32);
+            table.into_boxed_slice()
+        })
+    }
+
+    /// Byte offset of a UTF-16 position, or `None` if it is past the end or
+    /// inside a surrogate pair.
+    pub fn byte_offset(&self, at: u32) -> Option<usize> {
+        if at > self.units {
+            return None;
+        }
+        if self.is_ascii() {
+            return Some(at as usize);
+        }
+        match self.offsets()[at as usize] {
+            NOT_A_BOUNDARY => None,
+            byte => Some(byte as usize),
+        }
+    }
+
+    /// The substring between two UTF-16 offsets, or `None` if the range is
+    /// inverted, out of bounds, or cuts a surrogate pair in half.
+    pub fn get(&self, range: Range<u32>) -> Option<&str> {
+        if range.start > range.end {
+            return None;
+        }
+        let lo = self.byte_offset(range.start)?;
+        let hi = self.byte_offset(range.end)?;
+        self.text.get(lo..hi)
+    }
+
+    /// The substring between two UTF-16 offsets.
+    ///
+    /// # Panics
+    ///
+    /// On the cases [`Utf16Text::get`] returns `None` for, in the same spirit
+    /// as `&str[a..b]`. Spans that the extractor wrote always land on scalar
+    /// boundaries (they are accumulated per character), so a panic here means
+    /// the IR disagrees with itself — worth stopping for rather than emitting
+    /// plausible bytes. Use [`Utf16Text::get`] where the input is untrusted.
+    pub fn slice(&self, range: Range<u32>) -> &str {
+        let (start, end) = (range.start, range.end);
+        self.get(range).unwrap_or_else(|| {
+            panic!(
+                "UTF-16 range [{start}, {end}) is not a valid slice of a {}-unit fragment",
+                self.units
+            )
+        })
+    }
+
+    /// One UTF-16 code unit, low surrogates included.
+    ///
+    /// This is what lets the whitespace-width rewrite (`applyWsWidths`, which
+    /// asks "is the unit at `i` a space?") work without materialising the whole
+    /// fragment as `Vec<u16>`.
+    pub fn unit(&self, at: u32) -> Option<u16> {
+        if at >= self.units {
+            return None;
+        }
+        if self.is_ascii() {
+            return Some(u16::from(self.text.as_bytes()[at as usize]));
+        }
+        let table = self.offsets();
+        // Index 0 is always a boundary, so the `at - 1` below cannot underflow.
+        let (byte, second) = match table[at as usize] {
+            NOT_A_BOUNDARY => (table[at as usize - 1] as usize, true),
+            byte => (byte as usize, false),
+        };
+        let ch = self.text[byte..].chars().next()?;
+        let mut buf = [0u16; 2];
+        let encoded = ch.encode_utf16(&mut buf);
+        encoded.get(usize::from(second)).copied()
+    }
+}
+
+impl From<String> for Utf16Text {
+    fn from(text: String) -> Self {
+        Self::new(text)
+    }
+}
+
+impl From<&str> for Utf16Text {
+    fn from(text: &str) -> Self {
+        Self::new(text.to_owned())
+    }
+}
+
+/// Prints as the string it wraps; the offset table is a cache, not content.
+impl fmt::Debug for Utf16Text {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&self.text, f)
+    }
+}
+
+impl Clone for Utf16Text {
+    /// The clone starts without the offset table: it is derivable, and a clone
+    /// is usually made to be stored rather than sliced again.
+    fn clone(&self) -> Self {
+        Self {
+            text: self.text.clone(),
+            units: self.units,
+            offsets: OnceLock::new(),
+        }
+    }
+}
+
+impl PartialEq for Utf16Text {
+    fn eq(&self, other: &Self) -> bool {
+        self.text == other.text
+    }
+}
+
+impl Eq for Utf16Text {}
+
+impl<'de> Deserialize<'de> for Utf16Text {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        String::deserialize(deserializer).map(Self::new)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// U+1D4E7 MATHEMATICAL BOLD SCRIPT CAPITAL X — 4 bytes, 2 UTF-16 units.
+    /// It occurs in the target package's binders, which is exactly why plan §7
+    /// calls the UTF-16 mismatch the biggest single risk of the port.
+    const SCRIPT_X: &str = "\u{1D4E7}";
+
+    #[test]
+    fn ascii_needs_no_table() {
+        let t = Utf16Text::from("f x = y");
+        assert!(t.is_ascii());
+        assert_eq!(t.len_utf16(), 7);
+        assert_eq!(t.slice(2..5), "x =");
+        assert_eq!(t.unit(1), Some(u16::from(b' ')));
+        assert!(t.offsets.get().is_none(), "no table for ASCII");
+    }
+
+    #[test]
+    fn bmp_offsets_differ_from_bytes() {
+        // "α → β": α and β are 2 bytes / 1 unit, → is 3 bytes / 1 unit.
+        let t = Utf16Text::from("α → β");
+        assert!(!t.is_ascii());
+        assert_eq!(t.len_utf16(), 5);
+        assert_eq!(t.as_str().len(), 9);
+        assert_eq!(t.slice(0..1), "α");
+        assert_eq!(t.slice(2..3), "→");
+        assert_eq!(t.slice(4..5), "β");
+        assert_eq!(t.byte_offset(5), Some(9));
+    }
+
+    #[test]
+    fn surrogate_pair_spans_two_units() {
+        let t = Utf16Text::new(format!("{{{SCRIPT_X} : Type}}"));
+        assert_eq!(t.len_utf16(), 1 + 2 + 8);
+        assert_eq!(t.slice(1..3), SCRIPT_X);
+        // The low surrogate is not a slice boundary.
+        assert_eq!(t.get(1..2), None);
+        assert_eq!(t.get(2..3), None);
+        assert_eq!(t.byte_offset(2), None);
+        // But it is still readable as a code unit.
+        assert_eq!(t.unit(1), Some(0xD835));
+        assert_eq!(t.unit(2), Some(0xDCE7));
+        assert_eq!(t.unit(3), Some(u16::from(b' ')));
+    }
+
+    #[test]
+    fn out_of_range_is_none() {
+        let t = Utf16Text::from("abc");
+        assert_eq!(t.get(0..4), None);
+        let inverted = Range { start: 2, end: 1 };
+        assert_eq!(t.get(inverted), None);
+        assert_eq!(t.unit(3), None);
+        assert_eq!(t.byte_offset(3), Some(3));
+        assert_eq!(t.byte_offset(4), None);
+    }
+
+    #[test]
+    fn empty_is_sliceable() {
+        let t = Utf16Text::default();
+        assert!(t.is_empty());
+        assert_eq!(t.slice(0..0), "");
+    }
+}
