@@ -64,6 +64,6 @@ pub use error::{Error, Result};
 pub use model::{
     Decl, DepMap, DepMapEntry, Index, IndexEntry, Member, ModuleDoc, ModuleFile, Ref, Tactic,
 };
-pub use reader::{IrTree, MIN_SCHEMA_VERSION};
+pub use reader::{IrTree, MIN_SCHEMA_VERSION, read_module_file};
 pub use span::{Span, SpanKind};
 pub use utf16::{Utf16Text, cmp_utf16, sort_utf16};

@@ -27,8 +27,9 @@ use std::process::ExitCode;
 
 use lean_doc_global::{GlobalOptions, build_global};
 use lean_doc_incr::{
-    Algorithm, BuildOptions, CheckOptions, TouchOptions, build_ledger, check_ledger,
-    read_module_list, touch_ledger,
+    Algorithm, BuildOptions, CheckOptions, MergeOptions, OwnershipOptions, TouchOptions,
+    WITNESSES_IN_LOG, build_ledger, check_ledger, merge as run_merge, ownership as run_ownership,
+    read_module_list, touch_ledger, verify as run_verify,
 };
 use lean_doc_render::{ModuleSet, RenderOptions, render_site};
 
@@ -48,6 +49,11 @@ usage: lean-doc render --ir <dir> --pages <dir> --source-url <url>
                        [--removed-out <file>] [--render-all-out <file>]
                        [--timings <file>]
        lean-doc ledger touch --ledger <ledger.json> --module <Module> [--out <file>]
+       lean-doc ownership --base <ir> [--inc <ir>] [--removed <file>]
+                       [--exclude <file>] [--print-set <file>] [--json <file>]
+       lean-doc merge --base <ir> [--inc <ir>] [--out <ir>] [--remove <file>]
+                       [--changed-out <file>] [--timings <file>]
+       lean-doc merge --verify <ir> --against <ir>
 
   --ir           an IR tree written by the extractor (schema 4)
   --pages        where the pages go; directories are created
@@ -80,6 +86,14 @@ usage: lean-doc render --ir <dir> --pages <dir> --source-url <url>
   --render-all-out  why every page has to be re-rendered, one reason per line.
                  Empty means the render set follows from the IR diff as usual.
   --module       the module `ledger touch` invalidates
+  --base         the IR as it was before this round
+  --inc          the partial extraction's IR tree. Absent is a real case: a pure
+                 deletion re-extracts nothing.
+  --removed      modules that no longer exist, one per line (`ownership`)
+  --remove       the same list, spelled as the prototype spells it for `merge`
+  --exclude      modules already scheduled for re-extraction, one per line.
+                 They are fresh by definition and are never reported.
+  --verify       compare two IR trees; --against names the second
 ";
 
 fn main() -> ExitCode {
@@ -94,6 +108,7 @@ fn main() -> ExitCode {
             eprintln!("lean-doc: {message}");
             ExitCode::FAILURE
         }
+        Err(Failure::Answered(code)) => ExitCode::from(code),
         Err(Failure::Refused { code, message }) => {
             eprintln!("lean-doc: {message}");
             ExitCode::from(code)
@@ -105,6 +120,11 @@ enum Failure {
     /// The command line is wrong. Exit 2, as the prototype does.
     Usage(String),
     Failed(String),
+    /// The command ran to completion and answered "no" — `merge --verify` with
+    /// differences, **exit 1**. The answer is already on stdout, so nothing goes
+    /// to stderr: a caller that prints this as an error message would be
+    /// reporting a working comparison as a broken one.
+    Answered(u8),
     /// The run stopped because the world and the files disagree — a ledger too
     /// old, a module with no olean. **Exit 3**, as the prototype does: a
     /// pipeline that treats "the ledger is stale" the same as "the disk is
@@ -124,6 +144,8 @@ fn run(args: &[String]) -> Result<(), Failure> {
         Some("render") => render(&args[1..]),
         Some("global") => global(&args[1..]),
         Some("ledger") => ledger(&args[1..]),
+        Some("ownership") => ownership(&args[1..]),
+        Some("merge") => merge(&args[1..]),
         Some("--help" | "-h") | None => {
             println!("{USAGE}");
             Ok(())
@@ -388,6 +410,185 @@ fn ledger(args: &[String]) -> Result<(), Failure> {
         }
         other => return usage(format!("unknown ledger subcommand `{other}`")),
     }
+    Ok(())
+}
+
+/// The `ownership` stage (L3-1): which modules point at a name that has moved.
+///
+/// Runs **before** `merge` in a round, and the reason is not a preference: merge
+/// overwrites the base IR's idea of who owns each name (plan §6, constraint 1).
+/// The pipeline that sequences them — and that bounds the rounds with
+/// `--max-rounds`, leaving **exit 5** when the bound is hit with modules still
+/// stale — is M3-d's; `incremental.sh:264-294` is what has to move.
+fn ownership(args: &[String]) -> Result<(), Failure> {
+    let mut base: Option<PathBuf> = None;
+    let mut inc: Option<PathBuf> = None;
+    let mut removed: Option<PathBuf> = None;
+    let mut exclude: Option<PathBuf> = None;
+    let mut print_set: Option<PathBuf> = None;
+    let mut json: Option<PathBuf> = None;
+
+    let mut rest = args.iter();
+    while let Some(arg) = rest.next() {
+        let mut value = |flag: &str| -> Result<String, Failure> {
+            match rest.next() {
+                Some(value) => Ok(value.clone()),
+                None => usage(format!("{flag} needs a value")),
+            }
+        };
+        match arg.as_str() {
+            "--base" => base = Some(value("--base")?.into()),
+            "--inc" => inc = Some(value("--inc")?.into()),
+            "--removed" => removed = Some(value("--removed")?.into()),
+            "--exclude" => exclude = Some(value("--exclude")?.into()),
+            "--print-set" => print_set = Some(value("--print-set")?.into()),
+            "--json" => json = Some(value("--json")?.into()),
+            "--help" | "-h" => {
+                println!("{USAGE}");
+                return Ok(());
+            }
+            other => return usage(format!("unknown argument `{other}`")),
+        }
+    }
+
+    // The prototype's own refusal: without a tree to diff against and without a
+    // deletion list there is no question to answer.
+    let Some(base) = base.filter(|_| inc.is_some() || removed.is_some()) else {
+        return usage(
+            "ownership needs --base <ir> and at least one of --inc <ir> / --removed <file>",
+        );
+    };
+    let summary = run_ownership(&OwnershipOptions {
+        base: &base,
+        inc: inc.as_deref(),
+        removed: removed.as_deref(),
+        exclude: exclude.as_deref(),
+        print_set: print_set.as_deref(),
+        json: json.as_deref(),
+    })
+    .map_err(refused)?;
+
+    println!(
+        "ownership: {} name(s) lost, {} gained across {} re-extracted module(s) -> {} module(s) \
+         need re-extraction — {:.4} s",
+        summary.lost_names,
+        summary.gained_names,
+        summary.inc_modules,
+        summary.stale_modules.len(),
+        summary.total_seconds,
+    );
+    for witness in summary.witnesses.iter().take(WITNESSES_IN_LOG) {
+        println!(
+            "  {:<15} {}  (ref {} :: {})",
+            witness.rule, witness.module, witness.reference[0], witness.reference[1],
+        );
+    }
+    Ok(())
+}
+
+/// The `merge` stage: fold a partial extraction back into the package IR, and
+/// the `--verify` that compares two trees.
+///
+/// `--modules` is **not** here. The prototype's usage text offers it and its
+/// code never reads it (`merge-ir.ts:29, 40`): the package module list always
+/// comes from the base index. Accepting a flag that does nothing would be
+/// copying a bug rather than a behaviour.
+fn merge(args: &[String]) -> Result<(), Failure> {
+    let mut base: Option<PathBuf> = None;
+    let mut inc: Option<PathBuf> = None;
+    let mut out: Option<PathBuf> = None;
+    let mut remove: Option<PathBuf> = None;
+    let mut changed_out: Option<PathBuf> = None;
+    let mut timings: Option<PathBuf> = None;
+    let mut verify_tree: Option<PathBuf> = None;
+    let mut against: Option<PathBuf> = None;
+
+    let mut rest = args.iter();
+    while let Some(arg) = rest.next() {
+        let mut value = |flag: &str| -> Result<String, Failure> {
+            match rest.next() {
+                Some(value) => Ok(value.clone()),
+                None => usage(format!("{flag} needs a value")),
+            }
+        };
+        match arg.as_str() {
+            "--base" => base = Some(value("--base")?.into()),
+            "--inc" => inc = Some(value("--inc")?.into()),
+            "--out" => out = Some(value("--out")?.into()),
+            "--remove" => remove = Some(value("--remove")?.into()),
+            "--changed-out" => changed_out = Some(value("--changed-out")?.into()),
+            "--timings" => timings = Some(value("--timings")?.into()),
+            "--verify" => verify_tree = Some(value("--verify")?.into()),
+            "--against" => against = Some(value("--against")?.into()),
+            "--help" | "-h" => {
+                println!("{USAGE}");
+                return Ok(());
+            }
+            other => return usage(format!("unknown argument `{other}`")),
+        }
+    }
+
+    if let Some(tree) = verify_tree {
+        let Some(against) = against else {
+            return usage("merge --verify <ir> needs --against <ir>");
+        };
+        let report = run_verify(&tree, &against).map_err(refused)?;
+        print!("{}", report.to_text());
+        return if report.problems == 0 {
+            Ok(())
+        } else {
+            Err(Failure::Answered(1))
+        };
+    }
+
+    let Some(base) = base.filter(|_| inc.is_some() || remove.is_some()) else {
+        return usage("merge needs --base <ir> and at least one of --inc <ir> / --remove <file>");
+    };
+    // `opt("--out", BASE + ".merged")`: the base tree is never written to unless
+    // the caller asks for it by name.
+    let out = out.unwrap_or_else(|| {
+        let mut merged = base.clone().into_os_string();
+        merged.push(".merged");
+        PathBuf::from(merged)
+    });
+    let removed = match &remove {
+        Some(path) => read_module_list(path).map_err(refused)?,
+        None => Vec::new(),
+    };
+    let summary = run_merge(&MergeOptions {
+        base: &base,
+        inc: inc.as_deref(),
+        out: &out,
+        removed: &removed,
+        changed_out: changed_out.as_deref(),
+        timings: timings.as_deref(),
+    })
+    .map_err(refused)?;
+
+    println!(
+        "merged {} module(s){} into {}: modules {:.4} s, deps+index {:.4} s, total {:.4} s -> {}",
+        summary.updated.len(),
+        if summary.removed > 0 {
+            format!(", removed {}", summary.removed)
+        } else {
+            String::new()
+        },
+        summary.modules,
+        summary.copy_seconds,
+        summary.deps_seconds,
+        summary.total_seconds,
+        out.display(),
+    );
+    println!(
+        "IR content hash moved for {} of {} re-extracted module(s){}",
+        summary.ir_changed.len(),
+        summary.updated.len(),
+        if summary.ir_changed.is_empty() {
+            String::new()
+        } else {
+            format!(": {}", summary.ir_changed.join(", "))
+        },
+    );
     Ok(())
 }
 

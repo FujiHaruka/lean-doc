@@ -428,6 +428,16 @@ fn lines_file(items: &[String]) -> String {
     }
 }
 
+/// Writes a set of names as [`lines_file`] spells it.
+///
+/// Shared by every stage that hands a module set to the next one:
+/// `--changed-out`, `--removed-out`, `--render-all-out`, `--print-set`. One
+/// spelling, so the empty file cannot be empty in one stage and a blank line in
+/// another.
+pub(crate) fn write_text(path: &Path, items: &[String]) -> Result<(), Error> {
+    write(path, &lines_file(items))
+}
+
 /// Olean bytes actually read. `-1` (the `lake` path) clamps to zero.
 fn hashed_bytes(entries: &[ModuleEntry]) -> u64 {
     entries
@@ -437,7 +447,7 @@ fn hashed_bytes(entries: &[ModuleEntry]) -> u64 {
         .sum()
 }
 
-fn write(path: &Path, body: &str) -> Result<(), Error> {
+pub(crate) fn write(path: &Path, body: &str) -> Result<(), Error> {
     if let Some(dir) = path.parent().filter(|dir| !dir.as_os_str().is_empty()) {
         fs::create_dir_all(dir).map_err(|source| Error::Io {
             path: dir.to_owned(),
@@ -450,7 +460,7 @@ fn write(path: &Path, body: &str) -> Result<(), Error> {
     })
 }
 
-fn write_json_line(path: &Path, record: &impl Serialize) -> Result<(), Error> {
+pub(crate) fn write_json_line(path: &Path, record: &impl Serialize) -> Result<(), Error> {
     let body = serde_json::to_string(record).expect("counts and durations serialise") + "\n";
     write(path, &body)
 }
@@ -536,6 +546,19 @@ pub enum Error {
         path: PathBuf,
         module: String,
     },
+    /// `ownership` / `merge`: the IR would not read. Carried rather than
+    /// flattened so the reader's own message — which names the module file and
+    /// the schema it wanted — survives.
+    Ir(lean_doc_ir::Error),
+    /// `merge`: an `index.json` that parses as JSON but is not an index.
+    ///
+    /// The prototype reads `e.file` off whatever the JSON held and would write a
+    /// file called `undefined`; there is no shape of index this can reach from a
+    /// real extraction, so it is a refusal (exit 3) rather than a guess.
+    IndexShape {
+        path: PathBuf,
+        message: String,
+    },
 }
 
 impl Error {
@@ -543,8 +566,11 @@ impl Error {
     #[must_use]
     pub fn exit_code(&self) -> u8 {
         match self {
-            Self::Io { .. } | Self::Json { .. } => 1,
-            Self::NoOlean { .. } | Self::LedgerSchema { .. } | Self::NoSuchModule { .. } => 3,
+            Self::Io { .. } | Self::Json { .. } | Self::Ir(_) => 1,
+            Self::NoOlean { .. }
+            | Self::LedgerSchema { .. }
+            | Self::NoSuchModule { .. }
+            | Self::IndexShape { .. } => 3,
         }
     }
 }
@@ -568,6 +594,8 @@ impl std::fmt::Display for Error {
                 "no such module in the ledger {}: {module}",
                 path.display()
             ),
+            Self::Ir(source) => write!(f, "{source}"),
+            Self::IndexShape { path, message } => write!(f, "{}: {message}", path.display()),
         }
     }
 }
@@ -577,6 +605,7 @@ impl std::error::Error for Error {
         match self {
             Self::Io { source, .. } => Some(source),
             Self::Json { source, .. } => Some(source),
+            Self::Ir(source) => Some(source),
             _ => None,
         }
     }

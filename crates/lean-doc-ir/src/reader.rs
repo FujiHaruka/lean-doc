@@ -69,14 +69,7 @@ impl IrTree {
     /// not vouch for the modules'.
     pub fn module(&self, entry: &IndexEntry) -> Result<ModuleFile> {
         let path = self.path(&entry.file);
-        let module: ModuleFile = read_json(&path)?;
-        if module.schema_version < MIN_SCHEMA_VERSION {
-            return Err(Error::Schema {
-                what: entry.file.clone(),
-                found: module.schema_version,
-                required: MIN_SCHEMA_VERSION,
-            });
-        }
+        let module = read_module_file(&path)?;
         if module.module != entry.module {
             return Err(Error::ModuleMismatch {
                 path,
@@ -113,6 +106,26 @@ impl IrTree {
             .map(|entry| self.dep_map(entry))
             .collect()
     }
+}
+
+/// Reads one module file by path, checking only its own `schemaVersion`.
+///
+/// The funnel [`IrTree::module`] goes through, and the way in for the one caller
+/// that has no index to check the file against: the **merger** reads the tree it
+/// is in the middle of writing, whose `index.json` is written last. Keeping it
+/// here rather than letting that caller reach for `serde_json` is the plan §3
+/// constraint — every read of the IR is in this crate, so the `contentHash`
+/// cache has one place to go.
+pub fn read_module_file(path: &Path) -> Result<ModuleFile> {
+    let module: ModuleFile = read_json(path)?;
+    if module.schema_version < MIN_SCHEMA_VERSION {
+        return Err(Error::Schema {
+            what: path.display().to_string(),
+            found: module.schema_version,
+            required: MIN_SCHEMA_VERSION,
+        });
+    }
+    Ok(module)
 }
 
 fn read_json<T: DeserializeOwned>(path: &Path) -> Result<T> {

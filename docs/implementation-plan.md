@@ -33,7 +33,7 @@ doc-gen4 に対して 99.506% を出しているので**それに byte 一致す
 ## 2. Context — 何が既にあり、何が無いか
 
 検証段階 1〜8 の**動くパイプライン一式が `experiments/` に散らばっている**。「検証が終わった」の実体はこれ。
-製品ツリー `crates/` は M0 で作り、M1 / M2 / M3-a 分が入っている (→ §7)。`experiments/` は数字の
+製品ツリー `crates/` は M0 で作り、M1 / M2 / M3-a / M3-b 分が入っている (→ §7)。`experiments/` は数字の
 再現性のため凍結してあるので、製品ツリーは既存を壊さず**別に作った**。
 
 - **抽出器 (Lean)** — 製品でもこのまま使う。移設ではなく**移動** (M4)
@@ -117,7 +117,7 @@ approach.md §5.6】。7h が 1 回ぶんを `contentHash` キャッシュで消
 | **M0** | 実装計画 + 製品ツリーの骨格 (Cargo ワークスペース / Lean パッケージ) + `experiments/` の凍結宣言 | ビルドが通る。オラクルは動かない |
 | **M1** | **IR リーダ + レンダラ**を Rust へ (md4c を FFI で本物に置換) | **432 モジュールページが byte 一致** (全域 6 本は M2、移動分は M3 なので 439 の残り 7 はここでは出ない)。**通過済み** → 下の判定手順と §7 |
 | **M2** | **全域成果物 6 本**を Rust へ (`contentHash` キャッシュ込み) | 6 成果物が byte 一致、サイトも byte 一致。**通過済み** → §7。**サイトの母数はここでは 438** (432 ページ + 6) — **439 の 439 番目は移動後にしか存在しない**ので M3 |
-| **M3** | **増分 4 本 + パイプライン**を Rust へ | 本物の移動と本物の削除を `lake build` ごと回して**フルビルドと byte 一致**。**M3-a (`detect`) は通過済み** → §7 |
+| **M3** | **増分 4 本 + パイプライン**を Rust へ | 本物の移動と本物の削除を `lake build` ごと回して**フルビルドと byte 一致**。**M3-a (`detect`) / M3-b (`ownership` + `merge`) は通過済み** → §7。残りは **M3-c** (`impact` + `prune`) / **M3-d** (パイプライン + ゲート) |
 | **M4** | 抽出器を製品ツリーへ + **常駐の自動起動・停止**を Rust から配線 + CLI の形を確定 | **1 コマンド**で対象リポジトリのサイトが出て 439/439 |
 | **M5** | **第 2 の対象**で動かす (依存写像を生成側で作る経路の実測を含む) | 別パッケージで `lean-doc build` 一発が通る |
 | **M6** | CI テンプレ + README + インストール手順 | CI で通る。`lake build` と**同じジョブ**に置く形 |
@@ -201,12 +201,11 @@ TS 版とパス・日付以外バイト一致。→ **M1 のゲートは「`IDEN
 ### 移設する (TS/シェル → Rust)
 
 **移設完了**: `stage7d/render.ts` (2,227) + `stage7d/build-link-index.ts` (213) → M1 (後者は M5 で
-供給側を差し替え)、`stage7h/global.ts` (492) → M2、`stage5/ledger.ts` (422) → M3-a。
+供給側を差し替え)、`stage7h/global.ts` (492) → M2、`stage5/ledger.ts` (422) → M3-a、
+`stage5/ownership.ts` (219) と `stage5/merge-ir.ts` (307) → M3-b。
 
 | 未移設のパス | 行 | 役割 | M |
 |---|---:|---|---|
-| `stage5/ownership.ts` | 219 | `ownership` (L3-1) — 名前の所有権差分 | M3 |
-| `stage5/merge-ir.ts` | 307 | `merge` — 部分 IR の畳み込み・削除・deps 再計算 | M3 |
 | `stage5/impact.ts` | 231 | `impact` (L3-2) — changed set → 再生成集合 | M3 |
 | `stage5/prune-pages.ts` | 138 | `prune` — 削除モジュールのページ・孤児・空ディレクトリ削除 | M3 |
 | `stage7h/incremental.sh` | 441 | 増分パイプライン本体 (7 段) | M3 |
@@ -386,7 +385,7 @@ Rust から見て異物であるべき。**7 状態オラクル** (base / rerun 
 | **`<script>` 内の文字列** | `leanQuote` (`render.ts:785-797`) = Lean の `String.quote`。`\n \t \\ \"` と cp ≤ 31 / 127 の `\x%02x` のみ。**`\r` は `\x0d`、`\0` は `\x00`** に落ち、**`'` と U+0080 以上は素通し** | `format!("{:?}")` は `\r` / `\0` と書く — **この 1 文字でバイトが動く**。移植する |
 | **`stringLt` / `nameLt`** | `stringLt` は code point 比較 (Rust の `str::cmp` と同値)、`nameLt` は**親を先に比較する再帰** (`render.ts:800-825`) で**成分の辞書順ではない** (成分数が少ない名前が文字列に関係なく先: `Zzz` < `Aaa.Bbb`)。import 一覧のソートに使う。**U1 の `.sort()` (UTF-16 順) と 100 行以内に同居している** | `nameLt` は独自論理なので必ず移植 — `Vec<&str>` の `Ord` に置き換えると**全く別のバイト**。U1 と取り違えても **BMP 内では一致する**ので `𝒜` が出るまで発覚しない |
 | **`global.ts` の 6 成果物** | 明示的に事前ソートした配列から `Record` を組んで `JSON.stringify` (`global.ts:297-337`) = **挿入順依存だが決定的** | **`serde_json` の既定 (`BTreeMap`) だと再ソートされて `sortedNames + depNames` の混在順序が変わる。`preserve_order` / `IndexMap` が必須** |
-| **`index.json` の書き出し** | `merge-ir.ts:243-250` はスプレッドで既存キー順 (= ソート順) を**偶然**維持している | `BTreeMap` で**明示的に**再現する |
+| **`index.json` の書き出し** | `merge-ir.ts:243-250` はスプレッドで既存キー順 (= ソート順) を**偶然**維持している | 順序つきペア列で**明示的に**再現済み (M3-b)。ただし `dependencyMaps` 要素だけは**敢えて Lean 順**に変えた (→ M3-b の決着) |
 | **`contentHash`** | Lean の `String.hash` (`lean_string_hash`、64bit) の 16 桁 hex (`Extract.lean:1786-1788`) | **Rust 側は再計算しない設計を推奨** — 抽出器が Lean のままなので**読むだけ**で足りる。再計算する設計にすると `lean_string_hash` の移植が必要になる |
 | **台帳のハッシュ** | `crypto.subtle.digest("SHA-256")` / `--algorithm lake` は Lake の `<file>.olean.hash` を**読むだけ** | `sha2` crate で同値。`lake` 経路は文字列読み取りのみ。**`features = ["asm"]` が要る**【実測 2026-08-12】 — 既定だと同じ 237,909,832 B が 0.8631 s、asm 有りで 0.3022 s。プロトタイプ側は BoringSSL のハードウェア実装に届いているので、落とすと**同じ仕事の比較にならない** |
 | **equation の長さ制限** | `[...s].length < 200` = **code point 数** (`render.ts:1683`) | `chars().count()`。バイト長でも UTF-16 長でもない |
@@ -397,13 +396,57 @@ Rust から見て異物であるべき。**7 状態オラクル** (base / rerun 
 `crypto.subtle.digest` → `sha2`、`CompressionStream("gzip")` (**gzip サイズの計測にしか使っていないので
 製品では不要**)、`performance.now()` → `Instant`。
 
-### 既に byte 一致していない箇所が 1 つある【実測】
+### M3-b の結果 — `ownership` + `merge`【すべて実測 2026-08-12】
 
-`merge-ir.ts:222-227` が書く `deps/*.json` は**挿入順**、Lean 版 (from-scratch) は**ソート順**。
-実物を比べると `Mathlib.json` は**同じ 23,137 B で内容が違う** (トップレベルのキー順と名前の順)。
-**サイトのバイトには届かないので現状は許容されている** (`merge-ir.ts:41-44` がそう書いている)。
-→ **Rust 版は「Lean と同じソート順で書く」ようにすればこの差を消せる。消すか放置かを M3 で決める。**
-消すと「増分 IR と from-scratch IR が完全に byte 一致する」というより強い不変条件が手に入る。
+移設元 `stage5/{ownership.ts,merge-ir.ts}` (219 + 307)、移設先 `lean-doc-incr/src/{ownership,merge}.rs`、
+CLI は `lean-doc ownership|merge` (+ `merge --verify A --against B`)。ハーネス
+`tools/merge-{reference,compare}.sh` は **M3-a と同じく問いを 1 箇所で定義**し、**1 ラウンド =
+抽出 → ownership → merge なので 2 段を 1 本のスクリプトで回す** (分けると同じ編集を 2 回書くことになる)。
+編集は**対象リポジトリではなく IR に注入する** — fixture は base IR 自身のモジュールファイルから組んだ
+部分抽出木で、`contentHash` は捏造 (等値比較しかされない。マニフェストに明記)。
+
+**母数 4,051 ファイル / 一致 3,986 / REORDERED 65 / 差分 0 / 欠落 0**。REORDERED は下記の意図した乖離のみ
+(`deps/*.json` 48 + `index.json` 17)。**比較器に例外リストは入れていない**【判断】 — 代わりに
+「同じ mapping で違うキー順」を**ファイル名を持たない規則**で分類する。in-process 側 (`tests/merge.rs`) は
+fixture 80 ファイルのダイジェスト照合に加え、**モジュールファイル 3,890 本を「コピー元のバイト」と直接照合**
+(ダイジェストより強い — どのバイトがどの木から来たかを言う)。
+
+**分岐は 65 中 18 が実データに到達しない**【実測】。**mutation 8 件のうち全件バイト比較で捕まるのは 4 件**。
+逃げる 4 件は「deps の last-writer-wins」「stale の UTF-16 ソート」「deps root の順序」「`lostNames` の数え方」で、
+**最初の測定では deps root の順序がテストでも捕まらなかった** (本物の穴。分岐 `depRootsAboveBmp` と
+手書きケースを足して塞いだ)。**「全件一致したから移設できた」とは書けない。**
+
+**隣のパッケージの手は M3-b では使えない**【実測】 — 必要なのは「IR の `refs` に BMP 外の名前」で、
+対象 IR には 0 件 (依存閉包の `.lidx` には 37 行ある) だが、**依存パッケージの IR 木が存在しない**
+(作るには Mathlib に抽出器を回す必要があり範囲外)。手書きケースのまま。
+
+**`--modules` は再現していない**【実測】 — `merge-ir.ts:29,40` が usage に出しているが `opt("--modules")` を
+一度も読んでおらず、**実装されていないフラグ**。**ラウンドと `--max-rounds` / exit 5 は M3-d に残す** —
+ループは ownership と merge の間に抽出器が要るので段の中に置けない (M3-a が glob を `detect` の担当外と
+したのと同じ扱い)。
+
+#### 「既に byte 一致していない箇所」の決着 — **消した**【実測 2026-08-12】
+
+計画がここで「消すか放置かを M3 で決める」としていた件。`merge-ir.ts:222-227` の `deps/*.json` は**挿入順**、
+Lean 版 (from-scratch) は `Json.mkObj` (ソート済みマップ backed) の**ソート順**だった。**Rust 版は Lean 順で書く**。
+
+- **`deps/*.json`**: トップレベル `declarations`/`package`/`schemaVersion`、宣言名は**コードポイント順**
+  (`Extract.lean:2052-2057`)。**推測ではなく実物** (`w7h/base-ir/deps/*.json`) を開いて決めた。
+- **`index.json`**: `dependencyMaps` 要素のキーを `bytes`/`entries`/`file`/`package` (= `Json.mkObj` の
+  アルファベット順)、配列順を**コードポイント順** (`Extract.lean:2050` の `a.1.toString < b.1.toString`)。
+  ここだけプロトタイプ (UTF-16 `.sort()`) と分かれる。**これを入れないと、合流後の index は from-scratch と
+  同じ 88,541 B・同じデータなのにバイトが違う**ままだった。
+- **結果**: **何も変わらない再抽出を合流した木は from-scratch の木と 436/436 バイト一致**。
+  **merge が書くものはもう 1 つもプロトタイプの順序ではない** — すべて Lean が出したはずの順序。
+- **サイトのバイトには届かない**【実測】 — キー順だけが違う 2 本の IR を `render` + `global` に通して
+  **438/438 バイト一致 (31,617,612 B)**。理屈 (レンダラは `.lidx` を読む / `global.ts:319` が読み直しに
+  `Object.keys(deps).sort()` を噛ませる) もあるが、**生成バイトの主張なので実測した**。
+  さらに合流後 IR から作ったサイトは **M2 ゲートの参照木と 438 中 437 一致** (差分 1 = §5 の登録済み乖離)。
+- **乖離は `STATE_DERIVATION` / V6 と同じ規律で登録する** — `tests/merge.rs` が差分集合 34 件
+  (deps 25 + index 9) を `assert_eq!` で固定し、**プロトタイプと違うことと、独立に書いた Lean 順 writer と
+  同じことの両方**を assert する。片方だけだと「壊れた」と「意図どおり」が区別できない。
+- **`merge-ir.ts:44` のコメント「Lean の HashMap 由来なので外では再現できない」は事実として誤り**だった
+  【実測】。**移設元のコメントを根拠に使うときは実物で裏を取る。**
 
 ---
 

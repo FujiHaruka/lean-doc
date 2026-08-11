@@ -1,0 +1,154 @@
+#!/usr/bin/env -S deno run --allow-read --allow-write
+//
+// Turn a reference tree written by `tools/merge-reference.sh --impl ts` into the
+// committed fixture `tests/data/merge-expected.json`.
+//
+// The fixture is what makes `cargo test` mean something on a machine that does
+// not have the base IR: the sizes and digests below are the frozen prototype's
+// answers, so a port that drifts fails even where the corpus test skips. With
+// the IR present the same test regenerates every file and compares it against
+// these numbers.
+//
+// **Nothing is substituted here.** M3-a had to rewrite two key strings because
+// the port deliberately changes them; M3-b's deliberate change is the *key
+// order* of `deps/*.json`, and re-serialising those files here would mean
+// writing the port's rule into its own oracle. So the prototype's bytes are
+// recorded as they are, and `tests/merge.rs` asserts that the port differs from
+// exactly those files and agrees with an independently written sorted writer.
+//
+// Module files are not recorded: a merged tree's `modules/` is a copy of the
+// base IR's and the incremental tree's, and the test checks that byte for byte
+// against those sources — which says more than a digest would.
+//
+// usage: gen-merge-expected.ts [--ref DIR] [--base-ir DIR] [--out FILE]
+
+const argv = Deno.args.slice();
+const opt = (name: string, dflt: string) => {
+  const i = argv.indexOf(name);
+  return i >= 0 ? argv[i + 1] : dflt;
+};
+
+const REF = opt("--ref", "/private/tmp/lean-doc-relay/m3b/ref");
+const BASE_IR = opt("--base-ir", "/private/tmp/lean-doc-relay/w7h/base-ir");
+const OUT = opt(
+  "--out",
+  new URL("../data/merge-expected.json", import.meta.url).pathname,
+);
+
+/** FNV-1a 64, the same digest the M1/M2/M3-a fixtures use. */
+function fnv1a64(bytes: Uint8Array): string {
+  let hash = 0xcbf29ce484222325n;
+  for (const byte of bytes) {
+    hash = BigInt.asUintN(64, (hash ^ BigInt(byte)) * 0x100000001b3n);
+  }
+  return hash.toString(16).padStart(16, "0");
+}
+
+function record(path: string): { bytes: number; fnv1a64: string } {
+  const raw = Deno.readFileSync(path);
+  return { bytes: raw.length, fnv1a64: fnv1a64(raw) };
+}
+
+/** Every file under `dir`, relative, sorted. */
+function walk(dir: string, prefix = ""): string[] {
+  const out: string[] = [];
+  for (const entry of Deno.readDirSync(dir)) {
+    const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory) out.push(...walk(`${dir}/${entry.name}`, rel));
+    else out.push(rel);
+  }
+  return out.sort();
+}
+
+// The nine rounds and the three verifications tools/merge-reference.sh runs.
+// Each round's `index.json` and `deps/` are snapshotted by the harness right
+// after it ran, because two rounds share one tree.
+const ROUNDS = [
+  "rerun",
+  "modified",
+  "moved",
+  "gained",
+  "copyout",
+  "added",
+  "removed",
+  "restored-1",
+  "restored-2",
+] as const;
+const VERIFICATIONS = ["same", "moved", "deleted"] as const;
+
+/** Drop what differs between two runs by construction. */
+function normalise(path: string, drop: string[]): Record<string, unknown> {
+  const raw = JSON.parse(Deno.readTextFileSync(path)) as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (drop.includes(key) || key.endsWith("Seconds")) continue;
+    out[key] = value;
+  }
+  return out;
+}
+
+const files: Record<string, { bytes: number; fnv1a64: string }> = {};
+const ownership: Record<string, Record<string, unknown>> = {};
+const timings: Record<string, Record<string, unknown>> = {};
+const trees: Record<string, { modules: number; deps: string[] }> = {};
+
+for (const name of ROUNDS) {
+  for (const suffix of ["-stale.txt", "-changed.txt", "-index.json"]) {
+    files[name + suffix] = record(`${REF}/${name}${suffix}`);
+  }
+  // The two paths name the tree the run was given, which is the harness's
+  // directory rather than an answer.
+  ownership[name] = normalise(`${REF}/${name}-ownership.json`, ["base", "inc"]);
+  timings[name] = normalise(`${REF}/${name}-merge-timings.json`, []);
+  const deps = walk(`${REF}/${name}-deps`);
+  for (const dep of deps) files[`${name}-deps/${dep}`] = record(`${REF}/${name}-deps/${dep}`);
+  trees[name] = {
+    modules: Number(Deno.readTextFileSync(`${REF}/${name}-modules.txt`).trim()),
+    deps,
+  };
+}
+for (const name of VERIFICATIONS) {
+  files[`${name}-verify.txt`] = record(`${REF}/${name}-verify.txt`);
+  files[`${name}-verify-status.txt`] = record(`${REF}/${name}-verify-status.txt`);
+}
+// The fixtures both implementations were fed. Recorded so that a fixture
+// builder that drifts is caught here rather than showing up as a port bug.
+for (const rel of walk(`${REF}/fixtures`)) {
+  files[`fixtures/${rel}`] = record(`${REF}/fixtures/${rel}`);
+}
+
+const baseIndex = JSON.parse(Deno.readTextFileSync(`${BASE_IR}/index.json`));
+
+Deno.writeTextFileSync(
+  OUT,
+  JSON.stringify(
+    {
+      note:
+        "Generated by tests/oracle/gen-merge-expected.ts from a tree written by " +
+        "tools/merge-reference.sh --impl ts. Sizes and digests are the frozen " +
+        "prototype's, unsubstituted: the port's deviation is the key order of " +
+        "deps/*.json and tests/merge.rs pins that set explicitly.",
+      reference: REF,
+      baseIr: BASE_IR,
+      baseModules: baseIndex.moduleCount,
+      baseDeclarations: baseIndex.declarationCount,
+      baseDependencyMaps: baseIndex.dependencyMaps.map(
+        (d: { package: string; entries: number; bytes: number }) => ({
+          package: d.package,
+          entries: d.entries,
+          bytes: d.bytes,
+        }),
+      ),
+      trees,
+      ownership,
+      timings,
+      files,
+    },
+    null,
+    2,
+  ) + "\n",
+);
+
+console.log(
+  `${Object.keys(files).length} files, ${Object.keys(trees).length} trees -> ${OUT}`,
+);

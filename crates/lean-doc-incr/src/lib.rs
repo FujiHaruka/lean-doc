@@ -1,9 +1,9 @@
 //! Incremental rebuild: what to re-extract and what to re-render.
 //!
-//! Milestone **M3** — see `docs/implementation-plan.md`. **M3-a is here**: the
-//! `detect` stage, ported from `experiments/stage5/ledger.ts` (frozen). The
-//! other four stages (ownership, merge, impact, prune) and the pipeline attach
-//! to it later.
+//! Milestone **M3** — see `docs/implementation-plan.md`. **M3-a and M3-b are
+//! here**: `detect` (from `experiments/stage5/ledger.ts`), `ownership` (from
+//! `ownership.ts`) and `merge` (from `merge-ir.ts`), all frozen prototypes. The
+//! remaining two stages (impact, prune) and the pipeline attach to them later.
 //!
 //! These are two questions asked at two different times, not one question
 //! asked twice. What to re-extract is decided before Lean runs, from the
@@ -16,7 +16,14 @@
 //!   owner of every name it touches;
 //! - the global artifacts run *before* impact, because their diff is what
 //!   tells impact which pages have a docstring link that just went stale;
-//! - extract/ownership/merge form a loop, bounded by `--max-rounds`;
+//! - extract/ownership/merge form a loop, bounded by `--max-rounds` (default 5)
+//!   and leaving the process with **exit 5** when the bound is reached with
+//!   modules still stale. The loop is the **pipeline's**, not a stage's: it
+//!   needs the extractor between ownership and merge, so it arrives with the
+//!   driver (`incremental.sh:291-294` is what has to move). What is here is the
+//!   round's machinery — [`ownership`]'s `--exclude` is how a round says what
+//!   earlier rounds already took, and its `--print-set` is the next round's
+//!   input;
 //! - a `renderKey` change overrides the impact mode and re-renders everything.
 //!
 //! Key comparison is a union: a key present on only one side counts as a
@@ -42,6 +49,8 @@
 
 pub mod detect;
 pub mod ledger;
+pub mod merge;
+pub mod ownership;
 
 pub use detect::{
     BuildOptions, BuildSummary, CheckOptions, CheckSummary, Error, TouchOptions, build_ledger,
@@ -50,4 +59,11 @@ pub use detect::{
 pub use ledger::{
     Algorithm, EXTRACTOR_ID, FileEntry, KeySet, LEDGER_SCHEMA, Ledger, ModuleEntry, OLEAN_SUFFIXES,
     RENDERER_ID, extract_key, hash_module, module_paths, render_key, sha256_hex, sha256_text,
+};
+pub use merge::{
+    DepMapRecord, JsonObject, MergeOptions, MergeSummary, VerifyReport, merge, verify,
+};
+pub use ownership::{
+    OwnershipOptions, OwnershipSummary, RULE_LOST_OWNER, RULE_MOVED_ELSEWHERE, WITNESSES_IN_LOG,
+    WITNESSES_IN_SUMMARY, Witness, ownership,
 };
