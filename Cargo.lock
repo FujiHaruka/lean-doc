@@ -60,6 +60,13 @@ dependencies = [
 [[package]]
 name = "lean-doc-global"
 version = "0.1.0"
+dependencies = [
+ "lean-doc-ir",
+ "lean-doc-md",
+ "lean-doc-render",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "lean-doc-incr"
