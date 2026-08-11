@@ -1,0 +1,112 @@
+# Mathlib-scale measurement (2026-08-11)
+
+The FIRST measurement in this repository against a target other than
+/Users/haruka/dev/lean-projects. Do NOT put these numbers next to the
+InformationTheory ones: different workload, different module count, different
+declaration density. Raw per-run records: mathlib-scale-extract.jsonl.
+
+## Conditions
+
+  machine        MacBook, Apple M1 (aarch64-apple-darwin), 16 GB physical
+  lean           4.31.0
+  mathlib        v4.31.0 (rev fabf563a7c95a166b8d7b6efca11c8b4dc9d911f)
+  extractor      experiments/stage7d/build/extract (IR schema 4)
+  flags          --equations --refs --write-ir --tagged-code --jobs 4
+  deno           2.7.14
+  target         .lake/packages/mathlib, 8169 modules from the source glob
+  workdir        /private/tmp/lean-doc-relay/wmathlib   (NOT preserved)
+
+## (1) Extraction of all 8169 modules -- completes
+
+  run  import   analyze  writeIR  in-proc    wall      cpu   maxRSS   pagefault
+    1   64.01    247.50    31.14   343.72  347.26   1025.6   3.48 GB     886,261  (cold)
+    2   29.05    263.71    31.20   324.41  329.77   1094.7   5.60 GB     520,122
+    3   24.86    278.08    31.95   335.32  341.79   1173.0   5.32 GB     430,235
+    4   23.47    325.51    33.02   382.50  388.27   1344.6   5.47 GB     474,789
+
+  declarations   557,366 considered -> 311,415 produced (245,951 blacklisted)
+  failures       0
+  equations      58,426
+  refs           4,559,774 occurrences
+  env closure    10,484 modules
+  IR output      547 MB across 8,169 files
+
+WARM DID NOT CONVERGE. `analyze` CPU rises monotonically (247.50 -> 325.51 s;
+total CPU 1025.6 -> 1344.6 s, +31%) for identical work. Suspects: thermal
+throttling (M1 under --jobs 4 for 6 min x 4 consecutive runs) and memory
+pressure (peak RSS 5.3-5.6 GB after run 1, against 16 GB physical). No warm
+figure may be quoted from this session. What IS supported:
+
+  * it completes (exit 0 on all four runs, analyze:failed = 0)
+  * wall clock 330-390 s = 5.5-6.5 min at --jobs 4
+  * importModules cold 64 s -> warm 23-29 s (still falling at run 4)
+
+Against doc-gen4 only ONE ratio is defensible, and only in CPU time:
+doc-gen4's ~32,600 s CPU is EXTRAPOLATED (8,600 modules, run abandoned at 42%);
+scaled to 8,169 modules that is 30,966 s, against 1,025.6 s measured here
+= about 30x, numerator still extrapolated. Wall-clock ratio is NOT available
+(doc-gen4's parallel wall clock was never measured). This is a DIFFERENT claim
+from approach.md 6.4(a)'s 76x, which compares 432 modules single-threaded.
+
+## (2) Outer-side (Deno) full IR read+parse, one pass
+
+  Deno.readTextFile + JSON.parse over every module file, warm, n=3 median:
+
+  target              files      bytes      decls    seconds
+  InformationTheory     433   15.7 MB      4,750      0.105
+  Mathlib             8,169  542.3 MB    311,415      3.18
+
+  cold first run: 0.172 / 3.909 s.  Bytes scale 34.6x, time scales 30.3x
+  -- close to linear.  Consistent with stage7h's global.readSeconds = 0.1525 s
+  over 433 modules.
+
+  The incremental pipeline still performs 5 such passes after stage 7h, so at
+  Mathlib scale that is ~15.9 s of pure re-reading, against a resident Lean
+  side of 0.707 s for a one-module re-extract (which does NOT scale with the
+  package). Changing the outer language does not fix this: a 5x faster JSON
+  parser still leaves ~3.2 s, whereas the stage-7h contentHash cache removes
+  it almost entirely.
+
+## (3) Search index sizes
+
+  doc-gen4 declaration-data.bmp (Mathlib included, 258,760 decls, 37.48 MB):
+    docLink     21.17 MB  (56%)   <- derivable, see below
+    names        8.34 MB
+    kind         4.21 MB          <- only 9 distinct values
+    instances/instancesFor/modules  3.21 MB   <- search never reads these
+
+  docLink is reconstructible from (module, name) for 258,760 / 258,760
+  = 100.0000% of declarations, zero counterexamples.
+
+  Rebuilt as arrays + integer ids:
+
+                                            raw      gzip-6
+    Mathlib incl. -- doc-gen4 current   37.48 MB    3.17 MB
+    Mathlib incl. -- derived            10.29 MB    1.48 MB
+    own package   -- doc-gen4 compat   1,216,017 B   87,460 B
+    own package   -- derived             361,466 B   45,780 B
+
+  Quote the gzip column. The raw 3.64x is inflated: gzip already collapses the
+  repeated docLink strings, leaving 2.14x.
+
+  Functionally lossless: search.js's getMatches reads only name, kind, docLink.
+
+  TRAP: lean-doc emits kind names that differ from doc-gen4's
+  (definition/constructor vs def/ctor). Reusing doc-gen4's search.html would
+  silently disable every kind filter. Static assets are outside the byte-
+  reproduction denominator, so nothing has exercised this path.
+
+## (4) render does not run against a Mathlib target
+
+  declNameToLink: no defining module for Setoid.iseqv (doc-gen4 would panic here)
+
+  stops at 767 / 8,169 pages. Setoid.iseqv is a Lean core declaration and the
+  Mathlib IR has no defining module for it. This is the flip side of "dependencies
+  are external references": targeting Mathlib requires a mapping for ITS
+  dependencies (Lean core / Batteries / Aesop / ...), which for InformationTheory
+  was derived from doc-gen4's bmp and does not exist here.
+
+## Reading note
+
+Six-minute measurements are not trustworthy on this machine back-to-back.
+Any future Mathlib-scale run needs cooling between runs, or a split target.
