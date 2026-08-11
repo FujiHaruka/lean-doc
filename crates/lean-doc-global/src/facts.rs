@@ -29,7 +29,6 @@
 use std::collections::HashSet;
 
 use lean_doc_ir::{Decl, ModuleFile, SpanKind, cmp_utf16};
-use lean_doc_md::gc::is_z_c;
 use serde::{Deserialize, Serialize};
 
 /// One module's contribution to the whole-package artifacts and to the map
@@ -170,20 +169,16 @@ pub fn head_const(decl: &Decl) -> Option<&str> {
 /// and a token that is missing costs a stale page. Widening is safe, narrowing
 /// is not.
 ///
-/// # The one place this is not the prototype's own answer
+/// # It splits on **two** separator sets at once, on purpose
 ///
-/// The prototype splits on V8's `\p{Z}\p{C}`; this splits on the same set as the
-/// renderer's `autoLinkInline` does — `UnicodeBasic`'s, from the build doc-gen4
-/// links (see [`lean_doc_md::gc`]). The two disagree on 4,803 code points, all
-/// of them unassigned in one Unicode version and assigned in the other, and on
-/// the target package's 3,394 declaration docstrings they produce **identical
-/// token lists**【実測】. Matching the renderer is the more useful of the two:
-/// a token exists to predict what the renderer will try to link.
+/// See [`is_token_separator`]. There are two answers to "what is whitespace
+/// here" — the prototype's and the renderer's — and this takes the union rather
+/// than choosing.
 #[must_use]
 pub fn autolink_tokens(doc: &str) -> Vec<String> {
     let mut out = Vec::new();
     for inner in code_spans(doc) {
-        for part in inner.split(is_z_c) {
+        for part in inner.split(is_token_separator) {
             push_token(&mut out, part);
         }
     }
@@ -191,6 +186,68 @@ pub fn autolink_tokens(doc: &str) -> Vec<String> {
         push_token(&mut out, target);
     }
     out
+}
+
+/// What [`autolink_tokens`] breaks a code span into parts on: **the union of
+/// two separator sets** (plan §8, V6).
+///
+/// # Do not narrow this to one of them
+///
+/// Two implementations answer "is this code point whitespace" differently, and
+/// neither is wrong:
+///
+/// - the frozen prototype splits on **V8's** `/[\p{Z}\p{C}]/u`
+///   (`experiments/stage7h/global.ts:120`) — that is what the delta this crate
+///   has to agree with was computed with;
+/// - the renderer's `autoLinkInline` splits on **UnicodeBasic's** `Z | C`, from
+///   the build doc-gen4 links ([`lean_doc_md::gc::is_z_c`]) — that is what
+///   actually decides which names a page ends up linking.
+///
+/// **They disagree on 4,803 code points, and every one of them is a separator
+/// for V8 and not for UnicodeBasic** — UnicodeBasic's set is a strict subset
+/// 【実測 2026-08-12 → `benchmarks/results/m2b-v6-token-separators.json`,
+/// asserted by `the_two_separator_sets_disagree_the_way_v6_measured_them`】.
+/// The disagreement is a UCD version gap: the code points are assigned in
+/// UnicodeBasic's database and unassigned (`Cn`, inside `C`) in V8's.
+///
+/// The two ways to be wrong are not each other's mirror image. These tokens are
+/// **the filter in front of the whole-package map delta** ([`crate::Delta`]): a
+/// module is re-rendered iff one of its tokens is a name that moved.
+///
+/// | too many tokens | too few tokens |
+/// |---|---|
+/// | a module is re-rendered that did not need to be | a page that should have been re-rendered is **not** |
+/// | costs time | keeps a link pointing at the module a name used to live in, and **nothing downstream notices** |
+///
+/// Concretely, with `c` a code point V8 separates on and UnicodeBasic does not,
+/// `` `Nat.succ<c>Foo` `` is `{Nat.succ, succ, Foo}` under the prototype and
+/// `{Nat.succ<c>Foo, succ<c>Foo}` under UnicodeBasic alone. The second never
+/// offers `Nat.succ`, so a module whose docstring says that is missing from the
+/// affected set when `Nat.succ` moves. The union offers both.
+///
+/// So this is deliberately wider than either implementation, and wider than the
+/// data needs: **no code point either table disagrees about occurs in any code
+/// span of the target package** — 432 modules / 4,750 declarations / 3,394
+/// docstrings / 16,044 code spans / 233,713 code points inside them, 0
+/// occurrences 【実測 2026-08-12、同ログ】. So the widening costs this package
+/// no extra re-rendering at all — the six artifacts and the state file are byte
+/// for byte what they were before it — and it is the only side of the trade
+/// whose failure mode is loud.
+///
+/// # The first disjunct is redundant **today**, and stays
+///
+/// Because the disagreement is one-sided, `is_z_c || v8` is currently the same
+/// function as `v8` alone, and deleting the first call changes no answer — a
+/// mutation of it fails no test in this workspace 【実測 2026-08-12】. It is a
+/// union anyway because the two tables are pinned to two things that move
+/// independently (a `lake-manifest.json` rev and a V8 build), and the day one of
+/// them gains a separator the other lacks, the `||` is what keeps this a
+/// superset of both instead of a silent narrowing. The measured fact that makes
+/// the disjunct redundant is asserted, not assumed, so the assertion is what
+/// says the day has come.
+#[must_use]
+pub fn is_token_separator(c: char) -> bool {
+    lean_doc_md::gc::is_z_c(c) || crate::v8_gc::is_z_c(c)
 }
 
 fn push_token(out: &mut Vec<String>, part: &str) {
@@ -319,5 +376,81 @@ mod tests {
         assert_eq!(autolink_tokens("`n`"), ["n"]);
         // Empty parts between separators are dropped, dotted ones are not.
         assert_eq!(autolink_tokens("`  a  `"), ["a"]);
+    }
+
+    /// U+088F ARABIC HALF MADDA OVER MADDA: **a separator for V8 and not for
+    /// UnicodeBasic**, the first of the 4,803 and the direction that costs
+    /// correctness. See [`is_token_separator`].
+    const V8_ONLY: char = '\u{088F}';
+
+    /// U+00A0 NO-BREAK SPACE: a separator for **both** tables, which is what
+    /// the other direction looks like — there is no code point UnicodeBasic
+    /// separates on and V8 does not 【実測】, so this is as close as the
+    /// disagreement gets to being two-sided.
+    const BOTH: char = '\u{00A0}';
+
+    /// The union in the only terms that matter: which names a docstring offers.
+    ///
+    /// Splitting on UnicodeBasic alone loses `Nat.succ` from the first case —
+    /// and losing a token is a page that is never re-rendered.
+    #[test]
+    fn the_split_is_a_superset_of_both_implementations() {
+        assert_eq!(
+            autolink_tokens(&format!("`Nat.succ{V8_ONLY}Foo`")),
+            ["Nat.succ", "succ", "Foo"],
+            "a code point V8 separates on and UnicodeBasic does not was kept inside a token"
+        );
+        assert_eq!(
+            autolink_tokens(&format!("`Nat.succ{BOTH}Foo`")),
+            ["Nat.succ", "succ", "Foo"],
+            "a code point both tables separate on was kept inside a token"
+        );
+        // The same shape the delta sees: the prefix has to survive on its own.
+        assert!(
+            autolink_tokens(&format!("`Nat.succ{V8_ONLY}Foo`")).contains(&"Nat.succ".to_owned())
+        );
+    }
+
+    /// V6, restated where it can fail: how far apart the two tables are, and in
+    /// which direction.
+    ///
+    /// The second number being **zero** is the whole reason
+    /// [`is_token_separator`]'s first disjunct is currently dead — if it ever
+    /// stops being zero, this is the assertion that says so, and the union
+    /// starts doing work in both directions without any other edit.
+    #[test]
+    fn the_two_separator_sets_disagree_the_way_v6_measured_them() {
+        let mut v8_only = 0usize;
+        let mut unicode_basic_only = 0usize;
+        for cp in 0..=0x10_FFFFu32 {
+            let Some(c) = char::from_u32(cp) else {
+                continue;
+            };
+            let v8 = crate::v8_gc::is_z_c(c);
+            let unicode_basic = lean_doc_md::gc::is_z_c(c);
+            assert_eq!(
+                is_token_separator(c),
+                v8 || unicode_basic,
+                "U+{cp:04X} is not the union of the two tables"
+            );
+            if v8 && !unicode_basic {
+                v8_only += 1;
+            }
+            if unicode_basic && !v8 {
+                unicode_basic_only += 1;
+            }
+        }
+        // 【実測 2026-08-12 → benchmarks/results/m2b-v6-token-separators.json】
+        assert_eq!(
+            v8_only, 4_803,
+            "the code points only the prototype splits on are not the 4,803 V6 measured"
+        );
+        assert_eq!(
+            unicode_basic_only, 0,
+            "UnicodeBasic is no longer a subset of V8: the union now widens both ways, and \
+             is_token_separator's doc comment says it is one-sided"
+        );
+        assert!(is_token_separator(V8_ONLY) && !lean_doc_md::gc::is_z_c(V8_ONLY));
+        assert!(is_token_separator(BOTH) && lean_doc_md::gc::is_z_c(BOTH));
     }
 }

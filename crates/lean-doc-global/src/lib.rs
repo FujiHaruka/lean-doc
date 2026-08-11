@@ -32,6 +32,11 @@
 //! one the prototype wrote, and the delta, which is compared with the
 //! prototype's own answer over the same mutated map.
 //!
+//! The one rule here that is nobody's transcription is
+//! [`is_token_separator`]: the tokeniser splits on the **union** of the
+//! prototype's separator set and the renderer's, because a token too few is a
+//! stale page and a token too many is a re-render (plan §8, V6).
+//!
 //! ```no_run
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let mut options = lean_doc_global::GlobalOptions::new(
@@ -50,9 +55,10 @@ pub mod delta;
 pub mod facts;
 mod site;
 pub mod state;
+pub mod v8_gc;
 
 pub use artifacts::{ARTIFACT_PATHS, Artifacts, page_path};
 pub use delta::{Delta, DeltaTimings, Witness};
-pub use facts::{ModuleFacts, autolink_tokens, head_const};
+pub use facts::{ModuleFacts, autolink_tokens, head_const, is_token_separator};
 pub use site::{Error, FactsRun, GlobalOptions, GlobalSummary, build_global, facts_for};
 pub use state::{STATE_DERIVATION, STATE_FILE, STATE_VERSION, State};

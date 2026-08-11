@@ -18,27 +18,28 @@
 //!
 //! # Byte equality is not branch coverage (plan §7)
 //!
-//! Of the **34** [`BRANCHES`] this milestone added:
+//! Of the **35** [`BRANCHES`] this milestone added:
 //!
 //! | exercise | reaches |
 //! |---|---:|
 //! | the full-corpus six-file comparison (`tools/global-compare.sh` — M2-a's gate) | **5** |
 //! | the seven states | **13** |
 //! | everything real data can reach (seven states + the corpus delta) | **26** |
-//! | curated cases only ([`NO_REAL_DATA_REACHES`]) | **8** |
+//! | curated cases only ([`NO_REAL_DATA_REACHES`]) | **9** |
 //!
 //! A run with no `--state` and no `--before` takes one path through all of
-//! this, so the comparison M2-a was judged on cannot see 29 of the 34. The
+//! this, so the comparison M2-a was judged on cannot see 30 of the 35. The
 //! dependency is asserted rather than commented:
 //! [`the_curated_cases_cover_what_the_package_does_not`].
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
 
 use lean_doc_global::{
     ARTIFACT_PATHS, Delta, GlobalOptions, GlobalSummary, ModuleFacts, STATE_DERIVATION, STATE_FILE,
-    STATE_VERSION, State, build_global, facts_for,
+    STATE_VERSION, State, autolink_tokens, build_global, facts_for, v8_gc,
 };
 use lean_doc_ir::{Index, IrTree};
 use serde::Deserialize;
@@ -59,7 +60,7 @@ const DEFAULT_PROTOTYPE_STATE: &str =
 /// the branch structure becomes a second definition of it and drifts. Each of
 /// these is decided by [`observe`] from the inputs a run was given and the files
 /// it produced.
-const BRANCHES: [&str; 34] = [
+const BRANCHES: [&str; 35] = [
     // State::load — eight ways to arrive at a cache, seven of them empty.
     "stateNotRequested",
     "stateFileMissing",
@@ -99,13 +100,16 @@ const BRANCHES: [&str; 34] = [
     // The timings record.
     "timingsWritten",
     "timingsOmitted",
+    // The tokeniser's separator set (plan §8, V6).
+    "tokenSeparatorV8Only",
 ];
 
 /// What the full-corpus six-file byte comparison reaches — `--state` and
 /// `--before` are both absent there, so one path through everything.
 ///
-/// This is the M2-a gate (`tools/global-compare.sh`), and it is **5 of the 34**.
-/// Data does not change it: no branch in this list depends on what is in the IR.
+/// This is the M2-a gate (`tools/global-compare.sh`), and it is **5 of the 35**.
+/// Only one branch outside this list depends on what is in the IR
+/// (`tokenSeparatorV8Only`), and the target package does not have it.
 const SIX_FILE_COMPARISON: [&str; 5] = [
     "cacheMissNotCached",
     "deltaOff",
@@ -140,12 +144,17 @@ const CORPUS_DELTA: [&str; 17] = [
 /// The branches **no exercise over the real corpus reaches at all**: neither the
 /// seven states nor the delta differential, whatever the data.
 ///
-/// Eight of thirty-four. Four are foreign-state shapes that only an IR upgrade
-/// or a corrupted file produces; the other four are properties the target
+/// Nine of thirty-five. Four are foreign-state shapes that only an IR upgrade
+/// or a corrupted file produces; the other five are properties the target
 /// package does not have — no name above the BMP (U1 again), never more than
-/// twenty changed names, never a change that nothing mentions, and the pipeline
-/// always asks for the print set.
-const NO_REAL_DATA_REACHES: [&str; 8] = [
+/// twenty changed names, never a change that nothing mentions, the pipeline
+/// always asks for the print set, and **no code span in any docstring contains a
+/// code point the two separator sets disagree about** (0 of 233,713 code points
+/// inside 16,044 code spans 【実測 2026-08-12 →
+/// `benchmarks/results/m2b-v6-token-separators.json`】, which is why the state
+/// file is the prototype's bytes despite the two implementations tokenising
+/// differently).
+const NO_REAL_DATA_REACHES: [&str; 9] = [
     "affectedAboveBmp",
     "affectedEmpty",
     "changedSampleTruncated",
@@ -154,6 +163,7 @@ const NO_REAL_DATA_REACHES: [&str; 8] = [
     "stateSchemaMismatch",
     "stateUnparseable",
     "stateVersionMismatch",
+    "tokenSeparatorV8Only",
 ];
 
 /// What one run of [`build_global`] was given and what came out of it.
@@ -232,6 +242,13 @@ fn observe(run: &Run<'_>) -> BTreeSet<&'static str> {
     } else {
         "timingsOmitted"
     });
+
+    // Read off the IR rather than off the facts: under the union no token can
+    // contain a separator of either set, so the tokens cannot say whether the
+    // split met one.
+    if meets_a_v8_only_separator(run.options.ir) {
+        fire("tokenSeparatorV8Only");
+    }
 
     let (Some(delta), Some(before)) = (&run.summary.delta, run.before_map) else {
         fire("deltaOff");
@@ -313,6 +330,65 @@ fn observe(run: &Run<'_>) -> BTreeSet<&'static str> {
         "deltaJsonOmitted"
     });
     fired
+}
+
+/// Whether any code span in this IR's declaration docstrings holds a code point
+/// **V8 splits on and UnicodeBasic does not** — the direction of the
+/// disagreement that costs correctness (plan §8, V6, and
+/// `lean_doc_global::is_token_separator`).
+///
+/// The other direction is not looked for because it is empty: no code point is a
+/// separator for UnicodeBasic and not for V8 【実測 2026-08-12, asserted by
+/// `facts::tests::the_two_separator_sets_disagree_the_way_v6_measured_them`】.
+///
+/// Memoised per path — every tree this suite mutates is written before the first
+/// run over it, so the answer for a path does not change once it has been asked.
+fn meets_a_v8_only_separator(ir: &Path) -> bool {
+    static SEEN: OnceLock<Mutex<BTreeMap<PathBuf, bool>>> = OnceLock::new();
+    let seen = SEEN.get_or_init(|| Mutex::new(BTreeMap::new()));
+    if let Some(answer) = seen.lock().expect("the memo is not poisoned").get(ir) {
+        return *answer;
+    }
+    let tree = IrTree::open(ir).expect("the IR opens");
+    let found = tree.modules().any(|module| {
+        let module = module.expect("the module reads");
+        module.declarations.iter().any(|decl| {
+            decl.doc.as_deref().is_some_and(|doc| {
+                backtick_spans(doc)
+                    .iter()
+                    .any(|span| span.chars().any(is_v8_only_separator))
+            })
+        })
+    });
+    seen.lock()
+        .expect("the memo is not poisoned")
+        .insert(ir.to_owned(), found);
+    found
+}
+
+fn is_v8_only_separator(c: char) -> bool {
+    v8_gc::is_z_c(c) && !lean_doc_md::gc::is_z_c(c)
+}
+
+/// The inside of every `` `...` ``, as ``/`([^`\n]+)`/g`` finds them — the
+/// test's own reading of the regex, so that the crate's is not both the thing
+/// under test and the authority on what it saw.
+fn backtick_spans(doc: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let mut rest = doc;
+    while let Some(open) = rest.find('`') {
+        let after = &rest[open + 1..];
+        // A run that stops on anything but a closing backtick is not a match,
+        // and the regex engine retries from one position past the opening one.
+        match after.find(['`', '\n']) {
+            Some(at) if at > 0 && after.as_bytes()[at] == b'`' => {
+                out.push(&after[..at]);
+                rest = &after[at + 1..];
+            }
+            _ => rest = after,
+        }
+    }
+    out
 }
 
 /// What a state file on disk is worth to a run over `index` — the test's own
@@ -1217,21 +1293,37 @@ fn the_curated_deltas_reach_what_the_corpus_does_not() {
     }
 }
 
+/// V6 end to end: which separator set the affected set is decided by, and the
+/// measured fact that makes the curated case the only thing testing it.
+#[test]
+fn the_curated_tokens_reach_what_the_corpus_does_not() {
+    assert!(curated_token_branches().contains("tokenSeparatorV8Only"));
+    let Some(ir) = corpus_ir() else {
+        return;
+    };
+    assert!(
+        !meets_a_v8_only_separator(&ir),
+        "the target package now contains a code point the two separator sets disagree about: the \
+         state file can no longer be expected to be the prototype's bytes, and V6's measurement \
+         (0 of 233,713 code points inside 16,044 code spans) has to be taken again"
+    );
+}
+
 /// The dependency this milestone's coverage rests on, stated so that it fails
 /// when it stops being true (plan §7: 「全件バイト一致」は分岐被覆の証明ではない).
 ///
 /// Four claims, all of them counted rather than believed:
 ///
 /// 1. The full-corpus six-file comparison — what M2-a was judged on — reaches
-///    **5 of the 34** branches M2-b added. Every `--state` and `--before` path
+///    **5 of the 35** branches M2-b added. Every `--state` and `--before` path
 ///    is invisible to it.
-/// 2. The seven states reach **13 of 34**; the seventeen delta branches and
+/// 2. The seven states reach **13 of 35**; the seventeen delta branches and
 ///    three of the four foreign-state shapes are outside what a cache sequence
 ///    can produce.
-/// 3. Together with the corpus delta, real data reaches **26 of 34**. The other
-///    **8** ([`NO_REAL_DATA_REACHES`]) are reachable only by a written-down
+/// 3. Together with the corpus delta, real data reaches **26 of 35**. The other
+///    **9** ([`NO_REAL_DATA_REACHES`]) are reachable only by a written-down
 ///    case, so every one of them is one.
-/// 4. Everything together is all 34.
+/// 4. Everything together is all 35.
 #[test]
 fn the_curated_cases_cover_what_the_package_does_not() {
     let trees = TempDir::new("coverage");
@@ -1295,6 +1387,9 @@ fn the_curated_cases_cover_what_the_package_does_not() {
             "stateVersionMismatch",
             "stateSchemaMismatch",
             "stateGeneratorMismatch",
+            // No docstring of the synthetic package — or of the real one —
+            // contains a code point the two separator sets disagree about.
+            "tokenSeparatorV8Only",
         ]),
         "which branches the seven states leave uncovered has changed"
     );
@@ -1321,6 +1416,7 @@ fn the_curated_cases_cover_what_the_package_does_not() {
     let curated = {
         let mut curated = curated_delta_branches();
         curated.extend(curated_state_branches());
+        curated.extend(curated_token_branches());
         curated
     };
     for branch in NO_REAL_DATA_REACHES {
@@ -1392,6 +1488,82 @@ fn curated_state_branches() -> BTreeSet<&'static str> {
 enum Damage {
     Corrupt(&'static str),
     Key(&'static str, Value),
+}
+
+/// U+088F ARABIC HALF MADDA OVER MADDA: **a separator for V8 and not for
+/// UnicodeBasic**, the first of the 4,803 code points the two tables disagree
+/// about 【実測 2026-08-12】. Nothing in the target package contains it, or any
+/// of the other 4,802.
+const V8_ONLY_SEPARATOR: char = '\u{088F}';
+
+/// V6: the tokeniser splits on the **union** of the prototype's separator set
+/// and the renderer's, and the corpus reaches neither half of the disagreement.
+///
+/// The failure this rules out is silent. With the split narrowed to
+/// UnicodeBasic's set — the renderer's, and the obvious "simplification" —
+/// `` `Pkg.moved\u{088F}Tail` `` is one token, `Pkg.moved` is not among a
+/// module's tokens, and the module is **missing from the affected set** when
+/// `Pkg.moved` moves. Nothing downstream notices: the site builds and the page
+/// keeps a link to the module the name used to live in.
+fn curated_token_branches() -> BTreeSet<&'static str> {
+    let trees = TempDir::new("curated-tokens");
+    let ir = trees.path.join("ir");
+    let split_doc = format!("`Pkg.moved{V8_ONLY_SEPARATOR}Tail`");
+    write_synthetic(
+        &ir,
+        &[
+            Synthetic {
+                module: "Pkg.Alpha",
+                hash: "1111111111111111",
+                imports: vec![],
+                decls: vec![decl("Pkg.moved", "def", None, json!([]))],
+            },
+            // The control: the same name in a code span with nothing unusual in
+            // it, so that a delta that finds nothing at all is not mistaken for
+            // the separator being handled.
+            Synthetic {
+                module: "Pkg.Plain",
+                hash: "2222222222222222",
+                imports: vec![],
+                decls: vec![decl("Pkg.Plain.p", "def", Some("`Pkg.moved`."), json!([]))],
+            },
+            Synthetic {
+                module: "Pkg.Split",
+                hash: "3333333333333333",
+                imports: vec![],
+                decls: vec![decl("Pkg.Split.s", "def", Some(&split_doc), json!([]))],
+            },
+        ],
+        &[],
+    );
+
+    let site = trees.path.join("site");
+    build_global(&GlobalOptions::new(&ir, &site)).expect("builds");
+    let mut before = name_map(&site);
+    before.insert("Pkg.moved".to_owned(), "Somewhere.Else".to_owned());
+    let (fired, delta) = run_delta(&trees, "separator", &ir, before, true, true);
+    assert_eq!(delta.changed, ["Pkg.moved"]);
+    assert_eq!(
+        delta.affected,
+        ["Pkg.Plain", "Pkg.Split"],
+        "`Pkg.Split` mentions `Pkg.moved` before a code point V8 separates on and UnicodeBasic \
+         does not; splitting on UnicodeBasic's set alone drops it from the affected set and \
+         leaves its page linking a name that has moved"
+    );
+    assert_eq!(delta.witnesses[1].name, "Pkg.moved");
+    // The same thing one level down, so that a failure above can be read
+    // without guessing which half of the pipeline moved.
+    assert_eq!(
+        autolink_tokens(&split_doc),
+        ["Pkg.moved", "moved", "Tail"],
+        "the split is not the union of the two separator sets: U+{:04X} stayed inside a token",
+        V8_ONLY_SEPARATOR as u32
+    );
+    assert!(
+        fired.contains("tokenSeparatorV8Only"),
+        "the curated IR does not actually contain a disputed code point"
+    );
+    fired
 }
 
 /// The delta's corners, over IRs small enough to say what the answer should be.

@@ -1,0 +1,220 @@
+{
+  "measurement": "V6: the two autolinkTokens separator sets",
+  "date": "2026-08-11",
+  "label": "実測",
+  "runtime": {
+    "deno": "2.7.14",
+    "v8": "14.7.173.20-rusty"
+  },
+  "unicodeBasicFrom": "crates/lean-doc-md/src/gc.rs (generated from the build doc-gen4 links)",
+  "sets": {
+    "v8Members": 959303,
+    "unicodeBasicMembers": 954500,
+    "agree": 1109309,
+    "disagree": 4803,
+    "v8OnlySeparator": 4803,
+    "unicodeBasicOnlySeparator": 0,
+    "surrogateDisagreements": 0
+  },
+  "v8OnlyRanges": [
+    [
+      "U+088F",
+      "U+088F"
+    ],
+    [
+      "U+0C5C",
+      "U+0C5C"
+    ],
+    [
+      "U+0CDC",
+      "U+0CDC"
+    ],
+    [
+      "U+1ACF",
+      "U+1ADD"
+    ],
+    [
+      "U+1AE0",
+      "U+1AEB"
+    ],
+    [
+      "U+20C1",
+      "U+20C1"
+    ],
+    [
+      "U+2B96",
+      "U+2B96"
+    ],
+    [
+      "U+A7CE",
+      "U+A7CF"
+    ],
+    [
+      "U+A7D2",
+      "U+A7D2"
+    ],
+    [
+      "U+A7D4",
+      "U+A7D4"
+    ],
+    [
+      "U+A7F1",
+      "U+A7F1"
+    ],
+    [
+      "U+FBC3",
+      "U+FBD2"
+    ],
+    [
+      "U+FD90",
+      "U+FD91"
+    ],
+    [
+      "U+FDC8",
+      "U+FDCE"
+    ],
+    [
+      "U+10940",
+      "U+10959"
+    ],
+    [
+      "U+10EC5",
+      "U+10EC7"
+    ],
+    [
+      "U+10ED0",
+      "U+10ED8"
+    ],
+    [
+      "U+10EFA",
+      "U+10EFB"
+    ],
+    [
+      "U+11B60",
+      "U+11B67"
+    ],
+    [
+      "U+11DB0",
+      "U+11DDB"
+    ],
+    [
+      "U+11DE0",
+      "U+11DE9"
+    ],
+    [
+      "U+16EA0",
+      "U+16EB8"
+    ],
+    [
+      "U+16EBB",
+      "U+16ED3"
+    ],
+    [
+      "U+16FF2",
+      "U+16FF6"
+    ],
+    [
+      "U+187F8",
+      "U+187FF"
+    ],
+    [
+      "U+18D09",
+      "U+18D1E"
+    ],
+    [
+      "U+18D80",
+      "U+18DF2"
+    ],
+    [
+      "U+1CCFA",
+      "U+1CCFC"
+    ],
+    [
+      "U+1CEBA",
+      "U+1CED0"
+    ],
+    [
+      "U+1CEE0",
+      "U+1CEF0"
+    ],
+    [
+      "U+1E6C0",
+      "U+1E6DE"
+    ],
+    [
+      "U+1E6E0",
+      "U+1E6F5"
+    ],
+    [
+      "U+1E6FE",
+      "U+1E6FF"
+    ],
+    [
+      "U+1F6D8",
+      "U+1F6D8"
+    ],
+    [
+      "U+1F777",
+      "U+1F77A"
+    ],
+    [
+      "U+1F8D0",
+      "U+1F8D8"
+    ],
+    [
+      "U+1FA54",
+      "U+1FA57"
+    ],
+    [
+      "U+1FA8A",
+      "U+1FA8A"
+    ],
+    [
+      "U+1FA8E",
+      "U+1FA8E"
+    ],
+    [
+      "U+1FAC8",
+      "U+1FAC8"
+    ],
+    [
+      "U+1FACD",
+      "U+1FACD"
+    ],
+    [
+      "U+1FAEA",
+      "U+1FAEA"
+    ],
+    [
+      "U+1FAEF",
+      "U+1FAEF"
+    ],
+    [
+      "U+1FBFA",
+      "U+1FBFA"
+    ],
+    [
+      "U+2B73A",
+      "U+2B73F"
+    ],
+    [
+      "U+2CEA2",
+      "U+2CEAD"
+    ],
+    [
+      "U+323B0",
+      "U+33479"
+    ]
+  ],
+  "unicodeBasicOnlyRanges": [],
+  "corpus": {
+    "ir": "/private/tmp/lean-doc-relay/w7h/base-ir",
+    "modulesScanned": 432,
+    "declsScanned": 4750,
+    "docstringsScanned": 3394,
+    "codeSpansScanned": 16044,
+    "codeSpanCodePoints": 233713,
+    "occurrences": 0,
+    "where": []
+  }
+}
