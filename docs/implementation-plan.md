@@ -18,15 +18,15 @@
 | **B: v0.1** | 対象リポジトリ**以外**の Mathlib 依存パッケージで `lean-doc build` 一発が通り、増分が効き、CI に置ける | 第 2 の対象で実走 |
 
 **移設中の内側ループは `coverage.ts` ではなく「TS 版の出力との byte 差分」**を使う。
-プロトタイプの出力は既に doc-gen4 に対して 99.506% を出しているので、**それに byte 一致すれば
-ゲート A は構成上通る**。差分のほうが速く (1 秒台) 、かつ**パーセンテージではなく壊れたファイル名と
-先頭の食い違いバイト位置**を返す。ハーネス: `tools/render-reference.sh` (参照生成) /
-`tools/render-compare.sh` (比較)。**参照は 432 ページ / 29 MB、生成 1.02 秒**【実測、warm】。
+プロトタイプは doc-gen4 に対して 99.506% を出しているので**それに byte 一致すればゲート A は
+構成上通る**し、差分は**パーセンテージではなく壊れたファイル名と食い違いバイト位置**を返す。
+ハーネス: `tools/render-reference.sh` (参照生成) / `tools/render-compare.sh` (比較)。
+**参照は 432 ページ / 29 MB、生成 1.02 秒**【実測、warm】。
 
-**ゲート A の実走も確認済み (2026-08-11)** — 参照ページに `coverage.ts` を当てて
-**再現率 99.5% (21,919,956 / 22,028,728 B)、304/348 ページ byte 一致、不足 108,772 B は
-全部 rev**【実測。既知の 99.506% を再現】。**doc-gen4 の参照木 (736 MB / 6,080 ページ) は
-対象リポジトリの `.lake/build/doc` に健在**で、作り直すと約 9 時間かかるので**消さないこと**。
+**ゲート A は実走で通過済み (M1-d3、2026-08-11)** — **再現率 99.5% (21,919,956 / 22,028,728 B)、
+304/348 ページ byte 一致、不足 108,772 B は全部 rev**【実測。既知の 99.506% を再現】。
+**doc-gen4 の参照木 (736 MB / 6,080 ページ) は対象リポジトリの `.lake/build/doc` に健在**で、
+作り直すと約 9 時間かかるので**消さないこと**。
 
 **A は B の必要条件であって十分条件ではない。** approach.md §9 のとおり
 **byte 再現率はオラクルであって製品目標ではない** — doc-gen4 と同じバイトを出すことは
@@ -38,15 +38,15 @@ A を通した時点で価値のあるものは何も増えていない、とい
 ## 2. Context — 何が既にあり、何が無いか
 
 検証段階 1〜8 で **動くパイプライン一式が `experiments/` に散らばっている**。「検証が終わった」の実体はこれ。
+**製品ツリー `crates/` は M0 で作り、M1 で IR リーダ・md4c・レンダラが入った** (→ §7)。
 
-- **抽出器 (Lean)** — 製品でもこのまま使う。移設ではなく**移動**
-- **外側 (TS + シェル)** — Rust に移設する。approach.md §5.6 の見積もりで約 3,900 行 + パイプライン
+- **抽出器 (Lean)** — 製品でもこのまま使う。移設ではなく**移動** (M4)
+- **外側 (TS + シェル)** — Rust に移設する。残りは全域成果物・増分・パイプライン (M2〜M4)
 - **受け入れオラクル (Deno)** — **製品外に残す**。Rust 版を採点する側なので同じ言語で書き直すと
   「両方同じ間違いをする」経路ができる
 
-無いもの: **製品ツリーが存在しない** (Cargo ワークスペースも Lean パッケージも未作成)。
-`experiments/stageN/` は使い捨てで**後の段階で書き直してよい**規約なので、
-製品ツリーは既存を壊さず**別に作る** (数字の再現性のため experiments は凍結する)。
+`experiments/stageN/` は使い捨てで**後の段階で書き直してよい**規約だったので、製品ツリーは
+既存を壊さず**別に作った** (数字の再現性のため experiments は凍結する)。
 
 ---
 
@@ -95,14 +95,12 @@ byte 一致は「一致 / 不一致」の 1 ビットしか返さないので、
 ### 決定 3 — rev 注入は**ビルド時の文字列置換**を採る【決定】
 
 approach.md §5.6 が「未決」としていた 2 方式のうち**配信時 (ビルド時) 置換**を採る。
+置換は **0.1552 秒 / 432 ファイル・制約ゼロ**【実測 7e-rev】。JS 注入は **1 ページ最悪 0.80 ms**
+【実測、段階 8】だが順序制約 + 鮮度ヘッダ + `?jump=src` のディープリンクの制約が 3 つ付き、
+しかも**実測範囲は Chrome 151 のみ**で他エンジンは仮定。
 
-| | 配信時置換 | JS 注入 |
-|---|---|---|
-| コスト | **0.1552 秒 / 432 ファイル**【実測 7e-rev】 | 1 ページ最悪 **0.80 ms**【実測、段階 8】 |
-| 制約 | **無い**【実測 7e-rev】 | 順序制約 + 鮮度ヘッダ + `?jump=src` のディープリンクが壊れうる |
-| 実測範囲 | ファイル操作のみ | **Chrome 151 でのみ**。他エンジンは仮定 |
-
-**0.1552 秒のために制約を 3 つ負う理由が無い。** 増分の外側合計 1.5〜1.9 秒【実測 → §6.5】に対して
+**0.1552 秒のために制約を 3 つ負う理由が無い。** 増分の外側合計 1.5〜1.9 秒
+【実測 → approach.md §6.5】に対して
 置換は 10% で、rev が変わるたびに 432 ファイルを舐めても増分の性質は変わらない
 (**再生成集合は 0 のまま** — 置換は IR にもレンダラ出力にも触らず、**配置段でのみ起きる**)。
 
@@ -115,12 +113,11 @@ rev が無ければ目的は満たされる。** 置換段の出力は配置物�
 
 ### 決定 4 — 依存写像はフル生成の既定経路に入れる【穴の修正】
 
-`stage7h/run.sh` の `render()` は **`--link-index` を渡していない**【実測】。渡しているのは
-7c/7d の byte 再現率計測のときだけで、**パイプラインの既定経路には入っていない**。
-このまま移すと **docstring の autolink が落ちる** — 段階 7c で写像を入れて
-**410,114 B ぶん byte 一致した**分【実測】が消える。**ページ数でも測った (2026-08-11)**:
-同じ IR・同じ `--source-url` で `--link-index` の有無だけを振ると、
-**432 ページ中 150 ページ (34.7%) のバイトが変わる**【実測。`tools/render-compare.sh`】。
+`stage7h/run.sh` の `render()` は **`--link-index` を渡していない**【実測】 — 渡しているのは
+7c/7d の byte 再現率計測のときだけで**既定経路には入っていない**。このまま移すと **docstring の
+autolink が落ち**、段階 7c で写像を入れて **410,114 B ぶん byte 一致した**分【実測】が消える。
+**ページ数でも測った**: 同じ IR・同じ `--source-url` で `--link-index` の有無だけを振ると
+**432 ページ中 150 ページ (34.7%) のバイトが変わる**【実測 2026-08-11。`tools/render-compare.sh`】。
 
 → **製品では既定で渡す。** `build-link-index` も M1 で一緒に移す (§6 の勘定に入れる)。
 
@@ -174,90 +171,63 @@ URL はベース URL (パッケージごとの設定) と §5.3 の相対規則�
 | M | やること | ゲート (合否の判定) |
 |---|---|---|
 | **M0** | 実装計画 + 製品ツリーの骨格 (Cargo ワークスペース / Lean パッケージ) + `experiments/` の凍結宣言 | ビルドが通る。オラクルは動かない |
-| **M1** | **IR リーダ + レンダラ**を Rust へ (md4c を FFI で本物に置換) | **432 モジュールページが byte 一致** (全域 6 本 + 移動分は M2 なので 439 の残り 7 はここでは出ない)。**通過済み** → 下の「決着」 |
+| **M1** | **IR リーダ + レンダラ**を Rust へ (md4c を FFI で本物に置換) | **432 モジュールページが byte 一致** (全域 6 本 + 移動分は M2 なので 439 の残り 7 はここでは出ない)。**通過済み** → 下の判定手順と §7 |
 | **M2** | **全域成果物 6 本**を Rust へ (`contentHash` キャッシュ込み) | 6 成果物が byte 一致、サイト 439 も byte 一致 |
 | **M3** | **増分 4 本 + パイプライン**を Rust へ | 本物の移動と本物の削除を `lake build` ごと回して**フルビルドと byte 一致** |
 | **M4** | 抽出器を製品ツリーへ + **常駐の自動起動・停止**を Rust から配線 + CLI の形を確定 | **1 コマンド**で対象リポジトリのサイトが出て 439/439 |
 | **M5** | **第 2 の対象**で動かす (依存写像を生成側で作る経路の実測を含む) | 別パッケージで `lean-doc build` 一発が通る |
 | **M6** | CI テンプレ + README + インストール手順 | CI で通る。`lake build` と**同じジョブ**に置く形 |
 
-**M1 が最も重い** (レンダラ 2,227 行 + md4c FFI) ので、4 つに割る。**順に依存する**。
+**M1 は完了** — 最も重い (レンダラ 2,227 行 + md4c FFI) ので 4 つに割った: **M1-a** IR リーダ
+(schema 4、UTF-16 スパン) / **M1-b** 下回り (`escapeHtml` / `applyWsWidths` / `leanQuote` /
+`stringLt`・`nameLt` / `.lidx` パーサ) / **M1-c** docstring (md4c FFI + AST → HTML + autolink 解決) /
+**M1-d** ページ描画と主ループ。**移設元はすべて `stage7d/render.ts`** (行番号の対応は git が持つ)。
+**結果とオラクルの所在は §7。参照は決定的**【実測 2026-08-11】 — `render.ts` を 2 回走らせて
+432/432 byte 一致、マニフェストも同一で、**バイト差分をオラクルにしてよい**根拠になっている。
 
-| | 中身 | 元の場所 (`stage7d/render.ts`) | 状態 |
-|---|---|---|---|
-| **M1-a** | **IR リーダ** (schema 4、UTF-16 スパン) | — (IR そのもの) | 着手済み |
-| **M1-b** | **下回り** — `escapeHtml` (330-341) / `applyWsWidths` (555-593) / `leanQuote` (785-797) / `stringLt`・`nameLt` (800-825) / `.lidx` パーサ (2067-2084) | 上記 | |
-| **M1-c** | **docstring** — md4c FFI + AST → HTML + autolink 解決 (925-1077) | 925-1672 | **完了** → §7 |
-| **M1-d** | **ページ描画と主ループ** — 宣言・署名・equations・members・instances・出力 | 残り | **完了** (d1/d2/d3) → §7 |
-
-**M1-c で自前 CommonMark 594 行 (1079-1672) が消え、autolink 153 行 (925-1077) は残る**【実測】。
-`--only` の扱い (`2088-2092`) は M1-d で**型に分ける** (→ §5 の穴)。
-`2120` の flatten probe は V8 固有なので**移さない**。
-
-**参照は決定的**【実測 2026-08-11】 — `render.ts` を 2 回走らせて 432/432 byte 一致、
-マニフェストも同一。**バイト差分をオラクルにしてよい**根拠。
-
-#### M1-c で内側ループのオラクルが 1 段ゆるむ
+#### 内側ループのオラクルは M1-c 以降 1 段ゆるむ (M2 以降もこの手順で判定する)
 
 **自前 CommonMark サブセット (TS) → 本物の md4c (Rust) は、原理的にバイト一致を保証しない。**
-内側ループ (§1) は「TS 版の出力との byte 差分」なので、M1-c 以降は**不一致が出たときに
-Rust 側が正しい**場合がありうる。判定手順を先に決めておく:
+内側ループ (§1) は「TS 版の出力との byte 差分」なので、**不一致が出たときに Rust 側が正しい**
+場合がありうる。判定手順:
 
 1. TS 差分が `IDENTICAL` → そのまま次へ
 2. 差分が出たページは **doc-gen4 の参照木** (`lean-projects/.lake/build/doc`) と突き合わせる。
    doc-gen4 は本物の md4c を使っているので、**Rust が doc-gen4 に一致して TS が外れている
    なら TS のサブセットの限界**であって Rust の欠陥ではない
-3. その場合は既知の乖離としてこの節に記録し、最終判定は `coverage.ts` (再現率が**上がる**
-   方向に出るはず) で行う。**TS に合わせて md4c を歪めない** — それは移設ではなく劣化の移植
+3. その場合は既知の乖離としてこの節に記録し、最終判定は `coverage.ts` で行う。
+   **TS に合わせて md4c を歪めない** — それは移設ではなく劣化の移植
 
-**期待は「差はほぼ出ない」だった**【外挿】 — ゲート A の実走で**不足 108,772 B は全部 rev**
-と判定されている (§1) ので、実データ上の CommonMark 由来の差分は既に見えていない。
-
-**決着 (M1-d3、2026-08-11)**【実測】 — この手順が**実際に 1 回発火し、手順 3 で終わった**。
-`render-compare.sh` は **431/432 で `IDENTICAL` を出さない**。差分 1 ページは登録済みの乖離だけで、
-`coverage.ts` の出力は **TS 版とパス・日付以外バイト一致** (99.5% / 304-348 / 不足は全部 rev)。
+**M1-d3 で実際に 1 回発火し、手順 3 で終わった**【実測 2026-08-11】 — `render-compare.sh` は
+**431/432 で `IDENTICAL` を出さない**が、差分 1 ページは登録済みの乖離だけで、`coverage.ts` の
+出力は **TS 版とパス・日付以外バイト一致** (§1 の既知値を再現)。
 → **M1 のゲートは「`IDENTICAL`」ではなく「この手順で決着したこと」で通っている。**
 `render-compare.sh` には例外リストを入れていない【判断】 — 例外を持つ比較器は 2 件目の乖離を
 黙って飲む。差分集合をピン留めするのは Rust 側のテスト (`tests/pages.rs`、集合ごと assert)。
 
-**ゆるむのは CommonMark 層だけではなかった (2026-08-11)**【実測】 — autolink 解決にも
-**プロトタイプが doc-gen4 と割れる箇所が 1 つある**: doc-gen4 の `renderText` は `inLink` を持ち
-`<a>` の中の code span を素通しする (`DocString.lean:264`) が、`render.ts:1622` は無条件に
-autolink する。**リンクを引かない状態では両者は同一バイト**なので、M1-c 後半の 4,987 件比較では
-見えなかった。判定は上と同じ (doc-gen4 側が正) で、**実 docstring 4,858 件中 0 件**なので
-ゲート A のバイトは動かない。オラクルは `crates/lean-doc-render/tests/docgen4_linked.rs`。
+**登録済みの乖離は 2 つ**【いずれも実測 2026-08-11。どちらも Rust が doc-gen4 側】:
 
-**docstring 層については実測で決着した (2026-08-11)**【実測。`crates/lean-doc-md/tests/ts_docstring.rs`】 —
-同じ 4,987 入力 (実 docstring 4,858 + 手書き 129) を TS の `renderDocString` と doc-gen4 の
-`docStringToHtml` の両方に通すと、**TS が外れるのは 41 件、うち実 docstring は 1 件だけ**
-(`InformationTheory.Shannon.TimeBandLimiting.Count module doc 1` — バッククォートの入れ子が
-壊れた code span で、TS の `indexOf` ベースの走査と md4c の規則が割れる)。
-残り 40 件は TS が「この対象には出現しないので実装しない」と宣言した機能
-(`render.ts:1091-1096`: table / task list / image / hard break / entity / permissive autolink /
-reference link / strikethrough / backslash escape / CRLF / NUL)。
-**Rust は 41 件すべてで doc-gen4 側**。ページ単位の差分は M1-d で見るが、
-**docstring 由来の容疑者はこの 41 件に閉じている**。
+1. **CommonMark サブセット** — 同じ 4,987 入力 (実 docstring 4,858 + 手書き 129) を TS の
+   `renderDocString` と doc-gen4 の `docStringToHtml` に通すと **TS が外れるのは 41 件、
+   うち実 docstring は 1 件だけ** (`InformationTheory.Shannon.TimeBandLimiting.Count` の
+   module doc 1 = バッククォートの入れ子が壊れた code span)。残り 40 件は TS が「この対象には
+   出現しないので実装しない」と宣言した機能 (`render.ts:1091-1096`: table / task list / image /
+   hard break / entity / permissive autolink / reference link / strikethrough / backslash escape /
+   CRLF / NUL)。オラクル `crates/lean-doc-md/tests/ts_docstring.rs`
+2. **autolink の `inLink`** — doc-gen4 の `renderText` は `<a>` の中の code span を素通しする
+   (`DocString.lean:264`) が、`render.ts:1622` は無条件に autolink する。**リンクを引かない
+   状態では両者は同一バイト**なので 1 の比較では見えない。**実 docstring 4,858 件中 0 件**
+   なのでゲート A のバイトは動かない。オラクル `crates/lean-doc-render/tests/docgen4_linked.rs`
 
-#### M1-b が元コードから掘り出した落とし穴 (M1-c / M1-d 向け)
+#### 移設元から掘り出した落とし穴 — §7 の表に無いもの
 
-**どれも「BMP 内だけ試すと発覚しない」か「型で守れない」たぐい**。M1-b では実測で確認済み。
-
-1. **文字列順が 2 種類、`render.ts` の 100 行以内に同居している** — import 一覧の
-   `stringLt` / `nameLt` は **code point 順** (Rust の `str::cmp` と同値)、`global.ts` 等の
-   引数なし `.sort()` は **UTF-16 順**。取り違えても **BMP 内では一致する**ので `𝒜` が出るまで出ない
-2. **`nameLt` は成分の辞書順ではない** — 成分数が少ない名前が文字列に関係なく先 (`Zzz` < `Aaa.Bbb`)。
-   `Vec<&str>` の `Ord` に置き換えると**全く別のバイト**が出る
-3. **`applyWsWidths` の戻り値は再びスパンで slice される** (`render.ts:608-609`)。
-   長さ保存の書き換えなので offset は動かないが、**`String` に平坦化すると静かに壊れる**
-4. **`leanQuote` は `\r` を `\x0d`、`\0` を `\x00` に落とす** — Rust の `{:?}` は `\r` / `\0` と書く。
-   **この 1 文字でバイトが動く**。逆に `'` と U+0080 以上は素通し
-5. **`linkIndexBytes` は UTF-16 code unit 数であってバイト数ではない** (8,494,819 ≠ 実ファイル 8,508,273 B)。
-   `metadata().len()` から再現しようとすると静かにずれる
-6. **`knownModules` は 3 つの供給源の和集合** (`render.ts:2051-2052, 2079`: IR のモジュール名 ∪
+1. **`linkIndexBytes` は UTF-16 code unit 数であってバイト数ではない** (8,494,819 ≠ 実ファイル
+   8,508,273 B)【実測】。`metadata().len()` から再現しようとすると静かにずれる
+2. **`knownModules` は 3 つの供給源の和集合** (`render.ts:2051-2052, 2079`: IR のモジュール名 ∪
    `known` の値 ∪ `.lidx` の `@` 節)。**`LinkIndex` 単体で autolink を解決すると取りこぼす**
    → M1-c で `NameIndexBuilder::build` が `.lidx` を**引数で要求する**形にして構造的に塞いだ。
    取りこぼしは「リンクが 1 本消える」形で出るのでテストが弱いと通る (mutation で確認済み)
-7. **`.lidx` パーサにはエラー経路が無い** — 不明な行は無条件にグループ見出し、`#lidx1` すら検証しない。
+3. **`.lidx` パーサにはエラー経路が無い** — 不明な行は無条件にグループ見出し、`#lidx1` すら検証しない。
    **そのまま写してある**。厳しくするのは「移設のついでの設計改良」なので分離する
 
 ### 各 M で持ち込んではいけないもの (既知の穴)
@@ -283,10 +253,8 @@ reference link / strikethrough / backslash escape / CRLF / NUL)。
 
 ## 6. ファイル別内訳
 
-**approach.md §5.6 の行数勘定に穴があった**【調査で実測】 — 3,898 行の内訳「増分 4 本 1,179」は
-`ledger` 422 + `ownership` 219 + `merge-ir` 307 + `impact` 231 で、**`prune-pages` 138 が入っていない**。
-`build-link-index` 213 も勘定外。**実際の移設対象は約 4,250 行 + シェル約 1,100 行。**
-(approach.md 側を同じコミットで直す。)
+**移設対象は約 4,250 行 + シェル約 1,100 行**【調査で実測】。
+(approach.md §5.6 の旧勘定 3,898 行は `prune-pages` 138 と `build-link-index` 213 を落としていた。修正済み。)
 
 ### 移設する (TS/シェル → Rust)
 
@@ -361,211 +329,107 @@ reference link / strikethrough / backslash escape / CRLF / NUL)。
 | `lean-doc-incr` | 増分 (detect / ownership / merge / prune / impact) | M3 |
 | `lean-doc` (bin) | CLI。抽出器プロセスの起動・常駐の制御 | M4 |
 
-### md4c — 移植ではなく本物をリンクする【実測で具体化】
+### md4c — 移植ではなく本物をリンクする【すべて実測】
 
-approach.md §5.6 は「TS には byte 一致する実装が無いため自前のサブセットを書いた」「Rust なら
-md4c を FFI で直接リンクできる」と言っていた。**対象環境を見たら、その md4c は既に手元にある。**
+- **doc-gen4 は md4c の HTML レンダラを使っていない** (`DocGen4/Output/DocString.lean:202-393`) —
+  `MD4Lean.parse` で AST を取り `renderBlock` / `renderText` で**自前**に HTML を組む。Rust 側も
+  同じ形。**フラグ**は `MD_DIALECT_GITHUB | MD_FLAG_LATEXMATHSPANS | MD_FLAG_NOHTML`
+  (`DocString.lean:393`)
+- **vendor するのは `md4c.c` / `md4c.h` だけでよい** (LICENSE 同梱) — `entity.c` は
+  `md4c-html.c` 専用で、doc-gen4 は entity を**生のまま通す** (`DocString.lean:211`) ので
+  実体表が要らない。`cc` crate でビルドし push API のコールバック 5 本を自前で書く
+- **AST は MD4Lean の wrapper と 1:1 ではない** — **リスト項目の暗黙 `P` だけは wrapper が
+  足している** (`wrapper.c:47-77`。md4c は `MD_BLOCK_LI` 直下にテキストとブロックを混ぜて流すが
+  Lean の `Li` はブロックしか持てない)。doc-gen4 の `renderLi` はブロックを回すので**これは効く**
+  → **Rust 側は wrapper の写経で作る** (`crates/lean-doc-md/src/parse.rs`)
+- **ヘッダのレイアウトは C コンパイラに答え合わせさせる** — `csrc/layout_probe.c` が `sizeof` /
+  `_Alignof` / `offsetof` / 全 enum 値 / 全フラグを吐き `tests/abi.rs` が 123 項目を突き合わせる。
+  **間違ったレイアウトがたまたまリンクする**のがこの crate の最大の失敗様式なので機械で確認する
+- **MD4Lean は 2 つの入力で死ぬ**: fenced code block 中の NUL は **SIGSEGV** (wrapper が
+  スカラを `Array String` に押し込む、`wrapper.c:558`)、本文行の無い GFM テーブルは **SIGABRT**
+  (`wrapper.c:389` の assert、md4c は本文 0 行なら `MD_BLOCK_TBODY` を出さない)。どちらも Lean 側が
+  未定義動作なのでバイト一致のしようがなく、**Rust は落ちない方に倒した** (U+FFFD 置換 = CommonMark と
+  `DocString.lean:208` に一致 / 空 body)。対象パッケージの docstring には**どちらも出現しない**
+  【実測。4,858 件を通して確認】のでゲート A のバイトには影響しない
 
-- **`.lake/packages/MD4Lean/md4c/` に md4c の C ソースが vendored されている**【実測】 —
-  `md4c.c` / `md4c.h` / `entity.c` / `entity.h` (+ `md4c-html.c`、これは**使わない**)
-- **doc-gen4 は md4c の HTML レンダラを使っていない**【実測 → `DocGen4/Output/DocString.lean:202-393`】 —
-  `MD4Lean.parse` で AST を取り、`renderBlock` / `renderText` で**自前**に HTML を組む。
-  したがって Rust 側も「**md4c で AST を取り、HTML の組み立ては自前**」が正しい形
-- **フラグは実測で確定**【`DocString.lean:393`】: `MD_DIALECT_GITHUB | MD_FLAG_LATEXMATHSPANS | MD_FLAG_NOHTML`
-
-→ **既定の実装形**: MD4Lean が抱える md4c の C ソースを製品ツリーに vendor し (LICENSE 同梱)、
-`cc` crate でビルドして push API のコールバック 5 本 (`enter_block` / `leave_block` / `enter_span` /
-`leave_span` / `text`) を自前で書く。既存の Rust crate は探した範囲で見つからなかった**【未確認】**が、
-**vendor する方がバージョンが確実に一致する**ので探す価値は低い。
-
-**vendor するのは `md4c.c` / `md4c.h` だけでよい**【実測】 — `md4c.c` が include するのは
-`md4c.h` と標準ヘッダのみで、`entity.c` は `md4c-html.c` 専用。MD4Lean が 3 本ともビルドしているのは
-`MD4Lean.renderHtml` を公開しているからで、**doc-gen4 はそちらを通らない**。
-doc-gen4 は entity を**生のまま通す** (`DocString.lean:211` → `Html.raw s`)【実測】ので実体表も要らない。
-
-**AST が MD4Lean 独自に歪んでいるリスクは潰した**【実測 → `MD4Lean/wrapper/wrapper.c`】 —
-wrapper は正規化も実体展開もしない。**ただし「1:1」は言い過ぎだった**【M1-c で訂正】 —
-**リスト項目の暗黙 `P` だけは wrapper が足している**: md4c は `MD_BLOCK_LI` の直下に
-テキストとブロックを混ぜて流すが、Lean の `Li` はブロックしか持てないので、
-wrapper は LI 直下にテキストが来たら `P` を開き、兄弟ブロックか項目末尾で閉じる
-(`wrapper.c:47-77`)。doc-gen4 の `renderLi` はブロックを回すので**これは効いている**。
-→ **Rust 側は wrapper の写経で作る**のが正しく、実際そうした (`crates/lean-doc-md/src/parse.rs`)。
-
-#### M1-c 前半の結果 — FFI + AST は完了【実測 2026-08-11】
-
-- **オラクルは MD4Lean 本体**。`lake env lean` で `MD4Lean.parse` を対象環境で走らせ、
-  AST を JSON でダンプして Rust の AST と構造比較する
-  (`crates/lean-doc-md/tests/oracle/`)。コーパスは**対象パッケージの IR の docstring 全件
-  (重複除去 4,858 件) + 手書き 83 件 + 方言を振ったもの 9 件**、MD4Lean が落ちる 3 件 (下記) を
-  除いて **4,947 件全一致**【実測。`cargo test -p lean-doc-md -- --nocapture` が件数を出す】。
-  **リポジトリに入るのは 533 件 (468 KB)** — 構成子の貪欲被覆 + 等間隔サンプルで、
-  対象パッケージが無い機械でも `cargo test` が通る (M1-b の流儀)。**全件は再生成して確かめる**
-  (`tests/oracle/gen-md4lean-expected.ts --full <path>`)。生成器がコミットされているので、
-  中間の 5.1 MB を残さなくても 4,947 件は再現できる。
-- **ヘッダのレイアウトは C コンパイラに答え合わせさせる** — `csrc/layout_probe.c` が
-  `sizeof` / `_Alignof` / `offsetof` / 全 enum 値 / 全フラグを吐き、`tests/abi.rs` が
-  Rust 側の転写と名前ごとに突き合わせる (123 項目)。**間違ったレイアウトがたまたまリンクする**のが
-  この crate の最大の失敗様式なので、読んで確認するのではなく機械で確認する。
-
-**MD4Lean は 2 つの入力で死ぬ**【実測。M1-d と受け入れ判定の両方に効く】:
-
-| 入力 | 何が起きる | 原因 |
-|---|---|---|
-| **fenced code block の中の NUL** | **SIGSEGV** | md4c は verbatim でも `MD_TEXT_NULLCHAR` を出す (`md4c.c:404`) が、Lean 側の型は `Array String`。wrapper がスカラを配列に押し込む (`wrapper.c:558`) |
-| **本文行の無い GFM テーブル** (ヘッダ + 区切り線だけ) | **SIGABRT** (`wrapper.c:389` の assert) | md4c は本文が 0 行なら `MD_BLOCK_TBODY` を**出さない** (`md4c.c:4632`) のに wrapper は 2 個目の子を読む |
-
-どちらも Lean 側では未定義動作なのでバイト一致のしようがない。**Rust 版は落ちない方に倒した**
-(前者は U+FFFD 置換 = CommonMark と `DocString.lean:208` に一致、後者は空の body)。
-対象パッケージの docstring には**どちらも出現しない**【実測。4,858 件を通して確認】ので
-ゲート A のバイトには影響しない。
-
-**移設のコストはここで 2 つに割れる**【実測】:
-
-| | 場所 | 行 | Rust では |
-|---|---|---:|---|
-| **CommonMark サブセット** | `render.ts:1079-1672` | **594** (レンダラの 27%) | **消える** — md4c の flanking test の移植や `\p{P}\|\p{S}` の句読点判定ごと FFI に置き換わる |
-| **autolink 解決系** | `render.ts:925-1077` | **153** | **残る** — `nameToLink` / `isNameLit` (Lean の `decodeNameLit` の移植) / `isLetterLike` / `autoLinkInline` / `headingId` / `extendLink`。**md4c の外側 = doc-gen4 の `Output/DocString.lean` の移植**なので書き直すしかない |
-
+**FFI が消すのは自前 CommonMark サブセット (`render.ts:1079-1672` の 594 行 = レンダラの 27%) だけ**
+【実測】 — **autolink 解決系 (`render.ts:925-1077` の 153 行) は残る**。後者は `nameToLink` /
+`isNameLit` (Lean の `decodeNameLit` の移植) / `isLetterLike` / `autoLinkInline` / `headingId` /
+`extendLink` で、**md4c の外側 = doc-gen4 の `Output/DocString.lean` の移植**なので書き直すしかない。
 つまり **approach.md §5.6 の「Rust なら本物のパーサに置き換えられる」は 594 行に効き、153 行には効かない。**
 
-#### M1-c 後半の結果 — AST → HTML は完了【実測 2026-08-11】
+### M1 の結果 — オラクルの所在【すべて実測 2026-08-11】
 
-- **オラクルは doc-gen4 本体**。`docStringToHtml` を対象環境で走らせて HTML をダンプし、
-  Rust の出力とバイト比較する (`tests/oracle/dump-html.lean` + `gen-docgen4-expected.ts`)。
-  **4,987 件中 4,987 件がバイト一致**【実測。`cargo test -p lean-doc-md --test docgen4`】。
-  除外は**上表の 2 件だけ** (Lean 側が落ちる入力なので比較対象が存在しない)。
-- **環境が要らないのが鍵** — `nameToLink?` が読むのは `SiteContext.result` だけなので、
-  **空の `AnalyzerResult` を渡すと全ルックアップが外れ**、Rust 側の `NoLinks` と同じ挙動になる。
-  だから「autolink が出る分を除外・正規化」をせずに**全件をそのまま比較できた**。
-- **`getRoot` は 3 通り振ってある** (`./` / `.././` / `../.././`)。root はリンクのバイトに入るので、
-  1 通りだけだと root を無視する実装が通ってしまう。
-- **committed fixture は 327 件 (226 KB)**。出力側の特徴 (タグ・属性・`start=`・checkbox・
-  `find/?pattern=` など) の貪欲被覆 + 等間隔サンプル + **TS と割れる唯一の実 docstring**。
-  全件は `--full` で再生成する (中間 4.6 MB はリポジトリに入れない)。
+移設元はすべて `stage7d/render.ts`。**オラクルは 2 種類しかない** — 「TS の関数を切り出したもの」と
+「doc-gen4 / MD4Lean 本体を対象環境で実走させたもの」。どちらも生成器がコミットされているので、
+committed fixture (対象パッケージが無い機械でも `cargo test` が通る分) と全件の両方を再現できる。
 
-**`mdGetHeadingId` は「autolink 解決」ではないので後半に入れた**【判断】 — 必要なのは
-Unicode 一般カテゴリだけで、リンク索引は要らない。**実 docstring 4,858 件のうち 1,496 件 (30.8%)
-が見出しを含む**【実測】ので、これを次段に送ると「見出しのある docstring は全部オラクルから外す」ことになり、
-第一オラクルの価値が消える。同じ理由で `extendLink` も後半に入っている
-(`nameToLink?` への問い合わせは注入点越し)。
-
-**Unicode の表は UnicodeBasic から吐かせた**【実測】 — doc-gen4 は `UnicodeBasic` に
-一般カテゴリを訊く。Rust の crate を持ってくると**別の UCD 版**になり、V8 の
-`\p{P}\p{Z}\p{C}` と UnicodeBasic は **4,802 コードポイントで食い違う**【実測】。
-そこで `dump-gc.lean` が同じ UnicodeBasic ビルドから範囲表を吐き、`src/gc.rs` (839 + 742 範囲) を生成する。
-**この crate で唯一の生成コード**で、`gen-gc-table.ts --check` が陳腐化を検出する。
-
-**`nameToLink?` の第 1 分岐だけは注入点の外に置いた**【実測で必要と判明】 —
-`Foo/Bar.lean` のような**ソースパス**は索引を引かず root だけで解ける
-(`DocString.lean:41-42`)。これを注入点の向こうに置くと **4,987 件中 131 件が外れる**ので、
-`Renderer::resolve_link` がここだけ自分で答え、残りを `LinkResolver` に委ねる形にした。
-
-**`escapeHtml` は `lean-doc-md` に移した**【判断】 — docstring レンダラも `Html.escape` を使う。
-crate 依存は `lean-doc-render` → `lean-doc-md` の向きなので、**実装を 1 つにするなら下側に置くしかない**。
-`lean_doc_render::escape_html` は再エクスポートにしたので、M1-b が TS 差分で押さえている
-テストがそのまま両方をカバーし続ける。
-
-#### M1-c 最終段の結果 — autolink 解決は完了【実測 2026-08-11】
-
-`crates/lean-doc-render/src/autolink.rs` (`nameToLink` / `isNameLit` / `isLetterLike` /
-`moduleLink` / `getRoot` / `NameIndex`)。**合わせる相手は doc-gen4 ではなく `render.ts`** —
-両者の `nameToLink` は別物 (doc-gen4 は `isPrivateName` + 自動生成 eliminator の親フォールバック +
-`sameEnd`、`render.ts` は `PRIVATE_PREFIX` 前方一致 + `known`/`linkIndex` + `knownModules` +
-接尾一致) で、**439/439 を出しているのは後者**。オラクルは 3 段:
-
-| | 何と比べたか | 母数 | 結果 |
+| 段 | 移設先 | オラクル | 母数と結果 |
 |---|---|---|---|
-| **主** | `render.ts` の `renderDocString` を切り出し、**本物の IR + 本物の `.lidx` (8,508,273 B)** を食わせた出力とバイト比較 | 実 docstring 重複除去 **4,858** 件 | **4,857 / 4,857 一致**。除外 1 件は既知の CommonMark サブセット乖離、**新規の乖離 0** |
-| **副** | **参照ページ 432 枚**から docstring 区間を切り出してバイト比較 (`tests/ref_pages.rs`) | 出現 **4,909** 箇所 (module doc 1,515 / 宣言 doc 3,277 / field doc 117)、アンカー **5,498** 本 | 差分 **1 件** = 同じ既知乖離のみ |
-| **referee** | **doc-gen4 本体**に `name2ModIdx` / `moduleNames` を詰めて実走 (`dump-html-linked.lean`) | **139** 件 (手書き 19 + 実 docstring 120) | **139 / 139 バイト一致** |
+| **M1-c 前半** md4c FFI + AST | `lean-doc-md/src/parse.rs` | **MD4Lean 本体** の AST を JSON でダンプ (`tests/oracle/gen-md4lean-expected.ts --full`) | 実 docstring 重複除去 4,858 + 手書き 83 + 方言 9 → **4,947 / 4,947 一致** (MD4Lean が落ちる 3 件は除外)。fixture 533 件 / 468 KB |
+| **M1-c 後半** AST → HTML | `lean-doc-md` | **doc-gen4 `docStringToHtml`** (`tests/oracle/dump-html.lean` + `gen-docgen4-expected.ts`) | **4,987 / 4,987 バイト一致**。fixture 327 件 / 226 KB |
+| **M1-c 最終段** autolink 解決 | `lean-doc-render/src/autolink.rs` | **`render.ts` の `renderDocString`** に本物の IR + 本物の `.lidx` (8,508,273 B) を食わせた出力 | 実 docstring **4,857 / 4,857 一致** (除外 1 = 既知乖離、新規 0)。**副**: 参照ページ 432 枚の docstring 区間 4,909 箇所 / アンカー 5,498 本 (`tests/ref_pages.rs`) → 差分 1 = 同じ乖離。**referee**: doc-gen4 本体に `name2ModIdx` / `moduleNames` を詰めて実走 (`dump-html-linked.lean`) → **139 / 139** |
+| **M1-d1** コード片 | `lean-doc-render/src/code.rs` | `render.ts` の `Renderer.fragment` | IR のスパン付きフラグメント **55,514 / 55,514 バイト一致** (`hasAnchor` 込み)。fixture 225 件 |
+| **M1-d2** 宣言ページの部品 | `src/decl.rs` / `src/frame.rs` | 同上 | `declHeader` **4,750 / 4,750**、`declHtml` **4,560 / 4,560** (= 4,750 − `suppressed` 190)、frame **432 / 432**。fixture 187 + 29 |
+| **M1-d3** ページ描画・主ループ・CLI | `src/page.rs` / `src/site.rs` / `lean-doc/src/main.rs` | 合成 IR に対する `render.ts` の実走 (`tests/oracle/gen-pages-expected.ts`) | **432 ページ中 431 が TS 版とバイト一致** (差分 1 = §5 の既知乖離)。ゲート A は §1 |
 
-コーパスの数字【実測】: `known` 5,296 / `.lidx` 258,760 / `knownModules` 6,158
-(= IR の 432 ∪ `.lidx` の `@` 6,115 ∪ `known` の値)。**アンカーは 5,495 本 / 1,904 docstring**。
+**doc-gen4 をオラクルにできたのは環境が要らないから** — `nameToLink?` が読むのは
+`SiteContext.result` だけなので、**空の `AnalyzerResult` を渡すと全ルックアップが外れ**、
+Rust 側の `NoLinks` と同じ挙動になる。referee ではその `AnalyzerResult` に `name2ModIdx` と
+`moduleNames` の 2 フィールドだけ詰めれば第 1〜3 分岐が動く (`currentName := none` で第 4 分岐を
+構造的に無効化)。**両仕様が一致する範囲**に絞れば doc-gen4 が審判になる — **これで `inLink` の
+乖離が出た** (→ §5)。**referee は「プロトタイプが常に正しい」を仮定しないために作った。**
 
-**副オラクルが要るのは「入力が両側で同じ」を破るため** — 主オラクルの `moduleDeclNames`
-(接尾一致が舐める並び) だけは関数を切り出せず `pageHtml` から式を持ち上げている。
-持ち上げが間違っていれば**両側が同じ誤った入力で一致してしまう**。参照ページは
-`render.ts` 全体の出力なので、そこだけは独立している。
+**autolink だけは合わせる相手が doc-gen4 ではなく `render.ts`**【判断】 — 両者の `nameToLink` は
+別物 (doc-gen4 は `isPrivateName` + 自動生成 eliminator の親フォールバック + `sameEnd`、
+`render.ts` は `PRIVATE_PREFIX` 前方一致 + `known`/`linkIndex` + `knownModules` + 接尾一致) で、
+**439/439 を出しているのは後者**。**副オラクル (参照ページ) が要るのは「入力が両側で同じ」を
+破るため** — 主オラクルの `moduleDeclNames` (接尾一致が舐める並び) だけは関数を切り出せず
+`pageHtml` から式を持ち上げているので、持ち上げが間違っていれば**両側が同じ誤った入力で
+一致してしまう**。参照ページは `render.ts` 全体の出力なのでそこだけは独立している。
 
-**referee は「プロトタイプが常に正しい」を仮定しないために作った** — doc-gen4 の
-`AnalyzerResult` は `name2ModIdx` と `moduleNames` の 2 フィールドだけ埋めれば
-`nameToLink?` の第 1〜3 分岐が動く (`moduleInfo` が要るのは第 4 分岐だけで、
-`currentName := none` で構造的に無効化できる)。**両仕様が一致する範囲**
-(private 名なし / 自動生成 eliminator の接尾辞なし / `«»` なし / 第 4 分岐なし) に
-コーパスを絞れば doc-gen4 が審判になる。**これで `inLink` の乖離が出た** (→ §5)。
+コーパスの数字【実測】: `known` **5,296** / `.lidx` **258,760** 宣言 / `knownModules` **6,158**
+(= IR の 432 ∪ `.lidx` の `@` 6,115 ∪ `known` の値) / コード片のアンカー **120,868** 本 /
+`getRoot` は **5 通り** (fixture では 3 通り振る — root はリンクのバイトに入るので 1 通りだと
+root を無視する実装が通る) / `suppressed` **190** (`render.ts:2042` のコメントの 186 は古い)。
 
-**mutation で確認した**【実測。8 変異すべてが少なくとも 1 つのテストで落ちる】 —
-`knownModules` の 3 供給源をそれぞれ落とす / `isNameLit` から `'` を外す /
-`isLetterLike` の BMP 外レンジを落とす / 空文字列を name literal にする /
-接尾一致をやめる / ソースパス分岐を注入点の向こうに送る。
-最後のものは `lean-doc-md` 側のテストも落とす。
+**Unicode 一般カテゴリの表は UnicodeBasic から吐かせた**【実測】 — doc-gen4 は `UnicodeBasic` に
+訊く。Rust の crate を持ってくると**別の UCD 版**になり、V8 の `\p{P}\p{Z}\p{C}` と UnicodeBasic は
+**4,802 コードポイントで食い違う**。`dump-gc.lean` が同じビルドから範囲表を吐き `src/gc.rs`
+(839 + 742 範囲) を生成する。**この crate で唯一の生成コード**で `gen-gc-table.ts --check` が
+陳腐化を検出する。
 
-#### M1-d1 の結果 — コード片レンダラは完了【実測 2026-08-11】
+**crate 境界を 2 つ動かした**【判断】 — (1) `escapeHtml` は `lean-doc-md` に置き
+`lean_doc_render::escape_html` は再エクスポート。docstring レンダラも `Html.escape` を使うので、
+**実装を 1 つにするなら依存の下側に置くしかない**。(2) `nameToLink?` の**第 1 分岐 (ソースパス)
+だけは注入点の外** — `Foo/Bar.lean` は索引を引かず root だけで解ける (`DocString.lean:41-42`) ので、
+注入点の向こうに置くと **4,987 件中 131 件が外れる**【実測】。
 
-`crates/lean-doc-render/src/code.rs` (`CodeRenderer` / `buildTree` / `findLinkableParent` /
-`privateToUserName` / `moduleFromPrivatePrefix` / `kindDescription` / `cssKind` / `breakWithin`)。
-**オラクルは `render.ts` の `Renderer.fragment` を切り出したもの** (doc-gen4 は使えない —
-`renderedCodeToHtmlAux` は**平坦化前**の `CodeWithInfos` を取るので、両者に共通の入力が無い)。
+**移さなかったもの**【判断】 — `render.ts:2120` の flatten probe (V8 の rope flattening を誘発する
+プローブで、**ソースに実際に NUL バイトが埋まっている**: byte offset 80,955)、`--limit` (線形性計測用) /
+`--out` (JSONL。どの段も読まない)、`FragCounters` / `sink` (バイトに届かず、分岐構造の第 2 の定義に
+なって本体とずれる)。**分岐被覆は出力側で判定する** (下記)。
 
-| | 母数の定義 | 結果 |
-|---|---|---|
-| **全件** | IR のスパン付きフラグメント**全件 55,514** (`Decl.type` / `binders[i]` / `equations[i]` / `Member.text` / `Member.binders[i]`。432 モジュール / 4,750 宣言) | **55,514 / 55,514 バイト一致** (`hasAnchor` 込み) |
-| **fixture** | 貪欲被覆 + 等間隔で絞った 201 + 手書き 24 = **225 件** (626 KB) | 225 / 225 |
-| **付随** | `kindDescription`/`cssKind` の (kind, modifiers) 組 **10**、`breakWithin` の名前 **4,750**、`_private.` 名 **9** | 全一致 |
+#### 全件バイト一致は分岐被覆の証明ではない — M1 で得た方法論【実測。M2 以降にそのまま効く】
 
-コーパスの数字【実測】: アンカー **120,868** 本 (うち sort 7,550) / リンクのあるフラグメント
-54,452 / `known` **5,296** (M1-c の値と一致) / root は **5 通り**。
+**実データが到達しない分岐が、どの段でも無視できない割合ある**【実測。各段の `branchTotals`】:
 
-**実コーパスが 10 分岐のうち 3 つに一度も到達しない**【実測。`branchTotals`】 —
-`constSpansUnlinkable` / `constSpansViaParent` / `constSpansNameNotInRefs` が **0**。
-つまり `findLinkableParent` を丸ごと落としても**全件比較は緑のまま**で、手書きケースだけが
-これを止める。テストがこの事実に依存していることを `the_curated_cases_cover_what_the_package_does_not`
-が明示的に守る。**mutation 5 件すべてが少なくとも 1 テストで落ちる**【実測】 —
-直接ヒット分岐 / `findLinkableParent` / private の module fallback / kind 2 の `hasAnchor` 抑制 /
-`buildTree` の `>=` → `>`。**`findLinkableParent` と kind 2 抑制の 2 件は手書きケースでしか
-落ちない** (全件比較は緑のまま)。
+| 段 | 到達しない分岐 | 中身 |
+|---|---:|---|
+| **M1-d1** | **10 中 3** | `constSpansUnlinkable` / `constSpansViaParent` / `constSpansNameNotInRefs` が 0 = `findLinkableParent` を丸ごと落としても全件比較は緑 |
+| **M1-d2** | **41 中 9** | `class` / `inductive` / `class_inductive` の宣言も `mk` 以外の ctor も ctor 無し structure も継承フィールドの `id` 分岐も field の暗黙束縛も import 0 のモジュールも実 IR に無い |
+| **M1-d3** | **21 中 8** | import 0 / 要エスケープのモジュール名 / `_private.` 宣言 / **module doc と宣言の位置衝突** (= ページ順のタイブレークが効く唯一の形) / `--only` の 3 形 / `.lidx` 無し |
 
-**カウンタ (`FragCounters` / `sink`) は移さなかった**【判断】 — バイトに一切届かず
-(`--report` 用)、分岐構造の第 2 の定義になって本体とずれる。分岐被覆は**出力側**で判定する。
+**mutation で裏を取ると、全件バイト比較が緑のまま通る変異が各段にある**【実測。変異はすべて
+少なくとも 1 つのテストで落ちる】 — d1 は 5 件中 2 (`findLinkableParent` 削除 / kind 2 の
+`hasAnchor` 抑制)、d2 は 6 件中 4 (`isDirect` 反転 / `structure_ext` 潰し / `inductive` の extra
+削除 / `containedNames` の `>=` strict 化)、d3 は 6 件中 5 (例: `suppressed` をモジュール単位に
+落としても実 IR の 194 メンバは全部が親と同じモジュールなのでバイトが動かない)。
+**止めているのは手書きケースだけ。**
 
-#### M1-d2 の結果 — 宣言ページの部品は完了【実測 2026-08-11】
-
-`src/decl.rs` (`declHeader` / `equationsHtml` / instance stub 2 種 / `declNameToLink` /
-`containedNames` / `structureHtml` / `declHtml`) と `src/frame.rs` (`headHtml` /
-`pageHeaderHtml` / `internalNavHtml` / `getSourceUrl`)。オラクルは d1 と同じ `render.ts` の切り出し。
-
-| | 母数の定義 | 結果 |
-|---|---|---|
-| **主** | `declHeader` = IR の**全宣言 4,750** | **4,750 / 4,750 バイト一致** |
-| **主** | `declHtml` = ページに出る宣言 **4,560** (= 4,750 − `suppressed` **190**、全モジュール横断) | **4,560 / 4,560 一致** |
-| **副** | `headHtml` / `pageHeaderHtml` / `internalNavHtml` = **432 モジュール** | **432 / 432 一致** |
-| **fixture** | 貪欲被覆 (feature/byte) + 等間隔 167 + 手書き 20 = 187 宣言 + 29 frame (849 KB) | 全一致 |
-
-**41 分岐のうち 9 つが実コーパスで 1 度も発火しない**【実測。`branchTotals`】 — `class` /
-`inductive` / `class_inductive` の宣言が無く、`mk` 以外の ctor も ctor 無し structure も無く、
-継承フィールドの `id` 分岐・field の暗黙束縛・import 0 のモジュールも無い。**9 つ全部を
-手書きケースで埋め**、`the_curated_cases_cover_what_the_package_does_not` が固定する。
-**`suppressed` は 190**【実測。`render.ts:2042` のコメントの 186 は古い】。
-**mutation 6 件すべてが落ちる**【実測】 — うち `isDirect` 反転 / `structure_ext` 潰し /
-`inductive` の extra 削除 / `containedNames` の `>=` strict 化の **4 件は全件比較が緑のまま**で、
-手書きケースだけが止める。バイトを全件合わせても分岐は守れない、が d1 に続いて再現した。
-
-#### M1-d3 の結果 — ページ描画・主ループ・CLI は完了。**ゲート A も通った**【実測 2026-08-11】
-
-`src/page.rs` (`pageHtml` / `Suppressed` / ページ順) + `src/site.rs` (主ループ / `ModuleSet`) +
-`crates/lean-doc/src/main.rs` (**`render` サブコマンドのみ**。CLI の形は M4)。
-**432 ページ中 431 が TS 版とバイト一致。差分 1 ページは §5 に登録済みの CommonMark 乖離**
-(`TimeBandLimiting/Count` の module doc 1 = 実 docstring 4,858 件中の唯一の乖離。**doc-gen4 は Rust 側** →
-`lean-doc-md/tests/ts_docstring.rs`。この module は doc-gen4 の木に無く採点母数外)。**`coverage.ts` の出力は
-TS 版とパス・日付以外バイト一致** — **99.5% (21,919,956 / 22,028,728 B)、304/348 ページ byte 一致、
-不足 108,772 B は全部 rev**【実測。§1 の既知値を再現】。
-
-**21 分岐のうち 8 つが実コーパスで 0 回**【実測。`branchTotals`】 — import 0 / 要エスケープのモジュール名 /
-`_private.` 宣言 / **module doc と宣言の位置衝突** (= ページ順のタイブレークが効く唯一の形) / `--only` の 3 形 /
-`.lidx` 無し。**mutation 6 件すべてが落ちるが、うち 5 件は 432 ページのバイト比較が緑のまま** —
-`suppressed` をモジュール単位にしても実 IR の 194 メンバは全部が親と同じモジュールなのでバイトが動かない【実測】。
-オラクルは**合成 IR に対する `render.ts` の実走** (`tests/oracle/gen-pages-expected.ts`)。
-**`--limit` / `--out` (JSONL) は移さなかった**【判断】 — 前者は線形性計測用、後者はどの段も読まない。
+→ **M2 以降も同じ形を取る**: 到達しない分岐を `branchTotals` で数え、**全部を手書きケースで埋め**、
+`the_curated_cases_cover_what_the_package_does_not` 相当のテストが「テストがこの事実に依存して
+いる」ことを明示的に守る。**「全件一致したから移設できた」と書かない。**
 
 ### byte 一致で Rust の既定が壊す箇所【すべて実測】
 
@@ -574,15 +438,15 @@ TS 版とパス・日付以外バイト一致** — **99.5% (21,919,956 / 22,028
 | # | 何が | どこ | Rust 側で |
 |---|---|---|---|
 | **U1** | **`.sort()` は UTF-16 code unit 順**。移設対象は全部**引数なしの `Array.prototype.sort()`** (`global.ts` 7 箇所 / `impact.ts:211` / `ownership.ts:186` / `ledger.ts:213,338`) | `name-map.json` / `declaration-data.bmp` / `navbar.html` の**バイトがこの順序で決まる** | `Vec<String>::sort()` は **UTF-8 バイト順**。BMP 内は一致するが **U+10000 以上で逆転する** (`isLetterLike` が明示的に扱う数学英数字 𝒜 U+1D49C 系がまさにそれ)。**UTF-16 code unit 順の比較器を明示的に書く** |
-| **U2** | **IR のスパンは UTF-16 code unit オフセット** (`render.ts:567-568` が明言)。`applyWsWidths` も `text[i]` で直接添字 | 位置つきタグを扱う**全パス** | **UTF-16 ↔ UTF-8 の変換層が要る**。モジュールごとに `Vec<u16>` に変換して処理するか、オフセットを持ち替えるかは M1 の設計判断 |
+| **U2** | **IR のスパンは UTF-16 code unit オフセット** (`render.ts:567-568` が明言)。`applyWsWidths` も `text[i]` で直接添字し、**その戻り値は再びスパンで slice される** (`render.ts:608-609`) | 位置つきタグを扱う**全パス** | **UTF-16 ↔ UTF-8 の変換層が要る**。`applyWsWidths` は長さ保存の書き換えなので offset は動かないが、**`String` に平坦化すると静かに壊れる** |
 
 その他:
 
 | 項目 | 事実 | Rust 側で |
 |---|---|---|
 | **HTML エスケープ** | `escapeHtml` は **`& < > "` の 4 種のみ**。**`'` を逃がさない** (`render.ts:330-341` = Lean の `Html.escape` の転写) | 一般的な HTML エスケープ crate は `'` や `/` も逃がす。**自前で書く** |
-| **`<script>` 内の文字列** | `leanQuote` (`render.ts:785-797`) = Lean の `String.quote`。`\n \t \\ \"` と cp ≤ 31 / 127 の `\x%02x` のみ | `format!("{:?}")` とは別物。移植する |
-| **`stringLt` / `nameLt`** | `stringLt` は code point 比較、`nameLt` は**親を先に比較する再帰** (`render.ts:800-825`)。import 一覧のソートに使う | `nameLt` は独自論理なので必ず移植 |
+| **`<script>` 内の文字列** | `leanQuote` (`render.ts:785-797`) = Lean の `String.quote`。`\n \t \\ \"` と cp ≤ 31 / 127 の `\x%02x` のみ。**`\r` は `\x0d`、`\0` は `\x00`** に落ち、**`'` と U+0080 以上は素通し** | `format!("{:?}")` は `\r` / `\0` と書く — **この 1 文字でバイトが動く**。移植する |
+| **`stringLt` / `nameLt`** | `stringLt` は code point 比較 (Rust の `str::cmp` と同値)、`nameLt` は**親を先に比較する再帰** (`render.ts:800-825`) で**成分の辞書順ではない** (成分数が少ない名前が文字列に関係なく先: `Zzz` < `Aaa.Bbb`)。import 一覧のソートに使う。**U1 の `.sort()` (UTF-16 順) と 100 行以内に同居している** | `nameLt` は独自論理なので必ず移植 — `Vec<&str>` の `Ord` に置き換えると**全く別のバイト**。U1 と取り違えても **BMP 内では一致する**ので `𝒜` が出るまで発覚しない |
 | **`global.ts` の 6 成果物** | 明示的に事前ソートした配列から `Record` を組んで `JSON.stringify` (`global.ts:297-337`) = **挿入順依存だが決定的** | **`serde_json` の既定 (`BTreeMap`) だと再ソートされて `sortedNames + depNames` の混在順序が変わる。`preserve_order` / `IndexMap` が必須** |
 | **`index.json` の書き出し** | `merge-ir.ts:243-250` はスプレッドで既存キー順 (= ソート順) を**偶然**維持している | `BTreeMap` で**明示的に**再現する |
 | **`contentHash`** | Lean の `String.hash` (`lean_string_hash`、64bit) の 16 桁 hex (`Extract.lean:1786-1788`) | **Rust 側は再計算しない設計を推奨** — 抽出器が Lean のままなので**読むだけ**で足りる。再計算する設計にすると `lean_string_hash` の移植が必要になる |
@@ -594,9 +458,6 @@ TS 版とパス・日付以外バイト一致** — **99.5% (21,919,956 / 22,028
 `writeTextFile` / `readTextFile` / `exit` / `args` / `mkdir` などは `std::fs` + `std::env` に 1:1。
 置き換えが要るのは 3 つだけ: `crypto.subtle.digest` → `sha2`、`CompressionStream("gzip")`
 (**gzip サイズの計測にしか使っていないので製品では不要**)、`performance.now()` → `Instant`。
-
-**Rust では概念ごと消えるもの**: `render.ts:2120` の `page.indexOf("\0")` は V8 の rope flattening を
-誘発するためのプローブで、**ソースに実際に NUL バイトが埋まっている** (byte offset 80,955)。
 
 ### 既に byte 一致していない箇所が 1 つある【実測】
 
