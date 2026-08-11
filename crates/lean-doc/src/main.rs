@@ -31,7 +31,9 @@ const USAGE: &str = "\
 usage: lean-doc render --ir <dir> --pages <dir> --source-url <url>
                        (--link-index <file> | --no-link-index)
                        [--only <Module>]... [--only-from <file>]
-       lean-doc global --ir <dir> --out <dir>
+       lean-doc global --ir <dir> --out <dir> [--state <dir>]
+                       [--before <map.json>] [--print-set <file>]
+                       [--delta-json <file>] [--timings <file>]
 
   --ir           an IR tree written by the extractor (schema 4)
   --pages        where the pages go; directories are created
@@ -41,6 +43,13 @@ usage: lean-doc render --ir <dir> --pages <dir> --source-url <url>
   --only-from    render only the modules named in this file, one per line.
                  An empty file renders nothing.
   --out          the site root the six whole-package artifacts go under
+  --state        directory holding the contentHash cache (global-state.json).
+                 Without it every module is read: the from-scratch build.
+  --before       a previous declarations/name-map.json. Turns the delta on.
+  --print-set    the modules to re-render, one per line. An affected set that
+                 came out empty is an empty file, not a blank line.
+  --delta-json   the delta's diagnostic summary
+  --timings      one JSON line of counts and durations
 ";
 
 fn main() -> ExitCode {
@@ -84,14 +93,22 @@ fn run(args: &[String]) -> Result<(), Failure> {
     }
 }
 
-/// The six whole-package artifacts.
+/// The six whole-package artifacts, the `contentHash` cache and the map delta.
 ///
 /// No `--only`: the derivation is over the whole package by construction, and
-/// M2-b's cache makes it cheap rather than partial. No `--source-url` either —
+/// the cache makes it cheap rather than partial. No `--source-url` either —
 /// none of the six carries a source link.
+///
+/// `--print-set` / `--delta-json` do nothing without `--before`, exactly as in
+/// the prototype: the delta is off unless there is a map to compare against.
 fn global(args: &[String]) -> Result<(), Failure> {
     let mut ir: Option<PathBuf> = None;
     let mut out: Option<PathBuf> = None;
+    let mut state: Option<PathBuf> = None;
+    let mut before: Option<PathBuf> = None;
+    let mut print_set: Option<PathBuf> = None;
+    let mut delta_json: Option<PathBuf> = None;
+    let mut timings: Option<PathBuf> = None;
 
     let mut rest = args.iter();
     while let Some(arg) = rest.next() {
@@ -104,6 +121,11 @@ fn global(args: &[String]) -> Result<(), Failure> {
         match arg.as_str() {
             "--ir" => ir = Some(value("--ir")?.into()),
             "--out" => out = Some(value("--out")?.into()),
+            "--state" => state = Some(value("--state")?.into()),
+            "--before" => before = Some(value("--before")?.into()),
+            "--print-set" => print_set = Some(value("--print-set")?.into()),
+            "--delta-json" => delta_json = Some(value("--delta-json")?.into()),
+            "--timings" => timings = Some(value("--timings")?.into()),
             "--help" | "-h" => {
                 println!("{USAGE}");
                 return Ok(());
@@ -118,8 +140,13 @@ fn global(args: &[String]) -> Result<(), Failure> {
     let Some(out) = out else {
         return usage("--out is required");
     };
-    let summary = build_global(&GlobalOptions { ir: &ir, out: &out })
-        .map_err(|e| Failure::Failed(e.to_string()))?;
+    let mut options = GlobalOptions::new(&ir, &out);
+    options.state = state.as_deref();
+    options.before = before.as_deref();
+    options.print_set = print_set.as_deref();
+    options.delta_json = delta_json.as_deref();
+    options.timings = timings.as_deref();
+    let summary = build_global(&options).map_err(|e| Failure::Failed(e.to_string()))?;
 
     println!(
         "modules {}  declarations {} + {} dependency names  instance classes {}  tactic docs {}",
@@ -133,6 +160,25 @@ fn global(args: &[String]) -> Result<(), Failure> {
         "declaration data {} B  name map {} B",
         summary.bmp_bytes, summary.name_map_bytes,
     );
+    // The hit/miss counts are what the cache's oracle reads, and it reads them
+    // twice: here and out of `--timings`. A cache that is silent about how often
+    // it hit is one nobody notices has stopped hitting.
+    println!(
+        "cache {} hit / {} miss  state {} B",
+        summary.cache_hits, summary.cache_misses, summary.state_bytes,
+    );
+    if let Some(delta) = &summary.delta {
+        println!(
+            "delta: {} name(s) moved in or out of the map ({} -> {}) -> {} page(s) to re-render",
+            delta.changed.len(),
+            delta.before_names,
+            delta.after_names,
+            delta.affected.len(),
+        );
+        for witness in delta.witnesses.iter().take(10) {
+            println!("  {}  (mentions `{}`)", witness.module, witness.name);
+        }
+    }
     Ok(())
 }
 

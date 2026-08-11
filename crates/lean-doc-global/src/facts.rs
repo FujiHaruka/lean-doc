@@ -30,10 +30,18 @@ use std::collections::HashSet;
 
 use lean_doc_ir::{Decl, ModuleFile, SpanKind, cmp_utf16};
 use lean_doc_md::gc::is_z_c;
+use serde::{Deserialize, Serialize};
 
 /// One module's contribution to the whole-package artifacts and to the map
 /// delta.
-#[derive(Clone, Debug, PartialEq, Eq)]
+///
+/// **The field order below is the state file's bytes** — `crate::state` writes
+/// this struct straight out, and `JSON.stringify` of the prototype's object
+/// literal emits `module` / `contentHash` / `imports` / `tactics` / `decls` /
+/// `instances` / `tokens`. Reordering the fields rewrites a file that is
+/// compared with the prototype's byte for byte.
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ModuleFacts {
     pub module: String,
     /// Lean's `String.hash` of the module JSON, carried from `index.json`.

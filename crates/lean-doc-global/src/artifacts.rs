@@ -36,7 +36,7 @@
 //! [`crate::artifacts::tests::preserve_order_is_enabled`] fails if it is ever
 //! dropped as unused.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use lean_doc_ir::{DepMap, cmp_utf16};
 use lean_doc_md::escape_html;
@@ -71,6 +71,16 @@ pub struct Artifacts {
     /// page is not a 404; there is no bibliography to put in it.
     pub references_bib: String,
     pub references_html: String,
+    /// The same `name -> module` map [`Artifacts::name_map_json`] is the
+    /// serialisation of, as data.
+    ///
+    /// This is the delta's `after` side. The prototype's stage 5 read
+    /// `name-map.json` back off disk because the delta was a second process, and
+    /// says so: doing that here "would be the only way to get a *different*
+    /// answer" than the map just written. A `BTreeMap` rather than an ordered
+    /// one because nothing reads it in order — [`crate::Delta`] wants membership
+    /// and lookup, and does its own UTF-16 sorting on the way out.
+    pub name_map: BTreeMap<String, String>,
 }
 
 /// The order the artifacts are listed and written in, and the paths they take
@@ -179,11 +189,13 @@ impl Artifacts {
         let mut merged: Vec<&str> = sorted_names.to_vec();
         merged.extend(dep_names.iter().copied());
         merged.sort_by(|a, b| cmp_utf16(a, b));
+        let mut flat_map: BTreeMap<String, String> = BTreeMap::new();
         let flat = object(merged.into_iter().map(|name| {
             let module = match name_map.get(name) {
                 Some((module, _)) => *module,
                 None => deps[name],
             };
+            flat_map.insert(name.to_owned(), module.to_owned());
             (name.to_owned(), Value::String(module.to_owned()))
         }));
 
@@ -213,6 +225,7 @@ impl Artifacts {
             ),
             references_bib: String::new(),
             references_html: page("References", "<main><p>No references.</p></main>"),
+            name_map: flat_map,
         }
     }
 

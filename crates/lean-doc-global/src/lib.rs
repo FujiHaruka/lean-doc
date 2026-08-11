@@ -6,9 +6,10 @@
 //!
 //! ```text
 //! IrTree ──facts_for──> [ModuleFacts] ──Artifacts::derive──> six files
-//!            ▲                              ▲
-//!            │                              └─ every sort is UTF-16 (plan §7 U1)
-//!            └─ where M2-b's contentHash cache goes (plan §3)
+//!            ▲              │               ▲
+//!            │              │               └─ every sort is UTF-16 (plan §7 U1)
+//!            │              └─ .tokens ──Delta::compute──> --print-set
+//!            └─ State: the contentHash cache (plan §3)
 //! ```
 //!
 //! # This is the widest net in the pipeline
@@ -18,30 +19,40 @@
 //! artifacts were rebuilt, so "the pages are unchanged" is not a reason to skip
 //! the run.
 //!
-//! # What M2-a leaves to M2-b
+//! # What M2-b added
 //!
-//! The `contentHash` cache (`--state`), the whole-package map delta
-//! (`--before` / `--print-set` / `--delta-json`) and the timings record.
-//! [`ModuleFacts`] and [`facts_for`] are the seam those three attach to, and
-//! they are here now so that adding the cache is a change to one function.
-//! [`ModuleFacts::tokens`] is built for the delta and reaches no artifact — it
-//! is the one thing in this crate a byte comparison of the six files cannot
-//! check.
+//! The `contentHash` cache ([`State`], `--state`), the whole-package map delta
+//! ([`Delta`], `--before` / `--print-set` / `--delta-json`) and the timings
+//! record. [`facts_for`] is the seam all three attach to: the cache decides
+//! whether a module is read, the delta consumes the [`ModuleFacts::tokens`] it
+//! produces either way, and the artifacts below it did not move by a byte.
+//!
+//! [`ModuleFacts::tokens`] reaches no artifact, so the six-file byte comparison
+//! cannot see it at all. Two things do: the state file, which is compared with
+//! one the prototype wrote, and the delta, which is compared with the
+//! prototype's own answer over the same mutated map.
 //!
 //! ```no_run
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let summary = lean_doc_global::build_global(&lean_doc_global::GlobalOptions {
-//!     ir: std::path::Path::new("/path/to/ir"),
-//!     out: std::path::Path::new("/path/to/site"),
-//! })?;
+//! let mut options = lean_doc_global::GlobalOptions::new(
+//!     std::path::Path::new("/path/to/ir"),
+//!     std::path::Path::new("/path/to/site"),
+//! );
+//! options.state = Some(std::path::Path::new("/path/to/state"));
+//! let summary = lean_doc_global::build_global(&options)?;
 //! println!("{} declarations", summary.declarations);
+//! println!("{} cached, {} read", summary.cache_hits, summary.cache_misses);
 //! # Ok(()) }
 //! ```
 
 pub mod artifacts;
+pub mod delta;
 pub mod facts;
 mod site;
+pub mod state;
 
 pub use artifacts::{ARTIFACT_PATHS, Artifacts, page_path};
+pub use delta::{Delta, DeltaTimings, Witness};
 pub use facts::{ModuleFacts, autolink_tokens, head_const};
-pub use site::{Error, GlobalOptions, GlobalSummary, build_global, facts_for};
+pub use site::{Error, FactsRun, GlobalOptions, GlobalSummary, build_global, facts_for};
+pub use state::{STATE_DERIVATION, STATE_FILE, STATE_VERSION, State};

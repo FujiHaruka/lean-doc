@@ -43,7 +43,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::PathBuf;
 
-use lean_doc_global::{ARTIFACT_PATHS, GlobalOptions, ModuleFacts, build_global, facts_for};
+use lean_doc_global::{ARTIFACT_PATHS, GlobalOptions, ModuleFacts, State, build_global, facts_for};
 use lean_doc_ir::IrTree;
 use serde::{Deserialize, Serialize};
 
@@ -575,11 +575,7 @@ fn artifacts_match_the_reference() {
     }
 
     let work = TempDir::new("reference");
-    let summary = build_global(&GlobalOptions {
-        ir: &ir,
-        out: &work.path,
-    })
-    .expect("the corpus builds");
+    let summary = build_global(&GlobalOptions::new(&ir, &work.path)).expect("the corpus builds");
     assert_eq!(summary.modules, e.ir_modules);
     assert_eq!(summary.declarations, e.ir_declarations);
     assert_eq!(
@@ -635,8 +631,12 @@ fn corpus_facts_match_the_prototype() {
         return;
     }
     let tree = IrTree::open(&ir).expect("the corpus opens");
-    let facts = facts_for(&tree).expect("the corpus reads");
+    // No cache: this is the from-scratch read, so every module is a miss.
+    let run = facts_for(&tree, &State::empty()).expect("the corpus reads");
+    let facts = run.facts;
     assert_eq!(facts.len(), e.corpus_facts.modules);
+    assert_eq!(run.cache_hits, 0);
+    assert_eq!(run.cache_misses, facts.len());
 
     let lines: Vec<String> = facts
         .iter()
@@ -683,11 +683,8 @@ impl Case {
             fs::write(&path, text).expect("the temporary tree is writable");
         }
         let site = work.path.join("site");
-        build_global(&GlobalOptions {
-            ir: &ir,
-            out: &site,
-        })
-        .unwrap_or_else(|e| panic!("{}: {e}", self.what));
+        build_global(&GlobalOptions::new(&ir, &site))
+            .unwrap_or_else(|e| panic!("{}: {e}", self.what));
 
         ARTIFACT_PATHS
             .iter()
