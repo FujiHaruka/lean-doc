@@ -5,3 +5,8 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+lean-doc-ir = { path = "../lean-doc-ir" }
+
+[dev-dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }

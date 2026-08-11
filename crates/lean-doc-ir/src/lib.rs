@@ -66,4 +66,4 @@ pub use model::{
 };
 pub use reader::{IrTree, MIN_SCHEMA_VERSION};
 pub use span::{Span, SpanKind};
-pub use utf16::Utf16Text;
+pub use utf16::{Utf16Text, cmp_utf16, sort_utf16};
