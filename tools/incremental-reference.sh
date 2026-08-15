@@ -10,7 +10,22 @@
 #   --impl ts    experiments/stage7h/incremental.sh (the prototype, frozen)
 #   --impl rust  lean-doc incremental              (crates/lean-doc/src/pipeline.rs)
 #
-# usage: tools/incremental-reference.sh [--impl ts|rust] [--out DIR] [--target REPO]
+# **`--extractor` selects what runs behind `--impl rust`'s `--extractor` flag**
+# (M4-b). Both spellings drive the same Lean extraction; what differs is who
+# spells the command line and who folds the events into the timings:
+#
+#   --extractor proto    experiments/stage7g/extract-once.sh + the frozen
+#                        stage-7d binary (the default, and what the m3d3
+#                        recording was made with)
+#   --extractor product  `lean-doc extract` + extractor/build/extract
+#
+# It is a flag rather than a replacement so that the M4-b gate is a *comparison*:
+# record with `proto`, record with `product`, and run tools/incremental-compare.sh
+# over the two. `--impl ts` has no such seam — `incremental.sh` calls
+# `extract-once.sh` itself and is frozen — so the combination is refused.
+#
+# usage: tools/incremental-reference.sh [--impl ts|rust] [--extractor proto|product]
+#                                       [--out DIR] [--target REPO]
 #                                       [--lidx FILE] [--base-ir DIR] [--ref-site DIR]
 #                                       [--only SCENARIO]...
 #
@@ -128,10 +143,12 @@ INCREMENTAL_SH="$REPO/experiments/stage7h/incremental.sh"
 LEDGER_TS="$REPO/experiments/stage5/ledger.ts"
 GLOBAL_TS="$REPO/experiments/stage7h/global.ts"
 RENDER_TS="$REPO/experiments/stage7d/render.ts"
-EXTRACTOR="$REPO/experiments/stage7g/extract-once.sh"
+EXTRACT_ONCE="$REPO/experiments/stage7g/extract-once.sh"
+PRODUCT_EXTRACT_BIN="$REPO/extractor/build/extract"
 RUST_BIN="$REPO/target/release/lean-doc"
 
 IMPL=ts
+EXTRACTOR_IMPL=proto
 OUT=
 TARGET=/Users/haruka/dev/lean-projects
 LIB=InformationTheory
@@ -161,6 +178,7 @@ ONLY=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --impl) IMPL="$2"; shift 2 ;;
+    --extractor) EXTRACTOR_IMPL="$2"; shift 2 ;;
     --out) OUT="$2"; shift 2 ;;
     --target) TARGET="$2"; shift 2 ;;
     --lib) LIB="$2"; shift 2 ;;
@@ -178,6 +196,23 @@ case "$IMPL" in
   *) echo "--impl wants ts or rust, not $IMPL" >&2; exit 2 ;;
 esac
 WORKROOT="$OUT.work"
+
+# The extractor selection. `product` has no default output directory of its own
+# on purpose: the point of the M4-b gate is to compare it with a *recorded*
+# `proto` run, so the caller names where the new recording goes.
+case "$EXTRACTOR_IMPL" in
+  proto) EXTRACTOR="$EXTRACT_ONCE" ;;
+  product)
+    [ "$IMPL" = rust ] || {
+      echo "--extractor product needs --impl rust: incremental.sh calls extract-once.sh" >&2
+      echo "itself and is frozen, so there is no seam to substitute on that side." >&2
+      exit 2; }
+    EXTRACTOR="$RUST_BIN"
+    [ -x "$PRODUCT_EXTRACT_BIN" ] || {
+      echo "missing extractor binary: $PRODUCT_EXTRACT_BIN — run: extractor/build.sh" >&2; exit 1; }
+    ;;
+  *) echo "--extractor wants proto or product, not $EXTRACTOR_IMPL" >&2; exit 2 ;;
+esac
 
 [ -d "$TARGET" ] || { echo "missing target repository: $TARGET" >&2; exit 1; }
 [ -d "$BASE_IR_SRC" ] || { echo "missing base IR: $BASE_IR_SRC" >&2; exit 1; }
@@ -239,11 +274,21 @@ else
     "$RUST_BIN" site --ir "$1" --out "$2" --source-url "$URL" \
       --link-index "$LIDX" --state "$3"
   }
+  # `--extractor-arg` values, in the order the extractor sees them, before the
+  # three flags `pipeline.rs` appends (`--modules --ir-dir --timings`).
+  if [ "$EXTRACTOR_IMPL" = product ]; then
+    EXTRACTOR_ARGS=(--extractor-arg extract
+                    --extractor-arg --extractor-bin --extractor-arg "$PRODUCT_EXTRACT_BIN"
+                    --extractor-arg --target --extractor-arg "$TARGET"
+                    --extractor-arg --jobs --extractor-arg "$JOBS")
+  else
+    EXTRACTOR_ARGS=(--extractor-arg --jobs --extractor-arg "$JOBS")
+  fi
   pipeline () {
     "$RUST_BIN" incremental --ir "$1" --pages "$2" --ledger "$3" --work "$4" \
       --state "$5" --modules "$6" --mode "$7" --source-url "$8" \
       --link-index "$LIDX" --timings "$9" \
-      --extractor "$EXTRACTOR" --extractor-arg --jobs --extractor-arg "$JOBS"
+      --extractor "$EXTRACTOR" "${EXTRACTOR_ARGS[@]}"
   }
 fi
 
@@ -537,7 +582,16 @@ fi
     "$(($(sysctl -n hw.memsize) / 1024 / 1024 / 1024))"
   printf 'target            %s (%s modules)\n' "$TARGET" "$NMODULES"
   printf 'lean-toolchain    %s\n' "$(tr -d '\n' < "$TARGET/lean-toolchain" 2>/dev/null || echo '?')"
-  printf 'extractor         %s (stage 7d binary, IR schema 4)\n' "$EXTRACTOR"
+  printf 'extractor         %s (%s)\n' "$EXTRACTOR_IMPL" "$EXTRACTOR"
+  if [ "$EXTRACTOR_IMPL" = product ]; then
+    printf 'extractor binary  %s (IR schema 4)\n' "$PRODUCT_EXTRACT_BIN"
+  else
+    # `extract-once.sh`'s own default. It reads $EXTRACT_BIN, which this script
+    # deliberately does not set — the product's binary is
+    # $PRODUCT_EXTRACT_BIN precisely so the two names cannot be confused.
+    printf 'extractor binary  %s (stage 7d, IR schema 4)\n' \
+      "${EXTRACT_BIN:-$REPO/experiments/stage7d/build/extract}"
+  fi
   printf 'jobs              %s\n' "$JOBS"
   printf 'link index        %s (%s B)\n' "$LIDX" "$(wc -c < "$LIDX" | tr -d ' ')"
   printf 'base IR           %s\n' "$BASE_IR_SRC"

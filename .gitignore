@@ -4,6 +4,10 @@ node_modules/
 # Rust build output (Cargo.lock is committed — this ships as a binary)
 /target/
 
+# the extractor's native binary and the C it is compiled from (171 MB + 2.7 MB,
+# regenerable with extractor/build.sh; Extract.lean is the source and is committed)
+/extractor/build/
+
 # session-local scratch
 .claude/.resume-pending
 .claude/worktrees/

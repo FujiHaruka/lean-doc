@@ -45,6 +45,7 @@ use lean_doc_incr::{
 };
 use lean_doc_render::{ModuleSet, RenderOptions, RenderSummary, render_site};
 
+mod extract;
 mod pipeline;
 
 const USAGE: &str = "\
@@ -54,6 +55,9 @@ usage: lean-doc incremental --ir <dir> --pages <dir> --ledger <file> --work <dir
                        [--mode self|referrers|importers|all] [--max-rounds <n>]
                        [--timings <file>]
        lean-doc modules --root <repo> --lib <Name>... [--out <file>]
+       lean-doc extract --modules <file> --ir-dir <dir> --timings <file>
+                       [--extractor-bin <path>] [--target <repo>] [--lake <path>]
+                       [--events <file>] [--jobs <n>]
        lean-doc site   --ir <dir> --out <dir> --source-url <url>
                        (--link-index <file> | --no-link-index)
                        [--state <dir>] [--timings <file>]
@@ -84,6 +88,9 @@ usage: lean-doc incremental --ir <dir> --pages <dir> --ledger <file> --work <dir
                        [--json <file>]
 
   --ir           an IR tree written by the extractor (schema 4)
+  --ir-dir       (`extract`) where the extractor writes that tree. Required and
+                 with no default: the extractor's own default was one session's
+                 scratchpad path and is gone (M4-a)
   --pages        where the pages go; directories are created
   --source-url   https://host/owner/repo/blob/<40-hex-rev>. `incremental`
                  checks the 40 hex digits; `render` and `site` do not.
@@ -102,6 +109,17 @@ usage: lean-doc incremental --ir <dir> --pages <dir> --ledger <file> --work <dir
   --root         (`modules`) the repository the sources are globbed under
   --lib          (`modules`) a library root: <Name>.lean and <Name>/;
                  repeatable
+  --extractor-bin  (`extract`) the Lean extractor built by extractor/build.sh,
+                 or $EXTRACT_BIN. No default: it is built against the target's
+                 toolchain, so a baked-in path would be right on one machine
+  --target       (`extract`) the Lean package to run inside, or $TARGET_REPO.
+                 It is opened read-only: an --ir-dir under it is refused
+  --lake         (`extract`) the lake executable, or $LAKE (default: `lake`)
+  --events       (`extract`) the extractor's phase events JSONL. Defaults to
+                 <timings without .json>-events.jsonl, which is what
+                 `incremental` relies on: it passes only --timings
+  --jobs         (`extract`) extractor threads (default 1). Not a pipeline
+                 flag — see `incremental --jobs`
   --only         render only this module; repeatable
   --only-from    render only the modules named in this file, one per line.
                  An empty file renders nothing.
@@ -201,6 +219,7 @@ fn run(args: &[String]) -> Result<(), Failure> {
     match args.first().map(String::as_str) {
         Some("incremental") => pipeline::incremental(&args[1..]),
         Some("modules") => pipeline::modules(&args[1..]),
+        Some("extract") => extract::extract(&args[1..]),
         Some("site") => site(&args[1..]),
         Some("render") => render(&args[1..]),
         Some("global") => global(&args[1..]),

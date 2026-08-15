@@ -113,7 +113,7 @@
 | **M1** | **IR リーダ + レンダラ**を Rust へ (md4c を FFI で本物に置換) | **432 モジュールページが byte 一致** (全域 6 本は M2、移動分は M3 なので 439 の残り 7 はここでは出ない)。**通過済み** → 下の判定手順と §7 |
 | **M2** | **全域成果物 6 本**を Rust へ (`contentHash` キャッシュ込み) | 6 成果物が byte 一致、サイトも byte 一致。**通過済み** → §7。**サイトの母数はここでは 438** (432 ページ + 6) — **439 の 439 番目は移動後にしか存在しない**ので M3 |
 | **M3** | **増分 4 本 + パイプライン**を Rust へ | 本物の移動と本物の削除を `lake build` ごと回して**フルビルドと byte 一致**。**M3 は完遂** (a / b / c / d1 / d2 / d2b / d3 / d4) → §7。**本物の移動で 439/439、本物の削除で 437/437 バイト一致** |
-| **M4** | 抽出器を製品ツリーへ + **常駐の自動起動・停止**を Rust から配線 + CLI の形を確定 | **1 コマンド**で対象リポジトリのサイトが出て 439/439 |
+| **M4** | 抽出器を製品ツリーへ + **常駐の自動起動・停止**を Rust から配線 + CLI の形を確定 | **1 コマンド**で対象リポジトリのサイトが出る。**M4-a (`extractor/` へ移動) / M4-b (`lean-doc extract`) は通過済み** → §7。残りは **M4-c** (常駐) と **M4-d** (`build` 1 コマンド + 台帳の書き戻し + `--lib` の出所) |
 | **M5** | **第 2 の対象**で動かす (依存写像を生成側で作る経路の実測を含む) | 別パッケージで `lean-doc build` 一発が通る |
 | **M6** | CI テンプレ + README + インストール手順 | CI で通る。`lake build` と**同じジョブ**に置く形 |
 
@@ -197,20 +197,21 @@ TS 版とパス・日付以外バイト一致。→ **M1 のゲートは「`IDEN
 **移設完了** (行数は移設元): `stage7d/render.ts` (2,227) + `build-link-index.ts` (213) → M1 (後者は M5 で
 供給側を差し替え)、`stage7h/global.ts` (492) → M2、`stage5/ledger.ts` (422) → M3-a、`ownership.ts` (219) +
 `merge-ir.ts` (307) → M3-b、`impact.ts` (231) + `prune-pages.ts` (138) → M3-c、`stage7h/run.sh` の
-`render()` 部 (3 行) → M3-d1、`incremental.sh` (441) + `run.sh` の `modlist()` (5 行) → M3-d2。
+`render()` 部 (3 行) → M3-d1、`incremental.sh` (441) + `run.sh` の `modlist()` (5 行) → M3-d2、
+`stage7g/extract-once.sh` (87) → **M4-b** (`lean-doc extract`)。
 
 | 未移設のパス | 行 | 役割 | M |
 |---|---:|---|---|
-| `stage7g/extract-once.sh` | 87 | 単発 / 常駐への抽出要求 + events → timings | M4 |
-| `stage7g/serve-ctl.sh` | 185 | 常駐の start/request/stop/info (FIFO + holder) | M4 |
+| `stage7g/serve-ctl.sh` | 185 | 常駐の start/request/stop/info (FIFO + holder) | **M4-c** |
 
-### 移動する (Lean のまま)
+### 移動する (Lean のまま) — **M4-a で完了**
 
-`stage7d/Extract.lean` (2,784) と `stage7d/build.sh` (31)。後者の **`leanc -rdynamic`** は load-bearing。
-**`Extract.lean:1766` に旧セッションの scratchpad 絶対パスが `defaultIrDir` として焼かれている**【実測】 —
-常に上書きされているので実害は出ていないが、**製品ツリーに移す時点で消す**。
-同種のハードコードが `build-link-index.ts:42-45` と `incremental.sh:106` / `run.sh:55`
-(既定 `SOURCE_URL` に 40 桁 rev 直書き) にもある。
+`stage7d/{Extract.lean,build.sh}` → **`extractor/`** (リポジトリ直下)。**`leanc -rdynamic` は load-bearing**
+(`importModules (loadExts := true)` が Lean インタプリタでモジュール初期化子を走らせ、実行中の実行ファイルから
+シンボルを解決する)。**lean-doc 側に toolchain も lakefile も Mathlib も置かない** — 環境は `lake env` で借りる。
+`extractor/build/` は `.gitignore` 済み (バイナリ 171 MB + C 2.7 MB は再生成可能)。
+**残るハードコード**は `build-link-index.ts:42-45` と `incremental.sh:106` / `run.sh:55`
+(既定 `SOURCE_URL` に 40 桁 rev 直書き) — どれも `experiments/` 側なので凍結のまま。
 
 ### 製品外に残す / 破棄する
 
@@ -583,6 +584,37 @@ from-scratch 側は**編集後のソースを独立に全抽出して `lean-doc 
 **All targets up-to-date (3779 jobs)** / **base 台帳が fixed point** (0 changed / 0 removed / 0 render-all)
 = 432 個の olean が sha256 レベルでベースラインと同一に戻った (2 度の move と 1 度の delete をまたいで)。
 孤児 olean 2 個 (`LengthCore` / `BasicCore`) は**意図して残した** — 削除シナリオが検証している現象そのもの。
+
+### M4-a / M4-b の結果 — 抽出器の移動と `lean-doc extract`【すべて実測 2026-08-15】
+
+**M4-a**: `stage7d/{Extract.lean,build.sh}` → `extractor/` (2,822 / 39 行 + `README.md` 85)。
+**ゲート = 凍結バイナリとの IR バイト一致** — `experiments/stage7d/build/extract` (**実行のみ。再ビルドしない**)
+と `extractor/build/extract` を**同じ 432 件の一覧・同じフラグ**で走らせ、**436/436 バイト一致**
+(432 モジュール + `index.json` + `deps/*.json` 3)。差分 0 / 欠落 0 / 余分 0。
+ソース差分は **7 hunk / 86 行**で、**IR 生成のコードには 1 行も触れていない**。
+
+**挙動を変えたのは 1 箇所だけ**【判断】 — `resolveIrDir` (フラグ → `IR_DIR` → `defaultIrDir` の 3 供給源) を
+`getIrDir` (フラグのみ) にし、**`--write-ir` に `--ir-dir` が無ければ引数解析の時点で exit 1**。
+`Extract.lean:1766` に焼かれていた旧セッションの scratchpad 絶対パスは**定義ごと消えた**。
+**発火歴が無いことこそが穴の性質** — フラグを忘れた `--write-ir` が誰も名指ししていない場所に数 MB 書いて
+成功を報告する。`IR_DIR` は同じ穴の入口違い (コマンドラインの外からフラグの値が来る) なので同時に塞いだ。
+書き出しは 20 秒の抽出の**最後**なので、使用箇所で落とすと全額払ってから usage エラーが届く。
+
+**M4-b**: `stage7g/extract-once.sh` (87) → `crates/lean-doc/src/extract.rs` (399) = `lean-doc extract`。
+**サブコマンドにしたので継ぎ目は閉じない**【判断】 — 製品は `--extractor lean-doc --extractor-arg extract` で
+自分自身を抽出器にできる一方、パイプラインのテストは今も偽抽出器を渡せる (171 MB のバイナリは対象の
+toolchain に対して作られるのでリンクインは不可能)。抽出器と対象の場所は**フラグ + 環境変数、既定なし**
+(`defaultIrDir` と同じ穴)。`--ir-dir` が `--target` の下なら **exit 3**、しかも**ディレクトリを作る前に**判定する
+(作ること自体が対象への書き込み)。`--serve*` は「M4-c で来る」と名指しで断る。
+
+ゲート 3 本【すべて実測】: ①`extract-once.sh` と **IR 436/436 バイト一致**。②timings は鍵集合 **91/91 一致**、
+時間フィールド 32 個を除いた **59 個の値が全一致** (`targetModules` 432 / `jobsRequested` 4 を含む)。
+③**M3-d3 のハーネスを `--extractor product` で回して、`experiments/` のシェルで取った記録と 3,213/3,213
+IDENTICAL** (reordered 0 / array-reordered 0 / 差分 0)。**抽出器を製品側に差し替えても答えが 1 バイトも動かない。**
+
+**壁時計を実装の差として読まないこと**【実測】 — 全抽出 432 モジュールの user 時間は 4 本とも
+**15.1〜15.5 秒に収まる (1% 以内)** 一方、壁時計は 7.7〜22.2 秒に散る。差は page cache であって実装ではない。
+**`--jobs 4` では「壁時計 ≒ CPU 時間なら warm」の判定法は使えない** (user > wall が正常)。
 
 ---
 

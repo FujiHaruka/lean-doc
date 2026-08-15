@@ -4,7 +4,7 @@
 - Mode: ON
 - Goal: **lean-doc v0.1 = 使える CLI**。`docs/implementation-plan.md` が実装の SoT で、
   M1→M2→M3→M4→M5→M6 を順に完遂する
-- Leg: 7 / cap 8
+- Leg: 7 / cap 16   # 2026-08-15 にユーザーが 8 → 16 へ引き上げ (v0.1 まで走らせるため)
 - Predecessor: none
 - Stop-on: completion | user-decision | no-progress×2 | leg-cap
 - Progress ledger:
