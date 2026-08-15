@@ -13,7 +13,11 @@
 //! **`site` is provisional in exactly the same way** (M3-d1): it is full
 //! generation in one command because the gate needs one command, and **M4
 //! decides what the product's build command is actually called and what it takes
-//! from a repository rather than from an IR tree that already exists.**
+//! from a repository rather than from an IR tree that already exists.** So are
+//! `incremental` and `modules` (M3-d2), which are in [`pipeline`]: one drives the
+//! six stages through a changed build tree, the other produces the module list
+//! it needs. Neither reads a lakefile and neither starts Lean — the extractor is
+//! `--extractor`, and what runs behind that flag is M4's.
 //!
 //! Two flags are deliberately more awkward than the prototype's:
 //!
@@ -41,8 +45,16 @@ use lean_doc_incr::{
 };
 use lean_doc_render::{ModuleSet, RenderOptions, RenderSummary, render_site};
 
+mod pipeline;
+
 const USAGE: &str = "\
-usage: lean-doc site   --ir <dir> --out <dir> --source-url <url>
+usage: lean-doc incremental --ir <dir> --pages <dir> --ledger <file> --work <dir>
+                       --modules <file> --source-url <url> --link-index <file>
+                       --state <dir> --extractor <program> [--extractor-arg <arg>]...
+                       [--mode self|referrers|importers|all] [--max-rounds <n>]
+                       [--timings <file>]
+       lean-doc modules --root <repo> --lib <Name>... [--out <file>]
+       lean-doc site   --ir <dir> --out <dir> --source-url <url>
                        (--link-index <file> | --no-link-index)
                        [--state <dir>] [--timings <file>]
        lean-doc render --ir <dir> --pages <dir> --source-url <url>
@@ -73,8 +85,23 @@ usage: lean-doc site   --ir <dir> --out <dir> --source-url <url>
 
   --ir           an IR tree written by the extractor (schema 4)
   --pages        where the pages go; directories are created
-  --source-url   https://host/owner/repo/blob/<40-hex-rev>
+  --source-url   https://host/owner/repo/blob/<40-hex-rev>. `incremental`
+                 checks the 40 hex digits; `render` and `site` do not.
   --link-index   the dependency closure's name -> module map (.lidx)
+  --work         (`incremental`) the round's scratch directory. Everything in
+                 it is a diagnostic: the pipeline writes it and reads none of
+                 it back.
+  --extractor    (`incremental`) the extraction program, called as
+                 `<program> [<extractor-arg>...] --modules <list>
+                 --ir-dir <dir> --timings <file>`. No default: productising the
+                 extractor is M4, and the seam is what lets the pipeline be
+                 tested without Lean.
+  --extractor-arg  one argument for it, before those three; repeatable
+  --max-rounds   how many extract/ownership/merge rounds may run (default 5).
+                 Reaching it with modules still stale is exit 5.
+  --root         (`modules`) the repository the sources are globbed under
+  --lib          (`modules`) a library root: <Name>.lean and <Name>/;
+                 repeatable
   --only         render only this module; repeatable
   --only-from    render only the modules named in this file, one per line.
                  An empty file renders nothing.
@@ -92,8 +119,9 @@ usage: lean-doc site   --ir <dir> --out <dir> --source-url <url>
                  `ledger check` without it re-reads the ledger's own list and
                  cannot see a module that appeared or vanished since `build`.
   --target       the repository whose .lake/build/lib/lean holds the oleans
-  --ledger       a ledger.json written by `ledger build`
-  --algorithm    sha256 hashes the olean bytes; lake reads the <file>.hash Lake
+  --ledger       a ledger.json written by `ledger build`. `incremental` reads
+                 it and never rewrites it — rebuild it between runs.
+  --algorithm  sha256 hashes the olean bytes; lake reads the <file>.hash Lake
                  already wrote. Defaults to sha256, and for `check` to the
                  ledger's own.
   --concurrency  olean reads in flight (default 1). The ledger's bytes do not
@@ -167,6 +195,8 @@ fn usage<T>(message: impl Into<String>) -> Result<T, Failure> {
 
 fn run(args: &[String]) -> Result<(), Failure> {
     match args.first().map(String::as_str) {
+        Some("incremental") => pipeline::incremental(&args[1..]),
+        Some("modules") => pipeline::modules(&args[1..]),
         Some("site") => site(&args[1..]),
         Some("render") => render(&args[1..]),
         Some("global") => global(&args[1..]),
@@ -187,18 +217,24 @@ fn run(args: &[String]) -> Result<(), Failure> {
     }
 }
 
-/// Why one of `--link-index` / `--no-link-index` always has to be spelled out.
+/// What leaving the dependency map out costs.
 ///
-/// Shared by `render` and `site` so that the two cannot drift apart on the one
-/// question this project has answered wrongly twice: the prototype's `render()`
-/// (`stage7h/run.sh:78-80`) passed no dependency map, and without it **150 of
-/// the target package's 432 pages change bytes** 【実測, plan 決定 4】. It fails
-/// silently — a docstring name that did not become a link looks exactly like a
-/// name that was never linkable — so the guard is in the shape of the flags
-/// rather than in a default.
-const LINK_INDEX_REQUIRED: &str = "pass --link-index <file>, or --no-link-index to say so on \
-     purpose: without the dependency map 150 of the target package's 432 pages change bytes \
-     (plan 決定 4)";
+/// **One string, three call sites** (`render`, `site`, `incremental`), so that
+/// they cannot drift apart on the one question this project has answered wrongly
+/// twice: the prototype's `render()` (`stage7h/run.sh:78-80`) passed no
+/// dependency map, and without it **150 of the target package's 432 pages change
+/// bytes** 【実測, plan 決定 4】. It fails silently — a docstring name that did
+/// not become a link looks exactly like a name that was never linkable — so the
+/// guard is in the shape of the flags rather than in a default.
+const LINK_INDEX_COST: &str = "without the dependency map 150 of the target package's 432 pages \
+     change bytes (plan 決定 4)";
+
+/// The refusal `render` and `site` print. Both offer `--no-link-index`, which is
+/// how a caller says "no map, on purpose"; `incremental` does not (see
+/// [`pipeline`]).
+fn link_index_required() -> String {
+    format!("pass --link-index <file>, or --no-link-index to say so on purpose: {LINK_INDEX_COST}")
+}
 
 /// Full generation: the module pages **and** the six whole-package artifacts,
 /// into one tree, from one IR tree, in one command.
@@ -294,7 +330,7 @@ fn site(args: &[String]) -> Result<(), Failure> {
         );
     };
     if link_index.is_some() == no_link_index {
-        return usage(LINK_INDEX_REQUIRED);
+        return usage(link_index_required());
     }
 
     let started = Instant::now();
@@ -1033,7 +1069,7 @@ fn render(args: &[String]) -> Result<(), Failure> {
         );
     };
     if link_index.is_some() == no_link_index {
-        return usage(LINK_INDEX_REQUIRED);
+        return usage(link_index_required());
     }
 
     let only = match only {
