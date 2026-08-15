@@ -1,0 +1,135 @@
+# Documentation for a Mathlib-dependent Lean package, built in the same job as
+# `lake build`.
+#
+# Copy this file into YOUR package's repository as `.github/workflows/docs.yml`.
+# It is inert where it sits: `.github/workflow-templates/` is not a directory
+# GitHub runs workflows from, and this repository has no Lean package to build.
+#
+# ============================================================================
+# THIS FILE HAS NEVER BEEN RUN  【未検証】
+# ============================================================================
+#   No GitHub Actions run exists for it. What HAS been run, on a real
+#   Mathlib-dependent package, is the one line it calls — `tools/ci-build.sh` —
+#   and that is why the commands live there and this file is a wrapper. The
+#   parts below that remain unverified are exactly the parts a wrapper is made
+#   of: the actions' versions and inputs, the cache keys, the elan install, and
+#   `lake exe cache get` (which needs the network).
+#
+#   Treat the timings in README.md the same way: they were measured on an Apple
+#   M1 laptop with a warm page cache, not on a runner.
+#
+# ============================================================================
+# THE ONE THING NOT TO CHANGE: ONE JOB  【実測 → docs/approach.md §3, §8】
+# ============================================================================
+#   `lake build` and the documentation build must stay in the SAME job. The
+#   extractor's floor is importing the environment, and that is I/O: on a Linux
+#   runner the same import measured **2.61 s with `lake build` in the same job
+#   and 20-89 s without it** — 8 to 34 times, decided by whether the oleans were
+#   still in the page cache. `actions/cache` does not help; a restored cache is
+#   bytes on disk, and a fresh runner's page cache is empty. Splitting the docs
+#   into their own job is the change that costs an order of magnitude while
+#   everything still looks green.
+#
+# ============================================================================
+# THE THREE CACHES, AND WHAT EACH IS KEYED ON
+# ============================================================================
+#   ~/.cache/mathlib   what `lake exe cache get` downloads. Keyed on
+#                      lake-manifest.json: the manifest pins the revisions, so
+#                      it changes exactly when the oleans do.
+#   extractor/build    the Lean extractor (171 MB). It is compiled against the
+#                      package's toolchain, so the key is `lean-toolchain` plus
+#                      the hash of Extract.lean — the two inputs that decide its
+#                      bytes. It does not depend on the package's own sources,
+#                      so it survives every ordinary commit. Building it costs
+#                      14.90 s on an M1 with a warm cache 【実測】; the reason to
+#                      cache it is that it never changes, not that it is slow.
+#   cargo + target     the Rust side. Keyed on Cargo.lock, which pins it.
+#
+#   None of these caches is required for correctness, and all three are restored
+#   into the same job that uses them. The one that decides the job's order of
+#   magnitude is Mathlib's: without it the package builds Mathlib from source.
+name: docs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      # The package being documented.
+      - name: check out the package
+        uses: actions/checkout@v4
+        with:
+          path: package
+
+      # lean-doc itself. While this repository is private, this step needs a
+      # token with read access to it (`ssh-key:` or a fine-grained PAT in
+      # `token:`); once it is published, drop the `token:` line.
+      - name: check out lean-doc
+        uses: actions/checkout@v4
+        with:
+          repository: FujiHaruka/lean-doc
+          path: lean-doc
+          token: ${{ secrets.LEAN_DOC_TOKEN }}
+
+      # elan reads `package/lean-toolchain` and installs the toolchain the
+      # package pins; `--default-toolchain none` keeps it from guessing one.
+      - name: install elan
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: cache Mathlib's oleans
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mathlib
+          key: mathlib-${{ hashFiles('package/lake-manifest.json') }}
+
+      - name: cache the Lean extractor
+        uses: actions/cache@v4
+        with:
+          path: lean-doc/extractor/build
+          key: >-
+            extractor-${{ hashFiles('package/lean-toolchain',
+            'lean-doc/extractor/Extract.lean') }}
+
+      - name: cache the Rust build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            lean-doc/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('lean-doc/Cargo.lock') }}
+
+      # ONE step: dependencies, `lake build`, the extractor, the Rust binary and
+      # the site, in that order and in this job. Everything the command needs
+      # beyond these two paths it derives itself — the libraries from the
+      # lakefile, the modules from the source glob, the source URL from git, and
+      # the dependency map from the environment the extractor imports anyway.
+      - name: build the package and its documentation
+        run: |
+          lean-doc/tools/ci-build.sh \
+            --root package \
+            --out "$RUNNER_TEMP/docs" \
+            --cache-get \
+            --jobs 4
+
+      - name: upload the site
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs
+          path: ${{ runner.temp }}/docs/site
+
+      # To publish instead of archiving, replace the step above with
+      # actions/upload-pages-artifact + actions/deploy-pages, add
+      # `pages: write` and `id-token: write` to `permissions:`, and keep
+      # everything else as it is: the site is a directory of static files with
+      # no server side.
