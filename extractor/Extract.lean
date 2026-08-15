@@ -132,6 +132,11 @@ Usage: extract <modules.txt> <out.jsonl> [options]
                       signature, the equations and the structure parent types
   --dump-refs <path>  write the unique set of those constants, one JSON object
                       per constant, with its defining module (needs --refs)
+  --link-index <p>    also write the dependency closure's `name -> module` map
+                      (`.lidx`) from the imported environment: the file the
+                      renderer resolves docstring autolinks through, which used
+                      to be derived from a doc-gen4 site's
+                      `declaration-data.bmp` (see `writeLinkIndex`)
   --skip-analyze      skip the semantic analysis (module docs / tactics only)
   --tactics-emulate   additionally run the tactic collection doc-gen4's way
                       (`allTacticDocs` once per module) for comparison
@@ -185,6 +190,11 @@ structure Cfg where
   collectRefs : Bool := false
   dumpRefsPath : Option FilePath := none
   skipAnalyze : Bool := false
+  /-- `--link-index <path>`: also write the dependency closure's
+  `name -> module` map (`.lidx`) out of the imported environment. It is a
+  by-product of an environment that is loaded anyway, which is the whole reason
+  it lives here rather than in a tool of its own; see `writeLinkIndex`. -/
+  linkIndexPath : Option FilePath := none
   tacticsEmulate : Bool := false
   tacticsProbe : Bool := false
   tacticsDumpPath : Option FilePath := none
@@ -273,6 +283,109 @@ def isBlackListed (declName : Name) : MetaM Bool := do
 
 def isInstanceDecl (declName : Name) : MetaM Bool := do
   return (instanceExtension.getState (← getEnv)).instanceNames.contains declName
+
+/-! ## The dependency closure's `name -> module` map (`--link-index`)
+
+The renderer resolves a docstring autolink the way doc-gen4's
+`Output/DocString.lean:nameToLink?` does: it looks the token up in a global
+`name -> module` map. doc-gen4 holds the whole environment and reads
+`env.name2ModIdx`; the renderer holds none of it, so for it the map is an input
+file — the `.lidx` read by `crates/lean-doc-render/src/link_index.rs`. It is not
+optional: with the same IR and the same `--source-url`, having it or not moves
+432 of 432 pages' worth of links and 150 pages' bytes (実装計画 決定 4).
+
+Until M5 that file was derived from a doc-gen4 site's
+`declarations/declaration-data.bmp` (`experiments/stage7d/build-link-index.ts`),
+which presumes a published site built from the *same* Lean and Mathlib as the
+package being documented. For this target that is false — the published site is
+two Lean minor versions ahead (実装計画 §4, 実測) — so the map is built here
+instead, from the environment this process has already imported.
+
+**What goes in is doc-gen4's choice, which is three predicates, not one:**
+
+* `Process/Analyze.lean:195` walks `env.constants` and asks `DocInfo.ofConstant`,
+  which drops the blacklisted (`isBlackListed`, transcribed above) and the
+  recursors (`ConstantInfo.recInfo`);
+* `Output/ToJson.lean:136` drops private names on the way into the JSON;
+* the module of a name is `env.const2ModIdx` — that is literally what
+  `Output/Base.lean:231`'s `declNameToLink` reads — and **not** the module whose
+  `constNames` the name was reached through. The two disagree for the names that
+  live in more than one module's olean (25 on this target, 段階 1).
+
+Walking modules instead of `env.constants` costs one extra hash lookup per name
+and buys a deterministic order (`header.moduleNames`, i.e. import order), so two
+runs of this produce byte-identical files.
+
+**Escaping is not uniform, and that is copied rather than fixed**: declaration
+names are `Name.toString` with escaping on, because that is what doc-gen4 writes
+into the `.bmp` (798 escaped names on this target), while module names are
+written unescaped, because doc-gen4 builds the page path out of
+`Name.toString (escape := false)` components (`Output/Base.lean:188`) and the
+renderer splits the module on `.` to rebuild that path. No module name on this
+target needs escaping, so the two spellings coincide here. -/
+
+structure LinkIndexStats where
+  /-- Names walked: every constant in every loaded module's olean. -/
+  scanned : Nat := 0
+  /-- Names written. -/
+  declarations : Nat := 0
+  /-- Groups written: modules defining at least one of them. -/
+  modules : Nat := 0
+  /-- The `@` section: every module in the environment, whether or not it
+  defines anything, because a module name is a link target in its own right
+  (doc-gen4 checks `res.moduleNames.contains` before the module-local search). -/
+  moduleNames : Nat := 0
+  /-- Size of the file, in bytes rather than in UTF-16 code units — the
+  prototype reported the latter and the two differ by 13,454 (落とし穴 1). -/
+  bytes : Nat := 0
+  deriving Inhabited
+
+/-- Writes the map as one `.lidx`. Returns what went into it. -/
+def writeLinkIndex (path : FilePath) : MetaM LinkIndexStats := do
+  let env ← getEnv
+  let header := env.header
+  -- `EnvironmentHeader.moduleNames` is a `def`, not a field: every call
+  -- allocates a fresh array of one name per loaded module. Hoist it.
+  let modNames := header.moduleNames
+  let h ← IO.FS.Handle.mk path .write
+  let mut stats : LinkIndexStats := { moduleNames := modNames.size }
+  -- Written in chunks: one `putStr` per line would be 750k calls, one string
+  -- for the whole file would be 8 MB of appends.
+  let mut buf := "#lidx1\n"
+  for m in modNames do
+    buf := buf ++ "@" ++ m.toString (escape := false) ++ "\n"
+    if buf.utf8ByteSize ≥ 262144 then
+      stats := { stats with bytes := stats.bytes + buf.utf8ByteSize }
+      h.putStr buf
+      buf := ""
+  for i in [0:modNames.size] do
+    let m := modNames[i]!
+    let mut kept : Array Name := #[]
+    for n in header.moduleData[i]!.constNames do
+      stats := { stats with scanned := stats.scanned + 1 }
+      -- The owning module is `const2ModIdx`'s, not the list this name came out
+      -- of; a name owned elsewhere is written when that module's turn comes.
+      let some idx := env.getModuleIdxFor? n | continue
+      if modNames[idx]! != m then continue
+      if isPrivateName n then continue
+      match env.find? n with
+      | some (.recInfo _) | none => continue
+      | some _ => pure ()
+      if ← isBlackListed n then continue
+      kept := kept.push n
+    if kept.isEmpty then continue
+    stats := { stats with modules := stats.modules + 1,
+                          declarations := stats.declarations + kept.size }
+    buf := buf ++ m.toString (escape := false) ++ "\n"
+    for n in kept do
+      buf := buf ++ "\t" ++ n.toString ++ "\n"
+    if buf.utf8ByteSize ≥ 262144 then
+      stats := { stats with bytes := stats.bytes + buf.utf8ByteSize }
+      h.putStr buf
+      buf := ""
+  stats := { stats with bytes := stats.bytes + buf.utf8ByteSize }
+  h.putStr buf
+  return stats
 
 /-! ## Attributes — doc-gen4's `getAllAttributes`, transcribed
 
@@ -2274,6 +2387,21 @@ def run (cfg : Cfg) (preEnv : Option Environment := none) : IO UInt32 := do
     let (a, _, _) ← act.toIO coreCtx { env := env } {} {}
     return a
 
+  -- The dependency closure's `name -> module` map, out of the environment that
+  -- was imported for the extraction anyway (`writeLinkIndex`).
+  let mut linkIndex : Option LinkIndexStats := none
+  let mut tLi := 0
+  if let some p := cfg.linkIndexPath then
+    let t0 ← IO.monoNanosNow
+    let s ← runMeta (writeLinkIndex p)
+    let t1 ← IO.monoNanosNow
+    tLi := t1 - t0
+    linkIndex := some s
+    sink.emit "stage4b.linkIndex" tLi
+      [("scanned", toString s.scanned), ("declarations", toString s.declarations),
+       ("modules", toString s.modules), ("moduleNames", toString s.moduleNames),
+       ("bytes", toString s.bytes)]
+
   -- doc-gen4's `getAllModuleDocs`, split in two so the two halves can be told
   -- apart: the per-module part (module docstrings + direct imports) and the part
   -- doc-gen4 repeats per module (the tactic table).
@@ -2619,6 +2747,9 @@ def run (cfg : Cfg) (preEnv : Option Environment := none) : IO UInt32 := do
   IO.println s!"importModules        {fmtDur (tImp1 - tImp0)}"
   IO.println s!"indexLookup          {fmtDur (tIdx1 - tIdx0)}  enumerated {enumerated}, unique {candidates.size}"
   IO.println s!"moduleDocs           {fmtDur (tMd1 - tMd0)}  {modDocCount} docs in {modsWithDocs} modules, {importCount} imports"
+  if let some s := linkIndex then
+    IO.println s!"linkIndex            {fmtDur tLi}  {s.declarations} declarations in {s.modules} modules \
+      ({s.scanned} constants scanned, {s.moduleNames} module names, {s.bytes} bytes)"
   IO.println s!"tactics              {fmtDur (tTac1 - tTac0)}  {tacticsInEnv} in env, {tacticsAssigned} in target modules"
   if cfg.tacticsEmulate then
     IO.println s!"tacticsPerModule     {fmtDur tEmu}  (doc-gen4's shape: {targets.size} × allTacticDocs)"
@@ -2769,7 +2900,7 @@ open Stage4b in
 def parseArgs (args : List String) : Except String Cfg :=
   match args with
   | modules :: out :: rest => go { modulesPath := ⟨modules⟩, outPath := ⟨out⟩ } rest >>= check
-  | _ => .error "usage: extract <modules.txt> <out.jsonl> [--equations] [--dump <p>] [--dump-modules <p>] [--only <p>] [--open <ns,..>] [--tag] [--refs] [--dump-refs <p>] [--write-ir --ir-dir <p>] [--tagged-code] [--skip-analyze] [--tactics-emulate] [--tactics-probe] [--pp-breakdown] [--decl-profile <p>] [--jobs <n>]"
+  | _ => .error "usage: extract <modules.txt> <out.jsonl> [--equations] [--dump <p>] [--dump-modules <p>] [--only <p>] [--open <ns,..>] [--tag] [--refs] [--dump-refs <p>] [--link-index <p>] [--write-ir --ir-dir <p>] [--tagged-code] [--skip-analyze] [--tactics-emulate] [--tactics-probe] [--pp-breakdown] [--decl-profile <p>] [--jobs <n>]"
 where
   /-- The one cross-flag rule (M4-a). It is checked **before anything runs**
   rather than where the directory is used, because the IR is written at the very
@@ -2798,6 +2929,7 @@ where
   | "--refs" :: rest => go { cfg with collectRefs := true } rest
   | "--dump-refs" :: p :: rest => go { cfg with dumpRefsPath := some ⟨p⟩ } rest
   | "--skip-analyze" :: rest => go { cfg with skipAnalyze := true } rest
+  | "--link-index" :: p :: rest => go { cfg with linkIndexPath := some ⟨p⟩ } rest
   -- Stage 7d.
   | "--pp-breakdown" :: rest => go { cfg with ppBreakdown := true } rest
   | "--decl-profile" :: p :: rest =>

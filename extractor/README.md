@@ -12,7 +12,7 @@ M4-a で**移設ではなく移動**した (Lean のまま)。`experiments/` は
 
 | ファイル | 行 | |
 |---|---:|---|
-| `Extract.lean` | 2,822 | 抽出器本体。IR schema 4 |
+| `Extract.lean` | 2,954 | 抽出器本体。IR schema 4 + `--link-index` (M5-a) |
 | `build.sh` | 39 | `lake env lean` → `lake env leanc -rdynamic` の 2 段 |
 | `build/` | — | 生成物 (171 MB のバイナリ + 2.7 MB の C)。**gitignored** |
 
@@ -24,6 +24,13 @@ lean-doc extract --modules <list> --ir-dir <dir> --timings <file> \
   --extractor-bin extractor/build/extract --target /path/to/lean-project --jobs 4
 ```
 
+`--link-index` はまだ `lean-doc extract` から渡せない (製品側の配線は M5-b)。直に叩く形:
+
+```sh
+cd /path/to/lean-project && lake env /path/to/lean-doc/extractor/build/extract \
+  modules.txt events.jsonl --skip-analyze --link-index link-index.lidx
+```
+
 lean-doc 側に toolchain も lakefile も Mathlib も置かない (CLAUDE.md)。環境は
 `lake env` で対象から借りるので、**対象が `lake build` 済みであることがビルドの前提**。
 バイナリは対象の toolchain に対して作られるため、**別の対象には作り直しが要る**。
@@ -32,11 +39,24 @@ lean-doc 側に toolchain も lakefile も Mathlib も置かない (CLAUDE.md)�
 ヘッダにある。製品の呼び手は `lean-doc extract` (M4-b) で、その先は
 `lean-doc incremental --extractor` (M3-d2)。
 
+## M5-a で足したもの — `--link-index <path>`
+
+依存クロージャの「名前 → モジュール」写像 (`.lidx`) を、**抽出のために読んだ環境から**
+書き出す経路 (`writeLinkIndex`)。レンダラが docstring の autolink を解決する入力で、
+これまでは doc-gen4 のサイトの `declarations/declaration-data.bmp` から作っていた
+(`experiments/stage7d/build-link-index.ts`) が、その経路は上流の公開サイトが**同じ Lean /
+Mathlib** であることを前提にしていて、この対象では成り立たない (計画 §4、実測)。
+
+**IR は 1 バイトも動かない** — `--link-index` を足した状態でフラグ一式
+(`--equations --refs --write-ir --tagged-code --jobs 4`) を回し、M4-a のゲートの参照 IR と
+`diff -r` して**436/436 バイト一致**【実測 2026-08-15】。
+
 ## 移動で挙動を変えた点 — 全部
 
 **IR のバイトは 1 つも動かない。**変えたのはコマンドラインの表面だけで、内訳は次の 5 件。
-確認は `diff experiments/stage7d/Extract.lean extractor/Extract.lean` — **11 hunk / 88 行**で、
-すべて下の 5 件のいずれか。
+確認は `diff experiments/stage7d/Extract.lean extractor/Extract.lean` — 移動直後は
+**11 hunk / 86 行**ですべて下の 5 件のいずれかだった。**現在は 17 hunk / 218 行** で、
+増えた 6 hunk / 133 行は上の `--link-index` (M5-a)。
 
 1. **`defaultIrDir` を削除した**。旧セッションの scratchpad 絶対パス
    (`/private/tmp/claude-502/…/2dbcb565-…/scratchpad/ir-tagged`) が焼かれていた。
