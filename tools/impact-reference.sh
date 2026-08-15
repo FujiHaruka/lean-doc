@@ -78,8 +78,20 @@ rm -rf "$OUT"
 mkdir -p "$OUT/fixtures"
 
 # --- the module names the scenarios turn on --------------------------------
-# HUB    49 modules name something of its through a (module, name) pair.
-# LEAF   nobody imports it; the whole import closure above it is empty.
+# Every claim below is a column of `lean-doc impact --census` over w7h/base-ir
+# 【実測 2026-08-15】, quoted as declarations / importedByDirect /
+# importersTransitive / referrersDirect.
+#
+# HUB    4 / 15 / 261 / **49** — 49 modules name something of its through a
+#        (module, name) pair, which is what `--mode referrers` follows.
+# LEAF   1 / **281** / 414 / **0** — the name is a misnomer and was wrong here
+#        until 2026-08-15: it is imported by 281 modules directly and 414
+#        transitively. What it actually is, and what these scenarios turn on, is
+#        a module **nothing refers to by name** (referrersDirect 0) that itself
+#        imports nothing of the package (`initialize` of one tag attribute). The
+#        variable keeps its name only because renaming it would move this
+#        harness's output file names for no gain.
+# OTHER  8 / 2 / 2 / 1 — small in every direction; the second changed module.
 # GHOST  not a module of the package at all.
 # CASCADE four modules whose deletion empties a directory and then its parent.
 HUB=InformationTheory.Shannon.Bridge
