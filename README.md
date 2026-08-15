@@ -255,7 +255,8 @@ doc-gen4 の資産を横に置く必要がある。byte 再現率の母数もこ
 | | |
 |---|---|
 | [`docs/approach.md`](docs/approach.md) | アプローチの **SoT**。なぜこの形なのか、何を意図的にやらないか |
-| [`docs/implementation-plan.md`](docs/implementation-plan.md) | 実装の **SoT**。ゲート / 移設の順序 / 各段の実測 |
+| [`docs/implementation-plan.md`](docs/implementation-plan.md) | 実装の **SoT**。ゲート / 移設の順序 / Rust 側の構成と制約 |
+| [`docs/milestone-log.md`](docs/milestone-log.md) | 上の**結果**。M1〜M6 の各段で何を通し、どの数字が出たか |
 | [`docs/verification-log.md`](docs/verification-log.md) | **数字の SoT**。予測と食い違ったらこちらが正 |
 | [`benchmarks/`](benchmarks/) | 実測レポート・計装パッチ・生ログ。**数字の出所** |
 

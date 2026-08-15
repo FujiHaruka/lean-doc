@@ -36,9 +36,10 @@
 
 1. **README の未検証項目 10 件**が次の作業リスト。特に **実在の公開パッケージでの実走**
    (ユーザー判断で v0.1 の範囲外にした)、**GitHub Actions 実走**、**静的資産を生成しない穴**
-2. **`docs/implementation-plan.md` が 927 行** (閾値 600)。**畳んで縮む段階は過ぎている** —
-   §7 が実質「結果のアーカイブ」に育ったので、**本当の直し方は §7 を別文書に切り出すこと**。
-   ただし CLAUDE.md のリポジトリ構成表を書き換える話なので**ユーザー判断**
+2. ~~`docs/implementation-plan.md` が 927 行~~ **済み (2026-08-15、ユーザー判断で切り出し)** —
+   §7 の M1〜M6 の結果を `docs/milestone-log.md` (590) に分離し、計画は **372 行**。
+   §7 に残したのは crate 表 / md4c / **U1・U2** (`Cargo.toml`・`model.rs`・`target2-boundary.ts`・
+   `verification-log.md` がここを指しているので、外部参照の付け替えは 2 件で済んだ)
 3. **`.lidx` のモジュール名は非エスケープ** (IR / `name-map.json` はエスケープ形)。
    href は同じパスに解決するので出力バイトには出ないが**ルックアップ鍵としては別物**
 
@@ -61,7 +62,8 @@
 
 ## Files to read first
 
-- `README.md` (287) — v0.1 の顔。未検証項目 10 件はここ
-- `docs/implementation-plan.md` (927) — §1 のゲート A/B と決定 1、§7 の M3-d4 / M4-d / M5-a / M5-b / M6
+- `README.md` (288) — v0.1 の顔。未検証項目 10 件はここ
+- `docs/implementation-plan.md` (372) — §1 のゲート A/B と決定 1、§7 の U1・U2
+- `docs/milestone-log.md` (590) — M1〜M6 の結果。M3-d4 / M4-d / M5-a / M5-b / M6
 - `crates/lean-doc/src/build.rs` (985) — 1 コマンドの実体。台帳の書き戻しの規則
 - `tools/{build-gate,clone-gate,target2-gate,ci-build}.sh` — ゲートの実行形

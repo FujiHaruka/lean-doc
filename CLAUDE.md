@@ -1,11 +1,11 @@
 # lean-doc プロジェクト規則
 
 Mathlib に依存する Lean パッケージのための、高速ドキュメント生成基盤。
-**検証段階は全部完了** (計画 §7 の 1〜8 + CI 軸)。**いまは実装フェーズ** — `experiments/` の
+**検証段階は全部完了** (`approach.md` §7 の 1〜8 + CI 軸)。**いまは実装フェーズ** — `experiments/` の
 使い捨てプロトタイプ (TS + シェル) から Rust の製品ツリー `crates/` への移設で、
 遠いゴールは **v0.1 = 使える CLI**。
 アプローチの SoT は `docs/approach.md`、**実装の SoT は `docs/implementation-plan.md`**、
-数字の SoT は `docs/verification-log.md`。
+数字の SoT は `docs/verification-log.md`。実装の**結果**は `docs/milestone-log.md`。
 
 このリポジトリは private。対して計測対象の `lean-projects` は public なので、
 そちらに何かを書き戻すときは公開物として扱う。
@@ -15,8 +15,9 @@ Mathlib に依存する Lean パッケージのための、高速ドキュメン
 | | |
 |---|---|
 | `docs/approach.md` | アプローチ計画。**アプローチの SoT**。実装レベルの詳細は書かない |
-| `docs/implementation-plan.md` | v0.1 のゲート / 移設の順序 / ファイル別内訳。**実装の SoT** |
-| `docs/verification-log.md` | 検証段階の結果。**予測と食い違ったらこちらが SoT** |
+| `docs/implementation-plan.md` | v0.1 のゲート / 移設の順序 / ファイル別内訳 / Rust 側の構成と制約。**実装の SoT** |
+| `docs/milestone-log.md` | **実装段階 (M1〜M6) の結果**。移設元と移設先・オラクル・母数・出た数字 |
+| `docs/verification-log.md` | **検証段階 (approach.md §7 の 1〜8) の結果**。**予測と食い違ったらこちらが SoT** |
 | `benchmarks/` | 実測レポート・計装パッチ・ツール・生ログ。**数字の出所** |
 | `crates/` | **製品コード (Rust)**。マイルストーン M1〜M6 で埋まる |
 | `experiments/` | 検証段階ごとの使い捨てプロトタイプ。**2026-08-11 に凍結** (→ `experiments/README.md`) |
