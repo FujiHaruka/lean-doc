@@ -63,10 +63,15 @@
 //! the path, so "the file is missing" is not a state the union can be in.
 //!
 //! `global-set.txt`, `impact-set.txt` and `render-set.txt` are still written into
-//! `--work`, under the prototype's names, **as diagnostics** — a differential
-//! harness (M3-d3) compares them. `impact-set.txt` is written by `impact` itself
-//! and is therefore still absent exactly when the prototype's is absent; that
-//! absence is now inert, because nothing reads it back.
+//! `--work`, under the prototype's names, **as diagnostics** —
+//! `tools/incremental-reference.sh` (M3-d3) records them and
+//! `tools/incremental-compare.sh` compares them across the two implementations.
+//! `impact-set.txt` is written by `impact` itself and is therefore still absent
+//! exactly when the prototype's is absent — measured on both sides in the
+//! `nochange` and `removed-one` scenarios 【実測 2026-08-15】 — and that absence
+//! is now inert, because nothing reads it back. The prototype's `sort -u` over
+//! the missing file still writes `sort: No such file or directory` to stderr in
+//! exactly those two runs, which is the debt itself showing up as a diagnostic.
 //!
 //! # What a round is allowed to touch
 //!
@@ -534,9 +539,16 @@ fn run_incremental(options: &Incremental<'_>) -> Result<(Summary, Timings), Fail
         .unwrap_or_default();
     render_set.extend(global_affected.iter().cloned());
     let mut listed: Vec<String> = render_set.iter().cloned().collect();
-    // Plan §7, U1. The prototype's `sort -u` is the shell's collation; the two
-    // agree on every name Lean has produced on the target (all ASCII), and this
-    // one is the order the rest of the project's module lists are in.
+    // Plan §7, U1 — and **this is not the prototype's order**. `sort -u`
+    // (`incremental.sh:360`) collates in the caller's locale, and `en_US.UTF-8`
+    // ignores the `.` separator, so it puts `…Shannon.ArithmeticCoding` before
+    // `…Shannon.AWGN.Main` where code-unit order does the opposite. Same set,
+    // different sequence: **163 of the 432 lines move** on a full render set,
+    // 57 of 262 and 2 of 52 on the two narrower ones 【実測 2026-08-15,
+    // tools/incremental-compare.sh】. Nothing generated depends on it — the
+    // renderer is handed a [`ModuleSet::These`], which is a set, so the order
+    // reaches `render-set.txt` (a diagnostic) and stops there. This is the order
+    // the rest of the project's module lists are in.
     sort_utf16(&mut listed);
     write_lines(&work.render_set, &listed)?;
     let impact_done = started.elapsed();

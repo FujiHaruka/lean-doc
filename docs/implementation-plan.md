@@ -112,7 +112,7 @@
 | **M0** | 実装計画 + 製品ツリーの骨格 (Cargo ワークスペース / Lean パッケージ) + `experiments/` の凍結宣言 | ビルドが通る。オラクルは動かない |
 | **M1** | **IR リーダ + レンダラ**を Rust へ (md4c を FFI で本物に置換) | **432 モジュールページが byte 一致** (全域 6 本は M2、移動分は M3 なので 439 の残り 7 はここでは出ない)。**通過済み** → 下の判定手順と §7 |
 | **M2** | **全域成果物 6 本**を Rust へ (`contentHash` キャッシュ込み) | 6 成果物が byte 一致、サイトも byte 一致。**通過済み** → §7。**サイトの母数はここでは 438** (432 ページ + 6) — **439 の 439 番目は移動後にしか存在しない**ので M3 |
-| **M3** | **増分 4 本 + パイプライン**を Rust へ | 本物の移動と本物の削除を `lake build` ごと回して**フルビルドと byte 一致**。**M3-a (`detect`) / M3-b (`ownership` + `merge`) / M3-c (`impact` + `prune`) / M3-d1 (`site`) / M3-d2 (`incremental` + `modules`) / M3-d2b (`merge --modules`) は通過済み** → §7。残りは **M3-d3** (差分ハーネス) と **M3-d4** (クローンでのゲート) |
+| **M3** | **増分 4 本 + パイプライン**を Rust へ | 本物の移動と本物の削除を `lake build` ごと回して**フルビルドと byte 一致**。**M3-a (`detect`) / M3-b (`ownership` + `merge`) / M3-c (`impact` + `prune`) / M3-d1 (`site`) / M3-d2 (`incremental` + `modules`) / M3-d2b (`merge --modules`) / M3-d3 (差分ハーネス) は通過済み** → §7。残りは **M3-d4** (クローンでのゲート) |
 | **M4** | 抽出器を製品ツリーへ + **常駐の自動起動・停止**を Rust から配線 + CLI の形を確定 | **1 コマンド**で対象リポジトリのサイトが出て 439/439 |
 | **M5** | **第 2 の対象**で動かす (依存写像を生成側で作る経路の実測を含む) | 別パッケージで `lean-doc build` 一発が通る |
 | **M6** | CI テンプレ + README + インストール手順 | CI で通る。`lake build` と**同じジョブ**に置く形 |
@@ -527,6 +527,47 @@ M3-d2 が残した「モジュールが増えると `index.json` だけ from-scr
 **並びは `deps/*.json` のバイトにも届く**【実測】 — 依存名は「後に来たモジュールが勝つ」ので、同じ名前を
 別の定義モジュール経由で参照する 2 モジュールの順序が変わるとスライスのバイトが変わる。手書きケースで
 両方の順の出力を並べて固定した。
+
+### M3-d3 の結果 — 差分ハーネス (計測対象で両実装に同じ問いを回す)【すべて実測 2026-08-15】
+
+ハーネス `tools/incremental-{reference,compare}.sh` (558 / 219 行)。**7 シナリオを 1 箇所で定義**し、
+`lean-doc incremental` と `experiments/stage7h/incremental.sh --global new` に回す。抽出器は**両側とも**
+`stage7g/extract-once.sh`。変化の注入は `ledger touch` (計測対象を編集しないため — `incremental.sh:82-87` の protocol)。
+**台帳と state は impl ごとに種を作る** — `extractKey.extractor` / `STATE_DERIVATION` は「別実装なら別文字列」が設計
+(§6) なので、TS の種を Rust に食わせると鍵不一致で 432 件全部が再抽出になり、パイプラインと無関係に落ちる。
+
+**母数 3,213 / 一致 3,189 / REORDERED 14 / ARRAY-REORDERED 8 / 差分 2 / 欠落 0。**
+内訳 — IR のファイル **3,050** (modules 3,023 = 432×6 + 431、deps 20、index 7) + 全域成果物 **48** (8 木 × 6 本) +
+**計算された記録 113** (work 診断 69・counts 7・exit 7・complained 7・work-present 7・ページ一覧 8・件数 8) + 種 2。
+→ **「同じ答えを計算するか」の分母は 113 + IR の index/deps 27**。3,023 は「どちらも壊さなかった」を言うだけ。
+**中核は 7/7 バイト一致** — `counts.json` (`rounds`/`staleFound`/`changed`/`removed`/`irChanged`/`globalStale`/
+`pagesRendered`/`mode`) が全シナリオで一致。`pagesRendered` は census で説明がつく
+(`importers-hub` 262 = 1 + importersTransitive 261、`referrers-two` 52 = referrersDirect 49 + 1 + 2)。
+
+**残った差 24 件はすべて登録済みの意図した差**:
+**REORDERED 14** = `deps/*.json` のトップレベル鍵順 (M3-b の決着)。**Rust 側が凍結 fixture
+`w7h/base-ir/deps/*.json` = 抽出器自身の出力とキー順まで一致し、TS 側は一致しない**ことを実測で確認した。
+**ARRAY-REORDERED 5** = `index.json` の `modules` 配列順 (M3-d2b)。**merge が走る 5 シナリオ全部に出る** —
+凍結 fixture の index 自体がロケール順で、code point 順の `--modules` を渡す製品が毎回並べ直すため
+(`w7h/base-ir/index.json` は code point 順と **163/432 行が別位置**)。集合は同一、バイト長も同一。
+**ARRAY-REORDERED 3** = `render-set.txt` の行順 (U1。`sort -u` のロケール照合 対 UTF-16 順、163/432・57/262・2/52)。
+**差分 2** = `nochange` / `removed-one` の `*-complained.txt` (ts=yes / rust=no)。**中身は §7 の負債 1/2/3 そのもの** —
+`impact-set.txt` が書かれない run でプロトタイプの `sort -u` が `sort: No such file or directory` を吐き、
+`|| : > "$RENDERSET"` が再生成集合を空にする。**製品をプロトタイプに合わせて壊した箇所はゼロ。**
+
+**ページのバイトは両実装間で比べていない** (決定 4 — プロトタイプ step 7 は `--link-index` を渡さない)。
+代わりに **Rust 側だけ「増分の木 vs 同じ最終 IR からの `lean-doc site`」を 7 シナリオで比較し、全部 identical**
+(438/438、`removed-one` は 437/437)。**`added-one` は自分で site を作り直して `/usr/bin/diff -r` 差分 0 を再現した**。
+種の検査は `m2/gate/ref-site` と **438 中 437 一致** (差分 1 = §5 の登録済み乖離)。
+
+#### M3-d3 が踏んでいない経路 — M3-d4 が要る理由【実測】
+
+**L3-1 と L3-2 は 7 シナリオすべてで空の答えしか返していない。** `ledger touch` は台帳のエントリを
+無効化するだけで **olean の内容を変えない**ので、再抽出しても IR のバイトが動かない (`irChanged` は
+`self-one` / `importers-hub` / `referrers-two` で **0**)。実測値は **`staleFound` 0 / `globalStale` 0 が 7/7**。
+`changedNames` が非空だったのは `removed-one` / `added-one` の 2 件 (どちらも 2 名) だが、**`affected` はそこでも 0**。
+→ **ラウンドが 2 巡する経路も、2 つの再生成集合の union が両方非空になる経路も、M3-d3 では 1 度も踏んでいない。**
+両実装が一致したのは「同じ空集合を出した」ことを含む。**これを踏むのが M3-d4 (クローンでの本物の移動)。**
 
 ---
 

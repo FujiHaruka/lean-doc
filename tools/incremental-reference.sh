@@ -1,0 +1,558 @@
+#!/usr/bin/env bash
+# Run seven end-to-end incremental scenarios against the measurement target and
+# record what each one *computed* — not what it printed.
+#
+# **The scenarios are defined once and run by either implementation** (--impl),
+# as tools/{ledger,merge,impact}-reference.sh do and for the same reason: what
+# has to match is the answer to a *question*, and a question asked slightly
+# differently on the two sides would compare two things nobody meant to compare.
+#
+#   --impl ts    experiments/stage7h/incremental.sh (the prototype, frozen)
+#   --impl rust  lean-doc incremental              (crates/lean-doc/src/pipeline.rs)
+#
+# usage: tools/incremental-reference.sh [--impl ts|rust] [--out DIR] [--target REPO]
+#                                       [--lidx FILE] [--base-ir DIR] [--ref-site DIR]
+#                                       [--only SCENARIO]...
+#
+# ============================================================================
+# WHAT MAY BE COMPARED BETWEEN THE TWO IMPLEMENTATIONS, AND WHAT MAY NOT
+# ============================================================================
+#
+# 1. **Page bytes may not be compared across implementations** 【実測, 確定】.
+#    The prototype's step 7 (`incremental.sh:371-373`) calls `render.ts` without
+#    `--link-index`; without that map **150 of the 432 pages come out with
+#    different bytes**. `incremental.sh` is frozen, so this cannot be repaired on
+#    that side. What is recorded here is therefore **which pages exist** (a sorted
+#    listing and a count), never their content — plus the six whole-package
+#    artifacts, which `global.ts` / `build_global` derive from the IR alone and
+#    which therefore *are* comparable.
+#
+#    The **within-implementation** page check that this gives up is not lost, it
+#    is moved: `--impl rust` additionally rebuilds a whole site from the IR each
+#    scenario left behind and diffs it against the page tree the incremental run
+#    produced (`<s>-sitecheck.txt`). That is the stronger question anyway — "did
+#    the round leave the tree a full run would have written" — and it is asked
+#    with one renderer on both sides, so it is legitimate.
+#
+# 2. **One module list is built here and handed to both sides** 【実測, 確定】.
+#    `lean-doc modules` sorts in UTF-16 code-unit order; the prototype's
+#    `find … | sort` sorts in the caller's locale, and on this machine's
+#    `en_US.UTF-8` **163 of the 432 lines land in a different position** — same
+#    set, same count. That order is not cosmetic: it is the order of the ledger's
+#    `modules` array *and* (M3-d2b) the order of the merged `index.json`'s
+#    `modules` array, i.e. it makes bytes. So this script builds the list once
+#    under `LC_ALL=C` and passes the same file to both implementations, and it
+#    **checks that list against `lean-doc modules` and refuses to run if they
+#    differ** — which is what documents the trap rather than merely avoiding it.
+#
+# 3. **The ledger and the global-derivation cache are seeded per implementation.**
+#    `extractKey.extractor` (`ledger.ts:190`) and its Rust counterpart are
+#    *designed* to be different strings: a ledger written by one implementation
+#    must invalidate under the other (plan §6). Feeding the TS ledger to
+#    `lean-doc incremental` would report all 432 modules as changed and the run
+#    would be measuring the key mismatch, not the pipeline. So each `--impl`
+#    builds its own `base-ledger.json`, its own `base-site/` and its own
+#    `base-state/`, out of the **same** base IR — and the six whole-package
+#    artifacts of those two `base-site/` trees are recorded into the compared
+#    tree, which turns the seeding itself into an oracle instead of a setup step
+#    nobody looked at.
+#
+# ============================================================================
+# NOTHING OUTSIDE $OUT AND $OUT.work IS EVER WRITTEN TO
+# ============================================================================
+#   The pipeline deletes pages (`prune`) and rewrites an IR tree in place
+#   (`merge`), so every scenario runs against copies under `$OUT.work` and
+#   `guard_writable` refuses to run a scenario whose live tree is not under it.
+#   The measurement target is opened **read-only**: the module list is a `find`
+#   over its sources and the ledger hashes its oleans. `extract-once.sh` refuses
+#   an `--ir-dir` under the target on its own (`extract-once.sh:48-50`).
+#
+#   $OUT       the compared tree — records only, all of them implementation-neutral
+#   $OUT.work  fixtures, live copies, work directories, from-scratch sites
+#
+# ============================================================================
+# THE SEVEN SCENARIOS
+# ============================================================================
+#   nochange       nothing touched                    self       0 changed: the
+#                  regeneration set is empty and the renderer is skipped (§6/5)
+#   self-one       one module invalidated             self       the minimal edit
+#   importers-hub  Shannon.Bridge invalidated         importers  the wide blast
+#                  radius: 15 direct importers, 261 transitive 【実測 census】
+#   referrers-two  Bridge + Polymatroid.Basic         referrers  two modules and
+#                  a second closure (Bridge has 49 direct referrers 【実測】)
+#   renderall      nothing touched, a different rev    self       the render key
+#                  moves and overrides --mode with `all` (§6/4): 432 pages
+#   removed-one    the module list drops one entry     self       the deletion
+#                  path: detect's `removed` -> merge's drop -> prune
+#   added-one      removed-one's trees, the 431-entry  self       the addition
+#                  ledger, and the 432-entry list                 path — where
+#                  M3-d2b (the merged index's order) becomes visible
+#
+#   The module the last three turn on is `InformationTheory.Meta.EntryPoint`:
+#   **1 declaration, imports nothing itself, and is imported directly by 281 of
+#   the 432 modules** 【実測 2026-08-15, `lean-doc impact --census`】. It is not a
+#   leaf. It is used here because its single declaration is an `initialize`, so
+#   removing it moves one entry of the global name map and (predicted, checked by
+#   the run) no other module's `refs`; with `--mode self` none of the 281
+#   importers is walked, so the scenario stays cheap.
+#
+# ============================================================================
+# WHAT IS RECORDED PER SCENARIO — the denominator of the comparison
+# ============================================================================
+#   <s>-status.txt       the exit code
+#   <s>-stdout.txt       recorded, **not compared**: the prototype's stdout is one
+#                        JSON line and `lean-doc incremental` prints a progress
+#                        line per stage as well (pipeline.rs's heading says so).
+#                        The one thing both really print — the timings record —
+#                        is what <s>-counts.json is distilled from.
+#   <s>-stderr.txt       recorded, **not compared** (wording is the
+#                        implementation's); <s>-complained.txt carries the fact
+#   <s>-counts.json      **the core**: the eight answers, lifted out of each
+#                        side's own timings JSON by this script so that the two
+#                        are read the same way. No `*Seconds` — a duration is not
+#                        an answer.
+#   <s>-work/            the diagnostics the run left in `--work`
+#   <s>-work-present.txt which of them exist. `impact-set.txt` is absent exactly
+#                        when the changed set is empty and the mode is not `all`
+#                        — on *both* sides — and that absence is an answer, not a
+#                        gap in the recording.
+#   <s>-ir/              the whole IR tree the run left behind, byte for byte
+#   <s>-global/          the six whole-package artifacts, byte for byte
+#   <s>-pages.txt        which pages exist (see decision 1); <s>-pages-count.txt
+#   <s>-sitecheck.txt    `--impl rust` only, and skipped by the comparator
+
+set -euo pipefail
+
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+INCREMENTAL_SH="$REPO/experiments/stage7h/incremental.sh"
+LEDGER_TS="$REPO/experiments/stage5/ledger.ts"
+GLOBAL_TS="$REPO/experiments/stage7h/global.ts"
+RENDER_TS="$REPO/experiments/stage7d/render.ts"
+EXTRACTOR="$REPO/experiments/stage7g/extract-once.sh"
+RUST_BIN="$REPO/target/release/lean-doc"
+
+IMPL=ts
+OUT=
+TARGET=/Users/haruka/dev/lean-projects
+LIB=InformationTheory
+LIDX=/private/tmp/lean-doc-relay/w7c/linkindex/link-index.lidx
+BASE_IR_SRC=/private/tmp/lean-doc-relay/w7h/base-ir
+REF_SITE=/private/tmp/lean-doc-relay/m2/gate/ref-site
+JOBS=4
+
+# The revision every stage-5 number was taken at. 40 lower-case hex digits,
+# because `lean-doc incremental` refuses anything else (plan 決定 1) and because
+# the acceptance oracle normalises exactly that shape.
+URL="https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec"
+# A *different* 40-hex revision, for the one scenario whose whole point is that
+# the render key moved. Not a real commit: nothing reads it back, and the only
+# property under test is "these two strings differ".
+URL_NEXT="https://github.com/FujiHaruka/information-theory/blob/00112233445566778899aabbccddeeff00112233"
+
+# The module the deletion / addition scenarios turn on. See the heading: this is
+# **not** a leaf.
+ONE=InformationTheory.Meta.EntryPoint
+HUB=InformationTheory.Shannon.Bridge
+OTHER=InformationTheory.Polymatroid.Basic
+
+ALL_SCENARIOS="nochange self-one importers-hub referrers-two renderall removed-one added-one"
+ONLY=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --impl) IMPL="$2"; shift 2 ;;
+    --out) OUT="$2"; shift 2 ;;
+    --target) TARGET="$2"; shift 2 ;;
+    --lib) LIB="$2"; shift 2 ;;
+    --lidx) LIDX="$2"; shift 2 ;;
+    --base-ir) BASE_IR_SRC="$2"; shift 2 ;;
+    --ref-site) REF_SITE="$2"; shift 2 ;;
+    --only) ONLY="$ONLY $2"; shift 2 ;;
+    *) echo "unknown argument: $1" >&2; exit 2 ;;
+  esac
+done
+
+case "$IMPL" in
+  ts) OUT="${OUT:-/private/tmp/lean-doc-relay/m3d3/ref}" ;;
+  rust) OUT="${OUT:-/private/tmp/lean-doc-relay/m3d3/rust}" ;;
+  *) echo "--impl wants ts or rust, not $IMPL" >&2; exit 2 ;;
+esac
+WORKROOT="$OUT.work"
+
+[ -d "$TARGET" ] || { echo "missing target repository: $TARGET" >&2; exit 1; }
+[ -d "$BASE_IR_SRC" ] || { echo "missing base IR: $BASE_IR_SRC" >&2; exit 1; }
+[ -f "$LIDX" ] || { echo "missing link index: $LIDX" >&2; exit 1; }
+[ -x "$EXTRACTOR" ] || { echo "missing extractor: $EXTRACTOR" >&2; exit 1; }
+command -v python3 >/dev/null || { echo "python3 is required" >&2; exit 1; }
+# Needed by **both** implementations: the module-list check below is stated
+# against `lean-doc modules`, which is the thing whose order the run depends on.
+[ -x "$RUST_BIN" ] || {
+  echo "missing: $RUST_BIN — run: cargo build --release -p lean-doc" >&2; exit 1; }
+
+# `added-one` starts from what `removed-one` left behind, so selecting it
+# selects that too.
+case " $ONLY " in
+  *" added-one "*) case " $ONLY " in *" removed-one "*) ;; *) ONLY="$ONLY removed-one" ;; esac ;;
+esac
+selected () { # selected <scenario>
+  [ -z "${ONLY// /}" ] && return 0
+  case " $ONLY " in *" $1 "*) return 0 ;; *) return 1 ;; esac
+}
+
+# ------------------------------------------------------- the two implementations
+
+if [ "$IMPL" = ts ]; then
+  command -v deno >/dev/null || { echo "deno is required (node is broken here)" >&2; exit 1; }
+  for f in "$INCREMENTAL_SH" "$LEDGER_TS" "$GLOBAL_TS" "$RENDER_TS"; do
+    [ -f "$f" ] || { echo "missing: $f" >&2; exit 1; }
+  done
+  deno_ () { deno run --allow-read --allow-write --allow-env "$@"; }
+
+  ledger_build () { # ledger_build <modules> <ir> <out>
+    deno_ "$LEDGER_TS" build --modules "$1" --target "$TARGET" --ir "$2" \
+      --source-url "$URL" --out "$3"
+  }
+  ledger_touch () { # ledger_touch <ledger> <module>
+    deno_ "$LEDGER_TS" touch --ledger "$1" --module "$2"
+  }
+  # The prototype's own two halves of a full generation. `render.ts` **does**
+  # take `--link-index` (render.ts:53) even though `incremental.sh` never passes
+  # it, so it is passed here: it makes this side's base the same site the
+  # product's base is, which is what the per-scenario page *listings* are
+  # differences from.
+  base_site () { # base_site <ir> <site> <state>
+    deno_ "$RENDER_TS" --ir "$1" --pages "$2" --source-url "$URL" --link-index "$LIDX"
+    deno_ "$GLOBAL_TS" build --ir "$1" --out "$2" --state "$3"
+  }
+  pipeline () { # pipeline <ir> <pages> <ledger> <work> <state> <modules> <mode> <url> <timings>
+    "$INCREMENTAL_SH" --ir "$1" --pages "$2" --ledger "$3" --work "$4" \
+      --global new --state "$5" --modules "$6" --mode "$7" --source-url "$8" \
+      --timings "$9" --l3-1 on --jobs "$JOBS"
+  }
+else
+  ledger_build () {
+    "$RUST_BIN" ledger build --modules "$1" --target "$TARGET" --ir "$2" \
+      --source-url "$URL" --out "$3"
+  }
+  ledger_touch () { "$RUST_BIN" ledger touch --ledger "$1" --module "$2"; }
+  base_site () { # one command: `site` writes the pages, the six artifacts and the cache
+    "$RUST_BIN" site --ir "$1" --out "$2" --source-url "$URL" \
+      --link-index "$LIDX" --state "$3"
+  }
+  pipeline () {
+    "$RUST_BIN" incremental --ir "$1" --pages "$2" --ledger "$3" --work "$4" \
+      --state "$5" --modules "$6" --mode "$7" --source-url "$8" \
+      --link-index "$LIDX" --timings "$9" \
+      --extractor "$EXTRACTOR" --extractor-arg --jobs --extractor-arg "$JOBS"
+  }
+fi
+
+# ------------------------------------------------------------------- plumbing
+
+# Nothing is copied over, deleted or rewritten outside the two roots this script
+# owns. Every scenario passes its live tree through here first.
+guard_writable () { # guard_writable <path>
+  case "$1" in
+    "$WORKROOT"/*|"$OUT"/*) ;;
+    *) echo "refusing to write outside $WORKROOT: $1" >&2; exit 1 ;;
+  esac
+}
+
+GLOBAL_ARTIFACTS="declarations/declaration-data.bmp declarations/name-map.json \
+navbar.html tactics.html references.html references.bib"
+
+# Every diagnostic the two pipelines agree to leave in `--work`. Files a run does
+# not produce are recorded as absent rather than skipped (see the heading).
+WORK_FILES="changed.txt removed.txt render-all.txt seen.txt ir-changed.txt \
+global-set.txt impact-set.txt render-set.txt name-map-before.json \
+global-delta.json prune.json"
+
+record () { # record <name> <status>
+  local name="$1" status="$2"
+  printf '%s\n' "$status" > "$OUT/$name-status.txt"
+  if [ -s "$OUT/$name-stderr.txt" ]; then
+    printf 'yes\n' > "$OUT/$name-complained.txt"
+  else
+    printf 'no\n' > "$OUT/$name-complained.txt"
+  fi
+}
+
+# The eight answers, taken out of whichever timings record the side wrote. Both
+# spell them the same way (`incremental.sh:393-424`, `pipeline.rs:899-931`) — that
+# is the contract `benchmarks/tools/analyze.ts` already reads.
+counts () { # counts <name> <timings json>
+  python3 - "$2" "$OUT/$1-counts.json" <<'PY'
+import json, os, sys
+src, dst = sys.argv[1], sys.argv[2]
+keys = ["changed", "globalStale", "irChanged", "mode",
+        "pagesRendered", "removed", "rounds", "staleFound"]
+if os.path.isfile(src):
+    with open(src, encoding="utf-8") as f:
+        record = json.loads(f.read().strip())
+    out = {key: record.get(key, "<absent>") for key in keys}
+else:
+    # A run that failed before writing its record. Recorded as a fact: an
+    # implementation that produced no answers has to differ from one that did.
+    out = {"timings": "absent"}
+with open(dst, "w", encoding="utf-8") as f:
+    json.dump(out, f, indent=2, sort_keys=True)
+    f.write("\n")
+PY
+}
+
+copy_work () { # copy_work <name> <work dir>
+  local name="$1" work="$2" f
+  rm -rf "$OUT/$name-work"
+  mkdir -p "$OUT/$name-work"
+  : > "$OUT/$name-work-present.txt"
+  for f in $WORK_FILES; do
+    if [ -f "$work/$f" ]; then
+      cp "$work/$f" "$OUT/$name-work/$f"
+      printf '%s\n' "$f" >> "$OUT/$name-work-present.txt"
+    fi
+  done
+  LC_ALL=C sort "$OUT/$name-work-present.txt" -o "$OUT/$name-work-present.txt"
+}
+
+copy_globals () { # copy_globals <dest dir> <page tree>
+  local dest="$1" pages="$2" f
+  rm -rf "$dest"
+  for f in $GLOBAL_ARTIFACTS; do
+    mkdir -p "$dest/$(dirname "$f")"
+    if [ -f "$pages/$f" ]; then
+      cp "$pages/$f" "$dest/$f"
+    else
+      printf 'absent\n' > "$dest/$f.absent"
+    fi
+  done
+}
+
+page_list () { # page_list <name> <page tree>
+  local name="$1" pages="$2"
+  if [ -d "$pages" ]; then
+    # LC_ALL=C: byte order, so the listing is a property of the tree and not of
+    # the machine's locale.
+    ( cd "$pages" && find . -type f | sed 's|^\./||' | LC_ALL=C sort ) > "$OUT/$name-pages.txt"
+  else
+    : > "$OUT/$name-pages.txt"
+  fi
+  printf 'files %s\n' "$(grep -c . "$OUT/$name-pages.txt" || true)" \
+    > "$OUT/$name-pages-count.txt"
+}
+
+# `--impl rust` only. The page-byte check decision 1 gives up, asked the way that
+# is actually legitimate: rebuild a whole site from the IR the round left behind
+# and diff it against the pages the round left behind. One renderer, both sides.
+sitecheck () { # sitecheck <name> <live dir> <url>
+  local name="$1" d="$2" url="$3" status=0
+  rm -rf "$d/sitecheck-site" "$d/sitecheck-state"
+  "$RUST_BIN" site --ir "$d/ir" --out "$d/sitecheck-site" --source-url "$url" \
+    --link-index "$LIDX" --state "$d/sitecheck-state" > "$d/sitecheck.log" 2>&1 || status=$?
+  {
+    printf 'site status       %s\n' "$status"
+    printf 'incremental files %s\n' "$(find "$d/pages" -type f | wc -l | tr -d ' ')"
+    printf 'from-scratch      %s\n' "$(find "$d/sitecheck-site" -type f | wc -l | tr -d ' ')"
+    # /usr/bin/diff: `diff` is aliased to colordiff in this shell and colordiff
+    # is not installed.
+    if /usr/bin/diff -r -q "$d/pages" "$d/sitecheck-site" > "$d/sitecheck.diff" 2>&1; then
+      printf 'diff              identical\n'
+    else
+      printf 'diff              %s line(s)\n' "$(grep -c . "$d/sitecheck.diff" || true)"
+      sed 's/^/  /' "$d/sitecheck.diff"
+    fi
+  } > "$OUT/$name-sitecheck.txt"
+}
+
+# --------------------------------------------------------------------- fixtures
+
+mkdir -p "$OUT" "$WORKROOT"
+FIX="$WORKROOT/fixtures"
+mkdir -p "$FIX"
+
+# 1. The module list. Built here, under LC_ALL=C, and handed to both sides — see
+#    decision 2 in the heading.
+( cd "$TARGET" && LC_ALL=C find "$LIB.lean" "$LIB" -name '*.lean' | LC_ALL=C sort ) \
+  | sed 's/\.lean$//; s#/#.#g' > "$OUT/modules-432.txt"
+"$RUST_BIN" modules --root "$TARGET" --lib "$LIB" > "$WORKROOT/modules-from-cli.txt"
+if ! /usr/bin/diff -q "$OUT/modules-432.txt" "$WORKROOT/modules-from-cli.txt" > /dev/null; then
+  echo "the LC_ALL=C source glob and \`lean-doc modules\` disagree — the run would" >&2
+  echo "compare two different module orders, which makes two different ledgers and" >&2
+  echo "two different index.json files. Refusing." >&2
+  /usr/bin/diff "$OUT/modules-432.txt" "$WORKROOT/modules-from-cli.txt" | head -20 >&2
+  exit 4
+fi
+NMODULES=$(grep -c . "$OUT/modules-432.txt" || true)
+grep -vx "$ONE" "$OUT/modules-432.txt" > "$OUT/modules-431.txt"
+NMODULES_LESS=$(grep -c . "$OUT/modules-431.txt" || true)
+[ "$NMODULES_LESS" -eq $((NMODULES - 1)) ] || {
+  echo "$ONE is not in the module list" >&2; exit 4; }
+
+# 2. The base IR both implementations start from: the same bytes, copied so that
+#    a scenario's in-place merge cannot reach the shared fixture.
+rm -rf "$FIX/base-ir"
+cp -R "$BASE_IR_SRC" "$FIX/base-ir"
+
+# 3. The base site and the cache — built by **this** implementation (decision 3).
+rm -rf "$FIX/base-site" "$FIX/base-state"
+mkdir -p "$FIX/base-site" "$FIX/base-state"
+base_site "$FIX/base-ir" "$FIX/base-site" "$FIX/base-state" > "$WORKROOT/base-site.log" 2>&1
+copy_globals "$OUT/base-global" "$FIX/base-site"
+page_list base "$FIX/base-site"
+
+# 4. The two ledgers — also this implementation's, and for the same reason.
+ledger_build "$OUT/modules-432.txt" "$FIX/base-ir" "$FIX/base-ledger.json" \
+  > "$WORKROOT/base-ledger.log" 2>&1
+ledger_build "$OUT/modules-431.txt" "$FIX/base-ir" "$FIX/base-ledger-431.json" \
+  > "$WORKROOT/base-ledger-431.log" 2>&1
+
+# 5. `--impl rust` only: the seed against the M2 gate's reference site. Recorded,
+#    skipped by the comparator (the TS side has no counterpart), and the whole
+#    point of it is that the base every scenario starts from is the site the gate
+#    already accepted.
+if [ "$IMPL" = rust ] && [ -d "$REF_SITE" ]; then
+  {
+    printf 'reference site    %s\n' "$REF_SITE"
+    printf 'reference files   %s\n' "$(find "$REF_SITE" -type f | wc -l | tr -d ' ')"
+    printf 'base files        %s\n' "$(find "$FIX/base-site" -type f | wc -l | tr -d ' ')"
+    if /usr/bin/diff -r -q "$REF_SITE" "$FIX/base-site" > "$WORKROOT/base-sitecheck.diff" 2>&1; then
+      printf 'diff              identical\n'
+    else
+      printf 'diff              %s line(s)\n' \
+        "$(grep -c . "$WORKROOT/base-sitecheck.diff" || true)"
+      sed 's/^/  /' "$WORKROOT/base-sitecheck.diff"
+    fi
+  } > "$OUT/base-sitecheck.txt"
+fi
+
+# -------------------------------------------------------------- one scenario
+
+setup_live () { # setup_live <name> <ir src> <pages src> <ledger src> <state src>
+  local d="$WORKROOT/$1"
+  guard_writable "$d"
+  rm -rf "$d"
+  mkdir -p "$d/work"
+  cp -R "$2" "$d/ir"
+  cp -R "$3" "$d/pages"
+  cp "$4" "$d/ledger.json"
+  cp -R "$5" "$d/state"
+}
+
+run_scenario () { # run_scenario <name> <mode> <modules file> <url>
+  local name="$1" mode="$2" modules="$3" url="$4"
+  local d="$WORKROOT/$name" status=0
+  guard_writable "$d"
+  echo "### $name (mode $mode)"
+  pipeline "$d/ir" "$d/pages" "$d/ledger.json" "$d/work" "$d/state" \
+    "$modules" "$mode" "$url" "$d/timings.json" \
+    > "$OUT/$name-stdout.txt" 2> "$OUT/$name-stderr.txt" || status=$?
+  record "$name" "$status"
+  counts "$name" "$d/timings.json"
+  copy_work "$name" "$d/work"
+  rm -rf "$OUT/$name-ir"
+  cp -R "$d/ir" "$OUT/$name-ir"
+  copy_globals "$OUT/$name-global" "$d/pages"
+  page_list "$name" "$d/pages"
+  if [ "$IMPL" = rust ]; then
+    sitecheck "$name" "$d" "$url"
+  fi
+  printf '  exit %s, %s page(s) in the tree\n' \
+    "$status" "$(grep -c . "$OUT/$name-pages.txt" || true)"
+}
+
+# ------------------------------------------------------------------ scenarios
+
+# 1. Nothing changed. The answer the pipeline sees most: 0 changed, an empty
+#    regeneration set, and the renderer never called (§6, constraint 5).
+if selected nochange; then
+  setup_live nochange "$FIX/base-ir" "$FIX/base-site" "$FIX/base-ledger.json" "$FIX/base-state"
+  run_scenario nochange self "$OUT/modules-432.txt" "$URL"
+fi
+
+# 2. One module invalidated: the minimal edit. `ledger touch` is the honest fake
+#    the whole experiment rests on — the measurement target must not be modified,
+#    so "M changed" is injected by invalidating M's ledger entry and everything
+#    downstream is real (`ledger.ts:44-48`).
+if selected self-one; then
+  setup_live self-one "$FIX/base-ir" "$FIX/base-site" "$FIX/base-ledger.json" "$FIX/base-state"
+  ledger_touch "$WORKROOT/self-one/ledger.json" "$ONE" > "$WORKROOT/self-one/touch.log"
+  run_scenario self-one self "$OUT/modules-432.txt" "$URL"
+fi
+
+# 3. The wide blast radius: `--mode importers` over a module 15 others import
+#    directly and 261 transitively 【実測 census】.
+if selected importers-hub; then
+  setup_live importers-hub "$FIX/base-ir" "$FIX/base-site" "$FIX/base-ledger.json" "$FIX/base-state"
+  ledger_touch "$WORKROOT/importers-hub/ledger.json" "$HUB" > "$WORKROOT/importers-hub/touch.log"
+  run_scenario importers-hub importers "$OUT/modules-432.txt" "$URL"
+fi
+
+# 4. Two modules and the other closure: `--mode referrers` is the direct one, and
+#    the hub has 49 direct referrers 【実測 census】.
+if selected referrers-two; then
+  setup_live referrers-two "$FIX/base-ir" "$FIX/base-site" "$FIX/base-ledger.json" "$FIX/base-state"
+  ledger_touch "$WORKROOT/referrers-two/ledger.json" "$HUB" > "$WORKROOT/referrers-two/touch.log"
+  ledger_touch "$WORKROOT/referrers-two/ledger.json" "$OTHER" >> "$WORKROOT/referrers-two/touch.log"
+  run_scenario referrers-two referrers "$OUT/modules-432.txt" "$URL"
+fi
+
+# 5. Nothing touched, a different revision in `--source-url`: the render key
+#    moves, nothing is re-extracted, and `--mode self` is overridden with `all`
+#    (§6, constraint 4). All 432 pages.
+if selected renderall; then
+  setup_live renderall "$FIX/base-ir" "$FIX/base-site" "$FIX/base-ledger.json" "$FIX/base-state"
+  run_scenario renderall self "$OUT/modules-432.txt" "$URL_NEXT"
+fi
+
+# 6. The deletion path, end to end: the module list has one entry fewer, so
+#    `detect` reports it removed, `merge` drops it from the index and `prune`
+#    deletes its page. Nothing is re-extracted — round 1 runs for the deletion
+#    alone.
+if selected removed-one; then
+  setup_live removed-one "$FIX/base-ir" "$FIX/base-site" "$FIX/base-ledger.json" "$FIX/base-state"
+  run_scenario removed-one self "$OUT/modules-431.txt" "$URL"
+fi
+
+# 7. The addition path, on the trees the deletion left behind: a 431-entry ledger
+#    and a 432-entry module list, so the module comes back. **This is where
+#    M3-d2b shows**: the prototype's merge appends a new module to the end of the
+#    index, the product orders the index by `--modules`. Same entries, different
+#    sequence, and no page byte says so.
+if selected added-one; then
+  setup_live added-one "$WORKROOT/removed-one/ir" "$WORKROOT/removed-one/pages" \
+    "$FIX/base-ledger-431.json" "$WORKROOT/removed-one/state"
+  run_scenario added-one self "$OUT/modules-432.txt" "$URL"
+fi
+
+# ----------------------------------------------------------------- conditions
+
+# CLAUDE.md「ベンチマーク」: a number without its conditions cannot be read. This
+# file is recorded and **not compared** — it is different on the two sides by
+# construction (it names the implementation and the clock).
+{
+  printf 'date              %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  printf 'impl              %s\n' "$IMPL"
+  printf 'host              %s / %s / %s GB\n' \
+    "$(uname -srm)" \
+    "$(sysctl -n machdep.cpu.brand_string 2>/dev/null || echo '?')" \
+    "$(($(sysctl -n hw.memsize) / 1024 / 1024 / 1024))"
+  printf 'target            %s (%s modules)\n' "$TARGET" "$NMODULES"
+  printf 'lean-toolchain    %s\n' "$(tr -d '\n' < "$TARGET/lean-toolchain" 2>/dev/null || echo '?')"
+  printf 'extractor         %s (stage 7d binary, IR schema 4)\n' "$EXTRACTOR"
+  printf 'jobs              %s\n' "$JOBS"
+  printf 'link index        %s (%s B)\n' "$LIDX" "$(wc -c < "$LIDX" | tr -d ' ')"
+  printf 'base IR           %s\n' "$BASE_IR_SRC"
+  printf 'source url        %s\n' "$URL"
+  printf 'deno              %s\n' "$(deno --version 2>/dev/null | head -1 || echo 'not used')"
+  printf 'rustc             %s\n' "$(rustc --version 2>/dev/null || echo '?')"
+  printf 'scenarios         %s\n' "${ONLY:-$ALL_SCENARIOS}"
+} > "$OUT/conditions.txt"
+
+# A manifest makes the tree verifiable later without rerunning anything, and
+# makes an accidental edit loud.
+( cd "$OUT" && find . -type f | LC_ALL=C sort | xargs shasum -a 256 ) > "$OUT.sha256"
+
+printf 'impl: %s\n' "$IMPL"
+printf 'out: %s\n' "$OUT"
+printf 'work: %s\n' "$WORKROOT"
+printf 'files: %s\n' "$(find "$OUT" -type f | wc -l | tr -d ' ')"
+printf 'manifest: %s\n' "$OUT.sha256"
