@@ -139,7 +139,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Instant;
 
-use lean_doc_incr::{Algorithm, BuildOptions, Ledger, Mode, build_ledger, extract_key, render_key};
+use lean_doc_incr::{
+    Algorithm, BuildOptions, Ledger, Mode, build_ledger, extract_key, link_index_digest, render_key,
+};
 
 use crate::extract::absolute;
 use crate::pipeline::{Extractor, Incremental, check_source_url, module_names, write_lines};
@@ -167,6 +169,10 @@ struct Layout {
     work: PathBuf,
     ledger: PathBuf,
     marker: PathBuf,
+    /// `<out>/link-index.lidx`, where the dependency map goes when this command
+    /// derives it (M5-b). Overridden by `--link-index`, which names one
+    /// somebody else made.
+    link_index: PathBuf,
 }
 
 impl Layout {
@@ -179,6 +185,7 @@ impl Layout {
             work: out.join("work"),
             ledger: out.join("ledger.json"),
             marker: out.join(MARKER),
+            link_index: out.join("link-index.lidx"),
         }
     }
 
@@ -188,10 +195,17 @@ impl Layout {
     /// compares against it (`pipeline.rs`), and a site tree without one runs
     /// with the delta off — which is a *correct* run that re-renders too little
     /// the first time the map moves.
-    fn carries_a_previous_run(&self) -> bool {
+    ///
+    /// So is the dependency map (M5-b): an incremental run renders a *subset*,
+    /// so a missing map does not fail — it produces pages whose links are gone,
+    /// mixed into a tree of pages that still have theirs. A full generation
+    /// extracts everything and therefore writes the map again, which is why a
+    /// missing map is answered by taking that path rather than by refusing.
+    fn carries_a_previous_run(&self, link_index: &Path) -> bool {
         self.ledger.is_file()
             && self.ir.join("index.json").is_file()
             && self.state.join("global-state.json").is_file()
+            && link_index.is_file()
             && self
                 .site
                 .join("declarations")
@@ -321,12 +335,24 @@ pub fn build(args: &[String]) -> Result<(), Failure> {
              data-loss bug with a friendly face",
         );
     };
-    let Some(link_index) = link_index else {
+    // **`--link-index` stopped being required in M5-b.** Left out, the map is
+    // this command's own artefact: `<out>/link-index.lidx`, written by the
+    // resident extractor out of the environment it imported for the extraction
+    // (M5-a). Given, it is an input somebody else made and this command does not
+    // touch it — which is what keeps every M4-d measurement re-runnable.
+    //
+    // The one shape that cannot work is `--extractor <program>` without
+    // `--link-index`: that program's contract is three flags and it is the seam
+    // the tests hand a fake through, so nothing here can make it write a map.
+    if link_index.is_none() && extractor.is_some() {
         return usage(format!(
-            "--link-index <file> is required, and there is no --no-link-index here: \
-             {LINK_INDEX_COST}",
+            "--extractor <program> needs --link-index <file>: the dependency map is written by the \
+             Lean extractor out of the environment it imports, and --extractor names a program \
+             whose interface is `--modules --ir-dir --timings` and nothing else. Either pass a map \
+             (`lean-doc extract --link-index <file>` writes one) or use --extractor-bin, where \
+             this command owns the extractor and derives the map itself. {LINK_INDEX_COST}",
         ));
-    };
+    }
     if max_rounds == 0 {
         return usage("--max-rounds must be at least 1: round 1 is where deletions are folded in");
     }
@@ -393,11 +419,15 @@ pub fn build(args: &[String]) -> Result<(), Failure> {
         });
     }
 
+    let layout = Layout::new(&out);
+    let derived = link_index.is_none();
+    let link_index = absolute(&link_index.unwrap_or_else(|| layout.link_index.clone()));
     run(&Request {
         root,
-        layout: Layout::new(&out),
+        layout,
         libs,
-        link_index: absolute(&link_index),
+        link_index,
+        derived_link_index: derived,
         source_url,
         extractor,
         extractor_args,
@@ -416,7 +446,10 @@ struct Request {
     root: PathBuf,
     layout: Layout,
     libs: Vec<String>,
+    /// The dependency map the pages are rendered against, absolute.
     link_index: PathBuf,
+    /// Whether this run *writes* that file (M5-b) or only reads it.
+    derived_link_index: bool,
     source_url: Option<String>,
     extractor: Option<String>,
     extractor_args: Vec<String>,
@@ -511,7 +544,13 @@ fn run(request: &Request) -> Result<(), Failure> {
     // See this module's heading: everything that could have failed has now
     // succeeded, so the claim "the IR was built from these oleans and the pages
     // from that IR" is true when it is written and not before.
-    let bytes = write_ledger(done.detected, &layout.ledger, &layout.ir, &source_url)?;
+    let bytes = write_ledger(
+        done.detected,
+        &layout.ledger,
+        &layout.ir,
+        &source_url,
+        &request.link_index,
+    )?;
     println!(
         "ledger  {} module(s) -> {} ({bytes} B)",
         done.ledger_modules,
@@ -591,6 +630,10 @@ fn full_generation(
         // about to write (see [`write_ledger`]).
         ir: None,
         source_url,
+        // The map, if there is one yet. On a first run there is not: this
+        // ledger is computed **before** the extraction that writes it, and the
+        // key is filled in from the finished file by [`write_ledger`].
+        link_index: Some(&request.link_index),
         algorithm: &Algorithm::sha256(),
         // The ledger's bytes do not depend on this (M3-a 【実測】); its speed
         // does. One is the pipeline's own choice too.
@@ -757,7 +800,7 @@ fn plan_of(request: &Request, libs: &[String]) -> Result<Plan, Failure> {
     if marker.get("complete") != Some(&serde_json::Value::Bool(true)) {
         return Ok(Plan::Full("the previous run did not finish"));
     }
-    if !layout.carries_a_previous_run() {
+    if !layout.carries_a_previous_run(&request.link_index) {
         return Ok(Plan::Full("the previous run's files are not all there"));
     }
     Ok(Plan::Incremental)
@@ -784,15 +827,21 @@ fn open_extractor(
         });
     }
     Ok(Extractor::Resident(Box::new(Resident::new(
-        crate::pipeline::serve_options(
-            request.extractor_bin.clone(),
-            Some(request.root.clone()),
-            request.lake.clone(),
-            request.jobs,
+        crate::pipeline::serve_options(crate::pipeline::ServeRequest {
+            bin: request.extractor_bin.clone(),
+            target: Some(request.root.clone()),
+            lake: request.lake.clone(),
+            jobs: request.jobs,
             modules_file,
             modules,
-            &request.layout.work,
-        )?,
+            work: &request.layout.work,
+            // M5-b: the resident extractor writes the map when this command owns
+            // it. With `--link-index` it is somebody else's file and is not
+            // overwritten — the command line the M4-d gate ran is unchanged.
+            link_index: request
+                .derived_link_index
+                .then_some(request.link_index.as_path()),
+        })?,
     )?)))
 }
 
@@ -895,9 +944,22 @@ fn write_ledger(
     path: &Path,
     ir: &Path,
     source_url: &str,
+    link_index: &Path,
 ) -> Result<usize, Failure> {
     ledger.extract_key = extract_key(&ledger.target, Some(ir)).map_err(refused)?;
-    ledger.render_key = Some(render_key(source_url));
+    // **The map as it is now, not as `detect` saw it** (M5-b), for exactly the
+    // reason `extractKey` is recomputed here: both keys describe *the tree on
+    // disk*, and after a successful run that is what this run produced. Writing
+    // back the pre-run digest would leave a ledger claiming the pages were
+    // rendered against a map that no longer exists, and the next run would
+    // compare the new map with the old digest and re-render everything, for
+    // ever.
+    ledger.render_key = Some(render_key(
+        source_url,
+        link_index_digest(Some(link_index))
+            .map_err(refused)?
+            .as_deref(),
+    ));
     let body = ledger.to_json();
     write_file(path, &body)?;
     Ok(body.len())

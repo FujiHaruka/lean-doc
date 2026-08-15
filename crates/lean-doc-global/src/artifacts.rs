@@ -51,7 +51,7 @@ use crate::facts::ModuleFacts;
 /// side of the same rule; `tests/global.rs` checks that it does.
 #[must_use]
 pub fn page_path(module: &str) -> String {
-    let mut path = module.replace('.', "/");
+    let mut path = lean_doc_ir::module_path(module);
     path.push_str(".html");
     path
 }

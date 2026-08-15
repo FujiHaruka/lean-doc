@@ -118,7 +118,10 @@ pub const ORPHANS_IN_LOG: usize = 10;
 /// but [`PageRoot`] checks rather than trusts that.
 #[must_use]
 pub fn page_of(module: &str) -> String {
-    let mut path = module.replace('.', "/");
+    // `lean_doc_ir::module_path`, not `replace('.', "/")` (M5-b): a module whose
+    // name needs `«…»` has its page under the unescaped path, and pruning the
+    // wrong path leaves a dead page behind while reporting a deletion.
+    let mut path = lean_doc_ir::module_path(module);
     path.push_str(".html");
     path
 }

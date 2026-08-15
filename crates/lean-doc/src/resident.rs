@@ -161,6 +161,22 @@ pub struct Serve {
     pub modules: Vec<String>,
     /// `--work`. The start-up events file and the unused `--ir-dir` go here.
     pub work: PathBuf,
+    /// Where the server writes the dependency closure's `name -> module` map
+    /// (M5-a's `--link-index`, wired up in M5-b), or `None` to write none.
+    ///
+    /// **It is start-up configuration, not a request field, and that is the
+    /// extractor's shape rather than a choice here**: the serve loop builds every
+    /// request's `cfg` from the start-up one and the request line carries three
+    /// paths (`Extract.lean:2882-2884`), so a map path given here is written once
+    /// per request. Two things make that acceptable rather than merely tolerable.
+    /// The map is derived from the *environment*, which a resident server imports
+    /// once and never reloads, so every round writes the same bytes — M5-a
+    /// measured five runs of the same environment at 8,465,776 B and 5/5
+    /// byte-identical. And the cost is the marginal one: 0.9 s warm on top of an
+    /// extraction that is already several seconds, paid only in rounds that
+    /// extract at all — a run with nothing to extract never starts the server, so
+    /// it writes no map and pays nothing.
+    pub link_index: Option<PathBuf>,
 }
 
 /// A resident extractor and the world it is valid for.
@@ -468,7 +484,11 @@ impl Server {
             .arg("--jobs")
             .arg(serve.jobs.to_string())
             .arg("--ir-dir")
-            .arg(&unused_ir)
+            .arg(&unused_ir);
+        if let Some(link_index) = &serve.link_index {
+            command.arg("--link-index").arg(link_index);
+        }
+        command
             .arg("--serve")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -758,6 +778,7 @@ mod tests {
 
         fn resident(&self) -> Result<Resident, Failure> {
             Resident::new(Serve {
+                link_index: None,
                 bin: self.bin.clone(),
                 lake: self.lake.clone(),
                 target: fs::canonicalize(&self.target).expect("a real directory"),

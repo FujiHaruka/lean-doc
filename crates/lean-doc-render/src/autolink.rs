@@ -62,7 +62,12 @@ pub const PRIVATE_PREFIX: &str = "_private.";
 pub fn module_link(root: &str, module: &str) -> String {
     let mut out = String::with_capacity(root.len() + module.len() + 5);
     out.push_str(root);
-    for (i, part) in module.split('.').enumerate() {
+    // Unescaped, as [`crate::page_path`] is and for the same reason (M5-b): an
+    // href has to reach the file the renderer wrote.
+    for (i, part) in lean_doc_ir::module_components(module)
+        .into_iter()
+        .enumerate()
+    {
         if i > 0 {
             out.push('/');
         }
@@ -77,7 +82,7 @@ pub fn module_link(root: &str, module: &str) -> String {
 /// back through `.././`.
 #[must_use]
 pub fn page_root(module: &str) -> String {
-    let depth = module.split('.').count() - 1;
+    let depth = lean_doc_ir::module_components(module).len() - 1;
     let mut out = String::with_capacity(depth * 3 + 2);
     for _ in 0..depth {
         out.push_str("../");

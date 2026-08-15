@@ -42,6 +42,7 @@
 //!     out: std::path::Path::new("ledger.json"),
 //!     ir: None,
 //!     source_url: "",
+//!     link_index: None,
 //!     algorithm: &Algorithm::sha256(),
 //!     concurrency: 1,
 //!     timings: None,
@@ -64,7 +65,8 @@ pub use detect::{
 pub use impact::{ImpactOptions, ImpactRun, ImpactSummary, Mode, impact};
 pub use ledger::{
     Algorithm, EXTRACTOR_ID, FileEntry, KeySet, LEDGER_SCHEMA, Ledger, ModuleEntry, OLEAN_SUFFIXES,
-    RENDERER_ID, extract_key, hash_module, module_paths, render_key, sha256_hex, sha256_text,
+    RENDERER_ID, extract_key, hash_module, link_index_digest, module_paths, render_key, sha256_hex,
+    sha256_text,
 };
 pub use merge::{
     DepMapRecord, JsonObject, MergeOptions, MergeSummary, VerifyReport, merge, verify,

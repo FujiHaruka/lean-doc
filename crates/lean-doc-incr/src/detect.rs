@@ -40,8 +40,8 @@ use lean_doc_ir::cmp_utf16;
 use serde::Serialize;
 
 use crate::ledger::{
-    Algorithm, LEDGER_SCHEMA, Ledger, ModuleEntry, extract_key, hash_module, map_pool,
-    read_to_string, render_key,
+    Algorithm, LEDGER_SCHEMA, Ledger, ModuleEntry, extract_key, hash_module, link_index_digest,
+    map_pool, read_to_string, render_key,
 };
 
 /// What `build` needs to know.
@@ -63,6 +63,11 @@ pub struct BuildOptions<'a> {
     /// `--source-url`. Empty means the key is absent, which is loud rather than
     /// silent: the next `check` that passes one will re-render everything.
     pub source_url: &'a str,
+    /// The dependency map the pages are rendered against; its bytes join the
+    /// render key ([`render_key`], M5-b). `None`, and a path that does not
+    /// exist, both leave the key absent — on a first `build` the ledger is
+    /// computed *before* the extraction that writes the map.
+    pub link_index: Option<&'a Path>,
     pub algorithm: &'a Algorithm,
     pub concurrency: usize,
     pub timings: Option<&'a Path>,
@@ -94,7 +99,10 @@ pub fn build_ledger(options: &BuildOptions<'_>) -> Result<BuildSummary, Error> {
     let lib_dir = format!("{target}/.lake/build/lib/lean");
 
     let extract = extract_key(target, options.ir)?;
-    let render = render_key(options.source_url);
+    let render = render_key(
+        options.source_url,
+        link_index_digest(options.link_index)?.as_deref(),
+    );
     let key_done = started.elapsed();
 
     let hashed = map_pool(options.modules, options.concurrency, |module| {
@@ -176,6 +184,12 @@ pub struct CheckOptions<'a> {
     pub modules: Option<&'a [String]>,
     pub ir: Option<&'a Path>,
     pub source_url: &'a str,
+    /// The dependency map the pages will be rendered against (M5-b). See
+    /// [`BuildOptions::link_index`] and [`render_key`]: this is the half of the
+    /// question that can be answered *before* the run — "did somebody hand us a
+    /// different map". The half that cannot is the map this run's own extraction
+    /// rewrites, and it is checked after the rounds by `crate::pipeline`.
+    pub link_index: Option<&'a Path>,
     pub concurrency: usize,
     /// The re-extract set, one module per line. Empty file, not a blank line.
     pub changed_out: Option<&'a Path>,
@@ -264,7 +278,10 @@ pub fn check_ledger(options: &CheckOptions<'_>) -> Result<CheckSummary, Error> {
     let algorithm = options.algorithm.unwrap_or(&ledger.algorithm).clone();
 
     let extract = extract_key(&ledger.target, options.ir)?;
-    let render = render_key(options.source_url);
+    let render = render_key(
+        options.source_url,
+        link_index_digest(options.link_index)?.as_deref(),
+    );
     let key_done = started.elapsed();
 
     // L1 in two halves (see [`extract_key`]): one invalidates the IR, the other

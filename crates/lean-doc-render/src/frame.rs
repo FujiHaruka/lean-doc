@@ -40,7 +40,9 @@ use crate::{break_within, module_link};
 pub fn module_source_url(base: &str, module: &str) -> String {
     let mut out = String::with_capacity(base.len() + module.len() + 6);
     out.push_str(base);
-    for part in module.split('.') {
+    // The source file's path, so the components are the unescaped ones (M5-b):
+    // `Alpha.«Odd-Name»` lives in `Alpha/Odd-Name.lean`.
+    for part in lean_doc_ir::module_components(module) {
         out.push('/');
         out.push_str(part);
     }

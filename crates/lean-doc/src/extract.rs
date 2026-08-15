@@ -71,6 +71,7 @@ pub fn extract(args: &[String]) -> Result<(), Failure> {
     let mut ir_dir: Option<PathBuf> = None;
     let mut timings: Option<PathBuf> = None;
     let mut events: Option<PathBuf> = None;
+    let mut link_index: Option<PathBuf> = None;
     let mut jobs: usize = 1;
     let mut bin: Option<PathBuf> = None;
     let mut target: Option<PathBuf> = None;
@@ -95,6 +96,13 @@ pub fn extract(args: &[String]) -> Result<(), Failure> {
                     .parse()
                     .map_err(|_| Failure::Usage(format!("--jobs wants a number, not {raw}")))?;
             }
+            // M5-b. `Extract.lean`'s own flag (M5-a): the dependency closure's
+            // `name -> module` map, written out of the environment this process
+            // has imported for the extraction anyway. Optional here — the map is
+            // a whole-package artefact and an extraction is often a subset — but
+            // when it is asked for it costs 0.9 s warm on top of the run, not a
+            // second 15-second environment load.
+            "--link-index" => link_index = Some(value("--link-index")?.into()),
             "--extractor-bin" => bin = Some(value("--extractor-bin")?.into()),
             "--target" => target = Some(value("--target")?.into()),
             "--lake" => lake = Some(value("--lake")?.into()),
@@ -217,6 +225,22 @@ pub fn extract(args: &[String]) -> Result<(), Failure> {
             ),
         });
     }
+    // The same rule for the map, which is 8.5 MB on the measurement target and
+    // is written by the same child with the same working directory.
+    if let Some(path) = &link_index {
+        let resolved = resolve(path);
+        if resolved.starts_with(&target) {
+            return Err(Failure::Refused {
+                code: 3,
+                message: format!(
+                    "--link-index {} is inside --target {}: the package being documented is \
+                     opened read-only and nothing is ever written into it",
+                    resolved.display(),
+                    target.display(),
+                ),
+            });
+        }
+    }
 
     // The prototype's default (`extract-once.sh:52`), kept: `--timings` and its
     // events file travel together, and `incremental` deliberately passes only
@@ -246,6 +270,7 @@ pub fn extract(args: &[String]) -> Result<(), Failure> {
     fs::create_dir_all(&ir_dir)
         .map_err(|source| Failure::Failed(format!("{}: {source}", ir_dir.display())))?;
 
+    let link_index = link_index.as_deref().map(absolute);
     let mut command = Command::new(&lake);
     command
         .current_dir(&target)
@@ -257,7 +282,15 @@ pub fn extract(args: &[String]) -> Result<(), Failure> {
         .arg("--jobs")
         .arg(jobs.to_string())
         .arg("--ir-dir")
-        .arg(&ir_dir)
+        .arg(&ir_dir);
+    if let Some(path) = &link_index {
+        if let Some(parent) = path.parent().filter(|dir| !dir.as_os_str().is_empty()) {
+            fs::create_dir_all(parent)
+                .map_err(|source| Failure::Failed(format!("{}: {source}", parent.display())))?;
+        }
+        command.arg("--link-index").arg(path);
+    }
+    command
         // `> /dev/null`, as the prototype does. The extractor's stdout is a
         // human-readable phase report; the machine-readable copy of the same
         // numbers is the events file, which is what the timings are folded from.

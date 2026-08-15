@@ -357,14 +357,62 @@ pub fn extract_key(target: &str, ir: Option<&Path>) -> Result<KeySet, Error> {
 /// stands in for the renderer's configuration that has no flag of its own;
 /// everything that does have a flag and reaches the output bytes belongs here
 /// beside it.
+///
+/// # `linkIndex` — the hole M4-d left, closed in M5-b 【実測】
+///
+/// The third input is the dependency map. Until M5 it was a file somebody
+/// handed the renderer, derived outside the product from a doc-gen4 site, and
+/// the plan recorded the consequence rather than fixing it: with the same IR and
+/// the same `--source-url`, **having the map or not moves 150 of the target's
+/// 432 pages' bytes** (plan 決定 4), and nothing in the ledger named it — so a
+/// run whose only changed input was the map re-rendered nothing and reported
+/// success. `--full` was the escape hatch.
+///
+/// M5-a made the map something the product derives from the environment the
+/// extractor has already imported, which is what gives it an identity worth
+/// recording. The identity is the **SHA-256 of the file's bytes**, not its path
+/// and not its size: the bytes are what the renderer reads, so two maps that
+/// hash the same produce the same pages whoever wrote them and wherever they
+/// came from. `None` — no map at all — leaves the key absent, and
+/// [`KeySet::diff`] counts an appearing or vanishing key as a change, which is
+/// the loud direction.
+///
+/// The cost is one hash of 8.5 MB per `detect`, ~11 ms with the `asm` feature
+/// this crate already needs for the olean hashes.
 #[must_use]
-pub fn render_key(source_url: &str) -> KeySet {
+pub fn render_key(source_url: &str, link_index: Option<&str>) -> KeySet {
     let mut key = KeySet::new();
     key.insert("renderer", RENDERER_ID);
     if !source_url.is_empty() {
         key.insert("sourceUrl", source_url.trim_end_matches('/'));
     }
+    if let Some(digest) = link_index {
+        key.insert("linkIndex", digest);
+    }
     key
+}
+
+/// The identity [`render_key`] records for a dependency map: SHA-256 of its
+/// bytes.
+///
+/// `Ok(None)` when the file is not there, which is a real state and not an
+/// error — a first `build` computes the ledger's hashes *before* the extraction
+/// that writes the map, and `lean-doc render --no-link-index` never has one. Any
+/// other I/O failure is an error: a map that exists and cannot be read is not a
+/// map that is absent, and treating the two alike is how a key goes missing
+/// without a word.
+pub fn link_index_digest(path: Option<&Path>) -> Result<Option<String>, Error> {
+    let Some(path) = path else {
+        return Ok(None);
+    };
+    match fs::read(path) {
+        Ok(bytes) => Ok(Some(sha256_hex(&bytes))),
+        Err(source) if source.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(source) => Err(Error::Io {
+            path: path.to_owned(),
+            source,
+        }),
+    }
 }
 
 /// `String(value)` for the two values read out of `index.json`.
@@ -387,7 +435,10 @@ fn js_string(value: Option<&serde_json::Value>) -> String {
 /// Lean's module system for that module.
 #[must_use]
 pub fn module_paths(lib_dir: &str, module: &str) -> Vec<String> {
-    let base = format!("{lib_dir}/{}", module.replace('.', "/"));
+    // The olean is at the source's path, so the components are unescaped
+    // (M5-b): `Alpha.«Odd-Name»` is built from `Alpha/Odd-Name.lean` into
+    // `Alpha/Odd-Name.olean`.
+    let base = format!("{lib_dir}/{}", lean_doc_ir::module_path(module));
     OLEAN_SUFFIXES
         .iter()
         .map(|suffix| format!("{base}{suffix}"))

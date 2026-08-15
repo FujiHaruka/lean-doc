@@ -191,10 +191,18 @@ pub fn page_html(
 
 /// Where a module's page goes under the site root: its components as
 /// directories (`render.ts:2122`).
+///
+/// The components are the **unescaped** ones (M5-b): doc-gen4 builds this path
+/// out of `Name.toString (escape := false)` (`Output/Base.lean:188`), so a
+/// module Lean spells `Alpha.«Odd-Name»` has its page at `Alpha/Odd-Name.html`.
+/// For every module name that is a plain identifier — all 432 of the
+/// measurement target's — this is `module.split('.')` unchanged.
 #[must_use]
 pub fn page_path(module: &str) -> std::path::PathBuf {
     let mut path = std::path::PathBuf::new();
-    let mut parts = module.split('.').peekable();
+    let mut parts = lean_doc_ir::module_components(module)
+        .into_iter()
+        .peekable();
     while let Some(part) = parts.next() {
         if parts.peek().is_some() {
             path.push(part);

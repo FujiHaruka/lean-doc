@@ -56,6 +56,7 @@
 
 mod error;
 mod model;
+pub mod name;
 mod reader;
 mod span;
 pub mod utf16;
@@ -63,6 +64,10 @@ pub mod utf16;
 pub use error::{Error, Result};
 pub use model::{
     Decl, DepMap, DepMapEntry, Index, IndexEntry, Member, ModuleDoc, ModuleFile, Ref, Tactic,
+};
+pub use name::{
+    escape_component, escape_module, is_id_first, is_id_rest, module_components, module_path,
+    unescape_component,
 };
 pub use reader::{IrTree, MIN_SCHEMA_VERSION, read_module_file};
 pub use span::{Span, SpanKind};

@@ -332,7 +332,7 @@ fn observe(run: &Run<'_>) -> BTreeSet<&'static str> {
                 // The key sets are the *inputs*; the comparison of them is made
                 // here with a plain map union rather than with KeySet::diff.
                 let want_extract = extract_key(&ledger.target, options.ir).ok();
-                let want_render = render_key(options.source_url);
+                let want_render = render_key(options.source_url, None);
                 if let Some(want) = &want_extract {
                     observe_key_diff(&ledger.extract_key, want, &mut fire);
                 }
@@ -746,6 +746,7 @@ fn the_corpus_matches_the_prototype() {
         let out = work.path.join(format!("ledger-{name}.json"));
         let timings = work.path.join(format!("ledger-{name}.timings.json"));
         let options = BuildOptions {
+            link_index: None,
             modules,
             target,
             out: &out,
@@ -835,6 +836,7 @@ fn the_corpus_matches_the_prototype() {
         let render_all = work.path.join(format!("{name}-render-all.txt"));
         let timings = work.path.join(format!("{name}-timings.json"));
         let options = CheckOptions {
+            link_index: None,
             ledger,
             algorithm: None,
             modules,
@@ -1034,6 +1036,7 @@ fn the_curated_cases_cover_what_the_package_does_not() {
     let modules = repo.module_names();
     let ir = repo.ir();
     let (result, fired) = run_build(&BuildOptions {
+        link_index: None,
         modules: &modules,
         target: &repo.target(),
         out: &out,
@@ -1318,6 +1321,7 @@ fn curated_module_branches() -> BTreeSet<&'static str> {
     // ledger knows is gone. Nothing else in the CLI can say that.
     let removed = repo.dir.path.join("empty-removed.txt");
     let (result, fired) = run_check(&CheckOptions {
+        link_index: None,
         ledger: &ledger_path,
         algorithm: None,
         modules: Some(&[]),
@@ -1375,6 +1379,7 @@ fn curated_module_branches() -> BTreeSet<&'static str> {
     // A check that asks for none of the four files: the sets are still
     // computed, and nothing is written.
     let (result, fired) = run_check(&CheckOptions {
+        link_index: None,
         ledger: &ledger_path,
         algorithm: None,
         modules: None,
@@ -1403,6 +1408,7 @@ fn curated_module_branches() -> BTreeSet<&'static str> {
     names.push("Pkg.Ghost".to_owned());
     let out = repo.dir.path.join("refused.json");
     let (result, fired) = run_build(&BuildOptions {
+        link_index: None,
         modules: &names,
         target: &repo.target(),
         out: &out,
@@ -1439,6 +1445,7 @@ fn curated_module_branches() -> BTreeSet<&'static str> {
     let changed = repo.dir.path.join("astral-changed.txt");
     let modules = repo.module_names();
     let (result, fired) = run_check(&CheckOptions {
+        link_index: None,
         ledger: &path,
         algorithm: None,
         modules: Some(&modules),
@@ -1573,6 +1580,7 @@ impl FakeRepo {
         modules.extend_from_slice(extra);
         let out = self.dir.path.join("built.json");
         build_ledger(&BuildOptions {
+            link_index: None,
             modules: &modules,
             target: &self.target(),
             out: &out,
@@ -1594,6 +1602,7 @@ impl FakeRepo {
         let modules = self.module_names();
         let out = self.dir.path.join("run.json");
         run_build(&BuildOptions {
+            link_index: None,
             modules: &modules,
             target: &self.target(),
             out: &out,
@@ -1621,6 +1630,7 @@ impl FakeRepo {
         fs::write(&path, ledger.to_json()).expect("writable");
         let out = self.dir.path.join("moved-out.txt");
         let (result, fired) = run_check(&CheckOptions {
+            link_index: None,
             ledger: &path,
             algorithm: None,
             modules: Some(&[]),
@@ -1638,6 +1648,7 @@ impl FakeRepo {
 
     fn check_options<'a>(&'a self, ledger: &'a Path, render_all: &'a Path) -> CheckOptions<'a> {
         CheckOptions {
+            link_index: None,
             ledger,
             algorithm: None,
             modules: None,

@@ -401,6 +401,10 @@ fn observe(run: &Report) -> BTreeSet<&'static str> {
         "--count-reads",
         "--module",
         "--no-link-index",
+        // M5-b: not the prototype's, but refused on the same branch — the map
+        // is written by the Lean extractor and `--extractor <program>` has no
+        // room to be asked for one.
+        "--make-link-index",
     ] {
         if run.flag(retired) {
             fire("retiredFlagRefused");
@@ -1147,6 +1151,12 @@ impl Live {
             &self.ir.display().to_string(),
             "--source-url",
             URL,
+            // M5-b: the dependency map's bytes are in `renderKey`, so the seed
+            // has to name the same map the rounds render against. Without it
+            // every round would see the key appear and re-render everything —
+            // correctly, and uselessly, for ever.
+            "--link-index",
+            &self.lidx.display().to_string(),
             "--out",
             &self.ledger.display().to_string(),
         ]);
@@ -2077,8 +2087,13 @@ fn case_command_line() -> BTreeSet<&'static str> {
     let mut live = Live::setup("command-line", &world);
     let mut covered: BTreeSet<&'static str> = BTreeSet::new();
 
-    let retired: [(&[&str], &str); 8] = [
+    let retired: [(&[&str], &str); 9] = [
         (&["--jobs", "4"], "--extractor-arg"),
+        // M5-b. Not a retired flag of the prototype but a flag of `--serve`,
+        // refused here for the same reason `--jobs` is: the map is written by
+        // the Lean extractor, and `--extractor <program>`'s interface is three
+        // flags — the seam these tests hand a fake through.
+        (&["--make-link-index"], "flag of --serve"),
         (&["--l3-1", "off"], "wrong site"),
         (&["--global", "old"], "--state is required"),
         (&["--serve-dir", "/tmp/x"], "stage 6a"),

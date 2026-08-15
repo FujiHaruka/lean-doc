@@ -941,10 +941,22 @@ fn the_command_line_is_checked() {
     let cases: [(&[&str], i32, &str); 9] = [
         (&["build"], 2, "--root <repo> is required"),
         (&["build", "--root", &repo], 2, "--out <dir> is required"),
+        // M5-b: `--link-index` is optional now — left out, the map is
+        // <out>/link-index.lidx and the resident extractor writes it. The one
+        // shape that cannot work is a `--extractor <program>`, whose interface
+        // has no room to ask for one.
         (
-            &["build", "--root", &repo, "--out", &out],
+            &[
+                "build",
+                "--root",
+                &repo,
+                "--out",
+                &out,
+                "--extractor",
+                "/bin/sh",
+            ],
             2,
-            "--link-index <file> is required",
+            "--extractor <program> needs --link-index <file>",
         ),
         (
             &[
@@ -994,7 +1006,11 @@ fn the_command_line_is_checked() {
         (
             &["build", "--root", &repo, "--out", &out, "--no-link-index"],
             2,
-            "150 of 432 pages",
+            // The refusal's own words, not the usage text's: this assertion used
+            // to be satisfied by a line of `USAGE` that happened to carry the
+            // same phrase, so editing the help text broke a test about a
+            // refusal (M5-b).
+            "150 of the target package's 432 pages",
         ),
         (
             &[
@@ -1123,6 +1139,121 @@ fn git_init(repo: &Path, remote: &str) {
     run(&["remote", "add", "origin", remote]);
     run(&["add", "-A"]);
     run(&["commit", "-q", "-m", "the fixture"]);
+}
+
+/// **M5-b: the dependency map is in `renderKey`, and a map that moved
+/// re-renders every page.**
+///
+/// M4-d left this as a named hole (plan §7): the key was `renderer` +
+/// `sourceUrl`, so a run whose IR was unchanged and whose map was not went
+/// undetected — and the map reaches 150 of the measurement target's 432 pages'
+/// bytes 【実測, plan 決定 4】. `--full` was the escape hatch. Since M5-a the
+/// product derives the map, so it has an identity worth recording, and the
+/// identity is the file's SHA-256.
+#[test]
+fn a_moved_dependency_map_re_renders_every_page() {
+    let live = Live::new("build-link-index-key");
+
+    let first = live.build(&[]);
+    assert_eq!(code(&first), 0, "{}", stderr(&first));
+    let digest = sha256_of(&live.lidx);
+    assert_eq!(
+        live.ledger()["renderKey"]["linkIndex"],
+        json!(digest),
+        "the ledger records the map the pages were rendered against",
+    );
+    let before = tree(&live.site());
+
+    // The same package, the same IR, a different map. Nothing else moves.
+    write(
+        &live.lidx,
+        b"#lidx1\n@Dep.Home\nDep.Home\n\tDep.elsewhere\n\tDep.Home.other\n\tDep.Home.third\n",
+    );
+    let second = live.build(&[]);
+    assert_eq!(code(&second), 0, "{}", stderr(&second));
+    let log = stdout(&second);
+    assert!(log.contains("0 to re-extract"), "{log}");
+    assert!(
+        log.contains("render key moved (linkIndex)"),
+        "detect has to name the key that moved: {log}",
+    );
+    assert!(
+        log.contains("impact  mode all"),
+        "a moved render key overrides --mode (plan §6, constraint 4): {log}",
+    );
+    assert_eq!(
+        live.extractions(),
+        vec![3],
+        "a moved map re-extracts nothing: it cannot change the IR",
+    );
+    assert_eq!(
+        live.ledger()["renderKey"]["linkIndex"],
+        json!(sha256_of(&live.lidx)),
+        "and the new map is what the next run compares against",
+    );
+
+    // Three module pages were rewritten; this fixture's map reaches none of
+    // their bytes, so the tree is the same tree. **The gate is the decision,
+    // not the diff** — what M4-d could not do was notice.
+    assert_eq!(
+        before.keys().collect::<Vec<_>>(),
+        tree(&live.site()).keys().collect::<Vec<_>>()
+    );
+
+    // A third run with the map put back where it was is a change again, in the
+    // other direction: `KeySet::diff` is a union, so there is no "restored"
+    // state that compares equal to the wrong thing.
+    write_lidx(&live.lidx);
+    let third = live.build(&[]);
+    assert_eq!(code(&third), 0, "{}", stderr(&third));
+    assert!(
+        stdout(&third).contains("render key moved (linkIndex)"),
+        "{}",
+        stdout(&third),
+    );
+    assert_eq!(live.ledger()["renderKey"]["linkIndex"], json!(digest));
+}
+
+/// A map that is **gone** is answered with a full generation, not with a
+/// refusal and not with a subset render (M5-b).
+///
+/// An incremental run renders a subset, so a round that could not read the map
+/// would leave pages whose links are missing mixed into a tree of pages that
+/// still have theirs — a site that is wrong in a way no count reports. A full
+/// generation writes every page, so it is the answer that cannot be half-right.
+#[test]
+fn a_missing_dependency_map_forces_a_full_generation() {
+    let live = Live::new("build-link-index-gone");
+    assert_eq!(code(&live.build(&[])), 0);
+    assert_eq!(live.extractions(), vec![3]);
+
+    fs::remove_file(&live.lidx).expect("the map was there");
+    let again = live.build(&[]);
+    // The renderer still needs the file, so this run does not succeed — but it
+    // fails having chosen to regenerate everything, which is the decision under
+    // test. A run that had chosen `incremental` would have rendered a subset
+    // and reported success.
+    let log = stdout(&again);
+    assert!(
+        log.contains("plan    full generation (the previous run's files are not all there)"),
+        "{log}",
+    );
+
+    // Put it back and the next run continues incrementally again.
+    write_lidx(&live.lidx);
+    let restored = live.build(&[]);
+    assert_eq!(code(&restored), 0, "{}", stderr(&restored));
+    assert!(
+        stdout(&restored).contains("plan    full generation"),
+        "{}",
+        stdout(&restored)
+    );
+}
+
+/// SHA-256 of a file, lower-case hex — the same value `renderKey.linkIndex`
+/// carries.
+fn sha256_of(path: &Path) -> String {
+    lean_doc_incr::sha256_hex(&fs::read(path).expect("the file is readable"))
 }
 
 fn git_head(repo: &Path) -> String {

@@ -55,7 +55,7 @@ mod pipeline;
 mod resident;
 
 const USAGE: &str = "\
-usage: lean-doc build  --root <repo> --out <dir> --link-index <file>
+usage: lean-doc build  --root <repo> --out <dir> [--link-index <file>]
                        [--lib <Name>]... [--source-url <url>] [--full]
                        (--extractor-bin <path> [--lake <path>] [--jobs <n>]
                         | --extractor <program> [--extractor-arg <arg>]...)
@@ -63,7 +63,7 @@ usage: lean-doc build  --root <repo> --out <dir> --link-index <file>
                        [--timings <file>]
        lean-doc incremental --ir <dir> --pages <dir> --ledger <file> --work <dir>
                        --modules <file> --source-url <url> --link-index <file>
-                       --state <dir>
+                       --state <dir> [--make-link-index]
                        (--extractor <program> [--extractor-arg <arg>]...
                         | --serve --extractor-bin <path> --target <repo>
                           [--lake <path>] [--jobs <n>])
@@ -72,7 +72,7 @@ usage: lean-doc build  --root <repo> --out <dir> --link-index <file>
        lean-doc modules --root <repo> [--lib <Name>]... [--out <file>]
        lean-doc extract --modules <file> --ir-dir <dir> --timings <file>
                        [--extractor-bin <path>] [--target <repo>] [--lake <path>]
-                       [--events <file>] [--jobs <n>]
+                       [--events <file>] [--jobs <n>] [--link-index <file>]
        lean-doc site   --ir <dir> --out <dir> --source-url <url>
                        (--link-index <file> | --no-link-index)
                        [--state <dir>] [--timings <file>]
@@ -84,10 +84,11 @@ usage: lean-doc build  --root <repo> --out <dir> --link-index <file>
                        [--delta-json <file>] [--timings <file>]
        lean-doc ledger build --modules <file> --target <repo> --out <ledger.json>
                        [--algorithm sha256|lake] [--concurrency <n>]
-                       [--ir <dir>] [--source-url <url>] [--timings <file>]
+                       [--ir <dir>] [--source-url <url>] [--link-index <file>]
+                       [--timings <file>]
        lean-doc ledger check --ledger <ledger.json> [--modules <file>]
                        [--algorithm sha256|lake] [--concurrency <n>] [--ir <dir>]
-                       [--source-url <url>] [--changed-out <file>]
+                       [--source-url <url>] [--link-index <file>] [--changed-out <file>]
                        [--removed-out <file>] [--render-all-out <file>]
                        [--timings <file>]
        lean-doc ledger touch --ledger <ledger.json> --module <Module> [--out <file>]
@@ -110,8 +111,9 @@ usage: lean-doc build  --root <repo> --out <dir> --link-index <file>
                  ledger. Required, with no default — <root>/.lake/build/doc is
                  doc-gen4's own output tree — and it may not be inside --root
   --full         (`build`) regenerate everything, ignoring what is under --out.
-                 The escape hatch for an input no ledger key covers: a changed
-                 --link-index is one (150 of 432 pages, plan 決定 4)
+                 The escape hatch for an input no ledger key covers. The
+                 dependency map used to be one; since M5-b its bytes are in
+                 renderKey, so a map that moved re-renders on its own.
   --ir           an IR tree written by the extractor (schema 4)
   --ir-dir       (`extract`) where the extractor writes that tree. Required and
                  with no default: the extractor's own default was one session's
@@ -119,7 +121,16 @@ usage: lean-doc build  --root <repo> --out <dir> --link-index <file>
   --pages        where the pages go; directories are created
   --source-url   https://host/owner/repo/blob/<40-hex-rev>. `incremental`
                  checks the 40 hex digits; `render` and `site` do not.
-  --link-index   the dependency closure's name -> module map (.lidx)
+  --link-index   the dependency closure's name -> module map (.lidx). Its
+                 SHA-256 is part of renderKey: a map that moved re-renders every
+                 page (150 of the target's 432 change bytes, plan 決定 4).
+                 For `build` it is optional — left out, the map is this
+                 command's own <out>/link-index.lidx, written by the extractor
+                 from the environment it imported anyway (M5-a). Given, it is an
+                 input and is never written to. For `extract` it asks the
+                 extractor to write one.
+  --make-link-index  (`incremental --serve`) the resident extractor writes
+                 --link-index instead of reading it
   --work         (`incremental`) the round's scratch directory. Everything in
                  it is a diagnostic: the pipeline writes it and reads none of
                  it back.
@@ -625,6 +636,7 @@ fn ledger(args: &[String]) -> Result<(), Failure> {
     let mut ledger: Option<PathBuf> = None;
     let mut ir: Option<PathBuf> = None;
     let mut source_url = String::new();
+    let mut link_index: Option<PathBuf> = None;
     let mut algorithm: Option<Algorithm> = None;
     let mut concurrency: usize = 1;
     let mut module: Option<String> = None;
@@ -651,6 +663,10 @@ fn ledger(args: &[String]) -> Result<(), Failure> {
             "--ledger" => ledger = Some(value("--ledger")?.into()),
             "--ir" => ir = Some(value("--ir")?.into()),
             "--source-url" => source_url = value("--source-url")?,
+            // M5-b: the dependency map joins the render key, so `ledger build`
+            // and `ledger check` have to be able to name it. Absent, and a path
+            // that does not exist, both leave the key out.
+            "--link-index" => link_index = Some(value("--link-index")?.into()),
             "--algorithm" => algorithm = Some(Algorithm::new(value("--algorithm")?)),
             "--concurrency" => {
                 let raw = value("--concurrency")?;
@@ -686,6 +702,7 @@ fn ledger(args: &[String]) -> Result<(), Failure> {
                 out: &out,
                 ir: ir.as_deref(),
                 source_url: &source_url,
+                link_index: link_index.as_deref(),
                 algorithm: &algorithm,
                 concurrency,
                 timings: timings.as_deref(),
@@ -715,6 +732,7 @@ fn ledger(args: &[String]) -> Result<(), Failure> {
                 modules: names.as_deref(),
                 ir: ir.as_deref(),
                 source_url: &source_url,
+                link_index: link_index.as_deref(),
                 concurrency,
                 changed_out: changed_out.as_deref(),
                 removed_out: removed_out.as_deref(),

@@ -140,8 +140,8 @@ use std::time::Instant;
 use lean_doc_global::{GlobalOptions, build_global};
 use lean_doc_incr::{
     CheckOptions, ImpactOptions, Ledger, MergeOptions, Mode, OwnershipOptions, PruneOptions,
-    check_ledger, impact as run_impact, merge as run_merge, ownership as run_ownership,
-    prune as run_prune, read_module_list,
+    check_ledger, impact as run_impact, link_index_digest, merge as run_merge,
+    ownership as run_ownership, prune as run_prune, read_module_list,
 };
 use lean_doc_ir::sort_utf16;
 use lean_doc_render::{ModuleSet, RenderOptions, render_site};
@@ -368,6 +368,13 @@ pub fn run_incremental(
     let work = Work::new(options.work);
     create_dir(options.work)?;
 
+    // The dependency map's identity **before the rounds**, so that the rewrite
+    // one of them may perform can be seen (M5-b). `detect` below compares this
+    // same value against the ledger's; what it cannot compare is a map that does
+    // not exist yet, and from M5-b the ordinary case is that this run's own
+    // extraction writes it.
+    let map_before = link_index_digest(Some(options.link_index)).map_err(refused)?;
+
     // The global name -> module map **as it stands before this run**. Snapshotted
     // rather than recomputed, because step 6 overwrites it in place. See the
     // module heading: taking it later makes every delta empty.
@@ -395,6 +402,11 @@ pub fn run_incremental(
         modules: Some(&options.modules),
         ir: Some(options.ir),
         source_url: options.source_url,
+        // M5-b. The half of "did the dependency map move" that can be answered
+        // here: somebody handed this run a different `--link-index` than the one
+        // the ledger records. The other half — the map this run's own extractor
+        // is about to rewrite — is [`map_before`] / the check after the rounds.
+        link_index: Some(options.link_index),
         // The ledger's bytes do not depend on this (M3-a 【実測】); its speed
         // does, and a flag for it belongs with the rest of M4's tuning.
         concurrency: 1,
@@ -582,7 +594,28 @@ pub fn run_incremental(
     // Constraint 4: a moved render key is the one page set that does not follow
     // from any changed module — nothing was re-extracted, yet every page is
     // stale — so it overrides `--mode` rather than widening it.
-    let mode = if check.render_all() {
+    //
+    // **And so is a dependency map this run rewrote** 【M5-b】. `detect` compared
+    // the map as it stood at the head of the run; from M5-b the extractor writes
+    // it, so the map the renderer is about to read may not be the one `detect`
+    // saw. The comparison therefore happens twice, at the two moments its input
+    // exists: once in `detect` (a map somebody else changed) and once here (a map
+    // this run changed). Both answers are the same kind of answer — every page's
+    // links can have moved — so both land on [`Mode::All`].
+    //
+    // Doing it only in `detect` would be worse than not doing it: the ledger
+    // would record the *new* map, the next run would compare new against new and
+    // find nothing, and the staleness would be permanent and silent.
+    let map_after = link_index_digest(Some(options.link_index)).map_err(refused)?;
+    let map_moved = map_after != map_before;
+    if map_moved {
+        eprintln!(
+            "  render-all linkIndex: the dependency map moved during this run ({} -> {})",
+            digest_or_none(map_before.as_deref()),
+            digest_or_none(map_after.as_deref()),
+        );
+    }
+    let mode = if check.render_all() || map_moved {
         for reason in &check.render_key_changed {
             eprintln!("  render-all renderKey:{reason}");
         }
@@ -747,6 +780,7 @@ pub fn incremental(args: &[String]) -> Result<(), Failure> {
     let mut modules: Option<PathBuf> = None;
     let mut source_url: Option<String> = None;
     let mut link_index: Option<PathBuf> = None;
+    let mut make_link_index = false;
     let mut state: Option<PathBuf> = None;
     let mut extractor: Option<String> = None;
     let mut extractor_args: Vec<String> = Vec::new();
@@ -775,6 +809,11 @@ pub fn incremental(args: &[String]) -> Result<(), Failure> {
             "--modules" => modules = Some(value("--modules")?.into()),
             "--source-url" => source_url = Some(value("--source-url")?),
             "--link-index" => link_index = Some(value("--link-index")?.into()),
+            // M5-b. Without it `--link-index` names an input; with it the
+            // resident extractor **writes** that file out of the environment it
+            // has imported anyway (M5-a), and the file is an output this run
+            // produces before it renders against it.
+            "--make-link-index" => make_link_index = true,
             "--state" => state = Some(value("--state")?.into()),
             "--extractor" => extractor = Some(value("--extractor")?),
             "--extractor-arg" => extractor_args.push(value("--extractor-arg")?),
@@ -911,6 +950,22 @@ pub fn incremental(args: &[String]) -> Result<(), Failure> {
              resident path and it uses --extractor-bin, not a wrapper",
         );
     }
+    // **A flag of `--serve` only** 【判断, M5-b】, and for the same reason
+    // `--jobs` is: the map is written by the Lean extractor, and the only
+    // extractor whose command line this command spells is the resident one.
+    // `--extractor <program>`'s contract is three flags (`--modules --ir-dir
+    // --timings`) and it is the seam the pipeline's tests hand a fake through;
+    // adding a fourth would break `stage7g/extract-once.sh`, which is the
+    // program the M3-d3 and M4-b recordings were taken with.
+    if make_link_index && !serve {
+        return usage(
+            "--make-link-index is a flag of --serve: the dependency map is written by the Lean \
+             extractor out of the environment it imported for the extraction (M5-a), and --serve \
+             is the path where this command spells that command line. Behind --extractor, the \
+             program is the one that decides — `lean-doc extract --link-index <file>` writes it — \
+             and --link-index here names the file it wrote",
+        );
+    }
     if !serve {
         for flag in ["--extractor-bin", "--target", "--lake"] {
             let given = match flag {
@@ -980,15 +1035,16 @@ pub fn incremental(args: &[String]) -> Result<(), Failure> {
             program,
             args: extractor_args,
         },
-        None => Extractor::Resident(Box::new(Resident::new(serve_options(
-            extractor_bin,
+        None => Extractor::Resident(Box::new(Resident::new(serve_options(ServeRequest {
+            bin: extractor_bin,
             target,
             lake,
             jobs,
-            &modules,
-            &module_list,
-            &work,
-        )?)?)),
+            modules_file: &modules,
+            modules: &module_list,
+            work: &work,
+            link_index: make_link_index.then_some(link_index.as_path()),
+        })?)?)),
     };
     let outcome = run_incremental(
         &Incremental {
@@ -1031,15 +1087,33 @@ pub fn incremental(args: &[String]) -> Result<(), Failure> {
 /// PATH, and elan's shim under that name is what picks the toolchain the target
 /// pins, so `~/.elan/bin/lake` would be the more specific and the more fragile of
 /// the two. The variable names are the prototype's (`serve-ctl.sh:48-50`).
-pub fn serve_options(
-    bin: Option<PathBuf>,
-    target: Option<PathBuf>,
-    lake: Option<PathBuf>,
-    jobs: usize,
-    modules_file: &Path,
-    modules: &[String],
-    work: &Path,
-) -> Result<Serve, Failure> {
+pub struct ServeRequest<'a> {
+    /// `--extractor-bin`, or `$EXTRACT_BIN`.
+    pub bin: Option<PathBuf>,
+    /// `--target`, or `$TARGET_REPO`.
+    pub target: Option<PathBuf>,
+    /// `--lake`, or `$LAKE`, or the name on PATH.
+    pub lake: Option<PathBuf>,
+    pub jobs: usize,
+    pub modules_file: &'a Path,
+    pub modules: &'a [String],
+    pub work: &'a Path,
+    /// Where the server writes the dependency map, or `None` to write none
+    /// (M5-b). See [`crate::resident::Serve::link_index`].
+    pub link_index: Option<&'a Path>,
+}
+
+pub fn serve_options(request: ServeRequest<'_>) -> Result<Serve, Failure> {
+    let ServeRequest {
+        bin,
+        target,
+        lake,
+        jobs,
+        modules_file,
+        modules,
+        work,
+        link_index,
+    } = request;
     let Some(bin) = crate::extract::or_env(bin, "EXTRACT_BIN") else {
         return usage(
             "--serve needs --extractor-bin <path> (or EXTRACT_BIN): the Lean extractor built by \
@@ -1066,6 +1140,28 @@ pub fn serve_options(
     // looked for there, and the start-up events file would be *written* there.
     // `--lake` is the exception and stays as given: it is a name looked up on
     // PATH, not a path.
+    // The map goes on the server's command line, so it is absolute for the same
+    // reason the other three are — and it is refused inside the target for the
+    // same reason `--ir-dir` is: the package being documented is opened
+    // read-only, and 8.5 MB landing in somebody's working tree is a write.
+    let link_index = match link_index {
+        None => None,
+        Some(path) => {
+            let resolved = crate::extract::resolve(path);
+            if resolved.starts_with(&target) {
+                return Err(Failure::Refused {
+                    code: 3,
+                    message: format!(
+                        "--link-index {} is inside --target {}: the package being documented is \
+                         opened read-only and nothing is ever written into it",
+                        resolved.display(),
+                        target.display(),
+                    ),
+                });
+            }
+            Some(crate::extract::absolute(path))
+        }
+    };
     Ok(Serve {
         bin: crate::extract::absolute(&bin),
         lake: crate::extract::or_env(lake, "LAKE").unwrap_or_else(|| PathBuf::from("lake")),
@@ -1074,6 +1170,7 @@ pub fn serve_options(
         modules_file: crate::extract::absolute(modules_file),
         modules: modules.to_vec(),
         work: crate::extract::absolute(work),
+        link_index,
     })
 }
 
@@ -1342,9 +1439,20 @@ pub fn module_names(root: &Path, libs: &[String]) -> Result<Vec<String>, Failure
             collect_lean(&dir, lib, &mut paths)?;
         }
     }
+    // **The path's components become a Lean *name*, and that is an escaping**
+    // 【M5-b, 実測】. `Alpha/Odd-Name.lean` is the module Lean spells
+    // `Alpha.«Odd-Name»`; written as `Alpha.Odd-Name` it does not parse — the
+    // extractor's `String.toName` yields `Name.anonymous` and the run dies with
+    // `import failed, trying to import module with anonymous name` before it has
+    // imported anything. See [`lean_doc_ir::name`] for the whole mechanism. This
+    // is the identity for every module name that is already an identifier, which
+    // is all 432 of the measurement target's.
     let mut names: Vec<String> = paths
         .iter()
-        .map(|path| path.strip_suffix(".lean").unwrap_or(path).replace('/', "."))
+        .map(|path| {
+            let stem = path.strip_suffix(".lean").unwrap_or(path);
+            lean_doc_ir::escape_module(stem.split('/'))
+        })
         .collect();
     // Plan §7, U1 — and see [`modules`]'s heading for why this is not the
     // prototype's `sort`. `dedup` after the sort: two `--lib` arguments that
@@ -1381,6 +1489,15 @@ fn collect_lean(dir: &Path, prefix: &str, out: &mut Vec<String>) -> Result<(), F
 }
 
 // ------------------------------------------------------------------ plumbing
+
+/// The first 16 digits of a digest, or `none` — for the one diagnostic line
+/// that has to say which of two maps this run read.
+fn digest_or_none(digest: Option<&str>) -> String {
+    digest.map_or_else(
+        || "none".to_owned(),
+        |digest| digest.chars().take(16).collect(),
+    )
+}
 
 /// One name per line, and **no line at all** when there are no names.
 ///
