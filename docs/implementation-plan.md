@@ -798,7 +798,7 @@ rev だけ変更 (433 ページ再レンダ・Lean 起動 0 回) 0.65 s。
 
 | 入れたもの | 出た挙動 | 落ちたか |
 |---|---|---|
-| fenced code 中の **NUL** (MD4Lean は SIGSEGV) | ページは出るが **U+FFFD に加えて生の NUL が 1 バイト残る** | **欠陥 (B)** → 下記 |
+| fenced code 中の **NUL** (MD4Lean は SIGSEGV) | ページは出るが **U+FFFD に加えて生の NUL が 1 バイト残る** → 下記 (B) | 落ちない |
 | 本文行の無い **GFM テーブル** (MD4Lean は SIGABRT) | `<tbody></tbody>` = 空 body。意図どおり | 落ちない |
 | **BMP 外の宣言名** (U1) | `name-map.json` / `declaration-data.bmp` が **UTF-16 code unit 順**。Rust の既定なら逆になる組を選んである | **U1 が守られていることの初めての実バイト証拠** |
 | 見出し中の **U+2B96** (登録済み乖離 3) | heading id が `Head⮖ing` = UnicodeBasic は区切らない。V8 の表なら分割されていた | **`id=` と `href=#` の両方に出た** |
@@ -823,6 +823,20 @@ name` で exit 1。機構: `lean-doc modules` はソースの glob なので `Al
 **残っている乖離 (未修正、登録)**: `.lidx` は今もモジュール名を**非エスケープ**で書く。href は同じパスに解決するので
 この対象ではバイトに出ないが、**ルックアップ鍵としては別物**なので `«…»` を含む**依存側**モジュールを docstring から
 名指しすると解決が外れうる。**target2 にそれを名指しする docstring は無いので測っていない。**
+
+#### (B) fenced code 中の NUL — **直そうとしてオラクルに否定された**【実測 2026-08-15】
+
+出力は `before<U+FFFD><NUL>after` で、U+FFFD の置換が起きたうえ**元のバイトも通る**。機構は
+`vendor/md4c/md4c.c:404-407` — `MD_TEXT_NULLCHAR` を出したあと `off++` するが **`str` を進めない**ので、
+次のテキスト run が NUL バイトから始まる。
+**「crate は NUL → U+FFFD と宣言しているのだから契約違反だ」と考えて `read_str` で NUL を落としたが、
+これは誤りだった** — `tests/md4lean.rs:499` が **code span では NUL が文字列に残ること**を assert しており
+(`Text::Code(vec!["a\0b"])`)、**それが MD4Lean と一致する挙動**だから code span は落ちない。
+落とすと 7 本が赤になる。**取り消した。**
+正確な整理は 3 通りに分かれる:**通常テキスト**では md4c が `Normal / NullChar / Normal` に割るので生の NUL は
+漏れない (オラクルあり)、**code span** では NUL が残るのが正解 (オラクルあり)、**fenced code block** では
+MD4Lean が SIGSEGV するので**合わせる相手が存在しない**。→ **手を触れないという M5-b の判断が正しかった。**
+置換点を決めるのは 4,987 入力のコーパスに対する独立した判断であって、ゲートのついでにやることではない。
 
 #### `renderKey` に写像を入れた — M4-d が残した穴を塞いだ【実測】
 
