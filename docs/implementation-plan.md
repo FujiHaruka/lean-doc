@@ -112,7 +112,7 @@
 | **M0** | 実装計画 + 製品ツリーの骨格 (Cargo ワークスペース / Lean パッケージ) + `experiments/` の凍結宣言 | ビルドが通る。オラクルは動かない |
 | **M1** | **IR リーダ + レンダラ**を Rust へ (md4c を FFI で本物に置換) | **432 モジュールページが byte 一致** (全域 6 本は M2、移動分は M3 なので 439 の残り 7 はここでは出ない)。**通過済み** → 下の判定手順と §7 |
 | **M2** | **全域成果物 6 本**を Rust へ (`contentHash` キャッシュ込み) | 6 成果物が byte 一致、サイトも byte 一致。**通過済み** → §7。**サイトの母数はここでは 438** (432 ページ + 6) — **439 の 439 番目は移動後にしか存在しない**ので M3 |
-| **M3** | **増分 4 本 + パイプライン**を Rust へ | 本物の移動と本物の削除を `lake build` ごと回して**フルビルドと byte 一致**。**M3-a (`detect`) / M3-b (`ownership` + `merge`) / M3-c (`impact` + `prune`) / M3-d1 (`site`) / M3-d2 (`incremental` + `modules`) / M3-d2b (`merge --modules`) / M3-d3 (差分ハーネス) は通過済み** → §7。残りは **M3-d4** (クローンでのゲート) |
+| **M3** | **増分 4 本 + パイプライン**を Rust へ | 本物の移動と本物の削除を `lake build` ごと回して**フルビルドと byte 一致**。**M3 は完遂** (a / b / c / d1 / d2 / d2b / d3 / d4) → §7。**本物の移動で 439/439、本物の削除で 437/437 バイト一致** |
 | **M4** | 抽出器を製品ツリーへ + **常駐の自動起動・停止**を Rust から配線 + CLI の形を確定 | **1 コマンド**で対象リポジトリのサイトが出て 439/439 |
 | **M5** | **第 2 の対象**で動かす (依存写像を生成側で作る経路の実測を含む) | 別パッケージで `lean-doc build` 一発が通る |
 | **M6** | CI テンプレ + README + インストール手順 | CI で通る。`lake build` と**同じジョブ**に置く形 |
@@ -567,7 +567,72 @@ M3-d2 が残した「モジュールが増えると `index.json` だけ from-scr
 `self-one` / `importers-hub` / `referrers-two` で **0**)。実測値は **`staleFound` 0 / `globalStale` 0 が 7/7**。
 `changedNames` が非空だったのは `removed-one` / `added-one` の 2 件 (どちらも 2 名) だが、**`affected` はそこでも 0**。
 → **ラウンドが 2 巡する経路も、2 つの再生成集合の union が両方非空になる経路も、M3-d3 では 1 度も踏んでいない。**
-両実装が一致したのは「同じ空集合を出した」ことを含む。**これを踏むのが M3-d4 (クローンでの本物の移動)。**
+両実装が一致したのは「同じ空集合を出した」ことを含む。**これを踏んだのが M3-d4。**
+
+### M3-d4 の結果 — クローンでの本ゲート (M3 の完了条件)【すべて実測 2026-08-15】
+
+`tools/clone-gate.sh` (735 行、`incremental-reference.sh` の兄弟なので `incremental-compare.sh` が無改造で読む)。
+**クローンでは何も偽装しない** — ソースを本当に編集し `lake build` を本当に回す。前提として
+`stage5e/rebuild-own.sh` で自パッケージ 432 モジュールを**クローンのパスで焼き直す** (677.06 s / peak RSS 3.41 GB)。
+**これは load-bearing** — 焼き直さないと「参照側の olean は移動で動かない」という L3-1 の前提が壊れ、**ゲートが誤った
+理由で通る**。`crates/` は 1 行も直さずに通った。
+
+| ゲート 1 (増分 == フル生成) | 母数 | 一致 | 差分 | 欠落 | 余分 |
+|---|---:|---:|---:|---:|---:|
+| **move** (`BroadcastChannel.Basic` → `…BasicCore`、shim 化 + `lake build`) | **439** | **439** | 0 | 0 | 0 |
+| **delete** (`Shannon.ArithmeticCoding` を消して root の import 1 行も消す + `lake build`) | **437** | **437** | 0 | 0 | 0 |
+
+from-scratch 側は**編集後のソースを独立に全抽出して `lean-doc site`**。M3-d3 の sitecheck (同じ IR を再レンダ) より
+強く、merge が誤った IR を作れば打ち消せない。IR も別レイヤで一致 (437/437・435/435)。
+
+**ゲート 2 (両実装の一致)**: 母数 928 / 一致 920 / REORDERED 7 / ARRAY-REORDERED 1 / **差分 0** / 欠落 0。
+`counts.json` は 2 シナリオとも**両実装バイト一致**。眼目の 3 数字【実測】:
+
+| | rounds | changed | removed | **staleFound** (L3-1) | **globalStale** (L3-2) | irChanged | pagesRendered |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| move | **2** | 5 | 0 | **30** | **1** | 35 | 36 |
+| delete | 1 | 1 | 1 | 0 | 0 | 1 | 1 |
+
+#### L3-2 が load-bearing であることを、初めて生成バイトで示した【実測】
+
+**render set 36 = seen 35 (changed 5 ∪ stale 30) ∪ `{…BroadcastChannel.Marton.Basic}`。**
+`Marton.Basic` は **seen に入っていない** — その olean も refs も動いていないので L3-1 は届かない。届いたのは
+全域写像 delta で、witness は「`InBCCapacityRegion` を docstring の code span で名指ししている」1 件
+(`changedNames` 25 → `affected` 1)。**そのページのバイトは実際に動いた**: `Marton/Basic.html` が
+**16,611 → 16,615 B** で、差は autolink の宛先 `…/BroadcastChannel/Basic.html#InBCCapacityRegion` →
+`…/BasicCore.html#InBCCapacityRegion` (+4 B = `Core`) の 1 箇所だけ。
+→ **L3-2 が無ければゲート 1 は 439 中 438 で落ちていた。** 2 つの再生成集合を別々に導出する設計 (approach.md §5.5)
+が、移設後の実装で必要だったことの直接の証拠。
+
+**ページ間リンクの出所は 2 つで、2 つの導出がそれぞれを担当している**【この move で確認、n=1】 —
+印字シグネチャ由来 (IR の `refs`) は **L3-1** が参照側を再抽出して直し、docstring 由来 (`ModuleFacts::tokens`) は
+**L3-2** が拾う。ゲート 1 の 439/439 は、この move についてカバーが**漏れていない**ことを言う。
+
+#### 移動対象の選び方 — referrer を持つだけでは足りない【実測。ここが今回の発見】
+
+`stage5e/setup-clone.sh:18-25` は「A は referrer を持つものを選べ」と書いている。**必要だが十分ではない。**
+最初 `Shannon.Huffman.Length` (referrersDirect 4) で完走させたが **`globalStale` は 0 のまま**だった
+(ゲート 1 は **439/439 PASS**、rounds 2 / staleFound 1)。L3-2 が読むのは `ModuleFacts::tokens` =
+**宣言 docstring の code span と markdown link target だけ** (`lean-doc-global/src/facts.rs:94-108`) なので、
+効くのは「自分の宣言名が**他モジュールの docstring に出てくる**」モジュールに限られる。
+**このパッケージでそれは 432 中 7 個だけ**【実測。base state の `tokens` × `name-map.json` の
+パッケージ内 4,750 名で独立に計算】 — `AEP.Basic.Core` 2 / `DifferentialEntropy` 2 /
+`BroadcastChannel.Basic` 1 / `EPI.G2.HeatFlowContinuity` 1 / `CondKLIntegral` 1 / `FisherInfo.Gaussian` 1 /
+`Fano.Measure` 1。`Huffman.Length` は **0**。→ **L3-2 を踏みたいならこの 7 個から選ぶ。**
+
+#### 削除シナリオが担当するもの【実測】
+
+`staleFound` / `globalStale` はどちらも 0 で、これは**事前予測どおり** (`ArithmeticCoding` は referrersDirect 0、
+6 名はどの docstring にも出ない)。削除の担当は **prune / index からの脱落 / 孤児 olean** であって L3-1・L3-2 ではない。
+**Lake は消えたソースの olean を消さない** — 孤児が `.lake/build/lib` に残ったまま台帳は fixed point を保った。
+モジュール一覧をソースの glob で作る規則 (§5 の M3-d) が実地で効いた。
+
+#### クローンの復帰
+
+`setup-clone.sh reset` の後、`git status` 空 / HEAD `ca4fd931…` / `lake build --no-build` =
+**All targets up-to-date (3779 jobs)** / **base 台帳が fixed point** (0 changed / 0 removed / 0 render-all)
+= 432 個の olean が sha256 レベルでベースラインと同一に戻った (2 度の move と 1 度の delete をまたいで)。
+孤児 olean 2 個 (`LengthCore` / `BasicCore`) は**意図して残した** — 削除シナリオが検証している現象そのもの。
 
 ---
 
