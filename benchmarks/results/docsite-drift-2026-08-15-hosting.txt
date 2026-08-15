@@ -1,0 +1,20 @@
+# candidate version-pinned paths under the doc site
+404 https://leanprover-community.github.io/mathlib4_docs/v4.31.0/
+404 https://leanprover-community.github.io/mathlib4_docs/4.31.0/
+404 https://leanprover-community.github.io/mathlib4_docs/versions/
+404 https://leanprover-community.github.io/mathlib4_docs/archive/
+404 https://leanprover-community.github.io/mathlib4_docs/v4.33.0/
+404 https://leanprover-community.github.io/mathlib4_docs/4.33.0/
+# the deploy that produces the live site (no ref: pin => default branch)
+10:    - cron: '0 */8 * * *' # every 8 hours
+34:          repository: leanprover-community/mathlib4_docs
+41:          repository: leanprover-community/mathlib4
+110:        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+117:        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
+# the doc repo itself carries no built site
+size_kb=28 default_branch=main
+.github lakefile.toml
+# releases carry no doc assets
+v4.34.0-rc1 assets=0
+v4.33.0 assets=0
+v4.33.0-rc2 assets=0

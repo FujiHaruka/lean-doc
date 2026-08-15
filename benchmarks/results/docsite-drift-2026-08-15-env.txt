@@ -1,0 +1,13 @@
+date (UTC)          : 2026-08-15 15:00:21
+base                : https://leanprover-community.github.io/mathlib4_docs
+target              : /Users/haruka/dev/lean-projects
+target toolchain    : leanprover/lean4:v4.31.0
+target mathlib rev  : fabf563a7c95a166b8d7b6efca11c8b4dc9d911f
+target mathlib pin  : v4.31.0
+site last-modified  : Sat, 15 Aug 2026 09:00:33 GMT
+site lean version   : 4.34.0-rc1
+site mathlib rev    : 971f540b1b5f10f11d8f73b8d43986759b9f6dcd
+local modules       : 8169
+local doc-data bmp  : 6115
+module sample stride: 40
+parallelism         : 6

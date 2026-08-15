@@ -1,0 +1,72 @@
+MOD Mathlib.Algebra.BigOperators.NatAntidiagonal total=12 missing=0 ---
+MOD Mathlib.Algebra.Central.Defs total=3 missing=0 ---
+MOD Mathlib.Algebra.Group.Idempotent total=17 missing=0 ---
+MOD Mathlib.Algebra.Group.PUnit total=18 missing=0 ---
+MOD Mathlib.Algebra.Group.Torsion total=35 missing=0 ---
+MOD Mathlib.Algebra.GroupWithZero.Hom total=57 missing=0 ---
+MOD Mathlib.Algebra.Module.Torsion.Field total=1 missing=0 ---
+MOD Mathlib.Algebra.Order.Group.Action.Synonym total=32 missing=0 ---
+MOD Mathlib.Algebra.Order.Monoid.Canonical.Defs total=54 missing=0 ---
+MOD Mathlib.Algebra.Order.ToIntervalMod total=268 missing=0 ---
+MOD Mathlib.Algebra.Polynomial.Expand total=48 missing=2 --- Polynomial.expand_char Polynomial.map_expand_pow_char
+MOD Mathlib.Algebra.Quotient total=5 missing=1 --- HasQuotient.quotient'
+MOD Mathlib.Algebra.Ring.Hom.Defs total=129 missing=0 ---
+MOD Mathlib.Analysis.Calculus.ContDiff.Basic total=84 missing=0 ---
+MOD Mathlib.Analysis.Complex.Asymptotics total=12 missing=0 ---
+MOD Mathlib.Analysis.Convex.Star total=51 missing=0 ---
+MOD Mathlib.Analysis.Fourier.FourierTransformDeriv total=62 missing=13 --- Real.contDiff_fourierIntegral Real.deriv_fourierIntegral Real.differentiable_fourierIntegral Real.fderiv_fourierIntegral Real.fourierIntegral_deriv Real.fourierIntegral_fderiv Real.fourierIntegral_iteratedDeriv Real.fourierIntegral_iteratedFDeriv Real.hasDerivAt_fourierIntegral Real.hasFDerivAt_fourierIntegral Real.iteratedDeriv_fourierIntegral Real.iteratedFDeriv_fourierIntegral Real.pow_mul_norm_iteratedFDeriv_fourierIntegral_le
+MOD Mathlib.Analysis.InnerProductSpace.PiL2 total=180 missing=8 --- Matrix.ofLp_toEuclideanLin_apply Matrix.piLp_ofLp_toEuclideanLin Matrix.toEuclideanLin_apply Matrix.toEuclideanLin_apply_piLp_toLp Matrix.toEuclideanLin_eq_toLin Matrix.toEuclideanLin_toLp OrthonormalBasis.orthogonalProjection_eq_sum toMatrix_innerSL_apply
+MOD Mathlib.Analysis.Matrix.Hermitian total=7 missing=0 ---
+MOD Mathlib.Analysis.Normed.Algebra.UnitizationL1 total=18 missing=0 ---
+MOD Mathlib.Analysis.Normed.Ring.Basic total=195 missing=0 ---
+MOD Mathlib.Data.DFinsupp.Ext total=4 missing=0 ---
+MOD Mathlib.Data.Fin.Tuple.Basic total=201 missing=0 ---
+MOD Mathlib.Data.Finset.Image total=152 missing=2 --- Equiv.finsetCongr_apply Equiv.finsetCongr_toEmbedding
+MOD Mathlib.Data.Fintype.Perm total=15 missing=0 ---
+MOD Mathlib.Data.List.InsertIdx total=17 missing=0 ---
+MOD Mathlib.Data.Multiset.Pi total=15 missing=0 ---
+MOD Mathlib.Data.Nat.Digits.Defs total=66 missing=0 ---
+MOD Mathlib.Data.PFun total=108 missing=0 ---
+MOD Mathlib.Data.Set.Dissipate total=16 missing=16 --- Set.antitone_dissipate Set.biInter_dissipate Set.directed_dissipate Set.dissipate Set.dissipate_bot Set.dissipate_def Set.dissipate_eq_biInter_lt Set.dissipate_subset Set.dissipate_subset_dissipate Set.dissipate_succ Set.dissipate_zero_nat Set.exists_dissipate_eq_empty_iff_of_directed Set.exists_subset_dissipate_of_directed Set.iInter_dissipate Set.iInter_subset_dissipate Set.mem_dissipate
+MOD Mathlib.Data.Set.Subsingleton total=82 missing=0 ---
+MOD Mathlib.Data.ULift total=33 missing=0 ---
+MOD Mathlib.Dynamics.Ergodic.MeasurePreserving total=39 missing=0 ---
+MOD Mathlib.GroupTheory.Perm.Finite total=26 missing=4 --- Equiv.Perm.perm_inv_mapsTo_iff_mapsTo Equiv.Perm.perm_inv_mapsTo_of_mapsTo Equiv.Perm.perm_inv_on_of_perm_on_finite Equiv.Perm.perm_inv_on_of_perm_on_finset
+MOD Mathlib.GroupTheory.Subsemigroup.Center total=10 missing=0 ---
+MOD Mathlib.Lean.Meta.RefinedDiscrTree.Basic total=66 missing=0 ---
+MOD Mathlib.LinearAlgebra.Basis.Fin total=12 missing=0 ---
+MOD Mathlib.LinearAlgebra.Matrix.Vec total=29 missing=0 ---
+MOD Mathlib.LinearAlgebra.Semisimple total=30 missing=0 ---
+MOD Mathlib.LinearAlgebra.TensorProduct.Tower total=135 missing=0 ---
+MOD Mathlib.MeasureTheory.Constructions.Polish.StronglyMeasurable total=10 missing=0 ---
+MOD Mathlib.MeasureTheory.Function.Holder total=31 missing=0 ---
+MOD Mathlib.MeasureTheory.Function.StronglyMeasurable.AEStronglyMeasurable total=144 missing=0 ---
+MOD Mathlib.MeasureTheory.Measure.FiniteMeasureExt total=2 missing=0 ---
+MOD Mathlib.MeasureTheory.Measure.Regular total=122 missing=0 ---
+MOD Mathlib.Order.Defs.PartialOrder total=74 missing=0 ---
+MOD Mathlib.Order.Filter.EventuallyConst total=40 missing=0 ---
+MOD Mathlib.Order.Interval.Set.OrderEmbedding total=10 missing=0 ---
+MOD Mathlib.Order.OrderDual total=69 missing=0 ---
+MOD Mathlib.Order.SuccPred.Limit total=207 missing=1 --- Order.isPredPrelimit_of_pred_lt
+MOD Mathlib.Probability.Independence.Integration total=31 missing=0 ---
+MOD Mathlib.Probability.Kernel.IonescuTulcea.Maps total=17 missing=0 ---
+MOD Mathlib.RingTheory.Coprime.Basic total=138 missing=0 ---
+MOD Mathlib.RingTheory.FiniteType total=59 missing=0 ---
+MOD Mathlib.RingTheory.Ideal.MinimalPrime.Basic total=22 missing=0 ---
+MOD Mathlib.RingTheory.IntegralDomain total=17 missing=0 ---
+MOD Mathlib.RingTheory.Localization.Basic total=75 missing=0 ---
+MOD Mathlib.RingTheory.Polynomial.Tower total=6 missing=0 ---
+MOD Mathlib.RingTheory.UniqueFactorizationDomain.Finite total=1 missing=0 ---
+MOD Mathlib.SetTheory.Cardinal.Finsupp total=10 missing=0 ---
+MOD Mathlib.Tactic.Abel total=85 missing=0 ---
+MOD Mathlib.Tactic.ContinuousFunctionalCalculus total=3 missing=0 ---
+MOD Mathlib.Tactic.Linarith.Oracle.SimplexAlgorithm.Gauss total=4 missing=0 ---
+MOD Mathlib.Tactic.Trace total=1 missing=0 ---
+MOD Mathlib.Topology.Algebra.Module.Multilinear.Basic total=119 missing=0 ---
+MOD Mathlib.Topology.Algebra.Order.Support total=4 missing=0 ---
+MOD Mathlib.Topology.Coherent total=9 missing=0 ---
+MOD Mathlib.Topology.Defs.Basic total=49 missing=0 ---
+MOD Mathlib.Topology.IsLocalHomeomorph total=44 missing=1 --- IsLocalHomeomorph.toHomeomorph_of_bijective
+MOD Mathlib.Topology.Metrizable.Urysohn total=4 missing=0 ---
+MOD Mathlib.Topology.Order.LocalExtr total=111 missing=0 ---
+SKIP_NONAMES Mathlib.Tactic.FunProp

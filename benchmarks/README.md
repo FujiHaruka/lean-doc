@@ -61,6 +61,13 @@ tools/run-full.sh 4 full-build           # フルビルド (LEAN_NUM_THREADS=4�
 deno run -A tools/analyze.ts results/<name>.jsonl
 ```
 
+doc-gen4 の計装とは独立に、**公開ドキュメントサイトとの版ズレ**を測るものが 1 本ある
+(ネットワークだけ、Lean も lake も要らない):
+
+```bash
+tools/measure-docsite-drift.sh            # results/docsite-drift-<UTC日付>-*.txt を書く
+```
+
 `.lake` は対象リポジトリの生成物なので `lake update` で消える。消えたら
 `apply-instrumentation.sh` で当て直す。個別コマンドの詳細はレポート末尾の「再現」節にある。
 
