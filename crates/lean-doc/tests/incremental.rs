@@ -384,11 +384,14 @@ fn observe(run: &Report) -> BTreeSet<&'static str> {
         Some("0") => fire("maxRoundsZeroRefused"),
         Some(_) => fire("maxRoundsGiven"),
     }
+    // **`--serve` is not among them any more** (M4-c): it is a live flag, and
+    // `tests/resident.rs` is where it is judged. `--serve-dir` and `--serve-from`
+    // stayed retired — see `src/resident.rs` for why a server this run did not
+    // start is one it cannot vouch for.
     for retired in [
         "--jobs",
         "--l3-1",
         "--global",
-        "--serve",
         "--serve-dir",
         "--serve-from",
         "--count-reads",
@@ -1953,8 +1956,20 @@ fn case_timings() -> BTreeSet<&'static str> {
     assert_eq!(record["globalStale"], json!(0));
     assert_eq!(record["pagesRendered"], json!(1));
     // The prototype's own fields that this command does not have.
-    for gone in ["module", "l3_1", "global_impl", "jobs", "serve"] {
+    for gone in ["module", "l3_1", "global_impl"] {
         assert!(record.get(gone).is_none(), "{gone} came back: {record}");
+    }
+    // M4-c: `serve` is written on both paths, so a resident run and a fresh run
+    // are told apart in the record — which is what the prototype's comment says
+    // the field is for. `jobs` and `serveGeneration` are the resident path's, and
+    // this run is not one: behind `--extractor` the job count is inside somebody
+    // else's argument list.
+    assert_eq!(record["serve"], json!(false));
+    for absent in ["jobs", "serveGeneration"] {
+        assert!(
+            record.get(absent).is_none(),
+            "{absent} on the one-shot path: {record}",
+        );
     }
     // The nested per-stage records, as the prototype embeds them.
     assert_eq!(record["merge"]["command"], json!("merge"));
@@ -2052,8 +2067,8 @@ fn case_command_line() -> BTreeSet<&'static str> {
         (&["--jobs", "4"], "--extractor-arg"),
         (&["--l3-1", "off"], "wrong site"),
         (&["--global", "old"], "--state is required"),
-        (&["--serve", "auto"], "M4"),
-        (&["--serve-dir", "/tmp/x"], "M4"),
+        (&["--serve-dir", "/tmp/x"], "stage 6a"),
+        (&["--serve-from", "2"], "round number"),
         (&["--count-reads", "/tmp/x.jsonl"], "measurement tool"),
         (&["--module", "Pkg.A"], "label"),
         (&["--no-link-index"], "150"),

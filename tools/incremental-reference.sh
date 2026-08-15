@@ -14,17 +14,25 @@
 # (M4-b). Both spellings drive the same Lean extraction; what differs is who
 # spells the command line and who folds the events into the timings:
 #
-#   --extractor proto    experiments/stage7g/extract-once.sh + the frozen
-#                        stage-7d binary (the default, and what the m3d3
-#                        recording was made with)
-#   --extractor product  `lean-doc extract` + extractor/build/extract
+#   --extractor proto     experiments/stage7g/extract-once.sh + the frozen
+#                         stage-7d binary (the default, and what the m3d3
+#                         recording was made with)
+#   --extractor product   `lean-doc extract` + extractor/build/extract
+#   --extractor resident  **no `--extractor` at all** (M4-c): `lean-doc
+#                         incremental --serve` starts one Lean environment per
+#                         run and asks it every round. The comparison this makes
+#                         possible is the M4-c gate — the same seven scenarios
+#                         through a server instead of a process per round have to
+#                         produce the same answers, byte for byte.
 #
-# It is a flag rather than a replacement so that the M4-b gate is a *comparison*:
-# record with `proto`, record with `product`, and run tools/incremental-compare.sh
-# over the two. `--impl ts` has no such seam — `incremental.sh` calls
-# `extract-once.sh` itself and is frozen — so the combination is refused.
+# It is a flag rather than a replacement so that the gates are *comparisons*:
+# record with one spelling, record with another, and run
+# tools/incremental-compare.sh over the two. `--impl ts` has no such seam —
+# `incremental.sh` calls `extract-once.sh` itself and is frozen — so both
+# combinations are refused.
 #
-# usage: tools/incremental-reference.sh [--impl ts|rust] [--extractor proto|product]
+# usage: tools/incremental-reference.sh [--impl ts|rust]
+#                                       [--extractor proto|product|resident]
 #                                       [--out DIR] [--target REPO]
 #                                       [--lidx FILE] [--base-ir DIR] [--ref-site DIR]
 #                                       [--only SCENARIO]...
@@ -202,16 +210,18 @@ WORKROOT="$OUT.work"
 # `proto` run, so the caller names where the new recording goes.
 case "$EXTRACTOR_IMPL" in
   proto) EXTRACTOR="$EXTRACT_ONCE" ;;
-  product)
+  product|resident)
     [ "$IMPL" = rust ] || {
-      echo "--extractor product needs --impl rust: incremental.sh calls extract-once.sh" >&2
+      echo "--extractor $EXTRACTOR_IMPL needs --impl rust: incremental.sh calls extract-once.sh" >&2
       echo "itself and is frozen, so there is no seam to substitute on that side." >&2
       exit 2; }
-    EXTRACTOR="$RUST_BIN"
+    # `resident` passes no --extractor at all; the binary is named by
+    # --extractor-bin instead, so it is what the executability check is about.
+    [ "$EXTRACTOR_IMPL" = product ] && EXTRACTOR="$RUST_BIN" || EXTRACTOR="$PRODUCT_EXTRACT_BIN"
     [ -x "$PRODUCT_EXTRACT_BIN" ] || {
       echo "missing extractor binary: $PRODUCT_EXTRACT_BIN — run: extractor/build.sh" >&2; exit 1; }
     ;;
-  *) echo "--extractor wants proto or product, not $EXTRACTOR_IMPL" >&2; exit 2 ;;
+  *) echo "--extractor wants proto, product or resident, not $EXTRACTOR_IMPL" >&2; exit 2 ;;
 esac
 
 [ -d "$TARGET" ] || { echo "missing target repository: $TARGET" >&2; exit 1; }
@@ -274,21 +284,32 @@ else
     "$RUST_BIN" site --ir "$1" --out "$2" --source-url "$URL" \
       --link-index "$LIDX" --state "$3"
   }
-  # `--extractor-arg` values, in the order the extractor sees them, before the
-  # three flags `pipeline.rs` appends (`--modules --ir-dir --timings`).
-  if [ "$EXTRACTOR_IMPL" = product ]; then
-    EXTRACTOR_ARGS=(--extractor-arg extract
-                    --extractor-arg --extractor-bin --extractor-arg "$PRODUCT_EXTRACT_BIN"
-                    --extractor-arg --target --extractor-arg "$TARGET"
-                    --extractor-arg --jobs --extractor-arg "$JOBS")
-  else
-    EXTRACTOR_ARGS=(--extractor-arg --jobs --extractor-arg "$JOBS")
-  fi
+  # How the extraction is spelled. The first two are `--extractor <program>`
+  # with `--extractor-arg` values in the order the program sees them, before the
+  # three flags `pipeline.rs` appends (`--modules --ir-dir --timings`). The third
+  # is not a program at all: `--serve` makes the pipeline own one resident Lean
+  # environment for the whole run, so the binary, the target and the job count
+  # are its own flags (M4-c).
+  case "$EXTRACTOR_IMPL" in
+    product)
+      HOW=(--extractor "$RUST_BIN"
+           --extractor-arg extract
+           --extractor-arg --extractor-bin --extractor-arg "$PRODUCT_EXTRACT_BIN"
+           --extractor-arg --target --extractor-arg "$TARGET"
+           --extractor-arg --jobs --extractor-arg "$JOBS") ;;
+    resident)
+      HOW=(--serve
+           --extractor-bin "$PRODUCT_EXTRACT_BIN"
+           --target "$TARGET"
+           --jobs "$JOBS") ;;
+    *)
+      HOW=(--extractor "$EXTRACTOR"
+           --extractor-arg --jobs --extractor-arg "$JOBS") ;;
+  esac
   pipeline () {
     "$RUST_BIN" incremental --ir "$1" --pages "$2" --ledger "$3" --work "$4" \
       --state "$5" --modules "$6" --mode "$7" --source-url "$8" \
-      --link-index "$LIDX" --timings "$9" \
-      --extractor "$EXTRACTOR" "${EXTRACTOR_ARGS[@]}"
+      --link-index "$LIDX" --timings "$9" "${HOW[@]}"
   }
 fi
 
@@ -583,7 +604,7 @@ fi
   printf 'target            %s (%s modules)\n' "$TARGET" "$NMODULES"
   printf 'lean-toolchain    %s\n' "$(tr -d '\n' < "$TARGET/lean-toolchain" 2>/dev/null || echo '?')"
   printf 'extractor         %s (%s)\n' "$EXTRACTOR_IMPL" "$EXTRACTOR"
-  if [ "$EXTRACTOR_IMPL" = product ]; then
+  if [ "$EXTRACTOR_IMPL" = product ] || [ "$EXTRACTOR_IMPL" = resident ]; then
     printf 'extractor binary  %s (IR schema 4)\n' "$PRODUCT_EXTRACT_BIN"
   else
     # `extract-once.sh`'s own default. It reads $EXTRACT_BIN, which this script

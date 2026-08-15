@@ -47,11 +47,15 @@ use lean_doc_render::{ModuleSet, RenderOptions, RenderSummary, render_site};
 
 mod extract;
 mod pipeline;
+mod resident;
 
 const USAGE: &str = "\
 usage: lean-doc incremental --ir <dir> --pages <dir> --ledger <file> --work <dir>
                        --modules <file> --source-url <url> --link-index <file>
-                       --state <dir> --extractor <program> [--extractor-arg <arg>]...
+                       --state <dir>
+                       (--extractor <program> [--extractor-arg <arg>]...
+                        | --serve --extractor-bin <path> --target <repo>
+                          [--lake <path>] [--jobs <n>])
                        [--mode self|referrers|importers|all] [--max-rounds <n>]
                        [--timings <file>]
        lean-doc modules --root <repo> --lib <Name>... [--out <file>]
@@ -100,26 +104,36 @@ usage: lean-doc incremental --ir <dir> --pages <dir> --ledger <file> --work <dir
                  it back.
   --extractor    (`incremental`) the extraction program, called as
                  `<program> [<extractor-arg>...] --modules <list>
-                 --ir-dir <dir> --timings <file>`. No default: productising the
-                 extractor is M4, and the seam is what lets the pipeline be
-                 tested without Lean.
+                 --ir-dir <dir> --timings <file>`. No default, and the seam is
+                 what lets the pipeline be tested without Lean. Exclusive with
+                 --serve.
   --extractor-arg  one argument for it, before those three; repeatable
+  --serve        (`incremental`) one resident Lean environment for the whole
+                 run instead of one process per round: imported at the first
+                 round that extracts, released on the way out of the loop.
+                 There is no --serve-dir — a server this run did not start is
+                 one whose olean generation it cannot vouch for.
   --max-rounds   how many extract/ownership/merge rounds may run (default 5).
                  Reaching it with modules still stale is exit 5.
   --root         (`modules`) the repository the sources are globbed under
   --lib          (`modules`) a library root: <Name>.lean and <Name>/;
                  repeatable
-  --extractor-bin  (`extract`) the Lean extractor built by extractor/build.sh,
-                 or $EXTRACT_BIN. No default: it is built against the target's
-                 toolchain, so a baked-in path would be right on one machine
-  --target       (`extract`) the Lean package to run inside, or $TARGET_REPO.
-                 It is opened read-only: an --ir-dir under it is refused
-  --lake         (`extract`) the lake executable, or $LAKE (default: `lake`)
+  --extractor-bin  (`extract`, `incremental --serve`) the Lean extractor built
+                 by extractor/build.sh, or $EXTRACT_BIN. No default: it is built
+                 against the target's toolchain, so a baked-in path would be
+                 right on one machine
+  --target       (`extract`, `incremental --serve`) the Lean package to run
+                 inside, or $TARGET_REPO. It is opened read-only: an --ir-dir
+                 under it is refused, and its oleans are the generation every
+                 resident request is checked against
+  --lake         (`extract`, `incremental --serve`) the lake executable, or
+                 $LAKE (default: `lake`)
   --events       (`extract`) the extractor's phase events JSONL. Defaults to
                  <timings without .json>-events.jsonl, which is what
                  `incremental` relies on: it passes only --timings
-  --jobs         (`extract`) extractor threads (default 1). Not a pipeline
-                 flag — see `incremental --jobs`
+  --jobs         (`extract`, `incremental --serve`) extractor threads
+                 (default 1). It is the resident server's start-up
+                 configuration, so there is no per-request job count
   --only         render only this module; repeatable
   --only-from    render only the modules named in this file, one per line.
                  An empty file renders nothing.
@@ -192,6 +206,9 @@ fn main() -> ExitCode {
     }
 }
 
+/// `Debug` so that a `Result<_, Failure>` can be `expect`ed in a test; nothing
+/// prints one to a user, which is what the three arms of `main` are for.
+#[derive(Debug)]
 enum Failure {
     /// The command line is wrong. Exit 2, as the prototype does.
     Usage(String),

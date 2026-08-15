@@ -8,7 +8,16 @@
 //!    with the six flags that spell "IR schema 4";
 //! 2. fold the extractor's events JSONL into a single timings object;
 //! 3. ~~send the request to a resident extractor instead (`--serve-dir`)~~ —
-//!    that is **M4-c**, and every `--serve*` spelling is refused by name below.
+//!    residency arrived in **M4-c** and it is **`lean-doc incremental --serve`**,
+//!    not a flag here. See [`crate::resident`]: a server that answers one request
+//!    and stops is a one-shot process with a protocol in front of it, and the
+//!    only caller that extracts more than once from one environment is the round
+//!    loop. Every `--serve*` spelling is still refused by name below, now with
+//!    that as the reason.
+//!
+//! This file's [`fold_timings`], [`FIXED_FLAGS`] and [`resolve`] are the resident
+//! path's too: the two paths differ in **who owns the process**, and in nothing
+//! else that reaches a byte.
 //!
 //! # Why this is a subcommand and not a library call 【判断】
 //!
@@ -51,10 +60,10 @@ use crate::{Failure, USAGE, usage};
 /// The same number [`crate::pipeline`] reports when a child extractor fails, and
 /// deliberately so: when this command *is* that child, the code a caller sees is
 /// the same whichever of the two produced it.
-const EXIT_EXTRACTOR: u8 = 4;
+pub const EXIT_EXTRACTOR: u8 = 4;
 
 /// The six flags that spell "IR schema 4", minus the two the caller chooses.
-const FIXED_FLAGS: [&str; 4] = ["--equations", "--refs", "--write-ir", "--tagged-code"];
+pub const FIXED_FLAGS: [&str; 4] = ["--equations", "--refs", "--write-ir", "--tagged-code"];
 
 /// `lean-doc extract`.
 pub fn extract(args: &[String]) -> Result<(), Failure> {
@@ -94,9 +103,13 @@ pub fn extract(args: &[String]) -> Result<(), Failure> {
             // hear is why it is not offered. Same rule as `incremental`'s.
             "--serve" | "--serve-dir" | "--serve-from" => {
                 return usage(format!(
-                    "{arg} is not an `extract` flag yet: the resident extractor — starting it, \
-                     addressing it, stopping it — is M4-c. This command is the one-shot path, \
-                     which is the path every committed number was taken on",
+                    "{arg} is not an `extract` flag: residency is `lean-doc incremental --serve` \
+                     (M4-c). A server that answers one request and stops is this command with a \
+                     protocol in front of it — the environment is still imported once per \
+                     extraction — so the only caller it can pay off for is the round loop, which \
+                     owns the server for the whole run. `--serve-dir` is not offered anywhere: a \
+                     server this process did not start is one whose olean generation it cannot \
+                     vouch for, and that is where correctness comes from 【実測, stage 6a】",
                 ));
             }
             flag if FIXED_FLAGS.contains(&flag) => {
@@ -184,6 +197,9 @@ pub fn extract(args: &[String]) -> Result<(), Failure> {
         code: 3,
         message: format!("--target {}: {source}", target.display()),
     })?;
+    // The child's own path, for the same reason as the three below: `lake env
+    // ./extract` inside the target would look for it in the target.
+    let bin = absolute(&bin);
     // `extract-once.sh:48-50` refuses an `--ir-dir` under the measurement target,
     // with the target's path written out. Here the target is a parameter, so the
     // rule is stated against it instead of against one repository — the reason
@@ -212,6 +228,18 @@ pub fn extract(args: &[String]) -> Result<(), Failure> {
             text.strip_suffix(".json").unwrap_or(&text)
         ))
     });
+    // **Every path handed to the child is made absolute first, and the guard
+    // above is why** 【実測 2026-08-15, M4-c】. `lake env` runs inside `--target`,
+    // so a relative path on that command line resolves against the package being
+    // documented: `--ir-dir out` passes the guard (it resolves against *this*
+    // process's directory, which is not under the target) and then the extractor
+    // writes the IR tree into `<target>/out`. That is a write into the
+    // measurement target arriving through the one command whose heading says it
+    // never happens. A relative `--modules` fails loudly instead — the extractor
+    // exits 1 with "no such file or directory" — which is how this was found.
+    let ir_dir = absolute(&ir_dir);
+    let modules = absolute(&modules);
+    let events = absolute(&events);
     // Removed rather than truncated on open: the extractor appends, so a stale
     // file from an earlier round would be folded into this round's timings.
     let _ = fs::remove_file(&events);
@@ -267,7 +295,7 @@ pub fn extract(args: &[String]) -> Result<(), Failure> {
 /// An empty variable counts as unset: `TARGET_REPO=` in a wrapper script is how
 /// a shell spells "I did not set this", and taking it literally would make the
 /// target the filesystem root.
-fn or_env(flag: Option<PathBuf>, name: &str) -> Option<PathBuf> {
+pub fn or_env(flag: Option<PathBuf>, name: &str) -> Option<PathBuf> {
     flag.or_else(|| {
         std::env::var_os(name)
             .filter(|value| !value.is_empty())
@@ -282,7 +310,23 @@ fn or_env(flag: Option<PathBuf>, name: &str) -> Option<PathBuf> {
 /// and the one thing the guard exists to prevent is a write inside the target.
 /// So the deepest existing ancestor is canonicalised and the rest is appended —
 /// which is what makes `/tmp/x` and `/private/tmp/x` the same path here.
-fn resolve(path: &Path) -> PathBuf {
+/// `path`, made absolute **without touching what it spells**.
+///
+/// The one for a command line, where [`resolve`] is the one for a comparison:
+/// resolving symlinks would hand the child a path the caller did not write
+/// (`/tmp/x` becomes `/private/tmp/x` on this platform), and the paths on this
+/// command line are recorded in two projects' measurement logs. What has to
+/// change is only the *relative* case, because the child's working directory is
+/// the target and a relative path there means somewhere inside the package being
+/// documented.
+pub fn absolute(path: &Path) -> PathBuf {
+    if path.is_absolute() {
+        return path.to_path_buf();
+    }
+    std::env::current_dir().map_or_else(|_| path.to_path_buf(), |cwd| cwd.join(path))
+}
+
+pub fn resolve(path: &Path) -> PathBuf {
     let absolute = if path.is_absolute() {
         path.to_path_buf()
     } else {
@@ -334,7 +378,12 @@ fn resolve(path: &Path) -> PathBuf {
 /// the prototype's with every duration dropped, and those are durations.
 ///
 /// Returns the module count, which is also written as `targetModules`.
-fn fold_timings(events: &Path, modules: &Path, jobs: usize, out: &Path) -> Result<usize, Failure> {
+pub fn fold_timings(
+    events: &Path,
+    modules: &Path,
+    jobs: usize,
+    out: &Path,
+) -> Result<usize, Failure> {
     let text = fs::read_to_string(events)
         .map_err(|source| Failure::Failed(format!("{}: {source}", events.display())))?;
     // `preserve_order` is on for the workspace, so this comes out in the order

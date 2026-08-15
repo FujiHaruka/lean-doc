@@ -150,6 +150,66 @@ fn an_ir_dir_inside_the_target_is_refused() {
     );
 }
 
+/// A relative path on the child's command line resolves against the **target**,
+/// because that is the child's working directory 【実測 2026-08-15, M4-c】.
+///
+/// The failure this prevents is the worst one this project has: `--ir-dir out`
+/// passes the guard above — it resolves against *this* process's directory,
+/// which is not under the target — and then the extractor writes several MB into
+/// `<target>/out`, which is a write into the measurement target arriving through
+/// the one command whose heading says it never happens. The mirror-image case is
+/// loud rather than silent (`--modules list.txt` makes the extractor exit 1 with
+/// "no such file or directory"), and that is how this was found.
+#[test]
+fn every_path_reaches_the_child_absolute_because_its_directory_is_the_target() {
+    let world = World::new("relative-paths");
+    // Run from inside the fixture with every path spelled relative to it — a
+    // caller in their own project directory, in other words.
+    let output = Command::new(BIN)
+        .current_dir(&world.root)
+        .args([
+            "extract",
+            "--modules",
+            "modules.txt",
+            "--ir-dir",
+            "ir",
+            "--timings",
+            "timings.json",
+            "--extractor-bin",
+            "extract",
+            "--target",
+            "target-repo",
+            // Absolute, and the only one: `--lake` is a name looked up on PATH,
+            // so it is the one path this rule does not apply to.
+            "--lake",
+            &world.lake.display().to_string(),
+        ])
+        .output()
+        .expect("the binary under test runs");
+    assert_eq!(code(&output), 0, "{}", stderr(&output));
+
+    let argv = world.argv();
+    for (what, path) in [
+        ("--modules", PathBuf::from(&argv[0])),
+        ("--events", PathBuf::from(&argv[1])),
+        ("--ir-dir", PathBuf::from(argv.last().expect("--ir-dir"))),
+    ] {
+        assert!(path.is_absolute(), "{what} reached the child as {path:?}");
+        assert!(
+            !path.starts_with(fs::canonicalize(&world.target).expect("a real directory")),
+            "{what} would have been written inside the target: {path:?}",
+        );
+    }
+    assert!(
+        !world.target.join("ir").exists(),
+        "and nothing was written into the target",
+    );
+    assert!(
+        world.root.join("ir").is_dir(),
+        "the tree is where it was asked for"
+    );
+}
+
 #[test]
 fn a_failing_extractor_is_exit_4_and_says_the_tree_is_incomplete() {
     let world = World::new("extractor-fails");
@@ -180,9 +240,9 @@ fn a_failing_extractor_is_exit_4_and_says_the_tree_is_incomplete() {
 #[test]
 fn the_flags_that_are_not_offered_are_refused_by_name() {
     for (flag, word) in [
-        ("--serve", "M4-c"),
-        ("--serve-dir", "M4-c"),
-        ("--serve-from", "M4-c"),
+        ("--serve", "incremental --serve"),
+        ("--serve-dir", "incremental --serve"),
+        ("--serve-from", "incremental --serve"),
         ("--write-ir", "always on"),
         ("--tagged-code", "always on"),
         ("--equations", "always on"),

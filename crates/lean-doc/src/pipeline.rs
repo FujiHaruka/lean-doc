@@ -35,9 +35,23 @@
 //!    that does not follow from any changed module.
 //! 5. **An empty regeneration set skips the renderer.** In the prototype this was
 //!    a *correctness* guard; here it is only an optimisation — see below.
-//! 6. **`--jobs` is the resident extractor's start-time configuration**, so it is
-//!    not a flag of this command. It reaches the extractor through
-//!    `--extractor-arg --jobs --extractor-arg 4` like any other of its settings.
+//! 6. **`--jobs` is the resident extractor's start-time configuration**
+//!    (`Extract.lean:2751`), so it is a flag of this command **only with
+//!    `--serve`** — which is exactly when this command is the thing that starts
+//!    the server. Behind `--extractor` the parallelism belongs to the extraction
+//!    program and reaches it through `--extractor-arg --jobs --extractor-arg 4`
+//!    like any other of its settings.
+//!
+//! # Residency (M4-c)
+//!
+//! `--serve` replaces `--extractor` with **one Lean environment for the whole
+//! run**: imported at the first round that has something to extract, asked by
+//! every round after it, released on the way out of the loop. There is no
+//! `--serve-dir` and no `--serve-from`; [`crate::resident`] carries the whole of
+//! why — correctness comes from the server's olean generation and never from the
+//! round number 【実測, stage 6a】, so a server this process did not start is one
+//! it cannot vouch for, and the generation it *can* vouch for is checked rather
+//! than argued.
 //!
 //! # Constraint 5 is a type here, not a guard
 //!
@@ -95,9 +109,6 @@
 //!   them (`lean-doc ledger build`), or the second run re-extracts the first
 //!   run's changed set again — wasteful, not wrong. **Who owns that is M4's**,
 //!   together with the resident extractor.
-//! - **It does not start or stop a resident extractor** (`--serve`,
-//!   `--serve-dir`, `--serve-from`): that is on the far side of `--extractor` and
-//!   arrives with M4.
 //! - **It has no `--count-reads`.** The prototype's read counter wraps every
 //!   `deno` step to answer "how many times does one run read the whole IR"; it
 //!   makes the timings meaningless and is a measurement tool, not a product flag.
@@ -130,6 +141,7 @@ use lean_doc_incr::{
 use lean_doc_ir::sort_utf16;
 use lean_doc_render::{ModuleSet, RenderOptions, render_site};
 
+use crate::resident::{Resident, Serve};
 use crate::{Failure, LINK_INDEX_COST, USAGE, print_global_summary, refused, usage};
 
 /// `--max-rounds` reached with modules still stale. The prototype's exit code
@@ -173,32 +185,43 @@ struct Incremental<'a> {
     source_url: &'a str,
     link_index: &'a Path,
     state: &'a Path,
-    extractor: Extractor,
     mode: Mode,
     max_rounds: usize,
 }
 
-/// The extractor, as a program and the arguments that configure it.
+/// How a round's extraction is done: one process per round, or one environment
+/// for the whole run.
 ///
-/// **There is no default, and that is the design** 【判断】. Two jobs:
-///
-/// 1. **It is M4's boundary.** Productising the extractor — moving `Extract.lean`
-///    into the tree, starting and stopping the resident server, deciding
-///    `--jobs` — is M4. A default here would make the shipped binary depend on a
-///    path inside `experiments/`, which is frozen; and M3-d3 can hand the
-///    prototype's own `stage7g/extract-once.sh` straight to `--extractor`,
-///    because the three flags below are exactly its required arguments
-///    (`extract-once.sh:24, 47`).
-/// 2. **It is what lets the pipeline be tested without Lean.** The tests pass a
-///    fake extractor that copies a baked partial IR tree into `--ir-dir`. Without
-///    a seam here every test of this file would need a built Lean toolchain and a
-///    30-second extraction, which in practice means the pipeline is not tested at
-///    all.
-struct Extractor {
-    program: String,
-    /// `--extractor-arg`, in order, placed **before** the three flags below so
-    /// that a wrapper script sees its own configuration first.
-    args: Vec<String>,
+/// The two are the same interface — a module list in, an IR tree and a timings
+/// record out — and they differ in **who owns the process**. Nothing downstream
+/// of this enum can tell which one ran, which is the M4-c gate stated as a type.
+enum Extractor {
+    /// `--extractor <program>`: a program called once per round.
+    ///
+    /// **There is no default, and that is the design** 【判断】. Two jobs:
+    ///
+    /// 1. **It is the seam.** A default here would make the shipped binary depend
+    ///    on a path inside `experiments/`, which is frozen; and the harnesses can
+    ///    hand the prototype's own `stage7g/extract-once.sh` straight to
+    ///    `--extractor`, because the three flags below are exactly its required
+    ///    arguments (`extract-once.sh:24, 47`). `lean-doc extract` takes the same
+    ///    three, so the product can be its own extractor.
+    /// 2. **It is what lets the pipeline be tested without Lean.** The tests pass
+    ///    a fake extractor that copies a baked partial IR tree into `--ir-dir`.
+    ///    Without a seam here every test of this file would need a built Lean
+    ///    toolchain and a 30-second extraction, which in practice means the
+    ///    pipeline is not tested at all.
+    OneShot {
+        program: String,
+        /// `--extractor-arg`, in order, placed **before** the three flags below
+        /// so that a wrapper script sees its own configuration first.
+        args: Vec<String>,
+    },
+    /// `--serve`: one Lean environment, imported once and asked every round.
+    ///
+    /// See [`crate::resident`] for why the pipeline owns it, why there is no
+    /// `--serve-dir`, and what the olean generation is checked against.
+    Resident(Box<Resident>),
 }
 
 impl Extractor {
@@ -211,11 +234,16 @@ impl Extractor {
     /// The three flags are `stage7g/extract-once.sh`'s required arguments, in its
     /// order. `--events` is not passed: that script defaults it to
     /// `<timings>-events.jsonl`, and it is an implementation detail of how the
-    /// Lean side reports its phase timers.
-    fn run(&self, modules: &Path, ir_dir: &Path, timings: &Path) -> Result<(), Failure> {
-        let mut command = Command::new(&self.program);
+    /// Lean side reports its phase timers — one the resident path reproduces
+    /// exactly, so that two records of the same round stay comparable.
+    fn run(&mut self, modules: &Path, ir_dir: &Path, timings: &Path) -> Result<(), Failure> {
+        let (program, args) = match self {
+            Self::Resident(resident) => return resident.extract(modules, ir_dir, timings),
+            Self::OneShot { program, args } => (program, args),
+        };
+        let mut command = Command::new(&*program);
         command
-            .args(&self.args)
+            .args(&*args)
             .arg("--modules")
             .arg(modules)
             .arg("--ir-dir")
@@ -224,7 +252,7 @@ impl Extractor {
             .arg(timings);
         let status = command.status().map_err(|source| Failure::Refused {
             code: EXIT_EXTRACTOR,
-            message: format!("--extractor {}: {source}", self.program),
+            message: format!("--extractor {program}: {source}"),
         })?;
         if status.success() {
             return Ok(());
@@ -232,14 +260,27 @@ impl Extractor {
         Err(Failure::Refused {
             code: EXIT_EXTRACTOR,
             message: format!(
-                "--extractor {} exited {} for {}; the IR was not updated and nothing was rendered",
-                self.program,
+                "--extractor {program} exited {} for {}; the IR was not updated and nothing was \
+                 rendered",
                 status
                     .code()
                     .map_or_else(|| "on a signal".to_owned(), |code| code.to_string()),
                 modules.display(),
             ),
         })
+    }
+
+    /// Releases the resident environment, if there is one.
+    ///
+    /// Idempotent, and **not the only thing that stops the server**: dropping
+    /// [`Resident`] closes the request pipe, and the pipe is what keeps the
+    /// server alive at all (see [`crate::resident`]). This exists so the ordinary
+    /// stop is reported and its cost is inside the run's clock, not so that a
+    /// failure needs it.
+    fn release(&mut self) {
+        if let Self::Resident(resident) = self {
+            resident.stop();
+        }
     }
 }
 
@@ -299,7 +340,10 @@ struct Summary {
 
 /// One incremental round: a changed build tree in, an updated IR and updated
 /// pages out.
-fn run_incremental(options: &Incremental<'_>) -> Result<(Summary, Timings), Failure> {
+fn run_incremental(
+    options: &Incremental<'_>,
+    extractor: &mut Extractor,
+) -> Result<(Summary, Timings), Failure> {
     let started = Instant::now();
     let work = Work::new(options.work);
     create_dir(options.work)?;
@@ -375,7 +419,7 @@ fn run_incremental(options: &Incremental<'_>) -> Result<(Summary, Timings), Fail
 
         if !round_in.is_empty() {
             let at = Instant::now();
-            options.extractor.run(
+            extractor.run(
                 &round_in_file,
                 &inc_ir,
                 &options.work.join(format!("extract-timings-{rounds}.json")),
@@ -469,6 +513,12 @@ fn run_incremental(options: &Incremental<'_>) -> Result<(Summary, Timings), Fail
             });
         }
     }
+    // **The loop is the only thing that can extract**, so the resident
+    // environment is released here rather than at the end of the run: what
+    // follows reads the whole IR, and holding 3 GB across it buys nothing. The
+    // teardown stays inside `totalSeconds`, as the prototype's does
+    // (`incremental.sh:378-381`) — only earlier.
+    extractor.release();
     write_lines(&work.seen, &seen)?;
     write_lines(&work.ir_changed, &ir_changed)?;
     let rounds_done = started.elapsed();
@@ -682,6 +732,11 @@ pub fn incremental(args: &[String]) -> Result<(), Failure> {
     let mut mode: Option<String> = None;
     let mut max_rounds = DEFAULT_MAX_ROUNDS;
     let mut timings: Option<PathBuf> = None;
+    let mut serve = false;
+    let mut jobs: usize = 1;
+    let mut extractor_bin: Option<PathBuf> = None;
+    let mut target: Option<PathBuf> = None;
+    let mut lake: Option<PathBuf> = None;
 
     let mut rest = args.iter();
     while let Some(arg) = rest.next() {
@@ -710,16 +765,26 @@ pub fn incremental(args: &[String]) -> Result<(), Failure> {
                 })?;
             }
             "--timings" => timings = Some(value("--timings")?.into()),
+            // M4-c. `--serve` takes no value: the prototype's `auto` existed only
+            // to tell it from `--serve-dir`, which is refused below.
+            "--serve" => serve = true,
+            "--extractor-bin" => extractor_bin = Some(value("--extractor-bin")?.into()),
+            "--target" => target = Some(value("--target")?.into()),
+            "--lake" => lake = Some(value("--lake")?.into()),
+            // **A flag of `--serve` only, and that is constraint 6 spelled out**
+            // (plan §6): the resident server's job count is its start-up `cfg`
+            // (`Extract.lean:2751`), so it is the pipeline's to choose exactly
+            // when the pipeline is the thing that starts it. Behind `--extractor`
+            // the parallelism belongs to the extraction program.
+            "--jobs" => {
+                let raw = value("--jobs")?;
+                jobs = raw
+                    .parse()
+                    .map_err(|_| Failure::Usage(format!("--jobs wants a number, not {raw}")))?;
+            }
             // Refused by name rather than as "unknown argument": each is a real
             // flag of `incremental.sh`, so what the caller needs to hear is why
             // it is gone, not that it was misspelled. See the module heading.
-            "--jobs" => {
-                return usage(
-                    "--jobs is not a pipeline flag: parallelism is the extractor's, and a resident \
-                     one fixes it at start-up (plan §6, constraint 6). Pass it through with \
-                     `--extractor-arg --jobs --extractor-arg <n>`",
-                );
-            }
             "--l3-1" => {
                 return usage(
                     "--l3-1 is not a pipeline flag: `off` was the ablation that measured L3-1's \
@@ -734,11 +799,24 @@ pub fn incremental(args: &[String]) -> Result<(), Failure> {
                      one, which is why --state is required",
                 );
             }
-            "--serve" | "--serve-dir" | "--serve-from" => {
-                return usage(format!(
-                    "{arg} is not a pipeline flag yet: the resident extractor lives on the far \
-                     side of --extractor and arrives with M4",
-                ));
+            "--serve-dir" => {
+                return usage(
+                    "--serve-dir is not offered: `--serve` starts a server this run owns, and a \
+                     server it does not own is one whose olean generation it cannot vouch for. \
+                     Correctness comes from that generation and never from the round number — a \
+                     server imported before the edit returns the pre-edit owner of every name that \
+                     moved, and then no round is safe, including round 2 【実測, stage 6a】. See \
+                     `crates/lean-doc/src/resident.rs`",
+                );
+            }
+            "--serve-from" => {
+                return usage(
+                    "--serve-from is not offered: it chose which rounds a server the caller owns \
+                     was allowed to answer, and stage 6a measured that the round number is not \
+                     what makes a round safe. With `--serve` the server is started inside this \
+                     run, so every round is served and every round is checked against the same \
+                     olean generation",
+                );
             }
             "--count-reads" => {
                 return usage(
@@ -805,13 +883,48 @@ pub fn incremental(args: &[String]) -> Result<(), Failure> {
              is what leaves it behind",
         );
     };
-    let Some(program) = extractor else {
+    if serve && extractor.is_some() {
         return usage(
-            "--extractor <program> is required and has no default: it is called as `<program> \
-             [<extractor-arg>…] --modules <list> --ir-dir <dir> --timings <file>`, which is \
-             `stage7g/extract-once.sh`'s interface. Productising the extractor is M4",
+            "--serve and --extractor are exclusive: one names a program to run once per round, the \
+             other says this run owns a Lean environment for all of them. `--serve` is the \
+             resident path and it uses --extractor-bin, not a wrapper",
         );
-    };
+    }
+    if !serve {
+        for flag in ["--extractor-bin", "--target", "--lake"] {
+            let given = match flag {
+                "--extractor-bin" => extractor_bin.is_some(),
+                "--target" => target.is_some(),
+                _ => lake.is_some(),
+            };
+            if given {
+                return usage(format!(
+                    "{flag} is a flag of --serve: without it the extraction is whatever \
+                     --extractor names, and how that program finds its binary is its own business \
+                     (`lean-doc extract` takes {flag} through --extractor-arg)",
+                ));
+            }
+        }
+        if jobs != 1 {
+            return usage(
+                "--jobs is a flag of --serve: parallelism is the extractor's, and a resident one \
+                 fixes it at start-up (plan §6, constraint 6). Behind --extractor, pass it through \
+                 with `--extractor-arg --jobs --extractor-arg <n>`",
+            );
+        }
+    }
+    if jobs == 0 {
+        return usage("--jobs must be at least 1");
+    }
+    if !serve && extractor.is_none() {
+        return usage(
+            "one of --extractor <program> and --serve is required, and neither has a default: \
+             --extractor is called as `<program> [<extractor-arg>…] --modules <list> --ir-dir \
+             <dir> --timings <file>`, which is `stage7g/extract-once.sh`'s interface and \
+             `lean-doc extract`'s; --serve starts one resident Lean environment for the whole run \
+             and needs --extractor-bin and --target",
+        );
+    }
     let mode = match mode {
         // The prototype's `MODE=self` (`incremental.sh:108`), which is what
         // every stage-7h measurement ran with. It is **not** the sound bound —
@@ -837,27 +950,110 @@ pub fn incremental(args: &[String]) -> Result<(), Failure> {
     }
 
     let module_list = read_module_list(&modules).map_err(refused)?;
-    let (summary, clocks) = run_incremental(&Incremental {
-        ir: &ir,
-        pages: &pages,
-        ledger: &ledger,
-        work: &work,
-        modules: module_list,
-        source_url: &source_url,
-        link_index: &link_index,
-        state: &state,
-        extractor: Extractor {
+    // **Built before the run starts, so the generation is the world `detect` is
+    // about to look at.** [`Resident::new`] starts nothing; it records the
+    // oleans, and every later check — before the spawn, after `ready`, around
+    // every request — is against this one reading.
+    let mut extractor = match extractor {
+        Some(program) => Extractor::OneShot {
             program,
             args: extractor_args,
         },
-        mode,
-        max_rounds,
-    })?;
+        None => Extractor::Resident(Box::new(Resident::new(serve_options(
+            extractor_bin,
+            target,
+            lake,
+            jobs,
+            &modules,
+            &module_list,
+            &work,
+        )?)?)),
+    };
+    let outcome = run_incremental(
+        &Incremental {
+            ir: &ir,
+            pages: &pages,
+            ledger: &ledger,
+            work: &work,
+            modules: module_list,
+            source_url: &source_url,
+            link_index: &link_index,
+            state: &state,
+            mode,
+            max_rounds,
+        },
+        &mut extractor,
+    );
+    // Not a `?` above 【判断】: the release has to happen on the failing path too,
+    // and while dropping `extractor` would do it silently, doing it here is what
+    // puts the stop **before** the error reaches the caller rather than after.
+    // `Drop` remains the backstop for a panic (see `crate::resident`).
+    extractor.release();
+    let (summary, clocks) = outcome?;
 
     if let Some(path) = timings {
-        write_timings(&path, &work, &summary, &clocks)?;
+        let serve = match &extractor {
+            Extractor::Resident(resident) => Some((jobs, resident.generation().to_owned())),
+            Extractor::OneShot { .. } => None,
+        };
+        write_timings(&path, &work, &summary, &clocks, serve.as_ref())?;
     }
     Ok(())
+}
+
+/// `--serve`'s three paths, resolved the way `lean-doc extract` resolves them.
+///
+/// **Flag, then environment, then nothing** — no default path for the binary and
+/// none for the target, because both are absolute paths on somebody's machine and
+/// a default would be the `defaultIrDir` mistake with a different name (M4-a).
+/// `lake` does get one, and it is not an exception: it is a name looked up on
+/// PATH, and elan's shim under that name is what picks the toolchain the target
+/// pins, so `~/.elan/bin/lake` would be the more specific and the more fragile of
+/// the two. The variable names are the prototype's (`serve-ctl.sh:48-50`).
+fn serve_options(
+    bin: Option<PathBuf>,
+    target: Option<PathBuf>,
+    lake: Option<PathBuf>,
+    jobs: usize,
+    modules_file: &Path,
+    modules: &[String],
+    work: &Path,
+) -> Result<Serve, Failure> {
+    let Some(bin) = crate::extract::or_env(bin, "EXTRACT_BIN") else {
+        return usage(
+            "--serve needs --extractor-bin <path> (or EXTRACT_BIN): the Lean extractor built by \
+             `extractor/build.sh`, which is 171 MB and is therefore not committed. There is no \
+             default — the binary is built against the target's toolchain, so a path baked in here \
+             would be right on exactly one machine",
+        );
+    };
+    let Some(target) = crate::extract::or_env(target, "TARGET_REPO") else {
+        return usage(
+            "--serve needs --target <repo> (or TARGET_REPO): the Lean package being documented. \
+             `lake env` runs inside it, which is how the resident extractor gets the oleans and \
+             the search path without lean-doc owning a toolchain — and its oleans are the \
+             generation every request is checked against",
+        );
+    };
+    let target = fs::canonicalize(&target).map_err(|source| Failure::Refused {
+        code: 3,
+        message: format!("--target {}: {source}", target.display()),
+    })?;
+    // **Absolute, all three** 【実測 2026-08-15】. The server's working directory
+    // is the target (`serve-ctl.sh:68-77`), so a relative path on its command
+    // line resolves against the package being documented — the binary would be
+    // looked for there, and the start-up events file would be *written* there.
+    // `--lake` is the exception and stays as given: it is a name looked up on
+    // PATH, not a path.
+    Ok(Serve {
+        bin: crate::extract::absolute(&bin),
+        lake: crate::extract::or_env(lake, "LAKE").unwrap_or_else(|| PathBuf::from("lake")),
+        target,
+        jobs,
+        modules_file: crate::extract::absolute(modules_file),
+        modules: modules.to_vec(),
+        work: crate::extract::absolute(work),
+    })
 }
 
 /// Plan 決定 1 / §7 debt 7: the revision in `--source-url` has to be 40 hex
@@ -897,11 +1093,20 @@ fn check_source_url(url: &str) -> Result<(), Failure> {
 /// One JSON line, in `incremental.sh:393-424`'s field names.
 ///
 /// The names are the contract: `benchmarks/tools/analyze.ts` and every JSONL
-/// already in `benchmarks/results/` read them. **Four of the prototype's fields
-/// are gone** — `global_impl`, `l3_1`, `jobs` and the `serve*` group — because
-/// the flags behind them are not here (see the module heading); `module` is gone
-/// for the same reason and `analyze.ts:121` already falls back when it is
-/// absent.
+/// already in `benchmarks/results/` read them. **Two of the prototype's fields
+/// are gone** — `global_impl` and `l3_1` — because the flags behind them are not
+/// here (see the module heading); `module` is gone for the same reason and
+/// `analyze.ts:121` already falls back when it is absent.
+///
+/// `serve` is written on both paths and `jobs` only on the resident one 【判断】:
+/// a resident run and a fresh run are otherwise indistinguishable in the record,
+/// which is what the prototype's comment says the field is for
+/// (`incremental.sh:398-401`) — but behind `--extractor` the job count is inside
+/// somebody else's argument list and this command does not know it. A number it
+/// cannot see is left out rather than guessed at. `serveGeneration` is the olean
+/// world every request of that run was checked against (see
+/// [`crate::resident`]); it is the prototype's `--generation` tag with the tag
+/// replaced by the thing itself.
 ///
 /// The four nested records (`extract` / `merge` / `global` / `render`) are the
 /// per-stage timings files, embedded as the prototype embeds them: one object
@@ -913,9 +1118,18 @@ fn write_timings(
     work: &Path,
     summary: &Summary,
     clocks: &Timings,
+    serve: Option<&(usize, String)>,
 ) -> Result<(), Failure> {
     let mut record = serde_json::Map::new();
     record.insert("mode".to_owned(), summary.mode.clone().into());
+    record.insert("serve".to_owned(), serve.is_some().into());
+    if let Some((jobs, generation)) = serve {
+        record.insert("jobs".to_owned(), serde_json::json!(jobs));
+        record.insert(
+            "serveGeneration".to_owned(),
+            serde_json::json!(generation.clone()),
+        );
+    }
     for (name, value) in [
         ("detectSeconds", clocks.detect),
         ("extractSeconds", clocks.extract),
