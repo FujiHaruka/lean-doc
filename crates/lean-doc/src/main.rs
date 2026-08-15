@@ -75,7 +75,7 @@ usage: lean-doc incremental --ir <dir> --pages <dir> --ledger <file> --work <dir
        lean-doc ownership --base <ir> [--inc <ir>] [--removed <file>]
                        [--exclude <file>] [--print-set <file>] [--json <file>]
        lean-doc merge --base <ir> [--inc <ir>] [--out <ir>] [--remove <file>]
-                       [--changed-out <file>] [--timings <file>]
+                       [--modules <file>] [--changed-out <file>] [--timings <file>]
        lean-doc merge --verify <ir> --against <ir>
        lean-doc impact --ir <dir> [--changed <Module>]... [--changed-file <file>]
                        [--mode self|referrers|importers|all] [--census <file>]
@@ -118,6 +118,10 @@ usage: lean-doc incremental --ir <dir> --pages <dir> --ledger <file> --work <dir
   --modules      the module list, one name per line; # comments are skipped.
                  `ledger check` without it re-reads the ledger's own list and
                  cannot see a module that appeared or vanished since `build`.
+                 For `merge` it is the order the merged index.json's modules
+                 come out in — a from-scratch extraction's, which is the order
+                 the extractor was handed the list in. A list that names other
+                 modules than the merged tree holds is exit 3, not a guess.
   --target       the repository whose .lake/build/lib/lean holds the oleans
   --ledger       a ledger.json written by `ledger build`. `incremental` reads
                  it and never rewrites it — rebuild it between runs.
@@ -743,14 +747,18 @@ fn ownership(args: &[String]) -> Result<(), Failure> {
 /// The `merge` stage: fold a partial extraction back into the package IR, and
 /// the `--verify` that compares two trees.
 ///
-/// `--modules` is **not** here. The prototype's usage text offers it and its
-/// code never reads it (`merge-ir.ts:29, 40`): the package module list always
-/// comes from the base index. Accepting a flag that does nothing would be
-/// copying a bug rather than a behaviour.
+/// **`--modules` is the prototype's unimplemented flag, implemented** (M3-d2b).
+/// `merge-ir.ts` offers it in its usage and never reads it (`:29, :40`), so M3-b
+/// did not reproduce it; it is here now because the merged `index.json`'s module
+/// order has to be a from-scratch extraction's, and that is the order of the list
+/// the extractor is handed. Left out, the order is the base index's with new
+/// modules appended — the pre-M3-d2b behaviour, kept for callers that have no
+/// list.
 fn merge(args: &[String]) -> Result<(), Failure> {
     let mut base: Option<PathBuf> = None;
     let mut inc: Option<PathBuf> = None;
     let mut out: Option<PathBuf> = None;
+    let mut modules: Option<PathBuf> = None;
     let mut remove: Option<PathBuf> = None;
     let mut changed_out: Option<PathBuf> = None;
     let mut timings: Option<PathBuf> = None;
@@ -769,6 +777,7 @@ fn merge(args: &[String]) -> Result<(), Failure> {
             "--base" => base = Some(value("--base")?.into()),
             "--inc" => inc = Some(value("--inc")?.into()),
             "--out" => out = Some(value("--out")?.into()),
+            "--modules" => modules = Some(value("--modules")?.into()),
             "--remove" => remove = Some(value("--remove")?.into()),
             "--changed-out" => changed_out = Some(value("--changed-out")?.into()),
             "--timings" => timings = Some(value("--timings")?.into()),
@@ -809,11 +818,16 @@ fn merge(args: &[String]) -> Result<(), Failure> {
         Some(path) => read_module_list(path).map_err(refused)?,
         None => Vec::new(),
     };
+    let listed = match &modules {
+        Some(path) => Some(read_module_list(path).map_err(refused)?),
+        None => None,
+    };
     let summary = run_merge(&MergeOptions {
         base: &base,
         inc: inc.as_deref(),
         out: &out,
         removed: &removed,
+        modules: listed.as_deref(),
         changed_out: changed_out.as_deref(),
         timings: timings.as_deref(),
     })

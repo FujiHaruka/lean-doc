@@ -72,6 +72,30 @@
 //! spread and Lean from `Json.mkObj`; the two agree, so nothing had to be
 //! chosen. Reproduced explicitly by [`JsonObject`] rather than by trusting a map
 //! type (plan §7).
+//!
+//! # `--modules`, and the last order that was not Lean's (M3-d2b)
+//!
+//! One order held out: `index.json`'s **`modules` array**. Without
+//! [`MergeOptions::modules`] it is the base index's order with new modules
+//! appended, and a from-scratch extraction's is **the order the extractor was
+//! handed its module list in** — the extractor does not sort 【実測 2026-08-12:
+//! the target's `index.json` matches `find … | sort`'s locale collation exactly
+//! and disagrees with `LC_ALL=C sort` at 163 of 432 entries】. So a merge that
+//! *added* a module produced an index with the same entries in a different
+//! sequence, which M3-d2's seven-state oracle measured (added / restored /
+//! stale-state).
+//!
+//! [`MergeOptions::modules`] closes it: given the package's list, the merged
+//! index follows it, which is what a from-scratch extraction over the same list
+//! would write. **This is the prototype's unimplemented flag** — `merge-ir.ts`
+//! offers `--modules` in its usage (`:29, :40`) and never reads it — so it is
+//! added here for a reason of this port's own, not transcribed.
+//!
+//! The order reaches one more thing than the index: the dependency slice is
+//! recomputed by walking the package's modules and letting the **last** writer
+//! own a name (`Map.prototype.set`), so two modules that reference the same
+//! dependency name from different defining modules resolve it in module order.
+//! Following the list therefore also makes that agree with a from-scratch run.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
@@ -100,6 +124,15 @@ pub struct MergeOptions<'a> {
     /// are deleted, which is the IR third of the deletion path (the other two
     /// are the pages and the ledger).
     pub removed: &'a [String],
+    /// The package's module list — `lean-doc modules` — in the order a
+    /// from-scratch extraction would be handed it.
+    ///
+    /// **Given, it is the merged `index.json`'s `modules` order** and the order
+    /// the dependency slice is recomputed in; see [`listed_order`] and the module
+    /// heading. **`None` keeps the base index's order with new modules appended**,
+    /// which is what every caller had before M3-d2b and what `merge --verify`
+    /// still compares as equal either way.
+    pub modules: Option<&'a [String]>,
     /// The modules whose IR `contentHash` moved, one per line — the render set's
     /// input, and **not** the same as the re-extracted set.
     pub changed_out: Option<&'a Path>,
@@ -288,6 +321,17 @@ pub fn merge(options: &MergeOptions<'_>) -> Result<MergeSummary, Error> {
     }
     order.retain(|module| !gone_set.contains(module));
 
+    // The index's module order, when the caller knows the package's list.
+    //
+    // **Decided here, before anything is written**: the set the merge is about
+    // to produce is already known — the base index minus the deletions, plus
+    // whatever the partial extraction carried — so a list that does not describe
+    // it is refused with the tree untouched rather than half updated.
+    let listed = match options.modules {
+        Some(list) => Some(listed_order(list, &order, &inc_modules)?),
+        None => None,
+    };
+
     fs::create_dir_all(options.out.join("modules")).map_err(|source| Error::Io {
         path: options.out.join("modules"),
         source,
@@ -337,6 +381,12 @@ pub fn merge(options: &MergeOptions<'_>) -> Result<MergeSummary, Error> {
         }
         entries.insert(entry.module.clone(), entry.clone());
         updated.push(entry.module.clone());
+    }
+    // Before the dependency slice is recomputed, not after: the slice is walked
+    // in this order and its last writer wins, so an order applied only to the
+    // index would leave the two disagreeing about the same package.
+    if let Some(listed) = listed {
+        order = listed;
     }
     let modules_done = started.elapsed();
 
@@ -493,6 +543,80 @@ struct MergeTimings<'a> {
 /// name, which is what a reference to a module with an empty name would produce.
 fn module_root(module: &str) -> &str {
     module.split('.').next().unwrap_or("")
+}
+
+/// The merged index's module order, taken from the package's own list.
+///
+/// `kept` is the base index's modules with the deletions already dropped, `inc`
+/// the partial extraction's entries; together they are the set the merge is
+/// about to write, before a single byte of it exists.
+///
+/// # A repeated name is deduplicated, keeping its first position
+///
+/// The rule [`module_map`] states for an index and `lean-doc modules` applies to
+/// its own output (`pipeline.rs`: "a ledger with a repeated module is one whose
+/// `check` compares it against itself"). A list that names a module twice is one
+/// list, not two modules, and writing the entry twice would produce an index no
+/// extraction can produce.
+///
+/// # A list that does not describe the tree is **refused** 【判断】
+///
+/// The two are meant to agree, and in the pipeline they do by construction:
+/// `--modules` is the current package's list, and it is *because* a name is on it
+/// that `detect` calls the module added and has it re-extracted. A disagreement
+/// therefore means the list is stale with respect to the IR, and there are
+/// exactly two ways to carry on:
+///
+/// - **Append what the list does not name.** That is the pre-M3-d2b behaviour,
+///   and from that moment the incremental index and a from-scratch one are in
+///   different orders **for ever** — the same entries, the same counts, a
+///   different sequence.
+/// - **Drop what the tree has nothing behind.** That writes an index missing a
+///   module whose file may well be on disk, which every later stage reads as
+///   "this package has no such module": no page, no name in the global map.
+///
+/// Both are silent. Neither moves a page byte — the divergence lives in
+/// `index.json`, which no renderer reads for its bytes — so neither would be
+/// noticed by the comparison this project runs at every gate. So the mismatch is
+/// named instead: [`Error::ModuleListMismatch`], **exit 3**, the code this
+/// project already spends on "the world and the files disagree", and raised
+/// before anything is written so that a caller can fix the list and run again on
+/// the same tree.
+fn listed_order(
+    list: &[String],
+    kept: &[String],
+    inc: &[IndexEntry],
+) -> Result<Vec<String>, Error> {
+    let mut in_tree: HashSet<&str> = kept.iter().map(String::as_str).collect();
+    let mut merged: Vec<&str> = kept.iter().map(String::as_str).collect();
+    for entry in inc {
+        if in_tree.insert(entry.module.as_str()) {
+            merged.push(entry.module.as_str());
+        }
+    }
+
+    let mut in_list: HashSet<&str> = HashSet::new();
+    let mut wanted: Vec<String> = Vec::with_capacity(list.len());
+    for module in list {
+        if in_list.insert(module.as_str()) {
+            wanted.push(module.clone());
+        }
+    }
+
+    let missing: Vec<String> = wanted
+        .iter()
+        .filter(|module| !in_tree.contains(module.as_str()))
+        .cloned()
+        .collect();
+    let extra: Vec<String> = merged
+        .iter()
+        .filter(|module| !in_list.contains(*module))
+        .map(|module| (*module).to_owned())
+        .collect();
+    if missing.is_empty() && extra.is_empty() {
+        return Ok(wanted);
+    }
+    Err(Error::ModuleListMismatch { missing, extra })
 }
 
 // ---------------------------------------------------------------- verify

@@ -23,9 +23,9 @@
 //!
 //! | exercise | reaches |
 //! |---|---:|
-//! | the merged tree's byte comparison — one round over the base IR ([`ONE_ROUND`]) | **18** |
-//! | everything the nine rounds and three verifications reach ([`HARNESS_AND_INDEX`]) | **47** |
-//! | curated cases only ([`NO_REAL_DATA_REACHES`]) | **18** |
+//! | the merged tree's byte comparison — one round over the base IR ([`ONE_ROUND`]) | **19** |
+//! | everything the nine rounds and three verifications reach ([`HARNESS_AND_INDEX`]) | **48** |
+//! | curated cases only ([`NO_REAL_DATA_REACHES`]) | **23** |
 //!
 //! The dependency is asserted rather than commented:
 //! [`the_curated_cases_cover_what_the_package_does_not`].
@@ -64,7 +64,7 @@ const LIGATURE: &str = "\u{FB00}";
 /// decision needs a rule (which names moved? which references went stale?) the
 /// rule is written out a second time there, over `serde_json::Value` rather than
 /// over the IR reader.
-const BRANCHES: [&str; 65] = [
+const BRANCHES: [&str; 71] = [
     // ownership: what it was given.
     "ownershipIncGiven",
     "ownershipIncAbsent",
@@ -108,6 +108,13 @@ const BRANCHES: [&str; 65] = [
     "mergeRemoveMissedIndex",
     "mergeRemoveEmpty",
     "mergeRemoveRepeated",
+    // merge: the package's module list (M3-d2b).
+    "mergeModulesGiven",
+    "mergeModulesAbsent",
+    "mergeModulesReordersIndex",
+    "mergeModulesRepeated",
+    "mergeModulesMissingFromTree",
+    "mergeModulesExtraInTree",
     // merge: folding.
     "incModuleReplaced",
     "incModuleAppended",
@@ -146,16 +153,17 @@ const BRANCHES: [&str; 65] = [
 /// one re-extracted module back in place, which is what a green
 /// `tools/merge-compare.sh` on the commonest scenario means.
 ///
-/// Eighteen of the sixty-five. Every shape of edit the pipeline is *for* — a move,
-/// a deletion, a module that never existed — is invisible to it, and so is every
-/// question `verify` asks.
-const ONE_ROUND: [&str; 18] = [
+/// Nineteen of the seventy-one. Every shape of edit the pipeline is *for* — a
+/// move, a deletion, a module that never existed — is invisible to it, and so is
+/// every question `verify` asks.
+const ONE_ROUND: [&str; 19] = [
     "changedOutWritten",
     "contentHashMoved",
     "depSliceWritten",
     "incModuleKnownToBase",
     "incModuleReplaced",
     "mergeIncGiven",
+    "mergeModulesAbsent",
     "mergeOutIsBase",
     "mergeRemoveEmpty",
     "mergeTimingsWritten",
@@ -173,7 +181,7 @@ const ONE_ROUND: [&str; 18] = [
 /// What the whole harness reaches — the nine rounds and three verifications of
 /// `tools/merge-reference.sh`, replayed in process by
 /// [`the_corpus_matches_the_prototype`]. **Measured there, not assumed.**
-const HARNESS_AND_INDEX: [&str; 47] = [
+const HARNESS_AND_INDEX: [&str; 48] = [
     "baseModuleCopied",
     "baseModuleDeletedInPlace",
     "changedOutEmpty",
@@ -188,6 +196,7 @@ const HARNESS_AND_INDEX: [&str; 47] = [
     "incModuleReplaced",
     "mergeIncAbsent",
     "mergeIncGiven",
+    "mergeModulesAbsent",
     "mergeOutIsBase",
     "mergeOutIsCopy",
     "mergeRemoveEmpty",
@@ -226,15 +235,17 @@ const HARNESS_AND_INDEX: [&str; 47] = [
 /// The branches **no exercise over the real base IR reaches at all**, whatever
 /// the scenario.
 ///
-/// Eighteen of sixty-five. Four are flags the pipeline always passes; four are
-/// shapes of an index or a remove list only a hand edit produces; three are the
-/// UTF-16 / code-point traps, which need a name above the BMP and the package
-/// has none — one of them, the order of the *roots*, is the one place where
-/// keeping `index.json` the prototype's and each slice Lean's pull apart; four
-/// are dependency shapes the package cannot have (no external references at all,
-/// a name owned by two modules at once, a base index with no schema version, an
-/// ablation marker); and two are answers that need a tree the harness does not
-/// build.
+/// Twenty-three of seventy-one. Four are flags the pipeline always passes; four
+/// are shapes of an index or a remove list only a hand edit produces; three are
+/// the UTF-16 / code-point traps, which need a name above the BMP and the
+/// package has none — one of them, the order of the *roots*, is the one place
+/// where keeping `index.json` the prototype's and each slice Lean's pull apart;
+/// four are dependency shapes the package cannot have (no external references at
+/// all, a name owned by two modules at once, a base index with no schema
+/// version, an ablation marker); two are answers that need a tree the harness
+/// does not build; and **five are `--modules`** (M3-d2b), which the harness
+/// never passes because it replays the prototype, and the prototype never reads
+/// the flag it offers.
 ///
 /// The three UTF-16 ones are **not hypothetical, and the neighbouring packages
 /// cannot supply them cheaply**. The target's IR has no supplementary scalar at
@@ -244,7 +255,7 @@ const HARNESS_AND_INDEX: [&str; 47] = [
 /// could borrow Mathlib's *oleans* for the shape the target lacked; here the
 /// shape has to be inside an IR tree's `refs`, and no dependency IR tree exists
 /// without running the extractor over Mathlib. So these stay curated.
-const NO_REAL_DATA_REACHES: [&str; 18] = [
+const NO_REAL_DATA_REACHES: [&str; 23] = [
     "changedOutOmitted",
     "declarationNameRepeated",
     "depNameLastWriterWins",
@@ -254,6 +265,11 @@ const NO_REAL_DATA_REACHES: [&str; 18] = [
     "depSliceNone",
     "indexCarriesAblations",
     "indexRefusedShape",
+    "mergeModulesExtraInTree",
+    "mergeModulesGiven",
+    "mergeModulesMissingFromTree",
+    "mergeModulesReordersIndex",
+    "mergeModulesRepeated",
     "mergeRemoveMissedIndex",
     "mergeRemoveRepeated",
     "mergeTimingsOmitted",
@@ -608,6 +624,11 @@ fn observe_merge(
     } else {
         "mergeIncAbsent"
     });
+    fire(if options.modules.is_some() {
+        "mergeModulesGiven"
+    } else {
+        "mergeModulesAbsent"
+    });
     fire(if options.out == options.base {
         "mergeOutIsBase"
     } else {
@@ -628,8 +649,15 @@ fn observe_merge(
     {
         fire("changedOutEmpty");
     }
+    // Whether the package's module list describes the tree the merge was about
+    // to write, derived here from the same three inputs `merge` has.
+    let list_agrees = observe_module_list(options, base_before, fire);
     if result.is_err() {
-        fire("indexRefusedShape");
+        // A refusal with a list that agrees is the other refusal there is: an
+        // `index.json` that parses and is not an index.
+        if list_agrees {
+            fire("indexRefusedShape");
+        }
         return;
     }
 
@@ -707,6 +735,16 @@ fn observe_merge(
     let Some(merged) = Tree::open(options.out) else {
         return;
     };
+    // **The whole of what `--modules` buys**, asserted wherever it is passed: the
+    // merged index is in the list's order, which is the order a from-scratch
+    // extraction over the same list writes.
+    if let Some(list) = options.modules {
+        assert_eq!(
+            merged.module_names(),
+            deduplicated(list),
+            "the merged index is not in --modules' order",
+        );
+    }
     let own: BTreeSet<String> = merged.module_names().into_iter().collect();
     let mut owners: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     for module in merged.module_names() {
@@ -742,6 +780,88 @@ fn observe_merge(
     if deps_before.difference(&deps_after).next().is_some() {
         fire("depSliceStaleRemoved");
     }
+}
+
+/// A module list with repeats collapsed, each name keeping its first position —
+/// the rule an index and `lean-doc modules`' own output follow, written out here
+/// a second time.
+fn deduplicated(list: &[String]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::with_capacity(list.len());
+    for module in list {
+        if !out.contains(module) {
+            out.push(module.clone());
+        }
+    }
+    out
+}
+
+/// The `--modules` branches (M3-d2b), and whether the list describes the tree
+/// the merge was about to write.
+///
+/// The tree is derived here from the three inputs — the base index **as it was**,
+/// the remove list and the partial extraction — rather than from what `merge`
+/// answered, so a merge that folded the wrong set together cannot make its own
+/// list look right.
+fn observe_module_list(
+    options: &MergeOptions<'_>,
+    base_before: Option<&Value>,
+    fire: &mut impl FnMut(&'static str),
+) -> bool {
+    let (Some(list), Some(index)) = (options.modules, base_before) else {
+        return true;
+    };
+    let base = Tree {
+        root: options.base.to_owned(),
+        index: index.clone(),
+    };
+    let base_names = base.module_names();
+    let in_base: BTreeSet<&String> = base_names.iter().collect();
+    let gone: BTreeSet<&str> = options
+        .removed
+        .iter()
+        .filter(|module| in_base.contains(*module))
+        .map(String::as_str)
+        .collect();
+
+    // Base order minus the deletions, then whatever the partial extraction adds:
+    // the order `merge` produces with no list at all.
+    let mut appended: Vec<String> = base_names
+        .iter()
+        .filter(|module| !gone.contains(module.as_str()))
+        .cloned()
+        .collect();
+    for module in options
+        .inc
+        .and_then(Tree::open)
+        .map(|inc| inc.module_names())
+        .unwrap_or_default()
+    {
+        if !appended.contains(&module) {
+            appended.push(module);
+        }
+    }
+
+    let wanted = deduplicated(list);
+    if wanted.len() != list.len() {
+        fire("mergeModulesRepeated");
+    }
+    let tree: BTreeSet<&String> = appended.iter().collect();
+    let listed: BTreeSet<&String> = wanted.iter().collect();
+    let missing = listed.difference(&tree).next().is_some();
+    let extra = tree.difference(&listed).next().is_some();
+    if missing {
+        fire("mergeModulesMissingFromTree");
+    }
+    if extra {
+        fire("mergeModulesExtraInTree");
+    }
+    if missing || extra {
+        return false;
+    }
+    if wanted != appended {
+        fire("mergeModulesReordersIndex");
+    }
+    true
 }
 
 fn observe_verify(
@@ -1217,6 +1337,7 @@ fn the_corpus_matches_the_prototype() {
             inc: round.inc.as_deref(),
             out: &round.out,
             removed: &removed,
+            modules: None,
             changed_out: Some(&changed),
             timings: Some(&timings),
         });
@@ -1423,6 +1544,7 @@ fn the_dependency_slices_are_the_from_scratch_bytes() {
             inc: Some(&fixtures.join(inc)),
             out: &ir,
             removed: &[],
+            modules: None,
             changed_out: None,
             timings: None,
         })
@@ -1459,13 +1581,13 @@ fn nested_json_keeps_its_key_order() {
 ///
 /// Four claims, all counted rather than believed:
 ///
-/// 1. A byte comparison of **one merged tree** reaches [`ONE_ROUND`] — 18 of the
-///    65. Every edit the pipeline exists for is invisible to it.
-/// 2. The whole harness reaches [`HARNESS_AND_INDEX`] — 47 of 65, measured in
+/// 1. A byte comparison of **one merged tree** reaches [`ONE_ROUND`] — 19 of the
+///    71. Every edit the pipeline exists for is invisible to it.
+/// 2. The whole harness reaches [`HARNESS_AND_INDEX`] — 48 of 71, measured in
 ///    [`the_corpus_matches_the_prototype`].
-/// 3. The other 18 are reachable only by a written-down case, so every one of
+/// 3. The other 23 are reachable only by a written-down case, so every one of
 ///    them is one.
-/// 4. Everything together is all 65.
+/// 4. Everything together is all 71.
 #[test]
 fn the_curated_cases_cover_what_the_package_does_not() {
     // (1) One round over a package shaped like the target: one module
@@ -1481,11 +1603,11 @@ fn the_curated_cases_cover_what_the_package_does_not() {
         BTreeSet::from(ONE_ROUND),
         "a byte comparison of one merged tree reaches a different set of branches than it did"
     );
-    assert_eq!(fired.len(), 18);
+    assert_eq!(fired.len(), 19);
 
     // (2) and (3): what the harness leaves for the curated cases.
     let harness = BTreeSet::from(HARNESS_AND_INDEX);
-    assert_eq!(harness.len(), 47);
+    assert_eq!(harness.len(), 48);
     let only_curated: BTreeSet<&str> = BRANCHES
         .iter()
         .copied()
@@ -1501,6 +1623,7 @@ fn the_curated_cases_cover_what_the_package_does_not() {
     let curated = {
         let mut curated = curated_ownership_branches();
         curated.extend(curated_merge_branches());
+        curated.extend(curated_module_list_branches());
         curated.extend(curated_verify_branches());
         curated
     };
@@ -1731,6 +1854,7 @@ fn curated_merge_branches() -> BTreeSet<&'static str> {
         inc: Some(&alone.inc),
         out: &alone.base,
         removed: &[],
+        modules: None,
         changed_out: None,
         timings: None,
     });
@@ -1756,6 +1880,7 @@ fn curated_merge_branches() -> BTreeSet<&'static str> {
         inc: Some(&bare.inc),
         out: &bare.base,
         removed: &[],
+        modules: None,
         changed_out: None,
         timings: None,
     });
@@ -1784,6 +1909,7 @@ fn curated_merge_branches() -> BTreeSet<&'static str> {
         inc: Some(&astral.inc),
         out: &astral.base,
         removed: &[],
+        modules: None,
         changed_out: None,
         timings: None,
     });
@@ -1826,6 +1952,7 @@ fn curated_merge_branches() -> BTreeSet<&'static str> {
         inc: Some(&roots.inc),
         out: &roots.base,
         removed: &[],
+        modules: None,
         changed_out: None,
         timings: None,
     });
@@ -1873,6 +2000,7 @@ fn curated_merge_branches() -> BTreeSet<&'static str> {
         inc: Some(&clash.inc),
         out: &clash.base,
         removed: &[],
+        modules: None,
         changed_out: None,
         timings: None,
     });
@@ -1897,6 +2025,7 @@ fn curated_merge_branches() -> BTreeSet<&'static str> {
             "Pkg.A".to_owned(),
             "Pkg.Ghost".to_owned(),
         ],
+        modules: None,
         changed_out: None,
         timings: None,
     });
@@ -1926,6 +2055,7 @@ fn curated_merge_branches() -> BTreeSet<&'static str> {
         inc: Some(&ablated.inc),
         out: &ablated.base,
         removed: &[],
+        modules: None,
         changed_out: None,
         timings: None,
     });
@@ -1951,12 +2081,197 @@ fn curated_merge_branches() -> BTreeSet<&'static str> {
         inc: Some(&broken.inc),
         out: &broken.base,
         removed: &[],
+        modules: None,
         changed_out: None,
         timings: None,
     });
     let error = result.expect_err("an index of strings is not an index");
     assert_eq!(error.exit_code(), 3);
     assert!(error.to_string().contains("index entry"), "{error}");
+    covered.extend(fired);
+
+    covered
+}
+
+/// `--modules` (M3-d2b): the list orders the index, and a list that does not
+/// describe the merged tree is refused.
+///
+/// A case of its own rather than more of [`curated_merge_branches`], because it
+/// is the one flag here that the prototype offers and never reads — so what it
+/// does is this port's own claim, and the claim is worth a name.
+#[test]
+fn the_module_list_orders_the_index_or_is_refused() {
+    curated_module_list_branches();
+}
+
+fn curated_module_list_branches() -> BTreeSet<&'static str> {
+    let mut covered = BTreeSet::new();
+
+    // The merged index follows the package's list, and the list is deliberately
+    // in **neither** sorted order nor the one the append rule produces — so
+    // "it happened to be sorted" cannot pass this.
+    let build = |what: &str| -> FakeIr {
+        let repo = FakeIr::new(what);
+        // Two modules referring to the same dependency **name** through two
+        // different defining modules: the slice's last writer wins, so the
+        // module order reaches bytes outside `index.json` too.
+        repo.write_module(
+            &repo.base,
+            "Pkg.Zeta",
+            &[decl("Pkg.z", &[("Dep.Second", "Dep.x")])],
+        );
+        repo.write_module(
+            &repo.base,
+            "Pkg.Alpha",
+            &[decl("Pkg.a", &[("Dep.First", "Dep.x")])],
+        );
+        // The base index is in the order the extractor wrote it, which is not
+        // the sorted one either.
+        repo.write_index(&repo.base, &["Pkg.Zeta", "Pkg.Alpha"], false);
+        repo.write_module(
+            &repo.inc,
+            "Pkg.Mid",
+            &[decl("Pkg.m", &[("Dep.Third", "Dep.z")])],
+        );
+        repo.write_index(&repo.inc, &["Pkg.Mid"], false);
+        repo
+    };
+    let listed = [
+        "Pkg.Mid".to_owned(),
+        "Pkg.Alpha".to_owned(),
+        "Pkg.Zeta".to_owned(),
+    ];
+    let mut sorted = listed.to_vec();
+    sorted.sort_by(|a, b| cmp_utf16(a, b));
+    assert_ne!(
+        sorted,
+        listed.to_vec(),
+        "the list is in sorted order, so following it would prove nothing"
+    );
+    let with = build("merge-modules-order");
+    let (result, fired) = run_merge(&MergeOptions {
+        base: &with.base,
+        inc: Some(&with.inc),
+        out: &with.base,
+        removed: &[],
+        modules: Some(&listed),
+        changed_out: None,
+        timings: None,
+    });
+    result.expect("the merge runs");
+    assert_eq!(
+        Tree::open(&with.base).expect("opens").module_names(),
+        listed,
+        "the merged index is not in the list's order",
+    );
+    covered.extend(fired);
+
+    // The same trees, the same round, no list: the base index's order with the
+    // new module appended — **and a different `deps/Dep.json`**, because the
+    // slice is walked in that order and its last writer wins.
+    let without = build("merge-modules-order-control");
+    let (result, fired) = run_merge(&MergeOptions {
+        base: &without.base,
+        inc: Some(&without.inc),
+        out: &without.base,
+        removed: &[],
+        modules: None,
+        changed_out: None,
+        timings: None,
+    });
+    result.expect("the merge runs");
+    assert_eq!(
+        Tree::open(&without.base).expect("opens").module_names(),
+        ["Pkg.Zeta", "Pkg.Alpha", "Pkg.Mid"],
+        "the append rule moved",
+    );
+    assert_eq!(
+        fs::read_to_string(with.base.join("deps/Dep.json")).expect("written"),
+        r#"{"declarations":{"Dep.x":"Dep.Second","Dep.z":"Dep.Third"},"package":"Dep","schemaVersion":4}"#,
+    );
+    assert_eq!(
+        fs::read_to_string(without.base.join("deps/Dep.json")).expect("written"),
+        r#"{"declarations":{"Dep.x":"Dep.First","Dep.z":"Dep.Third"},"package":"Dep","schemaVersion":4}"#,
+        "the list reached only the index, so a merge that reordered nothing else would pass",
+    );
+    covered.extend(fired);
+
+    // A list naming a module the merged tree has nothing behind: **exit 3, with
+    // the tree untouched**. Following it would mean writing an index without
+    // that module — a file on disk that every later stage reads as absent.
+    let ghost = FakeIr::target_shaped("merge-modules-ghost");
+    let before = tree_bytes(&ghost.base);
+    let listed = [
+        "Pkg.A".to_owned(),
+        "Pkg.B".to_owned(),
+        "Pkg.Ghost".to_owned(),
+    ];
+    let (result, fired) = run_merge(&MergeOptions {
+        base: &ghost.base,
+        inc: Some(&ghost.inc),
+        out: &ghost.base,
+        removed: &[],
+        modules: Some(&listed),
+        changed_out: None,
+        timings: None,
+    });
+    let error = result.expect_err("a list naming a module nothing produced");
+    assert_eq!(error.exit_code(), 3);
+    let message = error.to_string();
+    assert!(message.contains("Pkg.Ghost"), "{message}");
+    assert!(
+        message.contains("0 in the merged tree"),
+        "the other direction is reported as empty rather than left out: {message}",
+    );
+    assert_eq!(
+        before,
+        tree_bytes(&ghost.base),
+        "the refusal came after something was written",
+    );
+    covered.extend(fired);
+
+    // The other direction: a module in the merged tree the list does not name.
+    // Following it would append that one, which is exactly the divergence from a
+    // from-scratch extraction M3-d2b removed.
+    let stale = FakeIr::target_shaped("merge-modules-stale-list");
+    let before = tree_bytes(&stale.base);
+    let listed = ["Pkg.B".to_owned()];
+    let (result, fired) = run_merge(&MergeOptions {
+        base: &stale.base,
+        inc: Some(&stale.inc),
+        out: &stale.base,
+        removed: &[],
+        modules: Some(&listed),
+        changed_out: None,
+        timings: None,
+    });
+    let error = result.expect_err("a list that has fallen behind the tree");
+    assert_eq!(error.exit_code(), 3);
+    let message = error.to_string();
+    assert!(message.contains("Pkg.A"), "{message}");
+    assert!(message.contains("1 in the merged tree"), "{message}");
+    assert_eq!(before, tree_bytes(&stale.base));
+    covered.extend(fired);
+
+    // A list that names one module twice is one list, not two modules: the
+    // repeat is dropped and the first position stands, as an index's own
+    // repeated entry does (`module_map`).
+    let twice = FakeIr::target_shaped("merge-modules-twice");
+    let listed = ["Pkg.B".to_owned(), "Pkg.A".to_owned(), "Pkg.B".to_owned()];
+    let (result, fired) = run_merge(&MergeOptions {
+        base: &twice.base,
+        inc: Some(&twice.inc),
+        out: &twice.base,
+        removed: &[],
+        modules: Some(&listed),
+        changed_out: None,
+        timings: None,
+    });
+    let summary = result.expect("the merge runs");
+    assert_eq!(summary.modules, 2, "the repeat became a second entry");
+    let merged = Tree::open(&twice.base).expect("opens");
+    assert_eq!(merged.module_names(), ["Pkg.B", "Pkg.A"]);
+    assert_eq!(merged.index["moduleCount"], json!(2));
     covered.extend(fired);
 
     covered
@@ -1998,6 +2313,7 @@ fn curated_verify_branches() -> BTreeSet<&'static str> {
             inc: None,
             out: &repo.base,
             removed: &["Pkg.Ghost".to_owned()],
+            modules: None,
             changed_out: None,
             timings: None,
         })
@@ -2092,6 +2408,7 @@ impl FakeIr {
             // The common round has no deletion at all: `incremental.sh` passes
             // `--remove` only in the first round, and only when something went.
             removed: &[],
+            modules: None,
             changed_out: Some(&changed),
             timings: Some(&timings),
         });
@@ -2191,6 +2508,35 @@ fn decl(name: &str, refs: &[(&str, &str)]) -> Value {
         "equationCode": [],
         "refs": refs.iter().map(|(m, n)| json!([m, n])).collect::<Vec<_>>(),
     })
+}
+
+/// Every file under `root`, keyed by its path relative to it.
+///
+/// What a refusal has to have left alone: `merge` decides whether the module
+/// list describes the tree **before** it creates a directory, so a refused run
+/// is one a caller can fix the list and repeat on the same tree.
+fn tree_bytes(root: &Path) -> BTreeMap<String, Vec<u8>> {
+    let mut files = BTreeMap::new();
+    let mut stack = vec![root.to_owned()];
+    while let Some(dir) = stack.pop() {
+        let Ok(listing) = fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in listing.flatten() {
+            let path = entry.path();
+            if entry.file_type().expect("a file type").is_dir() {
+                stack.push(path);
+            } else {
+                let key = path
+                    .strip_prefix(root)
+                    .expect("under the root")
+                    .to_string_lossy()
+                    .into_owned();
+                files.insert(key, fs::read(&path).expect("a readable file"));
+            }
+        }
+    }
+    files
 }
 
 fn copy_tree(from: &Path, to: &Path) {

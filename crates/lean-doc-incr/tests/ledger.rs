@@ -577,6 +577,7 @@ fn observe_failure(error: &Error, fire: &mut impl FnMut(&'static str)) {
         // touches the page tree, so none of them can arrive here.
         Error::Ir(_)
         | Error::IndexShape { .. }
+        | Error::ModuleListMismatch { .. }
         | Error::NotAModule { .. }
         | Error::UnknownMode { .. }
         | Error::OutsidePageRoot { .. } => {

@@ -429,6 +429,12 @@ fn run_incremental(options: &Incremental<'_>) -> Result<(Summary, Timings), Fail
             } else {
                 &[]
             },
+            // The same list `detect` was given, and for the same reason: it is
+            // what a from-scratch extraction would be handed, so it is the order
+            // `index.json` comes out in (M3-d2b). Without it a round that adds a
+            // module leaves an index a full run would have written differently —
+            // same entries, different sequence — and no page byte says so.
+            modules: Some(&options.modules),
             changed_out: Some(&options.work.join(format!("ir-changed-{rounds}.txt"))),
             timings: Some(&options.work.join(format!("merge-timings-{rounds}.json"))),
         })

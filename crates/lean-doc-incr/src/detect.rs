@@ -560,6 +560,23 @@ pub enum Error {
         path: PathBuf,
         message: String,
     },
+    /// `merge --modules`: the package's module list and the tree the merge is
+    /// about to write name different modules.
+    ///
+    /// **Exit 3, and refused before the first byte is written** 【判断】. The
+    /// list is what `index.json`'s `modules` array is ordered by, so a mismatch
+    /// leaves the order of the odd ones out to a guess — and the only guesses
+    /// available are the two this project refuses to make silently: append the
+    /// unlisted ones (which is the divergence from a from-scratch extraction
+    /// that M3-d2b removed) or drop the unbacked ones (a module with a file and
+    /// no index entry, invisible to every later stage). Neither shows up in a
+    /// page byte, so neither would ever be noticed.
+    ModuleListMismatch {
+        /// In the list, with nothing in the merged tree behind it.
+        missing: Vec<String>,
+        /// In the merged tree, and not in the list.
+        extra: Vec<String>,
+    },
     /// `impact`: a `--changed` module the IR's index does not have. The
     /// prototype's **exit 3** — under-rendering has to be loud (plan §5, M3).
     NotAModule {
@@ -594,6 +611,7 @@ impl Error {
             | Self::LedgerSchema { .. }
             | Self::NoSuchModule { .. }
             | Self::IndexShape { .. }
+            | Self::ModuleListMismatch { .. }
             | Self::NotAModule { .. }
             | Self::OutsidePageRoot { .. } => 3,
         }
@@ -621,6 +639,17 @@ impl std::fmt::Display for Error {
             ),
             Self::Ir(source) => write!(f, "{source}"),
             Self::IndexShape { path, message } => write!(f, "{}: {message}", path.display()),
+            Self::ModuleListMismatch { missing, extra } => write!(
+                f,
+                "--modules and the merged IR name different modules: {} in the list with nothing \
+                 behind them ({}), {} in the merged tree the list does not name ({}). index.json's \
+                 module order is this list's, so the odd ones out would have to be guessed at — \
+                 and a wrong guess moves index.json alone, where no page byte follows it",
+                missing.len(),
+                some_of(missing),
+                extra.len(),
+                some_of(extra),
+            ),
             // The prototype's exact wording: `impact.ts:182` and `:207`.
             Self::NotAModule { module } => write!(f, "not a module of this package: {module}"),
             Self::UnknownMode { mode } => write!(f, "unknown --mode {mode}"),
@@ -631,6 +660,29 @@ impl std::fmt::Display for Error {
                 root.display()
             ),
         }
+    }
+}
+
+/// How many names a refusal spells out before it only counts them.
+///
+/// The same shape as `merge --verify`'s `VERIFY_DEP_FAILURES`: a caller needs a
+/// name to start from, not a list that scrolls a screenful of terminal away.
+const NAMES_IN_REFUSAL: usize = 10;
+
+fn some_of(names: &[String]) -> String {
+    if names.is_empty() {
+        return "none".to_owned();
+    }
+    let shown = names
+        .iter()
+        .take(NAMES_IN_REFUSAL)
+        .map(String::as_str)
+        .collect::<Vec<_>>()
+        .join(", ");
+    if names.len() > NAMES_IN_REFUSAL {
+        format!("{shown}, … and {} more", names.len() - NAMES_IN_REFUSAL)
+    } else {
+        shown
     }
 }
 

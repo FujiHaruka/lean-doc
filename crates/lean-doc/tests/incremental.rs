@@ -1257,17 +1257,23 @@ struct IrVerdict {
     differing: Vec<String>,
     /// True when the only difference is `index.json`, and that file holds the
     /// same entries in a different sequence.
+    ///
+    /// **Nothing may reach this any more** (M3-d2b): it is kept so that a
+    /// failure can say *which* divergence came back — the module order, or
+    /// something that changed the data — instead of only that one did.
     index_order_only: bool,
 }
 
 /// Compares two IR trees file by file.
 ///
-/// The registered divergence is checked rather than excused: `merge` **appends**
-/// a module the base index did not have (`merge.rs:334`), and a from-scratch
-/// extraction lists modules in the order the extractor was given them, which is
-/// the glob's. So an incremental run that adds a module produces an
-/// `index.json` with the same entries, the same counts and the same dependency
-/// maps, in a different order — and nothing else in the tree moves.
+/// **This used to have a registered exception, and no longer does** (M3-d2b).
+/// `merge` appended a module the base index did not have, while a from-scratch
+/// extraction lists modules in the order the extractor was handed them — the
+/// glob's — so a run that *added* a module produced an `index.json` with the
+/// same entries, the same counts and the same dependency maps in a different
+/// sequence (`added` / `restored` / `stale-state`, 54 of 57 files). The pipeline
+/// now hands `merge` the same module list it hands `detect`, so the two orders
+/// are one and every file of every state is compared without an excuse.
 fn compare_ir(live: &Path, scratch: &Path) -> IrVerdict {
     let a = tree(live);
     let b = tree(scratch);
@@ -1331,7 +1337,7 @@ fn step(live: &mut Live, what: &str, world: &World) -> (BTreeSet<&'static str>, 
         if ir.differing.is_empty() {
             String::new()
         } else {
-            format!("   ({} = module order only)", ir.differing.join(", "))
+            format!("   (differing: {})", ir.differing.join(", "))
         },
     );
     live.refresh_ledger();
@@ -1341,9 +1347,10 @@ fn step(live: &mut Live, what: &str, world: &World) -> (BTreeSet<&'static str>, 
 /// **The gate.** The seven states of `stage7h/oracle.sh`, over the whole
 /// pipeline, each compared with `lean-doc site` over the same world.
 ///
-/// The IR is compared too, and there the answer is not "identical" everywhere —
-/// see [`compare_ir`]. The **site** is identical in all seven, which is the
-/// statement plan §1's gate is about.
+/// The **site** is identical in all seven, which is the statement plan §1's gate
+/// is about. The IR is compared too, and since M3-d2b that answer is "identical"
+/// everywhere as well — see [`compare_ir`] for the exception that used to be
+/// registered here.
 #[test]
 fn the_seven_states_match_full_generation() {
     let mut world = base_world();
@@ -1465,23 +1472,29 @@ fn the_seven_states_match_full_generation() {
     let joined = report.join("\n");
     for (what, verdict) in &verdicts {
         assert!(
-            verdict.differing.is_empty() || verdict.index_order_only,
-            "{what}: the IR differs from a full extraction by more than the index's module \
-             order\n{joined}",
+            verdict.differing.is_empty(),
+            "{what}: the IR is not the one a full extraction writes{}\n{joined}",
+            if verdict.index_order_only {
+                " — same entries, different module order, so `merge` stopped following \
+                 `--modules` (M3-d2b)"
+            } else {
+                ""
+            },
         );
     }
-    // Which states diverge is pinned: a change that made `merge` sort the index
-    // shows up here as a set that got smaller, and one that broke it as a set
-    // that got bigger.
+    // **Empty, and pinned as empty** (M3-d2b). Before the pipeline handed `merge`
+    // the package's module list this held `["added", "restored", "stale-state"]`
+    // — the three states that add a module — and the difference was `index.json`
+    // alone, which no page byte follows. Asserting the set rather than deleting
+    // it is what makes a divergence that comes back say so.
     let diverged: Vec<&str> = verdicts
         .iter()
         .filter(|(_, verdict)| !verdict.differing.is_empty())
         .map(|(what, _)| *what)
         .collect();
-    assert_eq!(
-        diverged,
-        ["added", "restored", "stale-state"],
-        "the registered index-order divergence moved\n{joined}",
+    assert!(
+        diverged.is_empty(),
+        "the IR of {diverged:?} is not a from-scratch one\n{joined}",
     );
 
     if beyond_the_gate() {
@@ -2182,6 +2195,76 @@ fn a_re_extraction_that_changes_nothing_rewrites_nothing() {
     assert_eq!(
         report.pages_before, report.pages_after,
         "re-rendering the same IR produced different bytes",
+    );
+}
+
+/// `lean-doc merge --modules <file>` — the one stage flag M3-d2b added, checked
+/// at the **process** boundary.
+///
+/// The pipeline reaches the same code as a library call, so nothing above proves
+/// that the subcommand parses the flag and hands it on; a CLI that accepted it
+/// and dropped it would leave every test here green. The refusal is checked in
+/// the same run, because a caller's only sign that the list is stale is the exit
+/// code.
+#[test]
+fn the_merge_command_takes_a_module_list() {
+    let world = base_world();
+    let live = Live::setup("merge-cli", &world);
+    let nothing = live.trees.path.join("nothing-removed.txt");
+    write(&nothing, b"");
+
+    // A list naming a module the IR has nothing behind: exit 3, and the name is
+    // in the message rather than only in a count.
+    let ghosts = live.trees.path.join("ghost-modules.txt");
+    let mut names = world.names();
+    names.push("Pkg.Ghost".to_owned());
+    write(&ghosts, (names.join("\n") + "\n").as_bytes());
+    let out = live.trees.path.join("merged-ir");
+    let refused = lean_doc(&[
+        "merge",
+        "--base",
+        &live.ir.display().to_string(),
+        "--out",
+        &out.display().to_string(),
+        "--remove",
+        &nothing.display().to_string(),
+        "--modules",
+        &ghosts.display().to_string(),
+    ]);
+    assert_eq!(code(&refused), 3, "{}", stderr(&refused));
+    assert!(
+        stderr(&refused).contains("Pkg.Ghost"),
+        "{}",
+        stderr(&refused)
+    );
+    assert!(!out.exists(), "the refused merge wrote a tree");
+
+    // The package's own list — `lean-doc modules` wrote it — is accepted, and
+    // the index comes out in it.
+    let ok = lean_doc(&[
+        "merge",
+        "--base",
+        &live.ir.display().to_string(),
+        "--out",
+        &out.display().to_string(),
+        "--remove",
+        &nothing.display().to_string(),
+        "--modules",
+        &live.modules.display().to_string(),
+    ]);
+    assert_eq!(code(&ok), 0, "{}", stderr(&ok));
+    let index: Value =
+        serde_json::from_str(&fs::read_to_string(out.join("index.json")).expect("an index"))
+            .expect("the index is JSON");
+    let merged: Vec<String> = index["modules"]
+        .as_array()
+        .expect("an array")
+        .iter()
+        .map(|entry| entry["module"].as_str().expect("a name").to_owned())
+        .collect();
+    assert_eq!(
+        merged,
+        lines(&fs::read_to_string(&live.modules).expect("the module list")),
     );
 }
 
