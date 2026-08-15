@@ -208,6 +208,27 @@ pub struct CheckSummary {
     /// What must be re-extracted: every present module when the extract key
     /// changed, otherwise `changed ∪ added`.
     pub re_extract: Vec<String>,
+    /// **The ledger this check would leave behind if the run it licenses
+    /// succeeds** — the hashes as they were *here*, before anything was
+    /// extracted from them.
+    ///
+    /// Not written by this function 【判断】: `check` answers a question and a
+    /// caller that stops on the answer must not have moved the ledger. Who
+    /// writes it is `lean-doc build` (M4-d), and the reason the value is taken
+    /// here rather than re-hashed afterwards is a race with one silent
+    /// direction: an olean that moves *while* the run is in flight, re-hashed at
+    /// the end, would be recorded as the one its IR came from, and that module
+    /// is then never re-extracted again. Recording the hash the extraction was
+    /// licensed by can only make a later run re-extract something it need not —
+    /// wasteful, and loud in the next run's `changed` count.
+    ///
+    /// The module entries are the ones **that still have an olean**, in the
+    /// order `--modules` named them: a removed module has to leave the ledger,
+    /// or the next `check` reports it removed for ever. The two keys are this
+    /// check's own; a caller whose run replaces the IR tree recomputes
+    /// [`crate::extract_key`] against the tree that now exists (see
+    /// `crates/lean-doc/src/build.rs`).
+    pub fresh: Ledger,
 }
 
 impl CheckSummary {
@@ -326,7 +347,6 @@ pub fn check_ledger(options: &CheckOptions<'_>) -> Result<CheckSummary, Error> {
     }
 
     let summary = CheckSummary {
-        algorithm,
         modules: present.len(),
         files: present.iter().map(|entry| entry.files.len()).sum(),
         hashed_bytes: hashed_bytes(&present),
@@ -336,6 +356,21 @@ pub fn check_ledger(options: &CheckOptions<'_>) -> Result<CheckSummary, Error> {
         added,
         removed,
         re_extract,
+        // See [`CheckSummary::fresh`]: built here, written by nobody. The
+        // algorithm is the one that produced these hashes — the ledger's own
+        // unless `--algorithm` overrode it — because a ledger whose entries and
+        // whose declared algorithm disagree compares every module as changed
+        // for ever after.
+        fresh: Ledger {
+            ledger_schema: LEDGER_SCHEMA,
+            algorithm: algorithm.clone(),
+            target: ledger.target,
+            lib_dir: ledger.lib_dir,
+            extract_key: extract,
+            render_key: Some(render),
+            modules: present,
+        },
+        algorithm,
     };
     if let Some(path) = options.timings {
         let record = CheckTimings {

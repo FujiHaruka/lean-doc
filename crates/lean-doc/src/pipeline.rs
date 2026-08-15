@@ -107,8 +107,13 @@
 //!   re-seeds `base-ledger.json` for every variant it measures. A chain of
 //!   incremental runs therefore needs its caller to rebuild the ledger between
 //!   them (`lean-doc ledger build`), or the second run re-extracts the first
-//!   run's changed set again — wasteful, not wrong. **Who owns that is M4's**,
-//!   together with the resident extractor.
+//!   run's changed set again — wasteful, not wrong. **That caller is
+//!   [`crate::build`]** (M4-d): this function hands it the ledger `detect`
+//!   computed, in [`Run::detected`], and `build` writes it **after** the last
+//!   step that can fail. The reason it is not written here is the same reason
+//!   the prototype does not write it: a stage that answers a question must not
+//!   move the state its answer was about, or a caller that stops on the answer
+//!   has already lost.
 //! - **It has no `--count-reads`.** The prototype's read counter wraps every
 //!   `deno` step to answer "how many times does one run read the whole IR"; it
 //!   makes the timings meaningless and is a measurement tool, not a product flag.
@@ -134,9 +139,9 @@ use std::time::Instant;
 
 use lean_doc_global::{GlobalOptions, build_global};
 use lean_doc_incr::{
-    CheckOptions, ImpactOptions, MergeOptions, Mode, OwnershipOptions, PruneOptions, check_ledger,
-    impact as run_impact, merge as run_merge, ownership as run_ownership, prune as run_prune,
-    read_module_list,
+    CheckOptions, ImpactOptions, Ledger, MergeOptions, Mode, OwnershipOptions, PruneOptions,
+    check_ledger, impact as run_impact, merge as run_merge, ownership as run_ownership,
+    prune as run_prune, read_module_list,
 };
 use lean_doc_ir::sort_utf16;
 use lean_doc_render::{ModuleSet, RenderOptions, render_site};
@@ -171,22 +176,22 @@ const REV_HEX_DIGITS: usize = 40;
 // ----------------------------------------------------------------- the driver
 
 /// Everything one incremental round needs to know.
-struct Incremental<'a> {
-    ir: &'a Path,
-    pages: &'a Path,
-    ledger: &'a Path,
-    work: &'a Path,
+pub struct Incremental<'a> {
+    pub ir: &'a Path,
+    pub pages: &'a Path,
+    pub ledger: &'a Path,
+    pub work: &'a Path,
     /// The current module list, from a glob over the sources — `lean-doc
     /// modules`. **Required**, unlike the prototype's, where it is optional
     /// (`${MODULES:+--modules …}`): without it `check` re-reads the ledger's own
     /// list and **cannot see a module that appeared or vanished**, which are two
     /// of the seven states this pipeline is judged on.
-    modules: Vec<String>,
-    source_url: &'a str,
-    link_index: &'a Path,
-    state: &'a Path,
-    mode: Mode,
-    max_rounds: usize,
+    pub modules: Vec<String>,
+    pub source_url: &'a str,
+    pub link_index: &'a Path,
+    pub state: &'a Path,
+    pub mode: Mode,
+    pub max_rounds: usize,
 }
 
 /// How a round's extraction is done: one process per round, or one environment
@@ -195,7 +200,7 @@ struct Incremental<'a> {
 /// The two are the same interface — a module list in, an IR tree and a timings
 /// record out — and they differ in **who owns the process**. Nothing downstream
 /// of this enum can tell which one ran, which is the M4-c gate stated as a type.
-enum Extractor {
+pub enum Extractor {
     /// `--extractor <program>`: a program called once per round.
     ///
     /// **There is no default, and that is the design** 【判断】. Two jobs:
@@ -236,7 +241,7 @@ impl Extractor {
     /// `<timings>-events.jsonl`, and it is an implementation detail of how the
     /// Lean side reports its phase timers — one the resident path reproduces
     /// exactly, so that two records of the same round stay comparable.
-    fn run(&mut self, modules: &Path, ir_dir: &Path, timings: &Path) -> Result<(), Failure> {
+    pub fn run(&mut self, modules: &Path, ir_dir: &Path, timings: &Path) -> Result<(), Failure> {
         let (program, args) = match self {
             Self::Resident(resident) => return resident.extract(modules, ir_dir, timings),
             Self::OneShot { program, args } => (program, args),
@@ -277,7 +282,7 @@ impl Extractor {
     /// server alive at all (see [`crate::resident`]). This exists so the ordinary
     /// stop is reported and its cost is inside the run's clock, not so that a
     /// failure needs it.
-    fn release(&mut self) {
+    pub fn release(&mut self) {
         if let Self::Resident(resident) = self {
             resident.stop();
         }
@@ -327,23 +332,38 @@ impl Work {
 }
 
 /// What one incremental run did. Every field is a denominator.
-struct Summary {
-    rounds: usize,
-    stale_found: usize,
-    changed: usize,
-    removed: usize,
-    ir_changed: usize,
-    global_stale: usize,
-    pages_rendered: usize,
-    mode: String,
+pub struct Summary {
+    pub rounds: usize,
+    pub stale_found: usize,
+    pub changed: usize,
+    pub removed: usize,
+    pub ir_changed: usize,
+    pub global_stale: usize,
+    pub pages_rendered: usize,
+    pub mode: String,
+}
+
+/// One run's whole answer: the counts, the clock, and the ledger the run
+/// *licenses* but does not write.
+///
+/// The third field is M3-d2's first debt, arriving (plan §7). `incremental`
+/// drops it on the floor exactly as before — see this module's heading — and
+/// [`crate::build`] is the command that writes it, after the last step that
+/// could fail.
+pub struct Run {
+    pub summary: Summary,
+    pub timings: Timings,
+    /// [`lean_doc_incr::CheckSummary::fresh`]: the module hashes as `detect`
+    /// read them, **before** the extraction they licensed.
+    pub detected: Ledger,
 }
 
 /// One incremental round: a changed build tree in, an updated IR and updated
 /// pages out.
-fn run_incremental(
+pub fn run_incremental(
     options: &Incremental<'_>,
     extractor: &mut Extractor,
-) -> Result<(Summary, Timings), Failure> {
+) -> Result<Run, Failure> {
     let started = Instant::now();
     let work = Work::new(options.work);
     create_dir(options.work)?;
@@ -647,8 +667,8 @@ fn run_incremental(
     }
     let render_done = started.elapsed();
 
-    Ok((
-        Summary {
+    Ok(Run {
+        summary: Summary {
             rounds,
             stale_found,
             changed: check.re_extract.len(),
@@ -658,7 +678,7 @@ fn run_incremental(
             pages_rendered,
             mode: mode.name().to_owned(),
         },
-        Timings {
+        timings: Timings {
             detect: detect_done.as_secs_f64(),
             extract: extract_seconds,
             ownership: ownership_seconds,
@@ -670,7 +690,8 @@ fn run_incremental(
             render: (render_done - impact_done).as_secs_f64(),
             total: render_done.as_secs_f64(),
         },
-    ))
+        detected: check.fresh,
+    })
 }
 
 /// The wall-clock split of one run, in the prototype's phases.
@@ -678,17 +699,17 @@ fn run_incremental(
 /// Kept out of [`Summary`] because the durations are **diagnostics**: nothing
 /// may assert on them, and a summary without them is one a test can compare with
 /// `==`.
-struct Timings {
-    detect: f64,
-    extract: f64,
-    ownership: f64,
-    merge: f64,
-    rounds: f64,
-    prune: f64,
-    global: f64,
-    impact: f64,
-    render: f64,
-    total: f64,
+pub struct Timings {
+    pub detect: f64,
+    pub extract: f64,
+    pub ownership: f64,
+    pub merge: f64,
+    pub rounds: f64,
+    pub prune: f64,
+    pub global: f64,
+    pub impact: f64,
+    pub render: f64,
+    pub total: f64,
 }
 
 /// `prune` over a deletion list, and **nothing else**.
@@ -989,14 +1010,14 @@ pub fn incremental(args: &[String]) -> Result<(), Failure> {
     // puts the stop **before** the error reaches the caller rather than after.
     // `Drop` remains the backstop for a panic (see `crate::resident`).
     extractor.release();
-    let (summary, clocks) = outcome?;
+    let run = outcome?;
 
     if let Some(path) = timings {
         let serve = match &extractor {
             Extractor::Resident(resident) => Some((jobs, resident.generation().to_owned())),
             Extractor::OneShot { .. } => None,
         };
-        write_timings(&path, &work, &summary, &clocks, serve.as_ref())?;
+        write_timings(&path, &work, &run.summary, &run.timings, serve.as_ref())?;
     }
     Ok(())
 }
@@ -1010,7 +1031,7 @@ pub fn incremental(args: &[String]) -> Result<(), Failure> {
 /// PATH, and elan's shim under that name is what picks the toolchain the target
 /// pins, so `~/.elan/bin/lake` would be the more specific and the more fragile of
 /// the two. The variable names are the prototype's (`serve-ctl.sh:48-50`).
-fn serve_options(
+pub fn serve_options(
     bin: Option<PathBuf>,
     target: Option<PathBuf>,
     lake: Option<PathBuf>,
@@ -1065,7 +1086,7 @@ fn serve_options(
 /// pass placeholder URLs on purpose. The pipeline is the path that runs *every
 /// commit*, and it is the only place a real revision enters, so the check
 /// belongs on it.
-fn check_source_url(url: &str) -> Result<(), Failure> {
+pub fn check_source_url(url: &str) -> Result<(), Failure> {
     let broken = "the acceptance oracle normalises `/blob/[0-9a-f]{40}/` and nothing else \
                   (coverage.ts:512), so with a tag or a branch name here every page keeps its \
                   revision in the compared bytes and the score drops 3.1103 points with no \
@@ -1211,10 +1232,11 @@ fn write_timings(
 /// every one of them becomes a module the ledger watches and the extractor is
 /// asked for.
 ///
-/// **Where `--lib` comes from is M4's.** A `lakefile` declares it; reading one is
-/// a dependency on Lake's format that this milestone does not need, so the name
-/// is an argument here. It repeats, because a package may declare more than one
-/// library.
+/// **`--lib` now has an origin** (M4-d, M3-d2's fifth debt): with none given the
+/// names are read out of the package's lakefile — [`crate::lakefile`], which
+/// reads `lakefile.toml` and refuses `lakefile.lean` by name. The flag stays,
+/// and it repeats, because a package may declare more than one library and
+/// because a caller may want a subset of what the lakefile declares.
 ///
 /// # The order is deliberately not the prototype's 【判断】
 ///
@@ -1259,15 +1281,46 @@ pub fn modules(args: &[String]) -> Result<(), Failure> {
         return usage("--root <repo> is required");
     };
     if libs.is_empty() {
-        return usage(
-            "--lib <Name> is required: it names `<Name>.lean` and `<Name>/` under --root. Which \
-             libraries a package declares is in its lakefile, and reading one is M4's",
+        let declared = crate::lakefile::read_libraries(&root)?;
+        // Which file answered, and what it said — **on stderr**, because this
+        // command's stdout is the module list itself when `--out` is absent and
+        // a caller redirecting it into a file would otherwise get a diagnostic
+        // as its first module. A list that came out a library short is a site
+        // that came out a library short, and the only way to notice is to see
+        // the names.
+        eprintln!(
+            "lib     {} (from {})",
+            declared.names.join(", "),
+            declared.file.display(),
         );
+        libs = declared.names;
     }
+    let names = module_names(&root, &libs)?;
 
+    match out {
+        Some(path) => {
+            write_lines(&path, &names)?;
+            println!("{} modules -> {}", names.len(), path.display());
+        }
+        None => {
+            for name in &names {
+                println!("{name}");
+            }
+        }
+    }
+    Ok(())
+}
+
+/// The glob itself: every module of every named library, in UTF-16 order.
+///
+/// Split out of [`modules`] so that [`crate::build`] derives the list the same
+/// way rather than shelling out to this command — **the same list has to reach
+/// `detect`, the extractor and `merge`** (M3-d2b), and two derivations of "the
+/// same" list is exactly how that stops being true.
+pub fn module_names(root: &Path, libs: &[String]) -> Result<Vec<String>, Failure> {
     // Relative paths, as `find` prints them from inside the repository.
     let mut paths: Vec<String> = Vec::new();
-    for lib in &libs {
+    for lib in libs {
         let file = root.join(format!("{lib}.lean"));
         let dir = root.join(lib);
         let has_file = file.is_file();
@@ -1293,25 +1346,13 @@ pub fn modules(args: &[String]) -> Result<(), Failure> {
         .iter()
         .map(|path| path.strip_suffix(".lean").unwrap_or(path).replace('/', "."))
         .collect();
-    // Plan §7, U1 — and see this function's heading for why this is not the
+    // Plan §7, U1 — and see [`modules`]'s heading for why this is not the
     // prototype's `sort`. `dedup` after the sort: two `--lib` arguments that
     // overlap name the same module twice, and a ledger with a repeated module is
     // one whose `check` compares it against itself.
     sort_utf16(&mut names);
     names.dedup();
-
-    match out {
-        Some(path) => {
-            write_lines(&path, &names)?;
-            println!("{} modules -> {}", names.len(), path.display());
-        }
-        None => {
-            for name in &names {
-                println!("{name}");
-            }
-        }
-    }
-    Ok(())
+    Ok(names)
 }
 
 /// Every `*.lean` under `dir`, as a path relative to the repository root.
@@ -1346,7 +1387,7 @@ fn collect_lean(dir: &Path, prefix: &str, out: &mut Vec<String>) -> Result<(), F
 /// The same spelling every stage uses (`detect::write_text`), for the same
 /// reason: an empty set has to be an empty file rather than one blank line, or
 /// `--only-from` and the round loop disagree about what "nothing" is.
-fn write_lines(path: &Path, items: &[String]) -> Result<(), Failure> {
+pub fn write_lines(path: &Path, items: &[String]) -> Result<(), Failure> {
     let body = if items.is_empty() {
         String::new()
     } else {
@@ -1362,7 +1403,7 @@ fn write_file(path: &Path, body: &str) -> Result<(), Failure> {
     fs::write(path, body).map_err(|source| Failure::Failed(format!("{}: {source}", path.display())))
 }
 
-fn create_dir(path: &Path) -> Result<(), Failure> {
+pub fn create_dir(path: &Path) -> Result<(), Failure> {
     fs::create_dir_all(path)
         .map_err(|source| Failure::Failed(format!("{}: {source}", path.display())))
 }

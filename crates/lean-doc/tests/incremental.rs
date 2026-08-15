@@ -77,7 +77,7 @@ const ARTIFACTS: [&str; 6] = [
 /// decided. Where a decision needs a rule (is this URL acceptable? which of the
 /// two derivations produced the render set?) the rule is written out a second
 /// time here.
-const BRANCHES: [&str; 59] = [
+const BRANCHES: [&str; 61] = [
     // the command line
     "sourceUrlAccepted",
     "sourceUrlNoBlobRefused",
@@ -144,13 +144,15 @@ const BRANCHES: [&str; 59] = [
     "modulesToStdout",
     "modulesToFile",
     "modulesRequiredFlagMissing",
+    "modulesLibFromLakefile",
+    "modulesLakefileRefused",
 ];
 
 /// What one ordinary round reaches: one module's olean and docstring moved,
 /// nothing added, nothing deleted, the default mode and the default round
 /// bound.
 ///
-/// **Eighteen of fifty-nine**, and measured by [`case_one_ordinary_round`]
+/// **Eighteen of sixty-one**, and measured by [`case_one_ordinary_round`]
 /// rather than asserted here. Every deletion branch, both round-loop boundaries,
 /// the whole global-only half of the render set and every refusal are invisible
 /// to it — and that half is the one plan §7's debt 1 is about.
@@ -175,7 +177,7 @@ const ONE_RUN: [&str; 18] = [
     "timingsWritten",
 ];
 
-/// Thirty-two of fifty-nine: what the seven states reach, together —
+/// Thirty-two of sixty-one: what the seven states reach, together —
 /// **measured** by [`the_seven_states_match_full_generation`], not assumed.
 const SEVEN_STATES: [&str; 32] = [
     "deletionsInFirstRound",
@@ -213,14 +215,14 @@ const SEVEN_STATES: [&str; 32] = [
 ];
 
 /// The branches **no run of the seven-state sequence reaches**, whatever the
-/// data. Twenty-seven of fifty-nine, in four groups.
+/// data. Twenty-nine of sixty-one, in four groups.
 ///
-/// - **Eleven are refusals** (`sourceUrl*Refused`, `modeUnrecognisedRefused`,
+/// - **Twelve are refusals** (`sourceUrl*Refused`, `modeUnrecognisedRefused`,
 ///   `maxRoundsZeroRefused`, `requiredFlagMissing`, `retiredFlagRefused`,
 ///   `extractorFailed`, `roundsExceeded`, `modulesLibMissingRefused`,
-///   `modulesRequiredFlagMissing`). A sequence that passes asks for none of
-///   them, which is the point: the whole surface of "this command line is wrong"
-///   is invisible to any run that works.
+///   `modulesRequiredFlagMissing`, `modulesLakefileRefused`). A sequence that
+///   passes asks for none of them, which is the point: the whole surface of
+///   "this command line is wrong" is invisible to any run that works.
 /// - **Four are flags the pipeline always passes the same way**
 ///   (`timingsOmitted`, `extractorArgsEmpty`, `modeGiven`, `maxRoundsGiven`).
 /// - **Five are shapes the seven states do not contain.** `roundsMany` and
@@ -229,9 +231,9 @@ const SEVEN_STATES: [&str; 32] = [
 ///   `renderAllFired` needs a new revision; `mapBeforeAbsent` and `deltaOff`
 ///   need a page tree with no `declarations/name-map.json`, which after a full
 ///   generation never happens.
-/// - **Seven are `lean-doc modules`**, which the sequence calls once per state
-///   and never varies.
-const NO_SEVEN_STATE_RUN_REACHES: [&str; 27] = [
+/// - **Nine are `lean-doc modules`**, which the sequence calls once per state,
+///   with `--lib`, and never varies.
+const NO_SEVEN_STATE_RUN_REACHES: [&str; 29] = [
     "deletionsNotRepeated",
     "deltaOff",
     "extractorArgsEmpty",
@@ -241,9 +243,11 @@ const NO_SEVEN_STATE_RUN_REACHES: [&str; 27] = [
     "maxRoundsZeroRefused",
     "modeGiven",
     "modeUnrecognisedRefused",
+    "modulesLakefileRefused",
     "modulesLibBoth",
     "modulesLibDirOnly",
     "modulesLibFileOnly",
+    "modulesLibFromLakefile",
     "modulesLibMissingRefused",
     "modulesNested",
     "modulesNonLeanSkipped",
@@ -618,9 +622,19 @@ struct ModulesReport {
 fn observe_modules(run: &ModulesReport) -> BTreeSet<&'static str> {
     let mut fired: BTreeSet<&'static str> = BTreeSet::new();
     let mut fire = |branch: &'static str| fire_into(&mut fired, branch);
-    if !run.args.iter().any(|arg| arg == "--root") || !run.args.iter().any(|arg| arg == "--lib") {
+    if !run.args.iter().any(|arg| arg == "--root") {
         fire("modulesRequiredFlagMissing");
         return fired;
+    }
+    // M4-d: `--lib` is optional, and left out the names come from the lakefile
+    // — which either answers or refuses by name.
+    if !run.args.iter().any(|arg| arg == "--lib") {
+        if run.code == 0 {
+            fire("modulesLibFromLakefile");
+        } else {
+            fire("modulesLakefileRefused");
+            return fired;
+        }
     }
     if run.args.iter().filter(|arg| *arg == "--lib").count() > 1 {
         fire("modulesRepeatedLib");
@@ -2335,28 +2349,42 @@ fn case_module_glob() -> BTreeSet<&'static str> {
     assert_eq!(missing.code, 3, "{}", missing.stdout);
     covered.extend(observe_modules(&missing));
 
-    // The two required flags.
-    for args in [
-        vec!["modules".to_owned(), "--lib".to_owned(), "Lib".to_owned()],
-        vec![
-            "modules".to_owned(),
-            "--root".to_owned(),
-            repo.display().to_string(),
-        ],
-    ] {
-        let borrowed: Vec<&str> = args.iter().map(String::as_str).collect();
-        let output = lean_doc(&borrowed);
-        assert_eq!(code(&output), 2, "{args:?}: {}", stderr(&output));
-        covered.extend(observe_modules(&ModulesReport {
-            args,
-            code: code(&output),
-            stdout: String::new(),
-            shapes: Vec::new(),
-            nested: false,
-            other_files: false,
-            out: None,
-        }));
-    }
+    // **`--lib` left out** (M4-d): the lakefile answers. `crates/lean-doc/
+    // tests/build.rs` owns the recogniser's own cases; what is checked here is
+    // that this command reaches it and that the answer is the same list.
+    write(
+        &repo.join("lakefile.toml"),
+        b"name = \"lib\"\n\n[[lean_lib]]\nname = \"Lib\"\n",
+    );
+    let from_lakefile = run_modules(&repo, &[], None);
+    assert_eq!(from_lakefile.code, 0, "{}", from_lakefile.stdout);
+    assert_eq!(
+        lines(&from_lakefile.stdout),
+        ["Lib", "Lib.A", "Lib.Deep.B", "Lib.Deep.C"],
+        "the lakefile's library produced a different list than --lib Lib",
+    );
+    covered.extend(observe_modules(&from_lakefile));
+
+    // …and with no lakefile at all it stops, rather than globbing nothing.
+    fs::remove_file(repo.join("lakefile.toml")).expect("the lakefile goes");
+    let no_lakefile = run_modules(&repo, &[], None);
+    assert_eq!(no_lakefile.code, 3, "{}", no_lakefile.stdout);
+    covered.extend(observe_modules(&no_lakefile));
+
+    // The one flag that is still required.
+    let args = vec!["modules".to_owned(), "--lib".to_owned(), "Lib".to_owned()];
+    let borrowed: Vec<&str> = args.iter().map(String::as_str).collect();
+    let output = lean_doc(&borrowed);
+    assert_eq!(code(&output), 2, "{args:?}: {}", stderr(&output));
+    covered.extend(observe_modules(&ModulesReport {
+        args,
+        code: code(&output),
+        stdout: String::new(),
+        shapes: Vec::new(),
+        nested: false,
+        other_files: false,
+        out: None,
+    }));
     covered
 }
 

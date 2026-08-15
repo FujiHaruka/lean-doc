@@ -10,14 +10,17 @@
 //! incremental pipeline, the resident server — arrives with its own milestone,
 //! and guessing at its flags now would only have to be undone.
 //!
-//! **`site` is provisional in exactly the same way** (M3-d1): it is full
-//! generation in one command because the gate needs one command, and **M4
-//! decides what the product's build command is actually called and what it takes
-//! from a repository rather than from an IR tree that already exists.** So are
-//! `incremental` and `modules` (M3-d2), which are in [`pipeline`]: one drives the
-//! six stages through a changed build tree, the other produces the module list
-//! it needs. Neither reads a lakefile and neither starts Lean — the extractor is
-//! `--extractor`, and what runs behind that flag is M4's.
+//! **The product's command is [`build`]** (M4-d): a package in, a site out, in
+//! one command — it reads the lakefile for the libraries, globs the sources for
+//! the modules, derives `--source-url` from git, chooses between full generation
+//! and the incremental pipeline, and writes the ledger back. Everything else
+//! here is a **stage of it**, kept on the surface because each is separately
+//! comparable against the frozen prototype and because the gates are stated
+//! against them: `site` is full generation over an IR tree that already exists
+//! (M3-d1), `incremental` is the six-stage round (M3-d2), `modules` is the glob
+//! (M3-d2), `extract` is one extractor process (M4-b). A caller that wants to
+//! name every path itself still can; a caller that wants documentation runs
+//! `build`.
 //!
 //! Two flags are deliberately more awkward than the prototype's:
 //!
@@ -45,12 +48,20 @@ use lean_doc_incr::{
 };
 use lean_doc_render::{ModuleSet, RenderOptions, RenderSummary, render_site};
 
+mod build;
 mod extract;
+mod lakefile;
 mod pipeline;
 mod resident;
 
 const USAGE: &str = "\
-usage: lean-doc incremental --ir <dir> --pages <dir> --ledger <file> --work <dir>
+usage: lean-doc build  --root <repo> --out <dir> --link-index <file>
+                       [--lib <Name>]... [--source-url <url>] [--full]
+                       (--extractor-bin <path> [--lake <path>] [--jobs <n>]
+                        | --extractor <program> [--extractor-arg <arg>]...)
+                       [--mode self|referrers|importers|all] [--max-rounds <n>]
+                       [--timings <file>]
+       lean-doc incremental --ir <dir> --pages <dir> --ledger <file> --work <dir>
                        --modules <file> --source-url <url> --link-index <file>
                        --state <dir>
                        (--extractor <program> [--extractor-arg <arg>]...
@@ -58,7 +69,7 @@ usage: lean-doc incremental --ir <dir> --pages <dir> --ledger <file> --work <dir
                           [--lake <path>] [--jobs <n>])
                        [--mode self|referrers|importers|all] [--max-rounds <n>]
                        [--timings <file>]
-       lean-doc modules --root <repo> --lib <Name>... [--out <file>]
+       lean-doc modules --root <repo> [--lib <Name>]... [--out <file>]
        lean-doc extract --modules <file> --ir-dir <dir> --timings <file>
                        [--extractor-bin <path>] [--target <repo>] [--lake <path>]
                        [--events <file>] [--jobs <n>]
@@ -91,6 +102,16 @@ usage: lean-doc incremental --ir <dir> --pages <dir> --ledger <file> --work <dir
        lean-doc prune --pages <dir> [--remove <file>] [--ir <dir>] [--dry-run]
                        [--json <file>]
 
+  --root         (`build`, `modules`) the Lean package: the sources are globbed
+                 under it, its oleans are hashed, `lake env` runs inside it, and
+                 for `build` its git HEAD is where --source-url comes from
+  --out          (`build`) the directory this command owns: <out>/site is the
+                 site, <out>/{ir,state,work} the caches, <out>/ledger.json the
+                 ledger. Required, with no default — <root>/.lake/build/doc is
+                 doc-gen4's own output tree — and it may not be inside --root
+  --full         (`build`) regenerate everything, ignoring what is under --out.
+                 The escape hatch for an input no ledger key covers: a changed
+                 --link-index is one (150 of 432 pages, plan 決定 4)
   --ir           an IR tree written by the extractor (schema 4)
   --ir-dir       (`extract`) where the extractor writes that tree. Required and
                  with no default: the extractor's own default was one session's
@@ -116,8 +137,10 @@ usage: lean-doc incremental --ir <dir> --pages <dir> --ledger <file> --work <dir
   --max-rounds   how many extract/ownership/merge rounds may run (default 5).
                  Reaching it with modules still stale is exit 5.
   --root         (`modules`) the repository the sources are globbed under
-  --lib          (`modules`) a library root: <Name>.lean and <Name>/;
-                 repeatable
+  --lib          (`build`, `modules`) a library root: <Name>.lean and <Name>/;
+                 repeatable. Left out, the names come from <root>/lakefile.toml's
+                 [[lean_lib]] blocks; a lakefile.lean is refused by name, because
+                 reading it honestly means elaborating it with Lake
   --extractor-bin  (`extract`, `incremental --serve`) the Lean extractor built
                  by extractor/build.sh, or $EXTRACT_BIN. No default: it is built
                  against the target's toolchain, so a baked-in path would be
@@ -156,7 +179,8 @@ usage: lean-doc incremental --ir <dir> --pages <dir> --ledger <file> --work <dir
                  modules than the merged tree holds is exit 3, not a guess.
   --target       the repository whose .lake/build/lib/lean holds the oleans
   --ledger       a ledger.json written by `ledger build`. `incremental` reads
-                 it and never rewrites it — rebuild it between runs.
+                 it and never rewrites it; `build` writes it back, after the
+                 last step that could fail.
   --algorithm  sha256 hashes the olean bytes; lake reads the <file>.hash Lake
                  already wrote. Defaults to sha256, and for `check` to the
                  ledger's own.
@@ -234,6 +258,7 @@ fn usage<T>(message: impl Into<String>) -> Result<T, Failure> {
 
 fn run(args: &[String]) -> Result<(), Failure> {
     match args.first().map(String::as_str) {
+        Some("build") => build::build(&args[1..]),
         Some("incremental") => pipeline::incremental(&args[1..]),
         Some("modules") => pipeline::modules(&args[1..]),
         Some("extract") => extract::extract(&args[1..]),
@@ -373,28 +398,14 @@ fn site(args: &[String]) -> Result<(), Failure> {
         return usage(link_index_required());
     }
 
-    let started = Instant::now();
-    let rendered = render_site(&RenderOptions {
-        ir: &ir,
-        pages: &out,
-        source_url: &source_url,
-        link_index: link_index.as_deref(),
-        // Not a parameter. See this function's own documentation.
-        only: &ModuleSet::All,
-    })
-    .map_err(|e| Failure::Failed(e.to_string()))?;
-    let render_done = started.elapsed();
-
-    let mut options = GlobalOptions::new(&ir, &out);
-    options.state = state.as_deref();
-    let derived = build_global(&options).map_err(|e| Failure::Failed(e.to_string()))?;
-    let total = started.elapsed();
-
-    // Both stages' counts, each labelled with the stage that produced it. One
-    // merged line would lose which half of the tree a number is about, and the
-    // two stages count different things under the same word ("modules").
-    print_render_summary("render  ", &rendered);
-    print_global_summary("global  ", &derived);
+    let site = generate_site(
+        &ir,
+        &out,
+        &source_url,
+        link_index.as_deref(),
+        state.as_deref(),
+    )?;
+    let (rendered, derived) = (&site.rendered, &site.derived);
 
     if let Some(path) = timings {
         // `renderSeconds` / `globalSeconds` / `totalSeconds` are
@@ -407,9 +418,9 @@ fn site(args: &[String]) -> Result<(), Failure> {
             "pageBytes": rendered.bytes_written,
             "cacheHits": derived.cache_hits,
             "cacheMisses": derived.cache_misses,
-            "renderSeconds": render_done.as_secs_f64(),
-            "globalSeconds": (total - render_done).as_secs_f64(),
-            "totalSeconds": total.as_secs_f64(),
+            "renderSeconds": site.render_seconds,
+            "globalSeconds": site.global_seconds,
+            "totalSeconds": site.render_seconds + site.global_seconds,
         });
         let line = serde_json::to_string(&record).expect("counts and durations serialise") + "\n";
         if let Some(dir) = path.parent().filter(|dir| !dir.as_os_str().is_empty()) {
@@ -420,6 +431,66 @@ fn site(args: &[String]) -> Result<(), Failure> {
             .map_err(|e| Failure::Failed(format!("{}: {e}", path.display())))?;
     }
     Ok(())
+}
+
+/// What full generation produced: both stages' counts and both stages' clocks.
+struct Site {
+    rendered: RenderSummary,
+    derived: GlobalSummary,
+    render_seconds: f64,
+    global_seconds: f64,
+}
+
+/// Full generation, as a function.
+///
+/// **`site` and [`build`] call this, and that is the point** 【判断】: the M4-d
+/// gate is "the tree `build` writes is byte-identical to the tree `lean-doc
+/// site` writes", and a shared function turns that from a thing to measure into
+/// a thing to state. It is still measured — a shared function can still be
+/// called with different arguments — but the failure mode it removes is the one
+/// where the two commands drift a flag apart and the comparison quietly becomes
+/// a comparison of two different questions.
+///
+/// The order (render, then the whole-package derivation) is the prototype's
+/// three lines of shell, and it is free here: the cache `global` reads is keyed
+/// on the IR, and the two stages write disjoint files 【実測, plan §7, M2】. The
+/// incremental round runs them the other way round because there the map delta
+/// is half of the render set (plan §6, constraint 2).
+fn generate_site(
+    ir: &std::path::Path,
+    out: &std::path::Path,
+    source_url: &str,
+    link_index: Option<&std::path::Path>,
+    state: Option<&std::path::Path>,
+) -> Result<Site, Failure> {
+    let started = Instant::now();
+    let rendered = render_site(&RenderOptions {
+        ir,
+        pages: out,
+        source_url,
+        link_index,
+        // Not a parameter. See `site`'s own documentation.
+        only: &ModuleSet::All,
+    })
+    .map_err(|e| Failure::Failed(e.to_string()))?;
+    let render_done = started.elapsed();
+
+    let mut options = GlobalOptions::new(ir, out);
+    options.state = state;
+    let derived = build_global(&options).map_err(|e| Failure::Failed(e.to_string()))?;
+    let total = started.elapsed();
+
+    // Both stages' counts, each labelled with the stage that produced it. One
+    // merged line would lose which half of the tree a number is about, and the
+    // two stages count different things under the same word ("modules").
+    print_render_summary("render  ", &rendered);
+    print_global_summary("global  ", &derived);
+    Ok(Site {
+        rendered,
+        derived,
+        render_seconds: render_done.as_secs_f64(),
+        global_seconds: (total - render_done).as_secs_f64(),
+    })
 }
 
 /// The renderer's counts. Every number is a denominator something else is quoted
