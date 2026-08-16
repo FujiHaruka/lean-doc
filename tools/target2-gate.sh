@@ -2,12 +2,23 @@
 # M5-b — the gate of plan §1's **gate B**: `lean-doc build`, one command, on a
 # Mathlib-dependent package that has never seen doc-gen4.
 #
-# **M7-c moved dependency links, and the reference side here predates it.**
-# `build` always resolves a package root and so writes version-pinned GitHub blob
-# URLs into every link into a dependency; the `lean-doc site` reference below is
-# invoked **without `--root`** and still writes relative ones. A site diff is
-# therefore **expected**, and is not a failure of the port. Gate A is suspended,
-# not redefined — see `docs/implementation-plan.md` §1.
+# **Gate 1's site comparison is live again, and every comparison here now shows
+# up in the exit code.** Two things were wrong with it:
+#
+#   - The reference was `lean-doc site` invoked **without `--root`**, so it wrote
+#     relative links into dependencies while `build`, which always resolves a
+#     package root, wrote M7-c's version-pinned blob URLs. The two differed **by
+#     design** and the gate reported a FAIL nobody was allowed to act on. `site`
+#     takes `--root` as well, so the reference is now built the same way and the
+#     trees agree byte for byte.
+#   - `compare` printed `RESULT FAIL` and returned 0. **The whole script exited 0
+#     with gate 1 failing** — every byte comparison here was decoration. Failures
+#     are counted and the script exits non-zero.
+#
+# The one structural difference that remains is that `site` writes no static
+# assets and `build` writes three. They are **named**, removed from the copy that
+# is compared, and their absence is itself a failure — not passed to a `--exclude`
+# that would swallow a fourth.
 #
 # usage: tools/target2-gate.sh <phase> [--target2 DIR] [--out DIR] [--jobs N]
 #   phases: gate1 | gate2 | gate3 | gate4 | boundary | reset | all
@@ -36,7 +47,10 @@
 #                             modules, derive --source-url from git, write its
 #                             own dependency map and produce a site — which is
 #                             then compared byte for byte with the tree
-#                             `lean-doc site` writes from the same IR.
+#                             `lean-doc site --root <target2>` writes from the
+#                             same IR and the same map. A difference means
+#                             `build` does something to the site that the
+#                             stage-by-stage path does not.
 #
 #   2  DETERMINISM            the same command into a second, empty --out. Two
 #                             sites, byte for byte.
@@ -113,6 +127,21 @@ esac
 WORK="$OUT/work"
 mkdir -p "$OUT" "$WORK"
 
+# Every check that can fail adds to this, and the script exits non-zero if it is
+# not empty. Checks print and keep going rather than exiting at the first
+# failure: the phases after a failed comparison still say something useful, and
+# a gate that stops at the first line teaches its reader to run it repeatedly.
+FAILURES=0
+fail () { # fail <what>
+  FAILURES=$((FAILURES + 1))
+  FAILED_CHECKS="${FAILED_CHECKS:+$FAILED_CHECKS, }$1"
+}
+
+# `site` writes pages and the global artifacts; `build` writes those and the
+# three static assets. Named here so that a fourth one appearing is a failure
+# rather than a silent exclusion.
+STATIC_ASSETS="app.js favicon.svg style.css"
+
 # The move, in the shape `stage5e/setup-clone.sh` established: A's body goes to
 # X = A ++ "Core" inside the same `namespace`, and A becomes a one-line shim.
 A_MOD=Alpha.Basic
@@ -156,14 +185,19 @@ manifest () { # manifest <site> <out file>
 }
 
 compare () { # compare <name> <a> <b> <expected files>
-  local name="$1" a="$2" b="$3" expect="$4" status=0
+  local name="$1" a="$2" b="$3" expect="$4" status=0 verdict=PASS left right
   "$DIFF" -r -q "$a" "$b" > "$OUT/$name.diff" 2>&1 || status=$?
+  left="$(files_in "$a")"
+  right="$(files_in "$b")"
+  if [ "$status" != 0 ] || [ "$left" != "$expect" ] || [ "$right" != "$expect" ]; then
+    verdict=FAIL
+  fi
   {
     printf 'comparison          %s\n' "$name"
-    printf 'left                %s (%s file(s))\n' "$a" "$(files_in "$a")"
-    printf 'right               %s (%s file(s))\n' "$b" "$(files_in "$b")"
+    printf 'left                %s (%s file(s))\n' "$a" "$left"
+    printf 'right               %s (%s file(s))\n' "$b" "$right"
     printf 'expected files      %s\n' "$expect"
-    if [ "$(files_in "$a")" != "$expect" ] || [ "$(files_in "$b")" != "$expect" ]; then
+    if [ "$left" != "$expect" ] || [ "$right" != "$expect" ]; then
       printf 'DENOMINATOR         WRONG\n'
     else
       printf 'denominator         ok\n'
@@ -176,11 +210,10 @@ compare () { # compare <name> <a> <b> <expected files>
       sed -n 's/^Files \(.*\) and \(.*\) differ$/\1|\2/p' "$OUT/$name.diff" \
         | while IFS='|' read -r x y; do printf '  %s\n' "$(cmp "$x" "$y" 2>&1 || true)"; done
     fi
-    printf 'RESULT              %s\n' \
-      "$([ "$status" = 0 ] && [ "$(files_in "$a")" = "$expect" ] \
-         && [ "$(files_in "$b")" = "$expect" ] && echo PASS || echo FAIL)"
+    printf 'RESULT              %s\n' "$verdict"
   } > "$OUT/$name.txt"
   cat "$OUT/$name.txt"
+  [ "$verdict" = PASS ] || fail "$name"
 }
 
 counts () { # counts <log>
@@ -192,7 +225,7 @@ counts () { # counts <log>
 phase_gate1 () {
   echo "### gate 1 — one command, and no dependency map handed in"
   require_up_to_date gate1
-  rm -rf "$OUT/base" "$OUT/base.timings.json" "$OUT/ref-site" "$OUT/ref-state"
+  rm -rf "$OUT/base" "$OUT/base.timings.json" "$OUT/ref-site" "$OUT/ref-state" "$OUT/base-pages"
   build "$OUT/base" "$OUT/base.log" || { tail -20 "$OUT/base.log" >&2; exit 3; }
   counts "$OUT/base.log"
   manifest "$OUT/base/site" "$OUT/base.sha256"
@@ -205,13 +238,36 @@ phase_gate1 () {
   # run derived. It is the *other* code path to the same tree — full generation
   # through `site` rather than through `build` — so a difference means `build`
   # is doing something to the site that `site` does not.
+  #
+  # **`--root` is what makes this comparable.** Without it `site` writes relative
+  # links into dependencies where `build` writes M7-c's version-pinned blob URLs,
+  # and every page differs for a reason that says nothing about `build`.
   local url
-  url="$(sed -n 's/^source  //p' "$OUT/base.log" | head -1)"
+  # The URL line, not the `source  note: N uncommitted change(s)` line that
+  # precedes it when the tree is dirty.
+  url="$(sed -n 's|^source  \(https://.*\)$|\1|p' "$OUT/base.log" | head -1)"
+  [ -n "$url" ] || { echo "no source url in $OUT/base.log" >&2; exit 3; }
   echo "  reference site from $OUT/base/ir (source url $url)"
   "$RUST_BIN" site --ir "$OUT/base/ir" --out "$OUT/ref-site" --source-url "$url" \
     --link-index "$OUT/base/link-index.lidx" --state "$OUT/ref-state" \
-    > "$OUT/ref-site.log" 2>&1
-  compare gate1-site "$OUT/base/site" "$OUT/ref-site" "$pages"
+    --root "$TARGET2" > "$OUT/ref-site.log" 2>&1
+
+  # The three assets `build` writes and `site` does not, taken out of a copy by
+  # name. A missing one is a failure here, so this cannot quietly become the
+  # place where a fourth difference is absorbed.
+  cp -R "$OUT/base/site" "$OUT/base-pages"
+  local asset assets=0
+  for asset in $STATIC_ASSETS; do
+    if [ -f "$OUT/base-pages/$asset" ]; then
+      rm "$OUT/base-pages/$asset"
+      assets=$((assets + 1))
+    else
+      echo "  static asset MISSING from the built site: $asset" >&2
+      fail "gate1-asset:$asset"
+    fi
+  done
+  echo "  static assets       $assets written by build, 0 by site (compared apart)"
+  compare gate1-site "$OUT/base-pages" "$OUT/ref-site" "$((pages - assets))"
 }
 
 phase_gate2 () {
@@ -226,6 +282,7 @@ phase_gate2 () {
     echo "  link index          identical ($(wc -c < "$OUT/base/link-index.lidx" | tr -d ' ') B)"
   else
     echo "  link index          DIFFERS"
+    fail "gate2-link-index"
   fi
 }
 
@@ -240,6 +297,7 @@ phase_gate3 () {
   else
     echo "  GATE 3              FAIL"
     "$DIFF" "$OUT/base.sha256" "$OUT/rerun.sha256" | head -20
+    fail "gate3"
   fi
   grep -q 'plan    incremental' "$OUT/rerun.log" || {
     echo "  the second run did not take the incremental path" >&2; exit 3; }
@@ -288,6 +346,7 @@ phase_gate4 () {
     echo "  write-back          FAIL"
     grep -E '^detect' "$OUT/moved-again.log" || true
     "$DIFF" "$OUT/moved.sha256" "$OUT/moved-again.sha256" | head -20
+    fail "gate4-write-back"
   fi
 
   # Incremental == from scratch, over the edited sources.
@@ -302,6 +361,7 @@ phase_gate4 () {
     echo "  ledger              DIFFERS"
     "$DIFF" <(python3 -m json.tool "$OUT/base/ledger.json") \
             <(python3 -m json.tool "$OUT/scratch/ledger.json") | head -30
+    fail "gate4-ledger"
   fi
   if "$DIFF" -q "$OUT/base/link-index.lidx" "$OUT/scratch/link-index.lidx" > /dev/null; then
     echo "  link index          identical"
@@ -362,3 +422,10 @@ case "$PHASE" in
   all)   phase_gate1; phase_gate2; phase_gate3; phase_boundary; phase_gate4 ;;
 esac
 conditions
+
+if [ "$FAILURES" -ne 0 ]; then
+  echo >&2
+  echo "FAILED: $FAILURES check(s) — ${FAILED_CHECKS:-?}" >&2
+  exit 1
+fi
+echo "all checks passed"

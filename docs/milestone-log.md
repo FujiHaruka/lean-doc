@@ -908,3 +908,30 @@ site も IR もバイト一致 = **V3 の site 側が初めて実測になった
 **5. mutation で今回のコードを撃つと 9/9 caught**【実測】 — `cargo mutants --in-diff` を
 レンダラ修正の diff に当てた結果 (29 秒)。**ゲートにはしない** (V6 の実例 —
 UnicodeBasic ⊆ V8 なので「和」と「V8 のみ」は等価なプログラムで、mutation では守れない)。
+
+## E2 (第 2 の対象) の生死確認 — 生きていた。ただし exit 0 は嘘だった【すべて実測 2026-08-16】
+
+`tools/target2-gate.sh all` を実走 (Apple M1 / 16 GB / Lean v4.31.0 / Mathlib `fabf563a` /
+target2 HEAD `18a02d58`、`--jobs 4`)。**判定は全段 PASS**:
+
+| | 結果 |
+|---|---|
+| gate 1 (1 コマンド、マップを渡さない) | 13 モジュール / 18 宣言 / site 23 ファイル、`.lidx` **2,146,209 B をこの run が導出**。**gate1-site PASS** (20 ファイルがバイト一致) |
+| gate 2 (決定性) | site / IR / `.lidx` すべて identical |
+| gate 3 (無変更) | **0 to re-extract、0 ページ再描画、23 ファイルが 1 バイトも動かない** |
+| gate 4 (本物の移動 + 本物の `lake build`) | 3 モジュール再抽出 → **6 ページ再描画** (L3-1 と L3-2 の両経路が発火)、write-back 0 changed、**増分 = ゼロから (24 ファイル / IR 16 ファイル / ledger / `.lidx` すべて identical)** |
+| boundary 6 値 | NUL / 空 table / astral 名 / `«…»` モジュール名 / `_private.` / U+088F すべて期待どおり |
+
+**見つかった欠陥 2 件** (どちらもゲート側):
+
+1. **`compare` が `RESULT FAIL` を印字して 0 を返していた** — **gate1-site が FAIL したまま
+   `all` は exit 0**。gate2 / gate4 のバイト比較も含め、**このスクリプトの比較は 1 つも
+   終了コードに出ていなかった**。§「品質ゲート」の「skip で緑を返さない」と同じ形が、
+   skip ではなく**戻り値の握り潰し**として残っていた。失敗を数えて非ゼロ終了にし、
+   **故意に 1 バイト足して exit 1 を確認してから通した**
+2. **gate1-site の「判定不能」は誤診だった** — 参照を `lean-doc site` に `--root` **無しで**
+   作っていたのが原因で、`site` は `--root` を取る。付ければ `build` と同じ版固定 blob URL を
+   書き、**20 ファイルがバイト一致**する。残る差は `site` が静的資産 3 本を書かないことだけ
+   (名指しで外し、**1 本でも欠ければ失敗**)。→ 計画側の記述を訂正 (`docs/plans/quality-gates.md`)
+
+**`tools/build-gate.sh` は同型の可能性が高いが未確認** (同じ `compare`、同じ `--root` 無しの参照)。
