@@ -60,7 +60,12 @@ pub const STATE_VERSION: u64 = 1;
 /// Bump this whenever a field of [`ModuleFacts`] or the way one is derived
 /// changes. Bumping makes every entry a miss, which is correct and slow;
 /// keeping entries built by another rule is fast and wrong.
-pub const STATE_DERIVATION: &str = "lean-doc-global facts v1";
+///
+/// **v2 is M8-d**: [`ModuleFacts::instances_for`] joined the struct, and a v1
+/// entry reused for a module would leave that module's instances out of
+/// `search-index.json` — a wrong artifact nobody reports, which is precisely
+/// what this string exists to prevent.
+pub const STATE_DERIVATION: &str = "lean-doc-global facts v2";
 
 /// The facts a previous run left behind, already checked against this run's
 /// index.
@@ -244,6 +249,7 @@ mod tests {
             decls: Vec::new(),
             instances: Vec::new(),
             tokens: Vec::new(),
+            instances_for: Vec::new(),
         }
     }
 

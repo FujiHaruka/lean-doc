@@ -15,7 +15,21 @@
 //! # Two oracles, because one of them is blind
 //!
 //! `cases` run the prototype **as a program** over synthetic IR trees and record
-//! the six files. That is the gate: byte equality with the prototype.
+//! the six files it wrote. That was the gate: byte equality with the prototype.
+//!
+//! **M8-d left one file of the six in place.** Five existed only for doc-gen4's
+//! JavaScript, which M8-c replaced, so they are not written any more
+//! (`docs/plans/ui-redesign.md` §8 and `lean_doc_global::artifacts`) and the
+//! byte comparison below is over the intersection —
+//! `declarations/name-map.json`, the one the incremental pipeline reads back as
+//! `--before`. The fixture still records all six, and
+//! [`the_sample_reaches_every_shape`] still reads the other five out of it: they
+//! are the evidence that a curated case reaches a shape, whoever writes the
+//! bytes. What this crate writes instead is checked by
+//! [`every_case_writes_the_new_artifacts`].
+//!
+//! [`the_sample_reaches_every_shape`]: the_sample_reaches_every_shape
+//! [`every_case_writes_the_new_artifacts`]: every_case_writes_the_new_artifacts
 //!
 //! `factCases` call `factsOf` / `autolinkTokens` / `headConst` **sliced out of
 //! the same file**. [`lean_doc_global::ModuleFacts::tokens`] reaches no
@@ -103,6 +117,7 @@ struct Case {
     /// The IR tree as bytes, keyed by path under its root.
     ir: BTreeMap<String, String>,
     /// The six files the prototype wrote, keyed by path under the site root.
+    /// Five of them have no counterpart here any more — see the module heading.
     artifacts: BTreeMap<String, String>,
 }
 
@@ -165,19 +180,52 @@ fn fixture_is_the_prototypes_own_output() {
     );
 }
 
-/// The comparison this file exists for: the six artifacts, byte for byte.
+/// The comparison this file exists for, over what is left of it: every
+/// artifact this crate **and** the prototype write, byte for byte.
+///
+/// That intersection is one file. It is also the one whose bytes another
+/// program reads back — `--before`, the whole-package map delta — so it is the
+/// one where a disagreement with the prototype would still mean something.
 #[test]
 fn every_case_reproduces_the_prototypes_artifacts() {
     let e = expected();
+    let shared: Vec<&str> = ARTIFACT_PATHS
+        .iter()
+        .copied()
+        .filter(|path| {
+            e.cases
+                .iter()
+                .all(|case| case.artifacts.contains_key(*path))
+        })
+        .collect();
+    assert_eq!(
+        shared,
+        ["declarations/name-map.json"],
+        "which artifacts the prototype and this crate both write has changed"
+    );
+
     let mut failures = Vec::new();
     let mut compared = 0usize;
     for case in &e.cases {
         let work = TempDir::new(&case.what);
         let got = case.build(&work);
-        if got != case.artifacts {
-            failures.push(describe(&case.what, &case.artifacts, &got));
+        let want: BTreeMap<String, String> = shared
+            .iter()
+            .map(|path| ((*path).to_owned(), case.artifacts[*path].clone()))
+            .collect();
+        let mine: BTreeMap<String, String> = shared
+            .iter()
+            .map(|path| {
+                let body = got
+                    .get(*path)
+                    .unwrap_or_else(|| panic!("{}: {path} was not written", case.what));
+                ((*path).to_owned(), body.clone())
+            })
+            .collect();
+        if mine != want {
+            failures.push(describe(&case.what, &want, &mine));
         }
-        compared += case.artifacts.len();
+        compared += want.len();
     }
     assert!(
         failures.is_empty(),
@@ -186,11 +234,122 @@ fn every_case_reproduces_the_prototypes_artifacts() {
         e.cases.len(),
         failures.join("\n")
     );
-    assert_eq!(
-        compared,
-        e.cases.len() * ARTIFACT_PATHS.len(),
-        "a case is missing one of the six artifacts"
-    );
+    assert_eq!(compared, e.cases.len() * shared.len());
+}
+
+/// The other side of the same run: every case writes all seven artifacts, and
+/// none of the five M8-d dropped.
+///
+/// The dropped five are named rather than counted 【判断】: "seven files came
+/// out" would still pass if `navbar.html` came back and something else went, and
+/// what §8 decided was which files, not how many.
+#[test]
+fn every_case_writes_the_new_artifacts() {
+    let e = expected();
+    for case in &e.cases {
+        let work = TempDir::new(&case.what);
+        let got = case.build(&work);
+        let written: Vec<&String> = got.keys().collect();
+        let mut want: Vec<&str> = ARTIFACT_PATHS.to_vec();
+        want.sort_unstable();
+        assert_eq!(
+            written, want,
+            "{}: the site tree is not the seven artifacts",
+            case.what
+        );
+        for dropped in [
+            "declarations/declaration-data.bmp",
+            "navbar.html",
+            "tactics.html",
+            "references.bib",
+            "references.html",
+        ] {
+            assert!(
+                !got.contains_key(dropped),
+                "{}: {dropped} is being written again",
+                case.what
+            );
+        }
+    }
+}
+
+/// The two JSON indexes, as `assets/app.js` reads them, over the curated cases
+/// rather than over a hand-built package.
+///
+/// The unit tests in `src/artifacts.rs` pin the shape on three modules this
+/// file can see the source of; this pins it on the eight IR trees the prototype
+/// was run over, including the ones with names above the BMP and names that
+/// need escaping.
+#[test]
+fn the_indexes_are_well_formed_in_every_case() {
+    let e = expected();
+    for case in &e.cases {
+        let work = TempDir::new(&case.what);
+        let got = case.build(&work);
+        let read = |path: &str| -> serde_json::Value {
+            serde_json::from_str(&got[path])
+                .unwrap_or_else(|err| panic!("{}: {path}: {err}", case.what))
+        };
+
+        let modules = read("modules.json");
+        let list = modules["modules"].as_array().expect("an array of modules");
+        for module in list {
+            assert!(
+                module["n"].is_string() && module["p"].is_string(),
+                "{}",
+                case.what
+            );
+            for at in module["i"].as_array().expect("an array of subscripts") {
+                let at = usize::try_from(at.as_u64().expect("a subscript")).expect("fits");
+                assert!(
+                    at < list.len(),
+                    "{}: a subscript points past the array",
+                    case.what
+                );
+            }
+        }
+
+        let index = read("search-index.json");
+        let indexed = index["modules"].as_array().expect("modules");
+        let kinds = index["kinds"].as_array().expect("kinds");
+        assert_eq!(
+            indexed.len(),
+            list.len(),
+            "{}: the two files disagree about how many modules there are",
+            case.what
+        );
+        for (a, b) in list.iter().zip(indexed) {
+            assert_eq!(
+                a["n"], b["n"],
+                "{}: the two module arrays are not one order",
+                case.what
+            );
+            assert_eq!(a["p"], b["p"], "{}", case.what);
+        }
+        for decl in index["decls"].as_array().expect("decls") {
+            let row = decl.as_array().expect("a triple");
+            assert_eq!(row.len(), 3, "{}", case.what);
+            assert!(row[0].is_string(), "{}", case.what);
+            let kind = usize::try_from(row[1].as_u64().expect("a kind index")).expect("fits");
+            let module = usize::try_from(row[2].as_u64().expect("a module index")).expect("fits");
+            assert!(
+                kind < kinds.len() && module < indexed.len(),
+                "{}",
+                case.what
+            );
+        }
+        for key in ["instances", "instancesFor"] {
+            for (_, names) in index[key].as_object().expect("a map of name lists") {
+                assert!(
+                    names
+                        .as_array()
+                        .is_some_and(|names| names.iter().all(serde_json::Value::is_string)),
+                    "{}: {key} is not a map of string arrays",
+                    case.what
+                );
+            }
+        }
+    }
 }
 
 /// The other oracle: the per-module facts, including the tokens no artifact
@@ -428,20 +587,31 @@ fn the_curated_cases_cover_what_the_package_does_not() {
 /// The sample has to keep reaching every shape, read off the **fixture's own
 /// bytes** — which came from the prototype — rather than off anything this
 /// crate produced.
+///
+/// Four of the five files read here are ones M8-d stopped writing, and they are
+/// still the right place to ask this question: what is under test is whether
+/// the **curated IR trees** reach a shape, and the prototype's output over those
+/// trees is the record of it. The same shapes are asked of this crate's own
+/// output by [`the_new_artifacts_reach_every_shape`].
+///
+/// The paths are spelled out rather than taken from `ARTIFACT_PATHS`, which no
+/// longer contains four of them.
+///
+/// [`the_new_artifacts_reach_every_shape`]: the_new_artifacts_reach_every_shape
 #[test]
 fn the_sample_reaches_every_shape() {
     let e = expected();
     let bmp = |what: &str, p: &dyn Fn(&str) -> bool| {
-        any_artifact(&e.cases, ARTIFACT_PATHS[0], what, p);
+        any_artifact(&e.cases, "declarations/declaration-data.bmp", what, p);
     };
     let names = |what: &str, p: &dyn Fn(&str) -> bool| {
-        any_artifact(&e.cases, ARTIFACT_PATHS[1], what, p);
+        any_artifact(&e.cases, "declarations/name-map.json", what, p);
     };
     let navbar = |what: &str, p: &dyn Fn(&str) -> bool| {
-        any_artifact(&e.cases, ARTIFACT_PATHS[2], what, p);
+        any_artifact(&e.cases, "navbar.html", what, p);
     };
     let tactics = |what: &str, p: &dyn Fn(&str) -> bool| {
-        any_artifact(&e.cases, ARTIFACT_PATHS[3], what, p);
+        any_artifact(&e.cases, "tactics.html", what, p);
     };
 
     // U1: 𝒜 (U+1D49C) has to come out **before** ﬀ (U+FB00) everywhere.
@@ -520,6 +690,94 @@ fn the_sample_reaches_every_shape() {
     );
 }
 
+/// The same corners, on **this crate's own output**: the shapes the curated
+/// cases exist for have to survive the change of file format, not only the
+/// change of file list.
+///
+/// The prototype's four files carried these shapes in HTML and in a JSON object
+/// keyed by module; here they are in a JSON array of modules and in
+/// `index.html`. A case that reaches a shape and an artifact that does nothing
+/// with it is the failure this pins.
+#[test]
+fn the_new_artifacts_reach_every_shape() {
+    let e = expected();
+    let mut astral = 0usize;
+    let mut escaped = 0usize;
+    let mut empty = 0usize;
+    let mut instances = 0usize;
+    let mut imported_by = 0usize;
+
+    for case in &e.cases {
+        let work = TempDir::new(&case.what);
+        let got = case.build(&work);
+        let modules: serde_json::Value =
+            serde_json::from_str(&got["modules.json"]).expect("modules.json is JSON");
+        let index: serde_json::Value =
+            serde_json::from_str(&got["search-index.json"]).expect("search-index.json is JSON");
+        let names: Vec<&str> = modules["modules"]
+            .as_array()
+            .expect("modules")
+            .iter()
+            .map(|m| m["n"].as_str().expect("a name"))
+            .collect();
+        let front = &got["index.html"];
+
+        // U1: `𝒜` (U+1D49C) sorts *below* `ﬀ` (U+FB00) in UTF-16 and above it
+        // by code point, in the array and on the page alike.
+        let order = |body: &str| match (body.find('\u{1D49C}'), body.find('\u{FB00}')) {
+            (Some(a), Some(b)) => Some(a < b),
+            _ => None,
+        };
+        for body in [&got["modules.json"], &got["search-index.json"], front] {
+            if let Some(first) = order(body) {
+                assert!(first, "a name above the BMP did not sort first: {body}");
+                astral += 1;
+            }
+        }
+        // `Html.escape` covers `& < > "` and leaves `'` alone, and the module
+        // list on the front page is HTML while the two indexes are not.
+        if names.iter().any(|n| n.contains('<')) {
+            assert!(
+                front.contains("&lt;") && front.contains("&amp;") && front.contains("&quot;"),
+                "a module name that needs escaping reached index.html raw: {front}"
+            );
+            escaped += 1;
+        }
+        if names.is_empty() {
+            assert!(
+                front.contains("<ul class=\"modlist\"></ul>"),
+                "a package with no modules did not produce an empty list: {front}"
+            );
+            assert_eq!(index["decls"], serde_json::json!([]));
+            empty += 1;
+        }
+        if index["instances"]
+            .as_object()
+            .is_some_and(|map| !map.is_empty())
+        {
+            instances += 1;
+        }
+        if modules["modules"]
+            .as_array()
+            .expect("modules")
+            .iter()
+            .any(|m| !m["i"].as_array().expect("subscripts").is_empty())
+        {
+            imported_by += 1;
+        }
+    }
+
+    for (what, seen) in [
+        ("a name above the BMP", astral),
+        ("a module name that needs escaping", escaped),
+        ("a package with no modules", empty),
+        ("an instance list", instances),
+        ("an importer list", imported_by),
+    ] {
+        assert!(seen > 0, "no case reaches {what} in the new artifacts");
+    }
+}
+
 /// This crate's URL-path rule and the renderer's filesystem one have to be the
 /// same rule: `declaration-data.bmp` links to pages the renderer wrote, and a
 /// disagreement is 4,750 dead links that no byte comparison of either side
@@ -542,10 +800,15 @@ fn page_paths_agree_with_the_renderers() {
     }
 }
 
-/// The six artifacts of the target package, against the files the prototype
-/// wrote. Skipped unless the reference tree is present.
+/// The artifacts of the target package that the prototype also writes —
+/// `declarations/name-map.json`, and since M8-d only that — against the files
+/// it wrote. Skipped unless the reference tree is present.
 ///
-/// The same comparison `tools/global-compare.sh` makes.
+/// The same comparison `tools/global-compare.sh` makes, over what is left of
+/// it. The recorded sizes of the other five stay: they are what the reference
+/// tree holds, they are the numbers `docs/plans/ui-redesign.md` §8 quotes when
+/// it says what M8-d deleted, and asserting them is what says the reference tree
+/// on this machine is still the one the fixture came from.
 #[test]
 fn artifacts_match_the_reference() {
     let e = expected();
@@ -587,8 +850,18 @@ fn artifacts_match_the_reference() {
         e.branch_totals["instanceClassFirstSeen"]
     );
     assert_eq!(summary.tactic_docs, 0);
+    // UI-V5 【実測 2026-08-16】: the 91 instances of this package name 88
+    // distinct types between them, and each of the 59 that doc-gen4's own
+    // reference tree also has agrees with its `instancesFor` entry exactly. The
+    // other 32 are in the 43 modules the reference tree predates.
+    assert_eq!(summary.instance_types, 88);
 
-    for path in ARTIFACT_PATHS {
+    let shared = ["declarations/name-map.json"];
+    assert!(
+        shared.iter().all(|path| ARTIFACT_PATHS.contains(path)),
+        "the shared artifact is not one this crate writes"
+    );
+    for path in shared {
         let want = fs::read(reference.join(path)).expect("the reference artifact reads");
         let got = fs::read(work.path.join(path)).expect("the artifact was written");
         assert_eq!(
@@ -672,8 +945,12 @@ fn any_artifact(cases: &[Case], path: &str, what: &str, predicate: &dyn Fn(&str)
 }
 
 impl Case {
-    /// Writes the case's IR into `work`, builds the artifacts, and reads the
-    /// six files back.
+    /// Writes the case's IR into `work`, builds the artifacts, and reads **the
+    /// whole site tree** back.
+    ///
+    /// The whole tree rather than [`ARTIFACT_PATHS`]: a file this crate stopped
+    /// writing has to be absent, and a list of the files it does write cannot
+    /// tell the difference between "gone" and "never looked for".
     fn build(&self, work: &TempDir) -> BTreeMap<String, String> {
         let ir = work.path.join("ir");
         for (name, text) in &self.ir {
@@ -686,14 +963,32 @@ impl Case {
         build_global(&GlobalOptions::new(&ir, &site))
             .unwrap_or_else(|e| panic!("{}: {e}", self.what));
 
-        ARTIFACT_PATHS
-            .iter()
-            .map(|path| {
-                let body = fs::read_to_string(site.join(path))
-                    .unwrap_or_else(|e| panic!("{}: {path}: {e}", self.what));
-                ((*path).to_owned(), body)
-            })
-            .collect()
+        let mut out = BTreeMap::new();
+        read_tree(&site, "", &mut out);
+        out
+    }
+}
+
+/// Every file under `dir`, keyed by its `/`-separated path beneath it.
+fn read_tree(dir: &PathBuf, prefix: &str, out: &mut BTreeMap<String, String>) {
+    for entry in fs::read_dir(dir)
+        .expect("the site tree is readable")
+        .flatten()
+    {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let relative = if prefix.is_empty() {
+            name
+        } else {
+            format!("{prefix}/{name}")
+        };
+        if entry.file_type().expect("a file type").is_dir() {
+            read_tree(&entry.path(), &relative, out);
+        } else {
+            out.insert(
+                relative,
+                fs::read_to_string(entry.path()).expect("the artifact is UTF-8"),
+            );
+        }
     }
 }
 

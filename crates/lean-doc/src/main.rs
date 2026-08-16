@@ -615,16 +615,17 @@ fn print_render_summary(lead: &str, summary: &RenderSummary) {
 fn print_global_summary(lead: &str, summary: &GlobalSummary) {
     println!(
         "{lead}modules {}  declarations {} + {} dependency names  instance classes {}  \
-         tactic docs {}",
+         instance types {}  tactic docs {}",
         summary.modules,
         summary.declarations,
         summary.dependency_names,
         summary.instance_classes,
+        summary.instance_types,
         summary.tactic_docs,
     );
     println!(
-        "{lead}declaration data {} B  name map {} B",
-        summary.bmp_bytes, summary.name_map_bytes,
+        "{lead}name map {} B  module index {} B  search index {} B",
+        summary.name_map_bytes, summary.modules_json_bytes, summary.search_index_bytes,
     );
     // The hit/miss counts are what the cache's oracle reads, and it reads them
     // twice: here and out of `--timings`. A cache that is silent about how often
@@ -648,11 +649,12 @@ fn print_global_summary(lead: &str, summary: &GlobalSummary) {
     }
 }
 
-/// The six whole-package artifacts, the `contentHash` cache and the map delta.
+/// The whole-package artifacts, the `contentHash` cache and the map delta.
 ///
 /// No `--only`: the derivation is over the whole package by construction, and
 /// the cache makes it cheap rather than partial. No `--source-url` either —
-/// none of the six carries a source link.
+/// none of the seven carries a source link (which is why `index.html` has no
+/// "repository" anchor; see `lean_doc_global::entry`).
 ///
 /// `--print-set` / `--delta-json` do nothing without `--before`, exactly as in
 /// the prototype: the delta is off unless there is a map to compare against.

@@ -1,12 +1,12 @@
-//! The run: an IR tree in, six whole-package artifacts out — plus, since M2-b,
+//! The run: an IR tree in, the whole-package artifacts out — plus, since M2-b,
 //! the `contentHash` cache, the map delta and the timings record.
 //!
 //! Ported from `experiments/stage7h/global.ts:238-467` (frozen). The phases and
 //! their boundaries are the prototype's, in its order:
 //!
 //! ```text
-//! open index -> State::load -> facts_for -> derive+write six -> delta -> State::save -> timings
-//!               t_state        t_read       t_write            t_delta   t_save
+//! open index -> State::load -> facts_for -> derive+write files -> delta -> State::save -> timings
+//!               t_state        t_read       t_write               t_delta   t_save
 //! ```
 //!
 //! # The cache attaches at exactly one place
@@ -14,8 +14,9 @@
 //! [`facts_for`] is the only place a module's IR becomes [`ModuleFacts`], which
 //! is why plan §3 asked for it before there was a cache to put in it. Its body
 //! grew a hash test and its signature grew the cache and the hit/miss counts;
-//! nothing downstream of [`ModuleFacts`] moved, and the six artifacts are byte
-//! for byte what M2-a produced.
+//! nothing downstream of [`ModuleFacts`] moved, and the artifacts were byte for
+//! byte what M2-a produced. (M8-d changed *which* artifacts there are — see
+//! [`crate::artifacts`] — but not this seam.)
 //!
 //! # Without `--state` this is still the from-scratch build
 //!
@@ -42,8 +43,8 @@ use crate::state::State;
 pub struct GlobalOptions<'a> {
     /// The IR tree: `index.json`, `modules/`, `deps/`.
     pub ir: &'a Path,
-    /// The site root. `declarations/` is created under it; the other four
-    /// artifacts sit directly in it.
+    /// The site root. `declarations/` is created under it for the name map; the
+    /// other six artifacts sit directly in it, next to the module pages.
     pub out: &'a Path,
     /// `--state <dir>`: where the `contentHash` cache lives. `None` reads every
     /// module, which is the from-scratch build.
@@ -90,9 +91,16 @@ pub struct GlobalSummary {
     pub declarations: usize,
     pub dependency_names: usize,
     pub instance_classes: usize,
+    /// Keys of `search-index.json`'s `instancesFor` (M8-d).
+    pub instance_types: usize,
+    /// Tactic docstrings declared by the package. `tactics.html` is gone
+    /// (M8-d) and nothing renders this any more, but it is still a fact about
+    /// the package, it is still in [`crate::ModuleFacts`], and it is still 0 on
+    /// the target 【実測】.
     pub tactic_docs: usize,
-    pub bmp_bytes: usize,
     pub name_map_bytes: usize,
+    pub modules_json_bytes: usize,
+    pub search_index_bytes: usize,
     /// Modules whose facts came from the state file.
     pub cache_hits: usize,
     /// Modules whose IR was read. Everything, when there is no state.
@@ -145,8 +153,8 @@ pub fn facts_for(tree: &IrTree, cached: &State) -> Result<FactsRun, lean_doc_ir:
     Ok(run)
 }
 
-/// Reads the IR, derives the six artifacts, writes them, and — when asked —
-/// updates the cache and reports the map delta.
+/// Reads the IR, derives the whole-package artifacts, writes them, and — when
+/// asked — updates the cache and reports the map delta.
 pub fn build_global(options: &GlobalOptions<'_>) -> Result<GlobalSummary, Error> {
     let started = Instant::now();
     let tree = IrTree::open(options.ir)?;
@@ -205,19 +213,24 @@ pub fn build_global(options: &GlobalOptions<'_>) -> Result<GlobalSummary, Error>
     let state_bytes = State::save(options.state, tree.index(), &run.facts)?;
     let total = started.elapsed();
 
-    // Read back off the artifact rather than recounted from the facts: a
-    // summary that counts the inputs again can disagree with the file it is
-    // reporting on, and then the number quoted in a document is nobody's.
-    let sections = sections(&artifacts.declaration_data_bmp);
+    // Reported by the derivation rather than recounted from the facts. Up to
+    // M7 these were read back out of `declaration-data.bmp` — a summary that
+    // counts the inputs again can disagree with the file it is reporting on —
+    // and M8-d deleted that file, so [`Artifacts::derive`] counts as it builds
+    // and `artifacts::tests::the_counts_are_what_the_files_hold` is what keeps
+    // the numbers and the JSON in step.
+    let counts = artifacts.counts;
 
     let summary = GlobalSummary {
         modules: run.facts.len(),
-        declarations: sections("declarations"),
-        dependency_names: sections("dependencies"),
-        instance_classes: sections("instances"),
+        declarations: counts.declarations,
+        dependency_names: counts.dependency_names,
+        instance_classes: counts.instance_classes,
+        instance_types: counts.instance_types,
         tactic_docs: run.facts.iter().map(|facts| facts.tactics).sum(),
-        bmp_bytes: artifacts.declaration_data_bmp.len(),
         name_map_bytes: artifacts.name_map_json.len(),
+        modules_json_bytes: artifacts.modules_json.len(),
+        search_index_bytes: artifacts.search_index_json.len(),
         cache_hits: run.cache_hits,
         cache_misses: run.cache_misses,
         state_bytes,
@@ -239,9 +252,11 @@ pub fn build_global(options: &GlobalOptions<'_>) -> Result<GlobalSummary, Error>
             declarations: summary.declarations,
             dependency_names: summary.dependency_names,
             instance_classes: summary.instance_classes,
+            instance_types: summary.instance_types,
             tactic_docs: summary.tactic_docs,
-            bmp_bytes: summary.bmp_bytes,
             name_map_bytes: summary.name_map_bytes,
+            modules_json_bytes: summary.modules_json_bytes,
+            search_index_bytes: summary.search_index_bytes,
             state_load_seconds: state_loaded.as_secs_f64(),
             read_seconds: read.as_secs_f64(),
             write_seconds: (written - read).as_secs_f64(),
@@ -293,22 +308,11 @@ fn write(path: &Path, body: &str) -> Result<(), Error> {
     })
 }
 
-/// How many keys each of `declaration-data.bmp`'s four sections has, from one
-/// parse of it.
-fn sections(bmp: &str) -> impl Fn(&str) -> usize {
-    let parsed: Option<serde_json::Value> = serde_json::from_str(bmp).ok();
-    move |section| {
-        parsed
-            .as_ref()
-            .and_then(|value| value.get(section)?.as_object().map(serde_json::Map::len))
-            .unwrap_or(0)
-    }
-}
-
-/// The `--timings` record. Key order is the prototype's object literal, and the
-/// durations in it are **diagnostics**: they are wall clock, they differ between
-/// runs, and no test may assert on them. What the oracle reads out of this file
-/// is `cacheHits` and `cacheMisses`.
+/// The `--timings` record. Key order is the prototype's object literal — with
+/// `bmpBytes` replaced by the two files that took `declaration-data.bmp`'s place
+/// (M8-d) — and the durations in it are **diagnostics**: they are wall clock,
+/// they differ between runs, and no test may assert on them. What the oracle
+/// reads out of this file is `cacheHits` and `cacheMisses`.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct TimingsRecord<'a> {
@@ -323,9 +327,11 @@ struct TimingsRecord<'a> {
     declarations: usize,
     dependency_names: usize,
     instance_classes: usize,
+    instance_types: usize,
     tactic_docs: usize,
-    bmp_bytes: usize,
     name_map_bytes: usize,
+    modules_json_bytes: usize,
+    search_index_bytes: usize,
     state_load_seconds: f64,
     read_seconds: f64,
     write_seconds: f64,

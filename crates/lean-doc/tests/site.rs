@@ -9,7 +9,8 @@
 //! writes must be byte-identical to the site `render` and `global` write
 //! separately — over a synthetic package, so this runs on a machine that has
 //! never seen the target one. The corpus-scale statement of the same thing is
-//! `tools/site-compare.sh` against `m2/gate/ref-site` (438 files).
+//! `tools/site-compare.sh` against `m2/gate/ref-site` (438 files at M6; M8-d
+//! moved the denominator to 439 — see `lean_doc_global::artifacts`).
 //!
 //! **That the command line cannot be got wrong quietly.** Every refusal below
 //! is a flag combination that would otherwise produce a site that looks
@@ -335,20 +336,25 @@ fn the_site_is_render_then_global_over_the_same_tree() {
         .collect();
     assert!(differing.is_empty(), "differing: {differing:?}");
 
-    // Six modules, six whole-package artifacts. Written out rather than
-    // computed from the same walk that produced the trees.
+    // Five module pages, seven whole-package artifacts (M8-d). Written out
+    // rather than computed from the same walk that produced the trees.
+    //
+    // No static assets: `write_assets` is `build`'s step 5, and `site` is the
+    // composition of `render` and `global` and nothing else — which is what
+    // makes the comparison above a comparison of those two stages.
     let mut expected: Vec<PathBuf> = [
         "Pkg.html",
         "Pkg/B.html",
         "Pkg/C.html",
         "Pkg/Leaf1.html",
         "Pkg/Leaf2.html",
-        "declarations/declaration-data.bmp",
         "declarations/name-map.json",
-        "navbar.html",
-        "tactics.html",
-        "references.html",
-        "references.bib",
+        "index.html",
+        "404.html",
+        "search.html",
+        "foundational_types.html",
+        "modules.json",
+        "search-index.json",
     ]
     .iter()
     .map(PathBuf::from)

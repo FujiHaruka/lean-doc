@@ -91,7 +91,8 @@
 //!
 //! - **`prune` is called without an IR tree.** Pointed at a site, its orphan rule
 //!   deletes every `.html` that is not a live module page, which on the target is
-//!   the three whole-package HTML artifacts — **438 → 435** 【実測, plan §7 debt
+//!   the whole-package HTML artifacts — **438 → 435** at M6, and **439 → 435**
+//!   since M8-d made four of them the site's entry pages 【実測, plan §7 debt
 //!   4】. [`prune_removed`] is the only call site and its signature cannot name an
 //!   IR tree, so the pipeline cannot ask for orphan sweeping by accident.
 //! - **`name-map.json` is snapshotted before anything runs.** It is both the
@@ -759,10 +760,12 @@ pub struct Timings {
 /// The signature is the guard 【判断】. [`PruneOptions::ir`] turns on the orphan
 /// rule, which calls every `.html` that is not a live module page an orphan —
 /// pointed at a site that includes the whole-package artifacts, that is
-/// `navbar.html`, `references.html` and `tactics.html`, and the site goes
-/// **438 → 435** 【実測, plan §7 debt 4】. The prototype never passes `--ir`
-/// either (`incremental.sh:304-305`), so nobody has walked into it yet; here
-/// there is no parameter to pass it through.
+/// `index.html`, `404.html`, `search.html` and `foundational_types.html` since
+/// M8-d (`navbar.html`, `references.html` and `tactics.html` before it), and the
+/// site goes **439 → 435** 【実測, plan §7 debt 4】. The prototype never passes
+/// `--ir` either (`incremental.sh:304-305`), so nobody has walked into it yet;
+/// here there is no parameter to pass it through — which matters more now that
+/// the files at stake are the ones a reader lands on.
 fn prune_removed(
     pages: &Path,
     remove: &Path,

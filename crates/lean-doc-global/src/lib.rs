@@ -1,23 +1,30 @@
-//! Whole-site artifacts: declaration data, name map, navigation, references.
+//! Whole-site artifacts: the name map, the site's entry pages and the two
+//! indexes the browser reads.
 //!
 //! Milestone **M2-a** — see `docs/implementation-plan.md`. Ported from
 //! `experiments/stage7h/global.ts` (frozen, 492 lines), of which this crate is
-//! the from-scratch half: read every module, derive six files, write them.
+//! the from-scratch half: read every module, derive the whole-package files,
+//! write them.
 //!
 //! ```text
-//! IrTree ──facts_for──> [ModuleFacts] ──Artifacts::derive──> six files
+//! IrTree ──facts_for──> [ModuleFacts] ──Artifacts::derive──> seven files
 //!            ▲              │               ▲
 //!            │              │               └─ every sort is UTF-16 (plan §7 U1)
 //!            │              └─ .tokens ──Delta::compute──> --print-set
 //!            └─ State: the contentHash cache (plan §3)
 //! ```
 //!
+//! **M8-d changed which files those are** — five of the six existed only for
+//! doc-gen4's JavaScript and went when it did, and six new ones took their
+//! place. See [`artifacts`] for the list and the reason, and [`entry`] for the
+//! four that are pages rather than data.
+//!
 //! # This is the widest net in the pipeline
 //!
-//! Instance lists are in no page's bytes: the browser fills them in from
-//! `declaration-data.bmp`. A moved instance is only ever right because these
-//! artifacts were rebuilt, so "the pages are unchanged" is not a reason to skip
-//! the run.
+//! Instance lists and importer lists are in no page's bytes: the browser fills
+//! them in from `search-index.json` and `modules.json`. A moved instance is only
+//! ever right because these artifacts were rebuilt, so "the pages are unchanged"
+//! is not a reason to skip the run.
 //!
 //! # What M2-b added
 //!
@@ -52,12 +59,13 @@
 
 pub mod artifacts;
 pub mod delta;
+pub mod entry;
 pub mod facts;
 mod site;
 pub mod state;
 pub mod v8_gc;
 
-pub use artifacts::{ARTIFACT_PATHS, Artifacts, page_path};
+pub use artifacts::{ARTIFACT_PATHS, Artifacts, Counts, page_path};
 pub use delta::{Delta, DeltaTimings, Witness};
 pub use facts::{ModuleFacts, autolink_tokens, head_const, is_token_separator};
 pub use site::{Error, FactsRun, GlobalOptions, GlobalSummary, build_global, facts_for};

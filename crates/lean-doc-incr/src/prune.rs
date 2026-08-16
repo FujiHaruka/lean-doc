@@ -43,15 +43,18 @@
 //!
 //! `--ir` deletes every `.html` under the root whose relative path is not
 //! [`page_of`] of a module in the IR. On the target's **site** that is not only
-//! the dead pages: the six whole-package artifacts include three `.html` files
-//! (`navbar.html`, `references.html`, `tactics.html`) which no module owns, so
-//! the rule calls them orphans【実測 2026-08-12 — `tools/impact-reference.sh`
-//! の `orphans-site` シナリオ】. The other three are not `.html`
-//! (`declarations/declaration-data.bmp`, `declarations/name-map.json`,
-//! `references.bib`) and are invisible to it, as are the static assets
-//! (`style.css`, `app.js`, `favicon.svg` since M8-a), which are **not in the
-//! byte-reproduction denominator at all** (plan §6: 432 pages + 6 artifacts =
-//! 438).
+//! the dead pages: four of the seven whole-package artifacts are `.html` files
+//! no module owns, so the rule calls them orphans【実測 2026-08-12 —
+//! `tools/impact-reference.sh` の `orphans-site` シナリオ】. **M8-d changed
+//! which four, and raised the stakes**: it used to be `navbar.html`,
+//! `references.html` and `tactics.html`, none of which anything read; it is now
+//! `index.html`, `404.html`, `search.html` and `foundational_types.html` — the
+//! site's front door, its not-found page, and the target of a link on all 432
+//! module pages. The other three artifacts are not `.html`
+//! (`declarations/name-map.json`, `modules.json`, `search-index.json`) and are
+//! invisible to it, as are the static assets (`style.css`, `app.js`,
+//! `favicon.svg` since M8-a), which are **not in the byte-reproduction
+//! denominator at all** (432 pages + 7 artifacts = 439 since M8-d; 438 at M6).
 //!
 //! **The pipeline never passes `--ir`** — `incremental.sh:304-305` passes only
 //! `--remove` — so nothing has been deleting them. Reproduced as it is, and
@@ -486,11 +489,11 @@ mod tests {
         for name in ASSETS {
             write_file(&pages.join(name), "/* the shipped bytes */");
         }
-        // A whole-package artifact too: three of the six are `.html` and the
+        // A whole-package artifact too: four of the seven are `.html` and the
         // orphan rule really does take them (see the module heading). Keeping
         // one here is what stops this test from passing because the rule
         // stopped deleting anything at all.
-        write_file(&pages.join("navbar.html"), "<html>nav</html>");
+        write_file(&pages.join("index.html"), "<html>the front page</html>");
 
         let ir = dir.join("ir");
         fs::create_dir_all(&ir).expect("the IR tree is creatable");
@@ -543,7 +546,7 @@ mod tests {
     }
 
     /// The orphan rule, which is the half that walks the whole tree. It deletes
-    /// `.html` files no module owns — `navbar.html` here, as the heading says —
+    /// `.html` files no module owns — `index.html` here, as the heading says —
     /// and must not widen to the assets, which no module owns either.
     #[test]
     fn the_static_assets_are_not_orphans() {
@@ -561,7 +564,7 @@ mod tests {
 
         assert_eq!(
             summary.orphans,
-            ["navbar.html"],
+            ["index.html"],
             "the orphan rule changed which files it takes",
         );
         assets_are_intact(&pages);

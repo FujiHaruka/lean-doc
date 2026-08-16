@@ -37,9 +37,9 @@
 //! `--out <dir>` is **required**, and the directory is the command's own:
 //!
 //! ```text
-//!   <out>/site/                the site — 432 module pages + 6 whole-package
-//!                              artifacts + 3 static assets (M8-a) on the
-//!                              target. This is what ships.
+//!   <out>/site/                the site — 432 module pages + 7 whole-package
+//!                              artifacts (M8-d) + 3 static assets (M8-a) on
+//!                              the target. This is what ships.
 //!   <out>/ir/                  the IR tree (16 MB), carried between runs
 //!   <out>/state/               global-state.json, the contentHash cache
 //!   <out>/ledger.json          which oleans the IR was built from
@@ -163,8 +163,8 @@ use crate::{Failure, LINK_INDEX_COST, USAGE, refused, usage};
 const LAYOUT: u64 = 1;
 
 /// The marker file. Not inside `<out>/site`, because the site's file count is a
-/// denominator this project quotes (438 on the target) and a stray file in it
-/// would change that number.
+/// denominator this project quotes (438 on the target at M6, 439 since M8-d)
+/// and a stray file in it would change that number.
 const MARKER: &str = "lean-doc-build.json";
 
 /// `opt("--max-rounds", 5)`, the pipeline's own default.
@@ -582,7 +582,9 @@ fn run(request: &Request) -> Result<(), Failure> {
     );
     // Counted here rather than in the two paths: this is the first point at
     // which the site holds everything a run puts in it, and `pagesInSite` is a
-    // denominator quoted elsewhere (438 on the target before M8-a added three).
+    // denominator quoted elsewhere (432 pages + 7 artifacts + 3 assets = 442 on
+    // the target since M8-d; it was 438 + 3 while the five doc-gen4-only
+    // artifacts were still written).
     let pages_in_site = count_files(&layout.site);
 
     // 6 -- the ledger, last ---------------------------------------------------
@@ -1075,8 +1077,9 @@ fn is_empty_dir(path: &Path) -> bool {
     fs::read_dir(path).is_ok_and(|mut entries| entries.next().is_none())
 }
 
-/// Every file under `root`, recursively. The site's denominator (438 on the
-/// target) is a number this project quotes, so the run reports its own.
+/// Every file under `root`, recursively. The site's denominator (442 on the
+/// target since M8-d, 441 before it) is a number this project quotes, so the run
+/// reports its own.
 fn count_files(root: &Path) -> usize {
     let mut total = 0;
     let mut stack = vec![root.to_owned()];

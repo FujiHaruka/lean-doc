@@ -10,14 +10,16 @@ lean-doc-ir = { path = "../lean-doc-ir" }
 # docstring renderer needs them too, and a second copy is a second thing that
 # has to stay equal. See plan §7 (crate boundary note).
 lean-doc-md = { path = "../lean-doc-md" }
+# M8-d: the site's four entry pages (index / 404 / search / foundational types)
+# are whole-package facts in the renderer's own frame, so this crate builds them
+# and takes `head_html` / `topbar_html` / `SiteMeta` / `css_kind` from there
+# rather than growing a second copy of the page shape. The dependency only
+# points this way — the renderer knows nothing about this crate — so there is no
+# cycle. See src/entry.rs for why the pages live on this side.
+lean-doc-render = { path = "../lean-doc-render" }
 # The state file and the two JSON records are written from these types, and the
 # field order of `ModuleFacts` is the state file's bytes: see src/state.rs.
 serde = { workspace = true }
 # `preserve_order` is set on the workspace dependency and is load-bearing here:
 # see src/artifacts.rs.
 serde_json = { workspace = true }
-
-[dev-dependencies]
-# Only to check that this crate's URL-path rule and the renderer's filesystem
-# one are the same rule. Not a runtime dependency: nothing here renders a page.
-lean-doc-render = { path = "../lean-doc-render" }

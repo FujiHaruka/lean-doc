@@ -20,11 +20,20 @@
 //!
 //! # [`ModuleFacts::tokens`] reaches no artifact
 //!
-//! The six artifacts are derived from the other six fields. `tokens` exists for
-//! the whole-package map delta (M2-b), which asks "does this module's docstrings
+//! The artifacts are derived from the other fields. `tokens` exists for the
+//! whole-package map delta (M2-b), which asks "does this module's docstrings
 //! mention a name that moved". It is built here because it is a per-module fact
 //! and the cache boundary is per module — and because it is the one field a byte
 //! comparison of the artifacts cannot check at all.
+//!
+//! # M8-d added a seventh field, and that is a cache-version bump
+//!
+//! [`ModuleFacts::instances_for`] is the "which instances mention this type"
+//! direction of the instance index, which `search-index.json` needs and no
+//! artifact used to carry. Per the contract above, adding it bumps
+//! [`crate::STATE_DERIVATION`] — a state file written by the v1 rule has no such
+//! key, and using it would produce a site whose Instances For blocks are empty
+//! on every module the cache hit.
 
 use std::collections::HashSet;
 
@@ -63,6 +72,27 @@ pub struct ModuleFacts {
     /// sorted in **UTF-16 code unit order** (plan §7, U1), as `[...set].sort()`
     /// leaves them.
     pub tokens: Vec<String>,
+    /// `(type name, instance name)` for each of an instance's `instTypes`, in
+    /// the module's own order — the other direction of the instance index,
+    /// "which instances mention this type".
+    ///
+    /// **Added by M8-d, and it is why this struct's field order stops being a
+    /// transcription here.** The prototype has no notion of this field, so it
+    /// goes *after* the six it does have: the state file's key order is then the
+    /// prototype's, plus one key at the end, and the two files can still be
+    /// compared entry by entry (`tests/state_and_delta.rs`).
+    ///
+    /// The rule is not this crate's. It is doc-gen4's `getInstanceTypes`
+    /// (`Process/InstanceInfo.lean:16-31`) — the head constant of each
+    /// **explicit** argument of the class application — which the extractor
+    /// already ports verbatim into [`lean_doc_ir::Decl::inst_types`]
+    /// (`extractor/Extract.lean:1468`). Nothing is re-derived here; the IR is
+    /// read. UI-V5 measured the two against doc-gen4's own
+    /// `declarations/declaration-data.bmp`: **59 of 59** of this package's
+    /// instances that the reference tree also has agree exactly 【実測
+    /// 2026-08-16】. The plan's guess — every constant in the printed type —
+    /// agrees with **0 of 59**.
+    pub instances_for: Vec<(String, String)>,
 }
 
 impl ModuleFacts {
@@ -72,6 +102,7 @@ impl ModuleFacts {
     pub fn of(module: &ModuleFile, content_hash: &str) -> Self {
         let mut decls = Vec::with_capacity(module.declarations.len());
         let mut instances = Vec::new();
+        let mut instances_for = Vec::new();
         let mut tokens: HashSet<String> = HashSet::new();
 
         // MODULE DOCSTRINGS CONTRIBUTE NOTHING, ON PURPOSE.
@@ -100,6 +131,15 @@ impl ModuleFacts {
                 if let Some(class) = head_const(decl).filter(|class| !class.is_empty()) {
                     instances.push((class.to_owned(), decl.name.clone()));
                 }
+                // Straight off the IR, in the extractor's order. An empty name
+                // is dropped for the same reason the class above is: it would
+                // be a key nothing can ask for. The extractor emits none
+                // 【実測: 91 instances, 91 type names, 0 empty】.
+                for ty in &decl.inst_types {
+                    if !ty.is_empty() {
+                        instances_for.push((ty.clone(), decl.name.clone()));
+                    }
+                }
             }
             // `if (d.doc)`: an empty docstring is skipped, not tokenised.
             if let Some(doc) = decl.doc.as_deref().filter(|doc| !doc.is_empty()) {
@@ -118,6 +158,7 @@ impl ModuleFacts {
             decls,
             instances,
             tokens,
+            instances_for,
         }
     }
 }

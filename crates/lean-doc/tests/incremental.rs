@@ -55,16 +55,19 @@ const URL: &str =
 const URL_NEXT: &str =
     "https://example.invalid/owner/repo/blob/fedcba9876543210fedcba9876543210fedcba98";
 
-/// The six whole-package artifacts. Three are `.html`, which is what makes plan
-/// §7 debt 4 — `prune --ir` pointed at a site calls them orphans — a thing that
-/// can happen at all.
-const ARTIFACTS: [&str; 6] = [
-    "declarations/declaration-data.bmp",
+/// The seven whole-package artifacts (M8-d — five doc-gen4-only files went and
+/// six took their place). **Four are `.html`**, which is what makes plan §7
+/// debt 4 — `prune --ir` pointed at a site calls them orphans — a thing that
+/// can happen at all; and it is now the site's entry pages that would go, not
+/// three files nothing read.
+const ARTIFACTS: [&str; 7] = [
     "declarations/name-map.json",
-    "navbar.html",
-    "tactics.html",
-    "references.html",
-    "references.bib",
+    "index.html",
+    "404.html",
+    "search.html",
+    "foundational_types.html",
+    "modules.json",
+    "search-index.json",
 ];
 
 // --------------------------------------------------------------- the branches
@@ -592,7 +595,7 @@ fn observe(run: &Report) -> BTreeSet<&'static str> {
         "renderRan"
     });
     if skipped {
-        // The **module pages** only: the six whole-package artifacts are
+        // The **module pages** only: the whole-package artifacts are
         // `global`'s, and step 6 rewrites them on every run whatever the render
         // set is.
         let module_pages = |files: &Files| -> Files {

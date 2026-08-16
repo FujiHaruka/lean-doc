@@ -248,6 +248,7 @@ mod tests {
             decls: Vec::new(),
             instances: Vec::new(),
             tokens: tokens.iter().map(|t| (*t).to_owned()).collect(),
+            instances_for: Vec::new(),
         }
     }
 

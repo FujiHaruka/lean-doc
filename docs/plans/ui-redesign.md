@@ -191,9 +191,9 @@ doc-gen4 の `search.js` は `declaration-data.bmp` (**lean-doc 版で 1,216,017
 |---|---|---|---|
 | **UI-V1** | システム等幅スタックで 178 種の非 ASCII が読める字形になるか | M8-b | JuliaMono をサブセットして vendor (fonttools の導入が要る) |
 | **UI-V2** | 数式を組版しない判断が第 2 の対象でも保つか | M8 の後 | KaTeX を vendor |
-| **UI-V3** | 新 UI の site 木のサイズ (と gzip 後) | M8-d | — (数字を取るだけ) |
+| **UI-V3** | 新 UI の site 木のサイズ (と gzip 後) | M8-d | — (数字を取るだけ) → 全package成果物は §8 に【実測】 |
 | **UI-V4** | 長いシグネチャがモバイルでどう壊れるか | M8-b | 折り返し方を変える |
-| **UI-V5** | `instancesFor` を IR から doc-gen4 と同じ規則で作れるか | M8-d | **Instances For ブロックごと出さない** (壊れたまま出すよりよい) |
+| **UI-V5** | `instancesFor` を IR から doc-gen4 と同じ規則で作れるか | M8-d | **Instances For ブロックごと出さない** (壊れたまま出すよりよい) → **決着: 作れた**。§8 参照 |
 
 ---
 
@@ -217,13 +217,35 @@ doc-gen4 の `search.js` は `declaration-data.bmp` (**lean-doc 版で 1,216,017
 | **`modules.json`** | 無い | **作る** | ツリーと Imported by。全ページで即ロードされるので小さく保つ |
 | **`search-index.json`** | 無い | **作る** | 検索と instances。**遅延ロード** — 最初の打鍵か、Instances を開いたときだけ |
 
-**`instancesFor` は作れる見込みがある**【仮定 → UI-V5】 — `instances` は「型の**先頭**の定数 → インスタンス名」
-(`facts.rs:99`) で、`instancesFor` はおそらく「型に現れる**全**定数 → インスタンス名」。どちらも
-IR の `typeCode` の `Const` span から取れる。**規則が同じかは参照木の `declaration-data.bmp` を
-オラクルにして実測する** — 合わなければブロックごと出さない。
+**M8-d 後の全package成果物のサイズ**【実測 2026-08-16、対象パッケージ】。旧 6 本の
+1,877,124 B に対し新 7 本は **1,201,009 B** (−36%):
 
-**やめる 4 本は `lean-doc-global` のテストを動かす。** バイト再現の母数 (432 ページ + 6 成果物 = 438)
-そのものが変わるので、**milestone-log の 438 を書き換えるのではなく、M8 の母数として別に記録する**。
+| | 生 | gzip -9 |
+|---|---:|---:|
+| `declarations/name-map.json` | 602,729 B (旧と 1 バイトも変わらない) | 51,788 B |
+| `search-index.json` | 422,239 B | 49,351 B |
+| `index.html` | 106,467 B | 6,804 B |
+| `modules.json` | 62,905 B | 8,387 B |
+| `foundational_types.html` | 3,419 B | — |
+| `search.html` | 1,680 B | — |
+| `404.html` | 1,570 B | — |
+
+**UI-V5 は決着した。`instancesFor` は作れる — ただし仮説の規則ではない**【実測 2026-08-16】。
+
+| | |
+|---|---|
+| 仮説 (計画) | 「型に現れる**全**定数 → インスタンス名」を `typeCode` の `Const` span から作る |
+| 実測 | その規則は参照木と **59 件中 0 件**しか一致しない。**否定** |
+| 実際の規則 | doc-gen4 の `getInstanceTypes` (`Process/InstanceInfo.lean:16-31`) = 「クラス適用の**明示引数**それぞれの先頭定数」。これは `forallMetaTelescopeReducing` + binder info を要する**意味論的**操作で、印字済みの span 列からは復元できない |
+| 出所 | **抽出器が既に移植済み** (`extractor/Extract.lean:1468`) → IR の `instTypes`。IR は変えていない |
+| 一致率 | **59/59 (100%)**。母数は「この対象パッケージの 91 インスタンスのうち、参照木にも存在する 59 件」。残り 32 件は参照木に無い 12 モジュール (参照木は 389/432 モジュールしか持たない旧リビジョン) |
+
+→ **採用**。`ModuleFacts` に `instancesFor` を足したので `STATE_DERIVATION` は **v2**
+(facts.rs の契約どおり。v1 のキャッシュを再利用すると Instances For が空になる)。
+
+**やめる 5 本は `lean-doc-global` のテストを動かす。** バイト再現の母数 (432 ページ + 6 成果物 = 438)
+そのものが変わるので、**milestone-log の 438 を書き換えるのではなく、M8 の母数として別に記録する**
+(M8-d 後は 432 ページ + 7 成果物 = **439**、静的資産 3 本を足して木は **442 ファイル**【実測】)。
 
 ---
 

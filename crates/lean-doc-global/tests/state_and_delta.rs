@@ -45,6 +45,15 @@ use lean_doc_ir::{Index, IrTree};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+/// The one artifact this crate and the frozen prototype both write since M8-d,
+/// and the one the delta reads back as `--before`.
+///
+/// **Named rather than `ARTIFACT_PATHS[n]`** 【判断】: it was the second entry
+/// until M8-d deleted `declaration-data.bmp` from in front of it, and a
+/// subscript into a list whose contents are a milestone's decision is a silent
+/// mis-read the moment the list changes.
+const NAME_MAP: &str = "declarations/name-map.json";
+
 const DEFAULT_IR: &str = "/private/tmp/lean-doc-relay/w7h/base-ir";
 const DEFAULT_REFERENCE: &str = "/private/tmp/lean-doc-relay/m2/ref-global";
 /// A state file the frozen prototype wrote, over [`DEFAULT_IR`].
@@ -471,7 +480,7 @@ fn saved_modules(state: Option<&str>) -> BTreeSet<String> {
 }
 
 fn name_map(site: &Path) -> BTreeMap<String, String> {
-    let text = fs::read_to_string(site.join(ARTIFACT_PATHS[1])).expect("name-map.json was written");
+    let text = fs::read_to_string(site.join(NAME_MAP)).expect("name-map.json was written");
     serde_json::from_str(&text).expect("name-map.json is a flat string map")
 }
 
@@ -569,7 +578,7 @@ impl Sequence {
             "{name}: every module is either read or reused"
         );
 
-        // The oracle's own assertion: the two builds are the same six files.
+        // The oracle's own assertion: the two builds are the same files.
         for path in ARTIFACT_PATHS {
             let want = fs::read(scratch.join(path)).expect("the from-scratch artifact");
             let got = fs::read(cached.join(path)).expect("the cached artifact");
@@ -1080,19 +1089,29 @@ fn the_seven_states_agree_over_the_real_corpus() {
     assert_eq!(sequence.steps, 7);
 }
 
-/// The state file this crate writes, against one the frozen prototype wrote
-/// over the same IR — **byte for byte, modulo the derivation string**.
+/// The facts this crate derives, against the state file the frozen prototype
+/// wrote over the same IR — **byte for byte, modulo the derivation string**.
 ///
 /// This is the only oracle [`ModuleFacts::tokens`] has over the whole corpus
 /// that is a file rather than a digest, and it is worth having for one reason:
-/// no artifact carries the tokens, so the six-file comparison is blind to
+/// no artifact carries the tokens, so the artifact comparison is blind to
 /// 818,331 B of facts that the map delta is entirely made of. 432 modules'
 /// imports, declaration kinds, instance heads and token lists agree to the byte.
 ///
-/// The two files are *not* expected to be equal — [`STATE_DERIVATION`] differs
-/// on purpose, so that neither implementation can read the other's cache — so
-/// the prototype's string is substituted before the comparison. That is the only
-/// edit.
+/// # M8-d: the comparison is now against a *shim*, and that is the whole edit
+///
+/// [`ModuleFacts`] grew [`ModuleFacts::instances_for`], which the prototype has
+/// no notion of, so the file on disk is no longer the prototype's bytes and
+/// never can be again. What is still comparable is everything else, so the
+/// prototype's seven keys are re-serialised here through [`PrototypeFacts`] —
+/// the same trick `tests/global.rs` uses for its digest — and *that* is compared
+/// byte for byte. The two assertions after it are what keep the shim honest: the
+/// file that was actually written has to be these bytes with the new key added,
+/// in that order, for every module.
+///
+/// The derivation string differs on purpose, so that neither implementation can
+/// read the other's cache; the prototype's is substituted before the comparison
+/// and that is the only other edit.
 #[test]
 fn the_state_file_is_the_prototypes_bytes() {
     let Some(ir) = corpus_ir() else {
@@ -1107,7 +1126,7 @@ fn the_state_file_is_the_prototypes_bytes() {
         return;
     };
     // Pinned so that the numbers in the report have a home: 26 bytes of
-    // `stage7h/global.ts facts v1` against 24 of `lean-doc-global facts v1`.
+    // `stage7h/global.ts facts v1` against 24 of `lean-doc-global facts v2`.
     assert_eq!(want.len(), 841_949);
     assert_eq!(
         STATE_DERIVATION.len() + 2,
@@ -1120,23 +1139,123 @@ fn the_state_file_is_the_prototypes_bytes() {
     let mut options = GlobalOptions::new(&ir, &site);
     options.state = Some(&state);
     let summary = build_global(&options).expect("the corpus builds");
-    let got = fs::read(state.join(STATE_FILE)).expect("the state was written");
+    let got = fs::read_to_string(state.join(STATE_FILE)).expect("the state was written");
     assert_eq!(got.len(), summary.state_bytes);
-    assert_eq!(got.len(), 841_947);
+    // 【実測 2026-08-16】the v1 file was 841,947 B; `instancesFor` on 432
+    // modules costs 20,052 B, of which 432 x 17 is the empty key itself.
+    assert_eq!(got.len(), 861_999);
+
+    // The prototype's shape, from the facts the file above was built from.
+    let tree = IrTree::open(&ir).expect("the corpus opens");
+    let facts = facts_for(&tree, &State::empty())
+        .expect("the corpus reads")
+        .facts;
+    let shim = serde_json::to_string(&PrototypeState {
+        state_version: STATE_VERSION,
+        derivation: STATE_DERIVATION,
+        schema_version: tree.index().schema_version,
+        generator: &tree.index().generator,
+        modules: PrototypeModules(&facts),
+    })
+    .expect("the shim serialises");
+    assert_eq!(shim.len(), 841_947);
 
     let want = String::from_utf8(want)
         .expect("the state is UTF-8")
-        .replacen("stage7h/global.ts facts v1", STATE_DERIVATION, 1)
-        .into_bytes();
-    assert_eq!(want.len(), got.len());
+        .replacen("stage7h/global.ts facts v1", STATE_DERIVATION, 1);
+    assert_eq!(want.len(), shim.len());
     assert!(
-        want == got,
-        "the state differs from the prototype's at byte {}",
-        got.iter()
-            .zip(&want)
+        want == shim,
+        "the facts differ from the prototype's at byte {}",
+        shim.bytes()
+            .zip(want.bytes())
             .position(|(a, b)| a != b)
-            .unwrap_or(got.len())
+            .unwrap_or(shim.len())
     );
+
+    // …and the file on disk is the shim plus one key per module, last.
+    let written: Value = serde_json::from_str(&got).expect("the state is JSON");
+    let shimmed: Value = serde_json::from_str(&shim).expect("the shim is JSON");
+    let written_modules = written["modules"].as_object().expect("a module map");
+    let shimmed_modules = shimmed["modules"].as_object().expect("a module map");
+    assert_eq!(
+        written_modules.keys().collect::<Vec<_>>(),
+        shimmed_modules.keys().collect::<Vec<_>>(),
+        "the two files do not name the same modules in the same order"
+    );
+    for (module, entry) in written_modules {
+        let entry = entry.as_object().expect("one module's facts");
+        let shimmed = shimmed_modules[module].as_object().expect("the same");
+        let mut expected: Vec<&String> = shimmed.keys().collect();
+        let new_key = "instancesFor".to_owned();
+        expected.push(&new_key);
+        assert_eq!(
+            entry.keys().collect::<Vec<_>>(),
+            expected,
+            "{module}: the new key is not the prototype's keys with one appended"
+        );
+        for (key, value) in shimmed {
+            assert_eq!(&entry[key], value, "{module}.{key}");
+        }
+    }
+}
+
+/// [`ModuleFacts`] with the prototype's seven keys and no others, in the
+/// prototype's order — the shape `stage7h/global.ts` wrote and the only shape
+/// its file can be compared with.
+///
+/// A copy of the field list rather than a `#[serde(skip)]` on the real struct
+/// 【判断】: skipping the key would keep it out of the cache too, and a cached
+/// entry that has lost `instancesFor` is a site whose Instances For blocks are
+/// empty on every module that hit. The duplication is what makes the omission
+/// local to this test.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PrototypeFacts<'a> {
+    module: &'a str,
+    content_hash: &'a str,
+    imports: &'a [String],
+    tactics: usize,
+    decls: &'a [(String, String)],
+    instances: &'a [(String, String)],
+    tokens: &'a [String],
+}
+
+impl<'a> From<&'a ModuleFacts> for PrototypeFacts<'a> {
+    fn from(facts: &'a ModuleFacts) -> Self {
+        Self {
+            module: &facts.module,
+            content_hash: &facts.content_hash,
+            imports: &facts.imports,
+            tactics: facts.tactics,
+            decls: &facts.decls,
+            instances: &facts.instances,
+            tokens: &facts.tokens,
+        }
+    }
+}
+
+/// The wrapper `state.rs` writes, with the same key order.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PrototypeState<'a> {
+    state_version: u64,
+    derivation: &'a str,
+    schema_version: u32,
+    generator: &'a str,
+    modules: PrototypeModules<'a>,
+}
+
+struct PrototypeModules<'a>(&'a [ModuleFacts]);
+
+impl serde::Serialize for PrototypeModules<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_map(
+            self.0
+                .iter()
+                .map(|facts| (facts.module.as_str(), PrototypeFacts::from(facts))),
+        )
+    }
 }
 
 /// The map delta against the prototype's own answer for the same mutation,
@@ -1157,7 +1276,7 @@ fn the_delta_is_the_prototypes_delta() {
     // committed: it is 602,729 B of the prototype's own output plus five
     // strings.
     let after: BTreeMap<String, String> = serde_json::from_str(
-        &fs::read_to_string(reference.join(ARTIFACT_PATHS[1])).expect("the reference name map"),
+        &fs::read_to_string(reference.join(NAME_MAP)).expect("the reference name map"),
     )
     .expect("the name map is a flat string map");
     let mutation = &expected.mutation;
@@ -1232,7 +1351,7 @@ fn the_delta_is_the_prototypes_delta() {
     // The other half of the file format, and the case the pipeline takes on
     // most runs: an unchanged map writes a file with no bytes in it at all.
     let unchanged = work.path.join("unchanged.txt");
-    let name_map = reference.join(ARTIFACT_PATHS[1]);
+    let name_map = reference.join(NAME_MAP);
     let mut options = GlobalOptions::new(&ir, &site);
     options.before = Some(&name_map);
     options.print_set = Some(&unchanged);
