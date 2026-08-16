@@ -39,8 +39,21 @@ ignore = []
 # Two versions of the same crate is usually harmless and occasionally the sign
 # of something worth knowing about, so: report, do not fail.
 multiple-versions = "warn"
-# A wildcard version is not a dependency, it is a promise to be surprised.
-wildcards = "deny"
+# A wildcard version is not a dependency, it is a promise to be surprised — but
+# this can only be a warning here, and the reason is worth writing down.
+#
+# The crates of this workspace depend on each other as `{ path = "../…" }` with
+# no version, by design: they are one program split across directories
+# (implementation-plan §7), released together or not at all. `cargo-deny` has an
+# `allow-wildcard-paths` for exactly that, and it **does not apply to crates that
+# could be published** — none of ours sets `publish = false`, because whether
+# lean-doc ever goes to crates.io is an open question and answering it in a
+# supply-chain config would be the wrong place.
+#
+# So: warn. A wildcard on an *external* dependency still shows up in the CI log,
+# which is what the rule is really for; the four entries about our own crates are
+# the workspace's shape rather than a finding.
+wildcards = "warn"
 
 [sources]
 unknown-registry = "deny"
