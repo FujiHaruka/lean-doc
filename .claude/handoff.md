@@ -1,65 +1,75 @@
-# Handoff — 2026-08-17 (G1: CI 軸を実測で閉じる / leg 1 → leg 2)
-
-## Relay control
-- Mode: ON
-- Goal: **G1「CI 軸を実測で閉じる — 『配置が第一の打ち手』をランナー実体で裏付ける」**。
-  達成後、**朝 10:00 JST 前ならゴールを自分で再設定して自走を続ける**【ユーザー指示】
-- Leg: 2 / cap 8
-- Predecessor: none (leg 1 はユーザーの元セッション。tmux 名を持たないので kill しない)
-- Stop-on: completion | user-decision | no-progress×2 | leg-cap
-- Progress ledger:
-  - r1: ゴール設定のみ。**実作業ゼロ**【ユーザー指示「次セッションで実作業を始めて」】
+# Handoff — 2026-08-17 01:30 (G1 完遂 → G2 開始 / leg 2 → leg 3)
 
 ## State
 
-- Branch: main / **clean** / push 済み
-- 直前の relay (品質ゲート整備) は **DONE**。そのスコープの残作業は無い
-- 開始時刻 **2026-08-17 00:0x JST**。**朝 10:00 JST が自走の終了目安**
-- `cargo test --workspace` 346 passed / 0 failed / 24 ignored、CI 3 ジョブ緑【前 leg 実測】
+- Branch: main / **clean** / push 済み (HEAD `a39f7e8`)
+- **G1「CI 軸を実測で閉じる」は完遂**。8 段すべて済み、leg 2 で 14 commit
+- 開始からの経過: **朝 10:00 JST が自走の終了目安**。いま 01:30 JST なので約 8.5 時間ある
+- 計測環境: 対象 `/Users/haruka/dev/lean-projects` は `c4f6af29`。`.lake` 健在、
+  抽出器 `extractor/build/extract` と `target/release/lean-doc` は両方 built。
+  **doc-gen4 の計装は今回触っていない**
 
-## なぜ G1 か
+## Relay control
 
-`approach.md` §3 / §8 は「cold な環境ロードへの**第一の打ち手は配置**(doc 生成を `lake build` と
-同じジョブに置く)」と書き、根拠は Linux 実測の `importModules` **2.61 s (同じジョブ) ↔ 20〜89 s
-(別ジョブ) = 8〜34 倍**。**しかしこれは `importModules` 単体の値**で、テンプレ全体を通した
-ランナー実体の数字が無い。
+- Mode: ON
+- Goal: **G2「宣言単位の再解析キャッシュ — 意味解析を*速く*するのではなく*回数*を減らす」**。
+  達成後、**朝 10:00 JST 前ならゴールを自分で再設定して自走を続ける**【ユーザー指示】
+- Leg: 3 / cap 8
+- Predecessor: none (leg 1・2 はユーザーの元セッション。tmux 名を持たないので kill しない)
+- Stop-on: completion | user-decision | no-progress×2 | leg-cap
+- Progress ledger:
+  - r1: ゴール設定のみ。実作業ゼロ
+  - r2: **G1 完遂** — `af7fe18`〜`a39f7e8` (14 commit)。CI 実測 3 run、docs 7 ファイル更新
 
-- `tools/ci-build.sh` (295) と `.github/workflow-templates/lean-doc-docs.yml` (135) は書かれているが、
-  **テンプレは一度も Actions で走っていない** — ファイル冒頭に `THIS FILE HAS NEVER BEEN RUN 【未検証】`
-  と自分で明記してある。未検証なのは actions のバージョンと入力 / 3 つのキャッシュ鍵 / elan / `lake exe cache get`
-- V5 の実測 (clean 5.887〜10.361 s、無変更 1.274〜1.286 s) は **Apple M1 ローカル warm**。
-  docs 自身が「**CI ランナーは cold 側なのでこれは下限**」と書いている
-- **リポジトリを public にした理由が「Actions を無料枠で回すこと」**(CLAUDE.md)。条件は整っている
+## Where we are
 
-## 7 + 1 段
+G1 の結論は**予測と食い違った**。`docs/verification-log.md`「CI 軸 (2026-08-16)」が SoT:
+**「別ジョブは 8〜34 倍」は再現せず split/same は 1.08〜1.58 倍** (製品で n=5)、
+**陽性対照 (`drop_caches`) だけが 5.2〜11.9 倍**。壊れたのは機構ではなく「別ジョブは cold で
+始まる」という前提で、原因は**ランナーが 2 コア/7.75 GiB → 4 コア/15.6 GiB に変わっていた**こと。
+テンプレも実走して緑になり `THIS FILE HAS NEVER BEEN RUN` を消した。引用元 7 ファイルは同じ
+コミット群で直してある。
 
-| # | やること | 判定 |
-|---|---|---|
-| 1 | **public 化の残り** — `lean-doc-docs.yml:71-79` の `token: ${{ secrets.LEAN_DOC_TOKEN }}` は 2026-08-16 の public 化で不要。コメントも「While this repository is private」のまま | 利用者が持っていない secret を要求しない |
-| 2 | **`tools/make-target2.sh` の Linux 経路** — 現在 `.lake/packages` を **APFS clonefile** で借りる macOS 専用。Actions では `lake exe cache get` で取る | Linux で target2 が建つ |
-| 3 | **計測用ワークフロー** `.github/workflows/ci-placement.yml` (**`workflow_dispatch` のみ**) — **A: 同じジョブ / B: 分割ジョブ** の A/B。n≧5、`/usr/bin/time -v` で CPU 時間・major fault・peak RSS。先例は既存の `ci-import-*.yml` 4 本 | 一度落としてから通す |
-| 4 | **実走** → ランナー実体の数字。**cold 側は `ubuntu-latest` でも 2 実体に割れる**(readahead とストレージ差、未検証、n=2) ので**実体を記録する** | 生ログが `benchmarks/results/` に落ちる |
-| 5 | **approach.md §8 (c)** 「**完全版の抽出器でも同じ差が出るか**」に答える (macOS では作業集合が 16 GiB に収まらず測れなかった項目) | §8 の行が実測に変わる |
-| 6 | 数字を commit + **同じコミットで docs を更新** — approach.md §3/§8、implementation-plan.md V5、milestone-log.md、README の未検証 10 件 | 引用元と数字が食い違わない |
-| 7 | 可能ならテンプレ自体を実走させ `THIS FILE HAS NEVER BEEN RUN` を消す | 消せないなら**理由を書いて残す** |
-| 8 | (小・独立) `approach.md` §9「Lean フロントエンドの再実装」に**段階 7e / 段階 2 への参照**を足す — 根拠が別の節にあるのに §9 から辿れない | 1 行で足りる |
+**G2 を選んだ理由**: 今回の実測で**床が I/O から CPU に移った**。ランナー上の
+`lean-doc build` は 11.5〜20.7 s で、**環境ロードは 1.6〜2.7 s しかない**一方
+**extract が 10〜18 s**。`approach.md` §6.1 末尾が名指ししている「変更のない宣言を
+再解析しない」が、そのまま今の律速に当たる。
 
 ## Next step
 
-**段 1 と段 8 は独立で小さいので先に片付けて 1 commit。** その後、段 2 (`make-target2.sh` の
-Linux 経路) の調査 → 段 3 のワークフロー作成へ。段 3 を書いたら**必ず一度落としてから**通す。
+1. **(先に片付ける) `docs/approach.md` が 648 行で 600 行を超えた** — leg 2 の G1 更新で増えた。
+   `/compact-plan docs/approach.md`。**§3 の 2 段階の実測 (2026-08-10 / 2026-08-16) は
+   両方残す** — 「仮説とそれを否定した条件」そのものなので畳んではいけない。
+2. G2 の調査に入る: `docs/approach.md` §6.1 / §5.5 と `crates/lean-doc-incr/src/ledger.rs` を読み、
+   **いま増分が何を単位に再抽出しているか (モジュール単位のはず) と、宣言単位に落とすと
+   何が必要か**を洗う。**先に計画ファイルを書く** (グローバル規則: 計画には Approach 節を入れる)。
+3. 数字を取る前に**母数を決める**: 1 モジュール変更時に再解析される宣言数 / そのうち
+   実際に変わる宣言数。**これを測らずに実装に入らない** (「約 4 回」を誤って書いた前例が
+   `eb96608` にある)。
+
+## Files to read first
+
+- `docs/verification-log.md`「CI 軸 (2026-08-16)」(末尾付近) — G1 の結論。**数字の SoT**
+- `docs/approach.md` §6.1 末尾 / §5.5 — 「変更のない宣言を再解析しない」の名指しと、増分の 3 層設計
+- `crates/lean-doc-incr/src/ledger.rs` — 増分の台帳。再抽出の単位がここで決まる
+- `extractor/Extract.lean` の `analyze` 周辺 — 意味解析の本体 (段階 7d で並列化済み)
+- `docs/implementation-plan.md` §4 決定 5 — 宣言の所有モジュールと `_private.`
 
 ## Load-bearing context
 
-- **Actions を回すのは lean-doc 自身のリポジトリだけ。外部への新規リポジトリ作成はしない**
-  【ユーザーに宣言済み】 — target2 はジョブ内で `make-target2.sh` が生成する
-- **`workflow_dispatch` で明示起動する。push トリガにしない** — 毎コミット数 GB を落とすことになる
-- `gh run watch` / `gh run view` で結果を取る。**foreground の `sleep` は使わない**
-  (背景 Bash か Monitor)
-- **計測の誠実性** — 1 回だけ測った数字を信じない / cold と warm を混ぜない /
-  実測・外挿・仮定・理論値のラベルを落とさない / 倍率は分母を明示する
-- **ゲートは自分では自分を検査しない。** 新しいワークフローは**必ず一度落として**から通す
-  (作った当日に「何をしても通るゲート」を 2 件作った実績がある)
+- **測ったのは 1 ワークロード。** G1 の「配置は 1.1 倍」は 422 モジュール / peak RSS 約 4.0 GB /
+  15.6 GiB ランナーでの話。**より大きいパッケージや RAM の小さいランナーでは cold 側に戻る**
+- **`lean-doc build` は環境ロード時間を `ready <ns>` 行で出す** (常駐抽出器の 1 行目)。
+  phase ログの `importModules` は常駐経路では 0 になるので**そちらを読むと嘘をつかまされる**
+- **計測ツールは揃っている** — `benchmarks/tools/run-placement-arm.sh` (ARM=same|split|cold、
+  DROP / APPEND)、`check-placement.sh` (在庫と報告本数の突き合わせ + site の byte 一致)、
+  `summarize-placement.sh`、`record-runner.sh` (CPU モデル / readahead / CPU 較正)
+- **`set -e` + パイプ末尾の `grep` は静かに死ぬ。** 検査器と集計器で 2 回踏んだ。
+  `ns="$( (grep … || true) | … )"` の形にする
+- **新しいゲート / 計測器は必ず一度落としてから通す。** `check-placement.sh` は 7 通りで
+  落として直した (うち 1 件は上記の静かな死)
+- **「差が無い」を報告するときは陽性対照を置く。** 対照が無ければ、計測器が鈍いのか
+  主張が偽なのか分けられない
 - **ssh (port 22) はこの機材から通らない。** push は HTTPS + `gh`:
   ```
   GIT_CONFIG_COUNT=2 \
@@ -67,26 +77,8 @@ Linux 経路) の調査 → 段 3 のワークフロー作成へ。段 3 を書�
   GIT_CONFIG_KEY_1=credential.helper GIT_CONFIG_VALUE_1='!gh auth git-credential' \
   git push https://github.com/FujiHaruka/lean-doc.git main:main
   ```
-  **その 1 コマンドの間だけ**効く。git の設定を汚さない
+- **Actions を回すのは lean-doc 自身のリポジトリだけ。外部への新規リポジトリ作成はしない**
+  【ユーザーに宣言済み】。計測ワークフローは `workflow_dispatch` のみ
 - **subagent には「コミットするな」と指示する。同時に走らせるのは 1 体まで**
-- **`e2e/micro` の宣言を消さない / Mathlib を足さない** — 足した瞬間 CI で回らなくなる
 - **`benchmarks/tools/measure-ledger.sh` は起動時に tracked な生ログを切り詰める**【実測】。
   動作確認のつもりで実走しない
-
-## Files to read first
-
-- `.github/workflow-templates/lean-doc-docs.yml` — テンプレ。冒頭に未検証の宣言 (段 1 / 段 7)
-- `tools/ci-build.sh` — CI ジョブの実体 295 行。`lake build` → `lean-doc build` の順序が主張の本体
-- `.github/workflows/ci-import-modules.yml` — **計測用ワークフローの先例** (`workflow_dispatch`)
-- `tools/make-target2.sh` — 第 2 の対象の生成器 (段 2。APFS clonefile 依存は line 81 付近)
-- `docs/approach.md` §3 / §8 — 配置の主張と、残る 3 項目 (a) 先読みを絞る (b) IR キャッシュ (c) 完全版
-- `docs/milestone-log.md`「M6 の結果」 — V5 の数字とテンプレの位置づけ
-
-## G1 の後 (朝 10:00 JST 前なら次ゴールを自分で設定する)
-
-候補 (leg が自分で選ぶ。**選んだ理由を handoff に書く**):
-- **宣言単位の再解析キャッシュ** — 意味解析を速くするのではなく**回数を減らす**筋。
-  approach.md §6.1 末尾が「次に狙うなら」と名指ししていて未着手
-- **approach.md §8 (a) 先読みの集合を絞る** — ランナー実体で答えが割れるので期待値は上がるが保証は無い。
-  配置が効いている限り優先度は低い
-- **E2 (`tools/target2-gate.sh`) がいま動くかの確認** — 前 leg の Next step に残っている
