@@ -1,0 +1,8 @@
+date (UTC)   : 2026-08-16 02:15:19
+url list     : /private/tmp/claude-502/-Users-haruka-dev-lean-doc/bf8993ac-8e88-4241-b524-6317d35595b6/scratchpad/m7d-emitted-dep-urls.txt
+urls in list : 1046
+distinct files: 484
+sampled      : 484 (every 1th)
+parallelism  : 3
+note         : the fragment (#L..) is never sent to the server; file
+               existence is what a status code can prove.
