@@ -7,13 +7,20 @@
 #
 # usage: tools/global-compare.sh REFERENCE_DIR CANDIDATE_DIR
 #
+# This takes both trees as arguments and cares about neither's provenance, so it
+# still works — but **the way M2's reference tree was built is no longer in this
+# repository**. `tools/global-reference.sh` ran the frozen TypeScript prototype
+# (`experiments/stage7h/global.ts`) and went with `experiments/` on 2026-08-16;
+# it exists only at tag `experiments-frozen`, and the tree it wrote lived under
+# /private/tmp. Point REFERENCE_DIR at whatever tree you actually want to hold
+# the candidate to, and say which one it was.
+#
 # The candidate comes from the Rust port; the whole loop is
-#   tools/global-reference.sh
 #   cargo build --release -p lean-doc && ./target/release/lean-doc global \
 #     --ir /private/tmp/lean-doc-relay/w7h/base-ir --out /tmp/rust-global
-#   tools/global-compare.sh /private/tmp/lean-doc-relay/m2/ref-global /tmp/rust-global
+#   tools/global-compare.sh <reference tree> /tmp/rust-global
 # `cargo test -p lean-doc-global --test global` makes the same comparison in
-# process when the reference tree is on the machine.
+# process against a committed fixture.
 
 set -uo pipefail
 

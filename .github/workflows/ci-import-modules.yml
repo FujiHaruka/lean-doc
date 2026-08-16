@@ -29,6 +29,20 @@
 #
 # WHY IT IS `workflow_dispatch` ONLY
 #   It is a measurement, not a check. It must never run on a push.
+#
+# THE EXTRACTOR WAS SWAPPED, AND THIS WORKFLOW HAS NOT RUN SINCE
+#   Until 2026-08-16 the steps below built and ran `experiments/stage4b`, the
+#   frozen prototype extractor (IR schema 3). `experiments/` was removed, so they
+#   now build and run `extractor/` (IR schema 4) instead. The CLI shape is
+#   identical — `extract <modules.txt> <out.jsonl> [flags]` — but **schema 4 does
+#   more analysis after the import**, so this workflow no longer measures the same
+#   thing it did before.
+#
+#   **The swap is UNVERIFIED: the workflow has not been run once since.**
+#
+#   **Do not put a number produced after the swap next to a recorded stage4b
+#   number.** Anything already in `benchmarks/results/` was measured with schema 3
+#   and is not comparable; a new baseline has to be taken on this side of the swap.
 name: CI importModules (measurement)
 
 on:
@@ -107,14 +121,14 @@ jobs:
           grep -E '^(MemTotal|MemFree|MemAvailable|Cached)' /proc/meminfo > meminfo-after-cache-get.txt
 
       # The extractor lives outside the target and borrows its environment through
-      # `lake env` (see experiments/stage4b/build.sh). It is built before `lake build`
+      # `lake env` (see extractor/build.sh). It is built before `lake build`
       # so that the build below is the last thing to touch the cache before run 1.
       - name: Build the extractor
         env:
           TARGET_REPO: ${{ github.workspace }}/target
         run: |
-          /usr/bin/time -v lean-doc/experiments/stage4b/build.sh 2>&1 | tail -20
-          ls -l lean-doc/experiments/stage4b/build/extract
+          /usr/bin/time -v lean-doc/extractor/build.sh 2>&1 | tail -20
+          ls -l lean-doc/extractor/build/extract
 
       - name: lake build (the target's own 432 modules)
         working-directory: target
@@ -138,7 +152,7 @@ jobs:
           MODULES: ${{ github.workspace }}/lean-doc/benchmarks/results/it-modules.txt
         run: |
           lake env /usr/bin/time -v \
-            "$GITHUB_WORKSPACE/lean-doc/experiments/stage4b/build/extract" \
+            "$GITHUB_WORKSPACE/lean-doc/extractor/build/extract" \
             "$MODULES" "$GITHUB_WORKSPACE/import-after-build.jsonl" \
             2>&1 | tee "$GITHUB_WORKSPACE/time-after-build.txt" | tail -25
 
@@ -150,7 +164,7 @@ jobs:
           n='${{ github.event.inputs.warm_runs }}'; n=${n:-4}
           for i in $(seq 1 "$n"); do
             lake env /usr/bin/time -v \
-              "$GITHUB_WORKSPACE/lean-doc/experiments/stage4b/build/extract" \
+              "$GITHUB_WORKSPACE/lean-doc/extractor/build/extract" \
               "$MODULES" "$GITHUB_WORKSPACE/import-warm-$i.jsonl" \
               2>&1 | tee "$GITHUB_WORKSPACE/time-warm-$i.txt" | grep -E 'Major|Maximum resident' || true
             echo "warm run $i done"
@@ -169,7 +183,7 @@ jobs:
             "$GITHUB_WORKSPACE/olean-residency" < "$GITHUB_WORKSPACE/olean-paths.txt" \
               > "$GITHUB_WORKSPACE/residency-cold-$i.jsonl"
             lake env /usr/bin/time -v \
-              "$GITHUB_WORKSPACE/lean-doc/experiments/stage4b/build/extract" \
+              "$GITHUB_WORKSPACE/lean-doc/extractor/build/extract" \
               "$MODULES" "$GITHUB_WORKSPACE/import-cold-$i.jsonl" \
               2>&1 | tee "$GITHUB_WORKSPACE/time-cold-$i.txt" | grep -E 'Major|Maximum resident' || true
             echo "cold run $i done"

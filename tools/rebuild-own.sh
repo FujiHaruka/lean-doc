@@ -2,6 +2,9 @@
 # Rebuild the package's own modules inside the clone, so that every olean in it
 # carries the *clone's* path.
 #
+# Moved here from `experiments/stage5e/` on 2026-08-16, when `experiments/` was
+# removed. **The contents are unchanged** apart from this note.
+#
 # WHY THIS IS NECESSARY, AND WHY IT WAS NOT OBVIOUS
 #   `cp -Rc` copies the build tree along with the sources, so the clone starts
 #   with oleans that were produced at the ORIGINAL path. Stage 5c measured that

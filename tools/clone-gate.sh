@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # M3-d4 — the real gate: two **real** edits inside a clone of the measurement
-# target, each followed by a real `lake build`, each run through both
-# implementations of the incremental pipeline.
+# target, each followed by a real `lake build`, each run through the incremental
+# pipeline.
 #
 # **M7-c moved dependency links, and this compares against a doc-gen4-era
 # reference.** Every link into a dependency is now that package's version-pinned
@@ -10,12 +10,19 @@
 # is no longer a failure of the port. Gate A is suspended, not redefined — see
 # `docs/implementation-plan.md` §1.
 #
-# **The sibling of tools/incremental-reference.sh**: same `--impl ts|rust`, same
-# per-scenario record shape (`<s>-counts.json` / `<s>-work/` / `<s>-status.txt` /
+# **Rust only.** Until 2026-08-16 this script also ran the two scenarios through
+# the TS prototype (`--impl ts`) and gate 2 compared the two records.
+# `experiments/` was removed, so **that comparison can no longer be made from this
+# tree** — the prototype exists only at tag `experiments-frozen`. Gate 1, which is
+# the one that decides correctness, is a within-implementation question and is
+# untouched.
+#
+# **The sibling of tools/incremental-reference.sh**: same per-scenario record
+# shape (`<s>-counts.json` / `<s>-work/` / `<s>-status.txt` /
 # `<s>-complained.txt` / `<s>-pages.txt` / `<s>-work-present.txt` / `<s>-ir/` /
 # `<s>-global/`), so tools/incremental-compare.sh reads this tree unchanged.
 #
-# usage: tools/clone-gate.sh <phase> [--impl ts|rust] [--clone DIR] [--out DIR]
+# usage: tools/clone-gate.sh <phase> [--clone DIR] [--out DIR]
 #                            [--lidx FILE] [--shared DIR] [--jobs N]
 #                            [--move-module <Module>]
 #   phases: setup | move | delete | reset | all
@@ -41,9 +48,9 @@
 # THE TWO SCENARIOS
 # ============================================================================
 #   move    `--move-module`'s body moves into a new module `…Core`; the original
-#           becomes a one-line shim (`experiments/stage5e/setup-clone.sh move …
-#           minimal`). Site denominator **439** = 432 pages + 6 whole-package
-#           artifacts + the new module's page.
+#           becomes a one-line shim (`tools/setup-clone.sh move … minimal`). Site
+#           denominator **439** = 432 pages + 6 whole-package artifacts + the new
+#           module's page.
 #
 #           THE MODULE IS A PARAMETER AND CHOOSING IT WRONG COSTS THE RUN ONE OF
 #           THE TWO DERIVATIONS. `setup-clone.sh:18-25` already says it must have
@@ -86,9 +93,9 @@
 #           Site denominator **437** = 431 pages + 6 whole-package artifacts.
 #
 # ============================================================================
-# THE TWO GATES
+# THE GATE
 # ============================================================================
-#   GATE 1 (the real one, `--impl rust`, recorded in `<s>-sitecheck.txt`)
+#   GATE 1 (recorded in `<s>-sitecheck.txt`)
 #     INCREMENTAL — the base {ir, pages, ledger, state} copied, then
 #     `lean-doc incremental` over the **post-edit** module list — is compared with
 #     `/usr/bin/diff -r` against FROM-SCRATCH: the same post-edit module list
@@ -97,19 +104,18 @@
 #     This is a *within-implementation* question and it is the one that decides
 #     whether the pipeline is correct.
 #
-#   GATE 2 (`tools/incremental-compare.sh` over the two `--out` trees)
-#     The same two scenarios run under `--impl ts`, and the two records compared.
-#     **Page bytes are not compared across implementations** 【決定 4, 実測】: the
-#     prototype's step 7 (`incremental.sh:371-373`) renders without
-#     `--link-index`, which moves 150 of the 432 pages' bytes, and the prototype
-#     is frozen. What is compared is the set of pages, the IR, the six
-#     whole-package artifacts and **the answers the run computed**.
+#   There used to be a GATE 2: the same two scenarios run under `--impl ts` and
+#   the two records put through `tools/incremental-compare.sh`. It went with
+#   `experiments/` on 2026-08-16. It never compared page bytes anyway 【決定 4,
+#   実測】 — the prototype rendered without `--link-index`, which moves 150 of the
+#   432 pages' bytes — so what it added over gate 1 was a second opinion on the
+#   *answers*, from an implementation that is now frozen.
 #
 # ============================================================================
 # THE PROTOCOL — what has to be true before an edit, and after the reset
 # ============================================================================
 #   The clone is a baseline only if its oleans were built **at the clone's own
-#   path** (`experiments/stage5e/rebuild-own.sh`). Without that the moved module's
+#   path** (`tools/rebuild-own.sh`). Without that the moved module's
 #   referrers would rebuild for the wrong reason and **the gate would pass for a
 #   reason nobody meant** (stage 5e (e)). `require_baseline` checks it with
 #   `strings`, checks `git status` is clean, checks Lake reports every target up
@@ -123,33 +129,41 @@
 #   `git commit` is ever run.
 #
 # ============================================================================
-# WHAT IS SHARED BETWEEN THE TWO IMPLEMENTATIONS, AND WHAT IS NOT
+# WHAT IS SHARED BETWEEN RUNS, AND WHAT IS NOT
 # ============================================================================
-#   SHARED (impl-neutral, built once, in $SHARED)
+#   The split below was drawn when this script drove two implementations. **It is
+#   kept**: `--shared` still lets a second `--out` reuse an extraction that costs
+#   minutes, and the reasons the seed may not be shared are properties of the
+#   ledger, not of the prototype.
+#
+#   SHARED (built once, in $SHARED)
 #     the module lists (before / after each edit) and every IR tree the
 #     **extractor** produces — base IR and the two from-scratch IRs. The
-#     extractor is the same program on both sides, so building these twice would
-#     only add a way for the two sides to be handed different inputs.
-#     One module list is built here and handed to both sides 【M3-d2 実測】: the
-#     extractor keeps the order it is given, and that order makes the bytes of the
-#     ledger's `modules` array and of the merged `index.json`.
+#     extraction is deterministic given the module list, so producing these twice
+#     would only add a way for two runs to be handed different inputs.
+#     One module list is built here 【M3-d2 実測】: the extractor keeps the order
+#     it is given, and that order makes the bytes of the ledger's `modules` array
+#     and of the merged `index.json`.
 #
-#   PER IMPL (in $OUT.work/fixtures)
+#   PER RUN (in $OUT.work/fixtures)
 #     `base-site/`, `base-state/`, `base-ledger.json`. `extractKey.extractor` and
 #     `STATE_DERIVATION` are **designed** to differ between implementations (plan
-#     §6): feeding one side's seed to the other reports every module changed and
-#     measures the key mismatch instead of the pipeline.
+#     §6): feeding one implementation's seed to another reports every module
+#     changed and measures the key mismatch instead of the pipeline.
 
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-INCREMENTAL_SH="$REPO/experiments/stage7h/incremental.sh"
-LEDGER_TS="$REPO/experiments/stage5/ledger.ts"
-GLOBAL_TS="$REPO/experiments/stage7h/global.ts"
-RENDER_TS="$REPO/experiments/stage7d/render.ts"
-EXTRACTOR="$REPO/experiments/stage7g/extract-once.sh"
-SETUP_CLONE="$REPO/experiments/stage5e/setup-clone.sh"
+SETUP_CLONE="$REPO/tools/setup-clone.sh"
 RUST_BIN="$REPO/target/release/lean-doc"
+# The Lean extractor (IR schema 4), built by extractor/build.sh. Its own CLI is
+# `extract <modules> <events> [flags]`; what turns that into the
+# `--modules --ir-dir --timings` contract the pipeline's `--extractor` speaks is
+# `lean-doc extract` — the job the frozen `stage7g/extract-once.sh` used to do.
+# `EXTRACT_BIN` is the same environment variable `lean-doc extract` reads, so
+# overriding it here and overriding it for a bare `lean-doc extract` mean the
+# same thing.
+EXTRACT_BIN="${EXTRACT_BIN:-$REPO/extractor/build/extract}"
 LAKE="${LAKE:-$HOME/.elan/bin/lake}"
 # `diff` is aliased to a colordiff that is not installed here; its exit 127 reads
 # as "differences found" and has already cost this project one wrong conclusion.
@@ -158,11 +172,10 @@ DIFF=/usr/bin/diff
 PHASE="${1-}"
 case "$PHASE" in
   setup|move|delete|reset|all) shift ;;
-  *) echo "usage: $0 setup|move|delete|reset|all [--impl ts|rust] [--clone DIR]" >&2
+  *) echo "usage: $0 setup|move|delete|reset|all [--clone DIR] [--out DIR]" >&2
      exit 2 ;;
 esac
 
-IMPL=rust
 CLONE=/private/tmp/lean-doc-relay/clone
 ROOT=/private/tmp/lean-doc-relay/m3d4
 OUT=
@@ -175,7 +188,6 @@ MOVE_MODULE=InformationTheory.Shannon.BroadcastChannel.Basic
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --impl) IMPL="$2"; shift 2 ;;
     --move-module) MOVE_MODULE="$2"; shift 2 ;;
     --clone) CLONE="$2"; shift 2 ;;
     --out) OUT="$2"; shift 2 ;;
@@ -187,11 +199,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-case "$IMPL" in
-  ts) OUT="${OUT:-$ROOT/ref}" ;;
-  rust) OUT="${OUT:-$ROOT/rust}" ;;
-  *) echo "--impl wants ts or rust, not $IMPL" >&2; exit 2 ;;
-esac
+OUT="${OUT:-$ROOT/rust}"
 SHARED="${SHARED:-$ROOT/shared}"
 WORKROOT="$OUT.work"
 FIX="$WORKROOT/fixtures"
@@ -204,14 +212,15 @@ case "$CLONE" in
 esac
 [ -d "$CLONE" ] || { echo "missing clone: $CLONE" >&2; exit 1; }
 [ -f "$LIDX" ] || { echo "missing link index: $LIDX" >&2; exit 1; }
-[ -x "$EXTRACTOR" ] || { echo "missing extractor: $EXTRACTOR" >&2; exit 1; }
+[ -x "$EXTRACT_BIN" ] || {
+  echo "missing extractor binary: $EXTRACT_BIN — run: extractor/build.sh" >&2; exit 1; }
 [ -x "$RUST_BIN" ] || {
   echo "missing: $RUST_BIN — run: cargo build --release -p lean-doc" >&2; exit 1; }
 command -v python3 >/dev/null || { echo "python3 is required" >&2; exit 1; }
 
-# `extract-once.sh` sources benchmarks/tools/env.sh and `cd`s to $TARGET_REPO.
+# `lean-doc extract` runs the Lean binary through `lake env` inside $TARGET_REPO.
 # Everything Lean-facing in this run has to look at the clone, and the pipeline
-# spawns the extractor as a child, so this is exported rather than passed.
+# spawns the extractor as a child, so this is exported as well as passed.
 export TARGET_REPO="$CLONE"
 
 # The clone's own HEAD, 40 lower-case hex digits, because `lean-doc incremental`
@@ -250,56 +259,34 @@ global-delta.json prune.json"
 
 mkdir -p "$OUT" "$WORKROOT" "$FIX" "$SHARED"
 
-# ------------------------------------------------------- the two implementations
+# ----------------------------------------------------------- the implementation
 
-if [ "$IMPL" = ts ]; then
-  command -v deno >/dev/null || { echo "deno is required (node is broken here)" >&2; exit 1; }
-  for f in "$INCREMENTAL_SH" "$LEDGER_TS" "$GLOBAL_TS" "$RENDER_TS"; do
-    [ -f "$f" ] || { echo "missing: $f" >&2; exit 1; }
-  done
-  deno_ () { deno run --allow-read --allow-write --allow-env "$@"; }
-
-  ledger_build () { # ledger_build <modules> <ir> <out>
-    deno_ "$LEDGER_TS" build --modules "$1" --target "$CLONE" --ir "$2" \
-      --source-url "$URL" --out "$3"
-  }
-  ledger_check () { # ledger_check <ledger> <ir> <modules> <changed> <removed> <renderall>
-    deno_ "$LEDGER_TS" check --ledger "$1" --ir "$2" --source-url "$URL" \
-      --modules "$3" --changed-out "$4" --removed-out "$5" --render-all-out "$6"
-  }
-  # `render.ts` **does** take --link-index (render.ts:53) even though
-  # `incremental.sh` never passes it, so it is passed here: this side's base is
-  # then the same site the product's base is, which is what the per-scenario page
-  # listings are differences from.
-  base_site () { # base_site <ir> <site> <state>
-    deno_ "$RENDER_TS" --ir "$1" --pages "$2" --source-url "$URL" --link-index "$LIDX"
-    deno_ "$GLOBAL_TS" build --ir "$1" --out "$2" --state "$3"
-  }
-  pipeline () { # pipeline <ir> <pages> <ledger> <work> <state> <modules> <mode> <timings>
-    "$INCREMENTAL_SH" --ir "$1" --pages "$2" --ledger "$3" --work "$4" \
-      --global new --state "$5" --modules "$6" --mode "$7" --source-url "$URL" \
-      --timings "$8" --l3-1 on --jobs "$JOBS"
-  }
-else
-  ledger_build () {
-    "$RUST_BIN" ledger build --modules "$1" --target "$CLONE" --ir "$2" \
-      --source-url "$URL" --out "$3"
-  }
-  ledger_check () {
-    "$RUST_BIN" ledger check --ledger "$1" --ir "$2" --source-url "$URL" \
-      --modules "$3" --changed-out "$4" --removed-out "$5" --render-all-out "$6"
-  }
-  base_site () { # one command: `site` writes the pages, the six artifacts and the cache
-    "$RUST_BIN" site --ir "$1" --out "$2" --source-url "$URL" \
-      --link-index "$LIDX" --state "$3"
-  }
-  pipeline () {
-    "$RUST_BIN" incremental --ir "$1" --pages "$2" --ledger "$3" --work "$4" \
-      --state "$5" --modules "$6" --mode "$7" --source-url "$URL" \
-      --link-index "$LIDX" --timings "$8" \
-      --extractor "$EXTRACTOR" --extractor-arg --jobs --extractor-arg "$JOBS"
-  }
-fi
+ledger_build () { # ledger_build <modules> <ir> <out>
+  "$RUST_BIN" ledger build --modules "$1" --target "$CLONE" --ir "$2" \
+    --source-url "$URL" --out "$3"
+}
+ledger_check () { # ledger_check <ledger> <ir> <modules> <changed> <removed> <renderall>
+  "$RUST_BIN" ledger check --ledger "$1" --ir "$2" --source-url "$URL" \
+    --modules "$3" --changed-out "$4" --removed-out "$5" --render-all-out "$6"
+}
+base_site () { # one command: `site` writes the pages, the six artifacts and the cache
+  "$RUST_BIN" site --ir "$1" --out "$2" --source-url "$URL" \
+    --link-index "$LIDX" --state "$3"
+}
+# `--extractor-arg` values are in the order the program sees them, before the
+# three flags `pipeline.rs` appends (`--modules --ir-dir --timings`). This is the
+# same spelling tools/incremental-reference.sh's `--extractor product` uses, so
+# the two harnesses drive the extraction identically.
+pipeline () {
+  "$RUST_BIN" incremental --ir "$1" --pages "$2" --ledger "$3" --work "$4" \
+    --state "$5" --modules "$6" --mode "$7" --source-url "$URL" \
+    --link-index "$LIDX" --timings "$8" \
+    --extractor "$RUST_BIN" \
+    --extractor-arg extract \
+    --extractor-arg --extractor-bin --extractor-arg "$EXTRACT_BIN" \
+    --extractor-arg --target --extractor-arg "$CLONE" \
+    --extractor-arg --jobs --extractor-arg "$JOBS"
+}
 
 # ------------------------------------------------------------------- plumbing
 
@@ -355,7 +342,8 @@ PY
   fi
   rm -rf "$2"
   echo "  extracting $(nlines "$1") modules -> $2"
-  "$EXTRACTOR" --modules "$1" --ir-dir "$2" --jobs "$JOBS" \
+  "$RUST_BIN" extract --modules "$1" --ir-dir "$2" --jobs "$JOBS" \
+    --extractor-bin "$EXTRACT_BIN" --target "$CLONE" \
     --timings "$3.json" > "$3.log"
   python3 -c "
 import json,sys
@@ -390,7 +378,7 @@ require_own_oleans () {
   strings "$probe" 2>/dev/null > "$dump" || true
   grep -q "$CLONE" "$dump" || {
     echo "the clone's oleans were not built at the clone's path — run" >&2
-    echo "experiments/stage5e/rebuild-own.sh first (stage 5e (e))" >&2; exit 2; }
+    echo "tools/rebuild-own.sh first (stage 5e (e))" >&2; exit 2; }
   if grep -q "$TARGET/" "$dump"; then
     echo "the clone's oleans still name the measurement target's path" >&2; exit 2
   fi
@@ -493,10 +481,10 @@ page_list () { # page_list <name> <page tree>
   printf 'files %s\n' "$(nlines "$OUT/$name-pages.txt")" > "$OUT/$name-pages-count.txt"
 }
 
-# GATE 1. `--impl rust` only, and skipped by the comparator (there is nothing on
-# the TS side to compare it with — decision 4). It asks the only question that
-# decides correctness: **did the incremental run leave the tree a from-scratch
-# run would have written**, byte for byte, at both layers.
+# GATE 1. Skipped by the comparator (it is a within-run oracle, not a record two
+# runs share — decision 4). It asks the only question that decides correctness:
+# **did the incremental run leave the tree a from-scratch run would have
+# written**, byte for byte, at both layers.
 #
 # Note this is a *stronger* form than M3-d3's `<s>-sitecheck.txt`, which
 # re-rendered the IR the round left behind. Here the from-scratch side is an
@@ -548,13 +536,13 @@ gate1 () { # gate1 <name> <live dir> <from-scratch ir> <from-scratch site> <expe
 # setup — the base every scenario starts from. Needs the clone at baseline and
 # leaves it there.
 phase_setup () {
-  echo "### setup ($IMPL)"
+  echo "### setup"
   require_baseline setup
   modlist "$SHARED/modules-base.txt"
   extract_all "$SHARED/modules-base.txt" "$SHARED/base-ir" "$SHARED/base-extract"
   cp "$SHARED/modules-base.txt" "$OUT/modules-base.txt"
 
-  echo "  base site + state ($IMPL)"
+  echo "  base site + state"
   rm -rf "$FIX/base-site" "$FIX/base-state"
   mkdir -p "$FIX/base-site" "$FIX/base-state"
   base_site "$SHARED/base-ir" "$FIX/base-site" "$FIX/base-state" \
@@ -562,7 +550,7 @@ phase_setup () {
   copy_globals "$OUT/base-global" "$FIX/base-site"
   page_list base "$FIX/base-site"
 
-  echo "  base ledger ($IMPL)"
+  echo "  base ledger"
   ledger_build "$SHARED/modules-base.txt" "$SHARED/base-ir" "$FIX/base-ledger.json" \
     > "$WORKROOT/base-ledger.log" 2>&1
 
@@ -580,7 +568,7 @@ run_scenario () { # run_scenario <name> <modules-after> <from-scratch ir> <expec
   local d="$WORKROOT/$name" status=0
   guard_writable "$d"
   [ -f "$FIX/base-ready.txt" ] || {
-    echo "no base for --impl $IMPL — run: $0 setup --impl $IMPL" >&2; exit 3; }
+    echo "no base in $FIX — run: $0 setup --out $OUT" >&2; exit 3; }
 
   rm -rf "$d"; mkdir -p "$d/work"
   cp -R "$SHARED/base-ir" "$d/ir"
@@ -588,7 +576,7 @@ run_scenario () { # run_scenario <name> <modules-after> <from-scratch ir> <expec
   cp "$FIX/base-ledger.json" "$d/ledger.json"
   cp -R "$FIX/base-state" "$d/state"
 
-  echo "### $name ($IMPL, mode self)"
+  echo "### $name (mode self)"
   pipeline "$d/ir" "$d/pages" "$d/ledger.json" "$d/work" "$d/state" \
     "$modules" self "$d/timings.json" \
     > "$OUT/$name-stdout.txt" 2> "$OUT/$name-stderr.txt" || status=$?
@@ -606,12 +594,10 @@ print('  rounds %s, changed %s, staleFound %s, globalStale %s, irChanged %s, pag
       % (r.get('rounds'), r.get('changed'), r.get('staleFound'), r.get('globalStale'),
          r.get('irChanged'), r.get('pagesRendered')))" || true
 
-  if [ "$IMPL" = rust ]; then
-    rm -rf "$d/scratch-site" "$d/scratch-state"
-    "$RUST_BIN" site --ir "$fir" --out "$d/scratch-site" --source-url "$URL" \
-      --link-index "$LIDX" --state "$d/scratch-state" > "$d/scratch-site.log" 2>&1
-    gate1 "$name" "$d" "$fir" "$d/scratch-site" "$expect"
-  fi
+  rm -rf "$d/scratch-site" "$d/scratch-state"
+  "$RUST_BIN" site --ir "$fir" --out "$d/scratch-site" --source-url "$URL" \
+    --link-index "$LIDX" --state "$d/scratch-state" > "$d/scratch-site.log" 2>&1
+  gate1 "$name" "$d" "$fir" "$d/scratch-site" "$expect"
 }
 
 # move — A's body into a new module, A a one-line shim, `lake build`.
@@ -707,7 +693,6 @@ conditions () {
   {
     printf 'date              %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     printf 'phase             %s\n' "$PHASE"
-    printf 'impl              %s\n' "$IMPL"
     printf 'host              %s / %s / %s GB\n' \
       "$(uname -srm)" \
       "$(sysctl -n machdep.cpu.brand_string 2>/dev/null || echo '?')" \
@@ -716,12 +701,11 @@ conditions () {
     printf 'move module       %s -> %s\n' "$A_MOD" "$X_MOD"
     printf 'delete module     %s\n' "$DEL_MOD"
     printf 'lean-toolchain    %s\n' "$(tr -d '\n' < "$CLONE/lean-toolchain" 2>/dev/null || echo '?')"
-    printf 'extractor         %s (stage 7d binary, IR schema 4)\n' "$EXTRACTOR"
+    printf 'extractor         %s extract -> %s (IR schema 4)\n' "$RUST_BIN" "$EXTRACT_BIN"
     printf 'jobs              %s\n' "$JOBS"
     printf 'link index        %s (%s B)\n' "$LIDX" "$(wc -c < "$LIDX" | tr -d ' ')"
     printf 'shared            %s\n' "$SHARED"
     printf 'source url        %s\n' "$URL"
-    printf 'deno              %s\n' "$(deno --version 2>/dev/null | head -1 || echo 'not used')"
     printf 'rustc             %s\n' "$(rustc --version 2>/dev/null || echo '?')"
   } > "$OUT/conditions.txt"
 }
@@ -737,6 +721,6 @@ esac
 conditions
 ( cd "$OUT" && find . -type f | LC_ALL=C sort | xargs shasum -a 256 ) > "$OUT.sha256"
 
-printf 'phase: %s\nimpl: %s\nout: %s\nwork: %s\nfiles: %s\nmanifest: %s\n' \
-  "$PHASE" "$IMPL" "$OUT" "$WORKROOT" \
+printf 'phase: %s\nout: %s\nwork: %s\nfiles: %s\nmanifest: %s\n' \
+  "$PHASE" "$OUT" "$WORKROOT" \
   "$(find "$OUT" -type f | wc -l | tr -d ' ')" "$OUT.sha256"

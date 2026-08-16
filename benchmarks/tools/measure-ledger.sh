@@ -1,28 +1,34 @@
 #!/usr/bin/env bash
 # How long the Rust `detect` stage takes to build the ledger of the 432 target
-# modules — cold and warm, against the frozen prototype in the same session.
+# modules — cold and warm.
 #
 # Series:
 #   rust-warm   ./target/release/lean-doc ledger build, sha256, concurrency 1
-#   ts-warm     experiments/stage5/ledger.ts build, the same arguments
 #   rust-cold   rust-warm with the 432 oleans evicted from the page cache first
-#   ts-cold     ts-warm with the same eviction
 #
-# The two warm series are interleaved with each other so that neither gets the
-# machine in a state the other did not; the cold series run afterwards, each on
-# its own. They cannot be interleaved with the warm ones — the eviction that
-# makes one run cold would make the next warm run cold too, and there would be
-# four cold series and no warm ones.
+# THE PROTOTYPE SIDE IS GONE.
+#   The recorded m3a-ledger-* numbers have four series: rust-warm, ts-warm,
+#   rust-cold, ts-cold. The `ts-*` two ran experiments/stage5/ledger.ts, which
+#   only exists at tag `experiments-frozen`; HEAD has no equivalent and this
+#   script no longer produces them. So a run of this script today CANNOT
+#   reproduce the Rust/TS ratio the recorded summaries state — it can only
+#   reproduce the two Rust series. Do not present a new rust-* number next to a
+#   recorded ts-* number as if the pair came from one session.
+#
+# The warm series used to be interleaved with the TS one so that neither got the
+# machine in a state the other did not; with one warm series left there is
+# nothing to interleave with. The cold series still runs afterwards on its own —
+# it cannot be interleaved with the warm one, because the eviction that makes one
+# run cold would make the next warm run cold too.
 #
 # Eviction is benchmarks/tools/olean-evict (msync(MS_INVALIDATE), no sudo) over
-# exactly the 432 target oleans, so it is surgical: the binaries, deno's
-# transpile cache and the module list stay warm, and the only thing that has to
-# be paged back in is what is being hashed. **The target is only read.**
+# exactly the 432 target oleans, so it is surgical: the binary and the module
+# list stay warm, and the only thing that has to be paged back in is what is
+# being hashed. **The target is only read.**
 #
-# Both implementations do the same work: the same 432 modules, the same
-# 237,909,832 B of olean, SHA-256, one read at a time, one ledger written. The
-# ratio between them is therefore a ratio between two implementations of one
-# job — not between a job and a smaller job (CLAUDE.md「倍率は分母を明示する」).
+# The work is fixed regardless of series: the same 432 modules, the same
+# 237,909,832 B of olean, SHA-256, one read at a time, one ledger written
+# (CLAUDE.md「倍率は分母を明示する」).
 #
 # usage: benchmarks/tools/measure-ledger.sh [rounds]   (default 8)
 
@@ -38,10 +44,9 @@ IR="${IR_DIR:-/private/tmp/lean-doc-relay/w7h/base-ir}"
 MODULES="$RESULTS/it-modules.txt"
 ROUNDS="${1:-8}"
 RUST_BIN="$REPO/target/release/lean-doc"
-LEDGER_TS="$REPO/experiments/stage5/ledger.ts"
 URL=https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec
 
-for p in "$RUST_BIN" "$LEDGER_TS" "$MODULES" "$TARGET" "$IR" "$HERE/olean-evict"; do
+for p in "$RUST_BIN" "$MODULES" "$TARGET" "$IR" "$HERE/olean-evict"; do
   [ -e "$p" ] || { echo "missing: $p" >&2; exit 1; }
 done
 
@@ -69,29 +74,16 @@ one_run () { # one_run <series> <index>
   case "$s" in
     *cold) "$HERE/olean-evict" < "$OLEANS" > "$RAW/evict-$s-$i.txt" 2>&1 ;;
   esac
-  case "$s" in
-    rust-*)
-      python3 "$REPO/experiments/stage4c/merge-timing.py" --name "m3a-ledger-$s" --run "$i" \
-        --time-l "$tl" --timings "$tj" --exec -- \
-        "$RUST_BIN" ledger build --modules "$MODULES" --target "$TARGET" --ir "$IR" \
-        --source-url "$URL" --algorithm sha256 --concurrency 1 \
-        --out "$WORK/ledger-$s.json" --timings "$tj" \
-        >> "$RESULTS/m3a-ledger-$s.jsonl"
-      ;;
-    ts-*)
-      python3 "$REPO/experiments/stage4c/merge-timing.py" --name "m3a-ledger-$s" --run "$i" \
-        --time-l "$tl" --timings "$tj" --exec -- \
-        "$(command -v deno)" run --allow-read --allow-write --allow-env "$LEDGER_TS" build \
-        --modules "$MODULES" --target "$TARGET" --ir "$IR" \
-        --source-url "$URL" --algorithm sha256 --concurrency 1 \
-        --out "$WORK/ledger-$s.json" --timings "$tj" \
-        >> "$RESULTS/m3a-ledger-$s.jsonl"
-      ;;
-  esac
+  python3 "$HERE/merge-timing.py" --name "m3a-ledger-$s" --run "$i" \
+    --time-l "$tl" --timings "$tj" --exec -- \
+    "$RUST_BIN" ledger build --modules "$MODULES" --target "$TARGET" --ir "$IR" \
+    --source-url "$URL" --algorithm sha256 --concurrency 1 \
+    --out "$WORK/ledger-$s.json" --timings "$tj" \
+    >> "$RESULTS/m3a-ledger-$s.jsonl"
 }
 
-WARM=(rust-warm ts-warm)
-COLD=(rust-cold ts-cold)
+WARM=(rust-warm)
+COLD=(rust-cold)
 for s in "${WARM[@]}" "${COLD[@]}"; do rm -f "$RESULTS/m3a-ledger-$s.jsonl"; done
 
 for i in $(seq 1 "$ROUNDS"); do
@@ -106,14 +98,11 @@ done
 cache_note () {
   case "$1" in
     *cold) echo "cold: olean-evict over the $OLEAN_FILES oleans before every run" ;;
-    *)     echo "warm (interleaved with ${WARM[*]})" ;;
+    *)     echo "warm (single series; the recorded runs interleaved it with ts-warm)" ;;
   esac
 }
 impl_note () {
-  case "$1" in
-    rust-*) echo "Rust  $("$RUST_BIN" --version) ($(rustc --version))" ;;
-    ts-*)   echo "Deno  $(deno --version | head -1)" ;;
-  esac
+  echo "Rust  $("$RUST_BIN" --version) ($(rustc --version))"
 }
 
 KEYS=keySeconds,hashSeconds,writeSeconds,totalSeconds,hashedBytes
@@ -130,7 +119,7 @@ for s in "${WARM[@]}" "${COLD[@]}"; do
     echo "runs              $ROUNDS (run 1 dropped)"
     echo "Lean              never started"
     echo
-    python3 "$REPO/experiments/stage5/summarize.py" "$RESULTS/m3a-ledger-$s.jsonl" --keys "$KEYS"
+    python3 "$HERE/summarize.py" "$RESULTS/m3a-ledger-$s.jsonl" --keys "$KEYS"
   } > "$RESULTS/m3a-ledger-$s.txt"
   echo "-> $RESULTS/m3a-ledger-$s.txt"
 done

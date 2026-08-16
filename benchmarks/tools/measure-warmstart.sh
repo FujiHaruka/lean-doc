@@ -256,7 +256,16 @@ import)
   DEST="$WORK/ltar-root"
   SCRATCH_LIB="$DEST/.lake/build/lib/lean"
   TARGET_REPO="${TARGET_REPO:-/Users/haruka/dev/lean-projects}"
-  BIN="$HERE/../../experiments/stage1/build/extract"
+  # EXTRACT_BIN has no default: it used to be experiments/stage1/build/extract, which
+  # produced every committed ci-warmstart-* number. `experiments/` was removed on
+  # 2026-08-16 (tag `experiments-frozen`) and HEAD has no equivalent — extractor/ is the
+  # schema-4 extractor, which does strictly more work after the import. A run with any
+  # other binary is a NEW baseline, not a continuation of the recorded one.
+  BIN="${EXTRACT_BIN:-}"
+  [ -n "$BIN" ] || { echo "EXTRACT_BIN is unset: name the extractor to time." >&2
+    echo "The recorded ci-warmstart-* numbers used experiments/stage1/build/extract," >&2
+    echo "which only exists at tag experiments-frozen; HEAD has no equivalent." >&2; exit 2; }
+  [ -x "$BIN" ] || { echo "not executable: EXTRACT_BIN=$BIN" >&2; exit 1; }
   MODULES="$OUTDIR/it-modules.txt"
   EVENTS="$OUTDIR/ci-warmstart-events.jsonl"
   LP="$(cd "$TARGET_REPO" && "$HOME/.elan/bin/lake" env printenv LEAN_PATH 2>/dev/null \

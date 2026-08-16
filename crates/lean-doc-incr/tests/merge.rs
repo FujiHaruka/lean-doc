@@ -3,11 +3,15 @@
 //! Three oracles, none of which is this file's own opinion:
 //!
 //! - **The frozen prototype's own files.** `tools/merge-reference.sh --impl ts`
-//!   runs `experiments/stage5/{ownership,merge-ir}.ts` over the base IR and
-//!   writes nine rounds and three verifications;
-//!   `tests/oracle/gen-merge-expected.ts` reduces that tree to
+//!   ran `experiments/stage5/{ownership,merge-ir}.ts` over the base IR and wrote
+//!   nine rounds and three verifications;
+//!   `tests/oracle/gen-merge-expected.ts` reduced that tree to
 //!   `tests/data/merge-expected.json`, which [`the_corpus_matches_the_prototype`]
 //!   compares against file by file.
+//!   **The fixture is a frozen value: HEAD has no way to regenerate it.** The
+//!   generator, the prototype and the `--impl ts` half of the harness were
+//!   removed with `experiments/` on 2026-08-16 and exist only at tag
+//!   `experiments-frozen`.
 //! - **The from-scratch IR itself.** The port writes `deps/<Root>.json` in
 //!   Lean's order rather than the prototype's insertion order (plan §7's "already
 //!   not byte-identical" note, decided in M3), so the merged slice can be held

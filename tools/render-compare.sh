@@ -14,13 +14,21 @@
 #
 # usage: tools/render-compare.sh REFERENCE_DIR CANDIDATE_DIR [--show N]
 #
+# This takes both trees as arguments and cares about neither's provenance, so it
+# still works — but **the way M1's reference tree was built is no longer in this
+# repository**. `tools/render-reference.sh` ran the frozen TypeScript prototype
+# (`experiments/stage7d/render.ts`) and went with `experiments/` on 2026-08-16;
+# it exists only at tag `experiments-frozen`, and the tree it wrote lived under
+# /private/tmp. Point REFERENCE_DIR at whatever tree you actually want to hold
+# the candidate to, and say which one it was.
+#
 # The candidate tree comes from the Rust renderer; the whole loop is
 #   cargo build --release -p lean-doc && ./target/release/lean-doc render \
 #     --ir /private/tmp/lean-doc-relay/w7h/base-ir --pages /tmp/rust-pages \
 #     --source-url "$URL" --link-index /private/tmp/lean-doc-relay/w7c/linkindex/link-index.lidx
-# with the same $URL as render-reference.sh. `cargo test -p lean-doc-render
-# --test pages` makes the same comparison in process, and pins the one page the
-# prototype and md4c disagree on so that a second divergence fails.
+# `cargo test -p lean-doc-render --test pages` makes the same comparison in
+# process against a committed fixture, and pins the one page the prototype and
+# md4c disagree on so that a second divergence fails.
 
 set -uo pipefail
 

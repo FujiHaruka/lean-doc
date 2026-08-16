@@ -1,8 +1,9 @@
 //! Everything the whole-package artifacts need from **one** module.
 //!
-//! Ported from `experiments/stage7h/global.ts` (frozen): `headConst` (97-106),
-//! `autolinkTokens` (111-125) and `factsOf` (148-170) — the same line ranges
-//! `tests/oracle/gen-global-expected.ts` slices to build its oracle.
+//! Ported from `experiments/stage7h/global.ts` (frozen at tag
+//! `experiments-frozen`): `headConst` (97-106), `autolinkTokens` (111-125) and
+//! `factsOf` (148-170) — the same line ranges `tests/oracle/gen-global-expected.ts`
+//! sliced to build its oracle before both were removed.
 //!
 //! # Why this type exists before the cache does
 //!

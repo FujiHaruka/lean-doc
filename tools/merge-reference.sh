@@ -2,10 +2,12 @@
 # Run the `ownership` and `merge` stages over the measurement target's IR and
 # record everything they write.
 #
-# **The scenarios are defined once and run by either implementation** (--impl),
-# as tools/ledger-reference.sh does and for the same reason: what has to match is
-# the answer to a *question*, and a question asked slightly differently on the
-# two sides would compare two things nobody meant to compare.
+# **Rust only.** Until 2026-08-16 `--impl ts` ran the same scenarios against the
+# frozen prototype (`experiments/stage5/{ownership,merge-ir}.ts`) and
+# tools/merge-compare.sh diffed the two trees. `experiments/` was removed, so
+# **that comparison can no longer be made from this tree** — the prototype exists
+# only at tag `experiments-frozen`. This script stays the single definition of the
+# scenarios; the comparator now diffs two recordings of it.
 #
 # **One script for both stages, on purpose.** A round of the incremental pipeline
 # is `extract -> ownership -> merge` over one edit (plan §6, constraint 1), so the
@@ -19,51 +21,34 @@
 # the file, marked in the fixture manifest) — only Lean can compute the real one,
 # and every consumer of it only ever compares it for equality.
 #
-# usage: tools/merge-reference.sh [--impl ts|rust] [--out DIR] [--base-ir DIR]
+# usage: tools/merge-reference.sh [--out DIR] [--base-ir DIR]
 
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OWNERSHIP_TS="$REPO/experiments/stage5/ownership.ts"
-MERGE_TS="$REPO/experiments/stage5/merge-ir.ts"
 RUST_BIN="$REPO/target/release/lean-doc"
 
-IMPL=ts
 OUT=
 BASE_IR=/private/tmp/lean-doc-relay/w7h/base-ir
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --impl) IMPL="$2"; shift 2 ;;
     --out) OUT="$2"; shift 2 ;;
     --base-ir) BASE_IR="$2"; shift 2 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
 
-case "$IMPL" in
-  ts) OUT="${OUT:-/private/tmp/lean-doc-relay/m3b/ref}" ;;
-  rust) OUT="${OUT:-/private/tmp/lean-doc-relay/m3b/rust}" ;;
-  *) echo "--impl wants ts or rust, not $IMPL" >&2; exit 2 ;;
-esac
+OUT="${OUT:-/private/tmp/lean-doc-relay/m3b/rust}"
 
 [ -d "$BASE_IR" ] || { echo "missing: $BASE_IR" >&2; exit 1; }
 command -v python3 >/dev/null || { echo "python3 is required" >&2; exit 1; }
 
-if [ "$IMPL" = ts ]; then
-  command -v deno >/dev/null || { echo "deno is required (node is broken here)" >&2; exit 1; }
-  for f in "$OWNERSHIP_TS" "$MERGE_TS"; do
-    [ -f "$f" ] || { echo "missing: $f" >&2; exit 1; }
-  done
-  ownership () { deno run --allow-read --allow-write "$OWNERSHIP_TS" "$@"; }
-  merge ()     { deno run --allow-read --allow-write "$MERGE_TS" "$@"; }
-else
-  [ -x "$RUST_BIN" ] || {
-    echo "missing: $RUST_BIN — run: cargo build --release -p lean-doc" >&2; exit 1;
-  }
-  ownership () { "$RUST_BIN" ownership "$@"; }
-  merge ()     { "$RUST_BIN" merge "$@"; }
-fi
+[ -x "$RUST_BIN" ] || {
+  echo "missing: $RUST_BIN — run: cargo build --release -p lean-doc" >&2; exit 1;
+}
+ownership () { "$RUST_BIN" ownership "$@"; }
+merge ()     { "$RUST_BIN" merge "$@"; }
 
 rm -rf "$OUT"
 mkdir -p "$OUT/fixtures"
@@ -82,8 +67,8 @@ python3 - "$BASE_IR" "$OUT/fixtures" "$OWNER" "$MOVED_NAME" "$NEW_HOME" "$ADDED"
 """Build the partial-extraction trees the scenarios feed to the two stages.
 
 Deterministic: the same base IR always produces the same fixtures, byte for
-byte, so both implementations really are answering the same question. The
-comparator checks that by diffing these files too.
+byte, so two recordings really are answering the same question. The comparator
+checks that by diffing these files too.
 """
 import json, os, sys
 
@@ -309,7 +294,6 @@ verify deleted "$OUT/removed/ir" "$BASE_IR"
 # makes an accidental edit loud.
 ( cd "$OUT" && find . -type f | sort | xargs shasum -a 256 ) > "$OUT.sha256"
 
-printf 'impl: %s\n' "$IMPL"
 printf 'base IR: %s\n' "$BASE_IR"
 printf 'files: %s\n' "$(find "$OUT" -type f | wc -l | tr -d ' ')"
 printf 'manifest: %s\n' "$OUT.sha256"

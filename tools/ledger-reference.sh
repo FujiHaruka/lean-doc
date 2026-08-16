@@ -3,33 +3,28 @@
 # writes: the ledgers, a touched ledger, and the check outputs of twelve
 # scenarios.
 #
-# **The scenarios are defined once and run by either implementation** (--impl),
-# which is the difference from tools/global-reference.sh. There the prototype
-# writes six files and the port writes six files; here what has to match is the
-# answer to a *question*, and a question asked slightly differently on the two
-# sides would compare two things nobody meant to compare. So this script is the
-# single definition of the twelve questions, and tools/ledger-compare.sh diffs
-# the two trees it produces.
+# **Rust only.** Until 2026-08-16 `--impl ts` ran the same twelve scenarios
+# against the frozen prototype (`experiments/stage5/ledger.ts`) and
+# tools/ledger-compare.sh diffed the two trees. `experiments/` was removed, so
+# **that comparison can no longer be made from this tree** — the prototype exists
+# only at tag `experiments-frozen`. This script stays the single definition of the
+# twelve questions; the comparator now diffs two recordings of it.
 #
-# The two sides cannot share a ledger: `extractKey.extractor` and
+# Two implementations could never share a ledger: `extractKey.extractor` and
 # `renderKey.renderer` are deliberately different strings (plan §6 — a shared
-# string would mean "a different implementation with the same key"), so each
-# implementation builds its own and checks its own. The comparator applies that
-# one substitution to the ledger files and to nothing else.
+# string would mean "a different implementation with the same key"). The
+# comparator's substitution for that is kept, so a tree recorded before the
+# removal is still readable.
 #
-# The target is only ever read: `touch` is what injects "module M changed"
-# (experiments/stage5/README.md §6).
+# The target is only ever read: `touch` is what injects "module M changed".
 #
-# usage: tools/ledger-reference.sh [--impl ts|rust] [--out DIR] [--target REPO]
-#                                  [--ir DIR]
+# usage: tools/ledger-reference.sh [--out DIR] [--target REPO] [--ir DIR]
 
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-LEDGER_TS="$REPO/experiments/stage5/ledger.ts"
 RUST_BIN="$REPO/target/release/lean-doc"
 
-IMPL=ts
 OUT=
 TARGET=/Users/haruka/dev/lean-projects
 IR=/private/tmp/lean-doc-relay/w7h/base-ir
@@ -55,7 +50,6 @@ URL2=https://github.com/FujiHaruka/information-theory/blob/000000000000000000000
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --impl) IMPL="$2"; shift 2 ;;
     --out) OUT="$2"; shift 2 ;;
     --target) TARGET="$2"; shift 2 ;;
     --ir) IR="$2"; shift 2 ;;
@@ -63,11 +57,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-case "$IMPL" in
-  ts) OUT="${OUT:-/private/tmp/lean-doc-relay/m3/ref}" ;;
-  rust) OUT="${OUT:-/private/tmp/lean-doc-relay/m3/rust}" ;;
-  *) echo "--impl wants ts or rust, not $IMPL" >&2; exit 2 ;;
-esac
+OUT="${OUT:-/private/tmp/lean-doc-relay/m3/rust}"
 
 MATHLIB_TARGET="$TARGET/.lake/packages/mathlib"
 
@@ -75,16 +65,10 @@ for p in "$TARGET" "$IR" "$MODULES" "$MATHLIB_TARGET"; do
   [ -e "$p" ] || { echo "missing: $p" >&2; exit 1; }
 done
 
-if [ "$IMPL" = ts ]; then
-  command -v deno >/dev/null || { echo "deno is required (node is broken here)" >&2; exit 1; }
-  [ -f "$LEDGER_TS" ] || { echo "missing: $LEDGER_TS" >&2; exit 1; }
-  ledger () { deno run --allow-read --allow-write --allow-env "$LEDGER_TS" "$@"; }
-else
-  [ -x "$RUST_BIN" ] || {
-    echo "missing: $RUST_BIN — run: cargo build --release -p lean-doc" >&2; exit 1;
-  }
-  ledger () { "$RUST_BIN" ledger "$@"; }
-fi
+[ -x "$RUST_BIN" ] || {
+  echo "missing: $RUST_BIN — run: cargo build --release -p lean-doc" >&2; exit 1;
+}
+ledger () { "$RUST_BIN" ledger "$@"; }
 
 rm -rf "$OUT"
 mkdir -p "$OUT"
@@ -108,7 +92,7 @@ build lake     "$MODULES"               --target "$TARGET" --ir "$IR" --source-u
 build minus-ab "$OUT/list-minus-ab.txt" --target "$TARGET" --ir "$IR" --source-url "$URL" --algorithm sha256
 # Eight reads in flight. The ledger's bytes must not depend on the scheduling,
 # so this file is compared with ledger-sha256.json as well as across the two
-# implementations.
+# recordings.
 build conc8    "$MODULES"               --target "$TARGET" --ir "$IR" --source-url "$URL" \
                                         --algorithm sha256 --concurrency 8
 # No --ir: an extract key with two keys fewer, so that a later check *with*
@@ -168,7 +152,6 @@ check slash       "$OUT/ledger-sha256.json"  --modules "$MODULES" --ir "$IR" --s
 # makes an accidental edit loud.
 ( cd "$OUT" && find . -type f | sort | xargs shasum -a 256 ) > "$OUT.sha256"
 
-printf 'impl: %s\n' "$IMPL"
 printf 'dropped for the drift scenario: %s / %s (added), %s (removed)\n' "$A" "$B" "$C"
 printf 'files: %s\n' "$(find "$OUT" -type f | wc -l | tr -d ' ')"
 printf 'manifest: %s\n' "$OUT.sha256"

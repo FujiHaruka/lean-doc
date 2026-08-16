@@ -2,10 +2,12 @@
 # Run the `impact` and `prune` stages over the measurement target's IR and page
 # tree and record everything they write, decide and exit with.
 #
-# **The scenarios are defined once and run by either implementation** (--impl),
-# as tools/{ledger,merge}-reference.sh do and for the same reason: what has to
-# match is the answer to a *question*, and a question asked slightly differently
-# on the two sides would compare two things nobody meant to compare.
+# **Rust only.** Until 2026-08-16 `--impl ts` ran the same scenarios against the
+# frozen prototype (`experiments/stage5/{impact,prune-pages}.ts`) and
+# tools/impact-compare.sh diffed the two trees. `experiments/` was removed, so
+# **that comparison can no longer be made from this tree** — the prototype exists
+# only at tag `experiments-frozen`. This script stays the single definition of the
+# scenarios; the comparator now diffs two recordings of it.
 #
 # **One script for both stages.** They are the two halves of what an incremental
 # run does *after* the IR is settled — one decides which pages to write, the
@@ -22,17 +24,14 @@
 #   (w7h/base-ir), the 432-page reference tree (m1/ref-pages) and the whole site
 #   (m2/gate/ref-site).
 #
-# usage: tools/impact-reference.sh [--impl ts|rust] [--out DIR] [--base-ir DIR]
+# usage: tools/impact-reference.sh [--out DIR] [--base-ir DIR]
 #                                  [--pages DIR] [--site DIR]
 
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-IMPACT_TS="$REPO/experiments/stage5/impact.ts"
-PRUNE_TS="$REPO/experiments/stage5/prune-pages.ts"
 RUST_BIN="$REPO/target/release/lean-doc"
 
-IMPL=ts
 OUT=
 BASE_IR=/private/tmp/lean-doc-relay/w7h/base-ir
 PAGES_SRC=/private/tmp/lean-doc-relay/m1/ref-pages
@@ -40,7 +39,6 @@ SITE_SRC=/private/tmp/lean-doc-relay/m2/gate/ref-site
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --impl) IMPL="$2"; shift 2 ;;
     --out) OUT="$2"; shift 2 ;;
     --base-ir) BASE_IR="$2"; shift 2 ;;
     --pages) PAGES_SRC="$2"; shift 2 ;;
@@ -49,30 +47,17 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-case "$IMPL" in
-  ts) OUT="${OUT:-/private/tmp/lean-doc-relay/m3c/ref}" ;;
-  rust) OUT="${OUT:-/private/tmp/lean-doc-relay/m3c/rust}" ;;
-  *) echo "--impl wants ts or rust, not $IMPL" >&2; exit 2 ;;
-esac
+OUT="${OUT:-/private/tmp/lean-doc-relay/m3c/rust}"
 
 for d in "$BASE_IR" "$PAGES_SRC" "$SITE_SRC"; do
   [ -d "$d" ] || { echo "missing: $d" >&2; exit 1; }
 done
 
-if [ "$IMPL" = ts ]; then
-  command -v deno >/dev/null || { echo "deno is required (node is broken here)" >&2; exit 1; }
-  for f in "$IMPACT_TS" "$PRUNE_TS"; do
-    [ -f "$f" ] || { echo "missing: $f" >&2; exit 1; }
-  done
-  impact () { deno run --allow-read --allow-write "$IMPACT_TS" "$@"; }
-  prune ()  { deno run --allow-read --allow-write "$PRUNE_TS" "$@"; }
-else
-  [ -x "$RUST_BIN" ] || {
-    echo "missing: $RUST_BIN — run: cargo build --release -p lean-doc" >&2; exit 1;
-  }
-  impact () { "$RUST_BIN" impact "$@"; }
-  prune ()  { "$RUST_BIN" prune "$@"; }
-fi
+[ -x "$RUST_BIN" ] || {
+  echo "missing: $RUST_BIN — run: cargo build --release -p lean-doc" >&2; exit 1;
+}
+impact () { "$RUST_BIN" impact "$@"; }
+prune ()  { "$RUST_BIN" prune "$@"; }
 
 rm -rf "$OUT"
 mkdir -p "$OUT/fixtures"
@@ -129,9 +114,8 @@ printf '%s\n%s\n%s\n%s\n' \
 # --- running one scenario ---------------------------------------------------
 # Three things are recorded for every run and compared by the comparator:
 # stdout, the exit status, and whether anything went to stderr. The *wording* on
-# stderr is not compared — the two implementations' diagnostics are their own
-# (`deno run script.ts` has no program prefix and one usage block per script,
-# the Rust CLI has both) — but "did it complain" is a fact about the answer.
+# stderr is not compared — a diagnostic's wording belongs to the implementation
+# that wrote it — but "did it complain" is a fact about the answer.
 record () { # record <name> <status> ; stdout/stderr already written
   local name="$1" status="$2"
   printf '%s\n' "$status" > "$OUT/$name-status.txt"
@@ -358,7 +342,6 @@ record no-pages "$status"
 # makes an accidental edit loud.
 ( cd "$OUT" && find . -type f | LC_ALL=C sort | xargs shasum -a 256 ) > "$OUT.sha256"
 
-printf 'impl: %s\n' "$IMPL"
 printf 'base IR: %s\n' "$BASE_IR"
 printf 'pages: %s\n' "$PAGES_SRC"
 printf 'site: %s\n' "$SITE_SRC"

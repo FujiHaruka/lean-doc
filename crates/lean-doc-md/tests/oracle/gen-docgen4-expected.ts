@@ -137,8 +137,10 @@ const HTML_CURATED: [string, string][] = [
  * Real docstrings the sample must keep whatever the coverage search picks.
  *
  * The one entry is the *only* docstring in the package on which the frozen
- * prototype and doc-gen4 disagree 【実測: 1 of 4,858; see
- * `gen-ts-docstring-expected.ts`】. Without it the committed fixture would
+ * prototype and doc-gen4 disagree 【実測: 1 of 4,858; measured by
+ * `gen-ts-docstring-expected.ts`, which was removed with `experiments/` on
+ * 2026-08-16 and exists only at tag `experiments-frozen`】. Without it the
+ * committed fixture would
  * exercise that disagreement only through hand-written cases, and
  * `tests/ts_docstring.rs` would have nothing real to stand on.
  */

@@ -25,6 +25,20 @@
 #
 # WHY `workflow_dispatch` ONLY
 #   It is a measurement, not a check.
+#
+# THE EXTRACTOR WAS SWAPPED, AND THIS WORKFLOW HAS NOT RUN SINCE
+#   Until 2026-08-16 the steps below built and ran `experiments/stage4b`, the frozen
+#   prototype extractor (IR schema 3). `experiments/` was removed, so they now build and
+#   run `extractor/` (IR schema 4) instead. The CLI shape is identical —
+#   `extract <modules.txt> <out.jsonl> [flags]` — but **schema 4 does more analysis after
+#   the import**, so the thing being measured is not the thing that was measured before.
+#
+#   **The swap is UNVERIFIED: the workflow has not been run once since.**
+#
+#   **Do not put a number produced after the swap next to a recorded stage4b number.** The
+#   percentages quoted above (-49.0%, 76%, 4%) were measured with schema 3; a variant
+#   comparison run entirely on this side of the swap is internally valid, a comparison
+#   across it is not.
 name: CI importModules prefetch (measurement)
 
 on:
@@ -94,7 +108,7 @@ jobs:
       - name: Build the extractor
         env:
           TARGET_REPO: ${{ github.workspace }}/target
-        run: lean-doc/experiments/stage4b/build.sh 2>&1 | tail -5
+        run: lean-doc/extractor/build.sh 2>&1 | tail -5
 
       - name: lake build (the target's own 432 modules)
         working-directory: target
@@ -130,7 +144,7 @@ jobs:
         run: |
           set -u
           W="$GITHUB_WORKSPACE"
-          EX="$W/lean-doc/experiments/stage4b/build/extract"
+          EX="$W/lean-doc/extractor/build/extract"
           REPS='${{ github.event.inputs.reps }}'; REPS=${REPS:-2}
           J='${{ github.event.inputs.jobs }}';    J=${J:-16}
           drop() { sudo sh -c 'sync; echo 3 > /proc/sys/vm/drop_caches'; }

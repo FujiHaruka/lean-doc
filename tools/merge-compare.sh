@@ -3,12 +3,17 @@
 #
 # usage: tools/merge-compare.sh REFERENCE_DIR CANDIDATE_DIR
 #
-# The whole loop is
-#   tools/merge-reference.sh --impl ts
+# It takes both trees as arguments and cares about neither's provenance, so it
+# still works — but **the loop it was built for is gone**. The reference side used
+# to be `tools/merge-reference.sh --impl ts`, the frozen prototype, and
+# `experiments/` was removed on 2026-08-16; it exists only at tag
+# `experiments-frozen`. What remains is a diff of two recordings of the Rust side:
 #   cargo build --release -p lean-doc
-#   tools/merge-reference.sh --impl rust
-#   tools/merge-compare.sh /private/tmp/lean-doc-relay/m3b/ref \
-#                          /private/tmp/lean-doc-relay/m3b/rust
+#   tools/merge-reference.sh --out /private/tmp/lean-doc-relay/m3b/before
+#   ...change something...
+#   tools/merge-reference.sh --out /private/tmp/lean-doc-relay/m3b/after
+#   tools/merge-compare.sh /private/tmp/lean-doc-relay/m3b/before \
+#                          /private/tmp/lean-doc-relay/m3b/after
 # `cargo test -p lean-doc-incr --test merge` makes the same comparison in process
 # when the base IR is on the machine.
 #
@@ -20,8 +25,9 @@
 #                       which name the tree the run was given and so differ by
 #                       construction too.
 #   *-stdout.txt        byte for byte after masking the durations and the tree
-#                       root — the two stages print the prototype's exact lines,
-#                       so the shape is compared even though the clock is not.
+#                       root — the two stages print the prototype's exact lines
+#                       (that is what the port reproduced), so the shape is
+#                       compared even though the clock is not.
 #   everything else     byte for byte. The merged IR trees, the module sets, the
 #                       `--changed-out` files and the `--verify` transcripts.
 #

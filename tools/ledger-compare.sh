@@ -3,12 +3,17 @@
 #
 # usage: tools/ledger-compare.sh REFERENCE_DIR CANDIDATE_DIR
 #
-# The whole loop is
-#   tools/ledger-reference.sh --impl ts
+# It takes both trees as arguments and cares about neither's provenance, so it
+# still works — but **the loop it was built for is gone**. The reference side used
+# to be `tools/ledger-reference.sh --impl ts`, the frozen prototype, and
+# `experiments/` was removed on 2026-08-16; it exists only at tag
+# `experiments-frozen`. What remains is a diff of two recordings of the Rust side:
 #   cargo build --release -p lean-doc
-#   tools/ledger-reference.sh --impl rust
-#   tools/ledger-compare.sh /private/tmp/lean-doc-relay/m3/ref \
-#                           /private/tmp/lean-doc-relay/m3/rust
+#   tools/ledger-reference.sh --out /private/tmp/lean-doc-relay/m3/before
+#   ...change something...
+#   tools/ledger-reference.sh --out /private/tmp/lean-doc-relay/m3/after
+#   tools/ledger-compare.sh /private/tmp/lean-doc-relay/m3/before \
+#                           /private/tmp/lean-doc-relay/m3/after
 # `cargo test -p lean-doc-incr --test ledger` makes the same comparison in
 # process when the target repository is on the machine.
 #
@@ -20,6 +25,10 @@
 #                   holds the same string as the prototype's
 #                   `extractKey.extractor` and must **not** move: it names
 #                   whatever wrote the IR on disk, which really is stage4b.
+#                   **It is a no-op between two Rust recordings** and is kept only
+#                   so that a tree recorded before `experiments/` was removed is
+#                   still readable; the two literals below are values a prototype
+#                   ledger holds, not paths this script opens.
 #   *timings*.json  keys and counts, ignoring every `*Seconds`: durations are
 #                   wall clock and differ between runs by construction.
 #   *.txt           byte for byte. These are the answers the pipeline consumes.

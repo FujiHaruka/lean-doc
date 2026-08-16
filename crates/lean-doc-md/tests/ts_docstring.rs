@@ -10,8 +10,11 @@
 //!
 //! So this file is not a second expectation. It is the list of inputs on which
 //! the prototype and doc-gen4 differ, produced by
-//! `tests/oracle/gen-ts-docstring-expected.ts` from the prototype's own code,
-//! and the assertion that on every one of them this crate is on doc-gen4's
+//! `tests/oracle/gen-ts-docstring-expected.ts` from the prototype's own code
+//! (**a frozen value: the generator and the prototype went with `experiments/`
+//! on 2026-08-16 and exist only at tag `experiments-frozen`, so HEAD cannot
+//! regenerate it**), and the assertion that on every one of them this crate is
+//! on doc-gen4's
 //! side. `tests/docgen4.rs` is what says so positively; what is added here is
 //! that the difference is *real* — a port that had quietly reproduced the
 //! subset's behaviour would fail [`the_prototype_is_the_one_that_differs`].

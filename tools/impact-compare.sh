@@ -3,22 +3,25 @@
 #
 # usage: tools/impact-compare.sh REFERENCE_DIR CANDIDATE_DIR
 #
-# The whole loop is
-#   tools/impact-reference.sh --impl ts
+# It takes both trees as arguments and cares about neither's provenance, so it
+# still works — but **the loop it was built for is gone**. The reference side used
+# to be `tools/impact-reference.sh --impl ts`, the frozen prototype, and
+# `experiments/` was removed on 2026-08-16; it exists only at tag
+# `experiments-frozen`. What remains is a diff of two recordings of the Rust side:
 #   cargo build --release -p lean-doc
-#   tools/impact-reference.sh --impl rust
-#   tools/impact-compare.sh /private/tmp/lean-doc-relay/m3c/ref \
-#                           /private/tmp/lean-doc-relay/m3c/rust
+#   tools/impact-reference.sh --out /private/tmp/lean-doc-relay/m3c/before
+#   ...change something...
+#   tools/impact-reference.sh --out /private/tmp/lean-doc-relay/m3c/after
+#   tools/impact-compare.sh /private/tmp/lean-doc-relay/m3c/before \
+#                           /private/tmp/lean-doc-relay/m3c/after
 # `cargo test -p lean-doc-incr --test impact` makes the same comparison in
 # process when the base IR and the page trees are on the machine.
 #
 # Four classes of file, compared four ways — **by suffix, never by name**:
 #
 #   *-stderr.txt        NOT compared, and the reason is not laziness: a
-#                       diagnostic's wording belongs to the implementation
-#                       (`deno run script.ts` prints no program name and has one
-#                       usage block per script; the CLI prints `lean-doc: ` and
-#                       one for all subcommands). What *is* compared is
+#                       diagnostic's wording belongs to the implementation that
+#                       wrote it. What *is* compared is
 #                       *-complained.txt, which the harness derives from it —
 #                       whether the run complained at all is a fact about the
 #                       answer, and it is checked for every scenario.
@@ -27,8 +30,9 @@
 #                       own output root masked out of the strings — `pages` is
 #                       the directory the run was given.
 #   *-stdout.txt        byte for byte after masking the durations and the output
-#                       root: both stages print the prototype's exact lines, so
-#                       the shape is compared even though the clock is not.
+#                       root: both stages print the prototype's exact lines (that
+#                       is what the port reproduced), so the shape is compared
+#                       even though the clock is not.
 #   everything else     byte for byte. The selected sets, the census, the
 #                       summaries, the exit statuses, the surviving page trees
 #                       and their counts.

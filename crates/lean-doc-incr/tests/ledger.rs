@@ -3,13 +3,17 @@
 //! Two oracles, neither of which is this file's own opinion:
 //!
 //! - **The frozen prototype's own files.** `tools/ledger-reference.sh --impl ts`
-//!   runs `experiments/stage5/ledger.ts` over the measurement target and writes
+//!   ran `experiments/stage5/ledger.ts` over the measurement target and wrote
 //!   seven ledgers, a touched ledger and the check outputs of twelve scenarios;
-//!   `tests/oracle/gen-ledger-expected.ts` reduces that tree to
+//!   `tests/oracle/gen-ledger-expected.ts` reduced that tree to
 //!   `tests/data/ledger-expected.json`, which is what
 //!   [`the_corpus_matches_the_prototype`] compares against, file by file. The
 //!   two key strings the port deliberately changed are substituted there and
 //!   nowhere else — see the fixture's own note and plan §6.
+//!   **The fixture is a frozen value: HEAD has no way to regenerate it.** The
+//!   generator, the prototype and the `--impl ts` half of the harness were
+//!   removed with `experiments/` on 2026-08-16 and exist only at tag
+//!   `experiments-frozen`.
 //! - **The dependency packages**, for the shape the target package does not
 //!   have: its own 432 modules carry one `.olean` each, and the three-file form
 //!   of Lean's module system only appears in Mathlib's.
@@ -624,8 +628,8 @@ fn run_touch(options: &TouchOptions<'_>) -> (Result<usize, Error>, BTreeSet<&'st
 
 // ------------------------------------------------------------- the corpus
 
-/// The committed answers, generated from the prototype's own output by
-/// `tests/oracle/gen-ledger-expected.ts`.
+/// The committed answers, generated from the prototype's own output by the
+/// (now frozen) `tests/oracle/gen-ledger-expected.ts`.
 struct Expected {
     package: Counts,
     dependency: Counts,

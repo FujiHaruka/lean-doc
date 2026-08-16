@@ -2,6 +2,9 @@
 # Make an APFS clonefile copy of the measurement target, and move one module's
 # body into a new module inside it.
 #
+# Moved here from `experiments/stage5e/` on 2026-08-16, when `experiments/` was
+# removed. **The contents are unchanged** apart from this note.
+#
 # WHY A CLONE
 #   CLAUDE.md forbids modifying the measurement target, and this experiment needs
 #   `lake build` to run over an edited source. `cp -Rc` on APFS is copy-on-write:

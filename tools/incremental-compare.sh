@@ -4,37 +4,36 @@
 #
 # usage: tools/incremental-compare.sh REFERENCE_DIR CANDIDATE_DIR
 #
-# The whole loop is
-#   tools/incremental-reference.sh --impl ts
+# The loop it was built for compared the TS prototype with the product. **That
+# comparison is gone**: `experiments/` was removed on 2026-08-16 and
+# `incremental-reference.sh` is Rust-only, so the two trees a run produces now
+# differ in how the extraction was spelled, not in who computed the answers:
+#
 #   cargo build --release -p lean-doc
-#   tools/incremental-reference.sh --impl rust
-#   tools/incremental-compare.sh /private/tmp/lean-doc-relay/m3d3/ref \
-#                                /private/tmp/lean-doc-relay/m3d3/rust
+#   tools/incremental-reference.sh --extractor product  --out .../m3d3/product
+#   tools/incremental-reference.sh --extractor resident --out .../m3d3/resident
+#   tools/incremental-compare.sh /private/tmp/lean-doc-relay/m3d3/product \
+#                                /private/tmp/lean-doc-relay/m3d3/resident
 #
 # WHAT IS NOT COMPARED, AND WHY IT IS NOT LAZINESS
 #
-#   *-stderr.txt    A diagnostic's wording belongs to the implementation
-#                   (`deno run script.ts` prints no program name; the CLI prints
-#                   `lean-doc: `). What *is* compared is *-complained.txt, which
-#                   the harness derives from it — whether the run complained at
-#                   all is a fact about the answer.
-#   *-stdout.txt    **The two pipelines' stdout are different by design, not by
-#                   accident.** `incremental.sh` prints exactly one line — the
-#                   timings JSON — and sends every stage's chatter to a log file
-#                   under `--work`; `lean-doc incremental` prints a progress line
-#                   per stage as well (`pipeline.rs:339`, `:445`, `:477`, `:504`,
-#                   `:543`), which its module heading states as intent. Masking
-#                   the clock would not make those two comparable, and an
-#                   exception that fires on all seven scenarios is not a
-#                   comparison. The one thing both really print is the timings
-#                   record, and the harness distils it into *-counts.json — which
-#                   *is* compared, and which is the answer this milestone is
-#                   about.
-#   *-sitecheck.txt Written by `--impl rust` only: it is the incremental page
-#                   tree diffed against a whole site rebuilt from the same IR, so
-#                   there is nothing on the TS side to compare it with. It is a
-#                   *within-implementation* oracle, read by hand.
-#   conditions.txt  The clock, the host and the implementation's own name.
+#   The four exclusions below were drawn when the two sides were two different
+#   implementations. They are kept as they are so that a tree recorded before the
+#   prototype was removed stays comparable with one recorded after it — dropping
+#   an exclusion would change the denominator, not just the verdict.
+#
+#   *-stderr.txt    A diagnostic's wording belongs to the implementation. What
+#                   *is* compared is *-complained.txt, which the harness derives
+#                   from it — whether the run complained at all is a fact about
+#                   the answer.
+#   *-stdout.txt    `lean-doc incremental` prints a progress line per stage
+#                   (`pipeline.rs:339`, `:445`, `:477`, `:504`, `:543`) as well as
+#                   the timings JSON, and only the timings record is an answer.
+#                   The harness distils it into *-counts.json — which *is*
+#                   compared, and which is what this gate is about.
+#   *-sitecheck.txt The incremental page tree diffed against a whole site rebuilt
+#                   from the same IR. It is a *within-run* oracle, read by hand.
+#   conditions.txt  The clock, the host and the extractor's own name.
 #
 # HOW EVERYTHING ELSE IS COMPARED
 #
@@ -191,8 +190,8 @@ for path in $( (cd "$REF" && find . -type f | sed 's|^\./||' | LC_ALL=C sort) );
 done
 
 # The same four suffixes are dropped here. A file the comparator refuses to read
-# on the reference side is not "extra" on the candidate side either — `--impl
-# rust` writes *-sitecheck.txt and the TS side has no counterpart by design.
+# on the reference side is not "extra" on the candidate side either — a tree
+# recorded before the prototype was removed has no *-sitecheck.txt at all.
 listing () { # listing <root>
   ( cd "$1" && find . -type f | sed 's|^\./||' \
     | grep -v -e '\-stderr\.txt$' -e '\-stdout\.txt$' -e '\-sitecheck\.txt$' -e '^conditions\.txt$' \

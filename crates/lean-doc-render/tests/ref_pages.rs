@@ -1,10 +1,15 @@
 //! The second oracle: the docstrings **inside the reference pages**.
 //!
-//! `tools/render-reference.sh` runs the whole of `experiments/stage7d/render.ts`
-//! over the target package's IR with the real `--link-index` and writes 432
+//! `tools/render-reference.sh` ran the whole of `experiments/stage7d/render.ts`
+//! over the target package's IR with the real `--link-index` and wrote 432
 //! pages. Those pages are the byte target for M1-d, and each of them already
 //! contains this milestone step's output — every docstring, rendered with the
 //! page's *own* root and its *own* declaration list.
+//!
+//! **Neither the script nor the prototype is in this tree any more.** Both went
+//! with `experiments/` on 2026-08-16 and exist only at tag `experiments-frozen`;
+//! the pages themselves only ever lived under /private/tmp, so this test is
+//! env-gated and skips when they are absent.
 //!
 //! # Why this exists next to `tests/autolink.rs`
 //!

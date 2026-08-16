@@ -15,6 +15,20 @@
 #   The two earlier runs disagreed by 3.3x on the SAME cold measurement (20.4 s vs 63-71 s,
 #   different runner instances, different readahead). Cross-run comparison is therefore
 #   invalid; every variant here shares one runner.
+#
+# THE EXTRACTOR WAS SWAPPED, AND THIS WORKFLOW HAS NOT RUN SINCE
+#   Until 2026-08-16 the steps below built and ran `experiments/stage4b`, the frozen
+#   prototype extractor (IR schema 3). `experiments/` was removed, so they now build and
+#   run `extractor/` (IR schema 4) instead. The CLI shape is identical —
+#   `extract <modules.txt> <out.jsonl> [flags]` — but **schema 4 does more analysis after
+#   the import**, so the thing being measured is not the thing that was measured before.
+#   The oracle set derived here is the set schema 4 touches, which need not equal the one
+#   schema 3 touched.
+#
+#   **The swap is UNVERIFIED: the workflow has not been run once since.**
+#
+#   **Do not put a number produced after the swap next to a recorded stage4b number** —
+#   including the 76% / 4% / 4.14 GB / ~2.5 GB above. Those came from schema 3.
 name: CI importModules prefetch — narrow set (measurement)
 
 on:
@@ -70,7 +84,7 @@ jobs:
       - name: Build the extractor
         env:
           TARGET_REPO: ${{ github.workspace }}/target
-        run: lean-doc/experiments/stage4b/build.sh 2>&1 | tail -3
+        run: lean-doc/extractor/build.sh 2>&1 | tail -3
 
       - name: lake build
         working-directory: target
@@ -92,7 +106,7 @@ jobs:
         run: |
           W="$GITHUB_WORKSPACE"
           sudo sh -c 'sync; echo 3 > /proc/sys/vm/drop_caches'
-          ( cd target && lake env "$W/lean-doc/experiments/stage4b/build/extract" \
+          ( cd target && lake env "$W/lean-doc/extractor/build/extract" \
               "$MODULES" "$W/ex-derive.jsonl" ) > ex-derive.log 2>&1
           ./olean-residency < set-blind.txt > residency-oracle.jsonl
           # Any olean with at least one resident page was touched by the import.
@@ -119,7 +133,7 @@ jobs:
         run: |
           set -u
           W="$GITHUB_WORKSPACE"
-          EX="$W/lean-doc/experiments/stage4b/build/extract"
+          EX="$W/lean-doc/extractor/build/extract"
           REPS='${{ github.event.inputs.reps }}'; REPS=${REPS:-2}
           drop() { sudo sh -c 'sync; echo 3 > /proc/sys/vm/drop_caches'; }
           now_ms() { echo $(( $(date +%s%N) / 1000000 )); }

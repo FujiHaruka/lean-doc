@@ -2,22 +2,18 @@
 # Run seven end-to-end incremental scenarios against the measurement target and
 # record what each one *computed* — not what it printed.
 #
-# **The scenarios are defined once and run by either implementation** (--impl),
-# as tools/{ledger,merge,impact}-reference.sh do and for the same reason: what
-# has to match is the answer to a *question*, and a question asked slightly
-# differently on the two sides would compare two things nobody meant to compare.
+# **Rust only.** Until 2026-08-16 the scenarios below were also run against the
+# TS prototype (`--impl ts` = `experiments/stage7h/incremental.sh`) so that the
+# two implementations could be compared. `experiments/` was removed, so **that
+# comparison can no longer be made from this tree** — the prototype exists only
+# at tag `experiments-frozen`. What remains is `lean-doc incremental`
+# (`crates/lean-doc/src/pipeline.rs`).
 #
-#   --impl ts    experiments/stage7h/incremental.sh (the prototype, frozen)
-#   --impl rust  lean-doc incremental              (crates/lean-doc/src/pipeline.rs)
+# **`--extractor` selects what runs behind `lean-doc incremental`'s `--extractor`
+# flag** (M4-b). Both spellings drive the same Lean extraction; what differs is
+# who spells the command line and who folds the events into the timings:
 #
-# **`--extractor` selects what runs behind `--impl rust`'s `--extractor` flag**
-# (M4-b). Both spellings drive the same Lean extraction; what differs is who
-# spells the command line and who folds the events into the timings:
-#
-#   --extractor proto     experiments/stage7g/extract-once.sh + the frozen
-#                         stage-7d binary (the default, and what the m3d3
-#                         recording was made with)
-#   --extractor product   `lean-doc extract` + extractor/build/extract
+#   --extractor product   `lean-doc extract` + extractor/build/extract (default)
 #   --extractor resident  **no `--extractor` at all** (M4-c): `lean-doc
 #                         incremental --serve` starts one Lean environment per
 #                         run and asks it every round. The comparison this makes
@@ -27,58 +23,60 @@
 #
 # It is a flag rather than a replacement so that the gates are *comparisons*:
 # record with one spelling, record with another, and run
-# tools/incremental-compare.sh over the two. `--impl ts` has no such seam —
-# `incremental.sh` calls `extract-once.sh` itself and is frozen — so both
-# combinations are refused.
+# tools/incremental-compare.sh over the two. A third spelling used to exist —
+# `--extractor proto`, the frozen `stage7g/extract-once.sh` + stage-7d binary,
+# which is what the m3d3 recording was made with — and it went with
+# `experiments/`.
 #
-# usage: tools/incremental-reference.sh [--impl ts|rust]
-#                                       [--extractor proto|product|resident]
+# usage: tools/incremental-reference.sh [--extractor product|resident]
 #                                       [--out DIR] [--target REPO]
 #                                       [--lidx FILE] [--base-ir DIR] [--ref-site DIR]
 #                                       [--only SCENARIO]...
 #
 # ============================================================================
-# WHAT MAY BE COMPARED BETWEEN THE TWO IMPLEMENTATIONS, AND WHAT MAY NOT
+# WHAT IS RECORDED, AND WHY THE SHAPE IS THE SHAPE
 # ============================================================================
 #
-# 1. **Page bytes may not be compared across implementations** 【実測, 確定】.
-#    The prototype's step 7 (`incremental.sh:371-373`) calls `render.ts` without
-#    `--link-index`; without that map **150 of the 432 pages come out with
-#    different bytes**. `incremental.sh` is frozen, so this cannot be repaired on
-#    that side. What is recorded here is therefore **which pages exist** (a sorted
-#    listing and a count), never their content — plus the six whole-package
-#    artifacts, which `global.ts` / `build_global` derive from the IR alone and
+# The three decisions below were taken while this harness still drove two
+# implementations. **The recording shape is kept unchanged**, because a tree
+# recorded before the TS side was removed has to stay comparable with one
+# recorded after it — and because the same constraints hold between
+# `--extractor product` and `--extractor resident`.
+#
+# 1. **Page bytes are not recorded** 【実測, 確定】.
+#    The prototype's step 7 (`incremental.sh:371-373`) called `render.ts` without
+#    `--link-index`; without that map **150 of the 432 pages came out with
+#    different bytes**. `incremental.sh` was frozen, so it could never be repaired
+#    on that side. What is recorded here is therefore **which pages exist** (a
+#    sorted listing and a count), never their content — plus the six
+#    whole-package artifacts, which `build_global` derives from the IR alone and
 #    which therefore *are* comparable.
 #
-#    The **within-implementation** page check that this gives up is not lost, it
-#    is moved: `--impl rust` additionally rebuilds a whole site from the IR each
-#    scenario left behind and diffs it against the page tree the incremental run
-#    produced (`<s>-sitecheck.txt`). That is the stronger question anyway — "did
-#    the round leave the tree a full run would have written" — and it is asked
-#    with one renderer on both sides, so it is legitimate.
+#    The page-byte check that this gives up is not lost, it is moved: every run
+#    additionally rebuilds a whole site from the IR each scenario left behind and
+#    diffs it against the page tree the incremental run produced
+#    (`<s>-sitecheck.txt`). That is the stronger question anyway — "did the round
+#    leave the tree a full run would have written".
 #
-# 2. **One module list is built here and handed to both sides** 【実測, 確定】.
+# 2. **The module list is built here, once, under `LC_ALL=C`** 【実測, 確定】.
 #    `lean-doc modules` sorts in UTF-16 code-unit order; the prototype's
-#    `find … | sort` sorts in the caller's locale, and on this machine's
+#    `find … | sort` sorted in the caller's locale, and on this machine's
 #    `en_US.UTF-8` **163 of the 432 lines land in a different position** — same
 #    set, same count. That order is not cosmetic: it is the order of the ledger's
 #    `modules` array *and* (M3-d2b) the order of the merged `index.json`'s
-#    `modules` array, i.e. it makes bytes. So this script builds the list once
-#    under `LC_ALL=C` and passes the same file to both implementations, and it
-#    **checks that list against `lean-doc modules` and refuses to run if they
-#    differ** — which is what documents the trap rather than merely avoiding it.
+#    `modules` array, i.e. it makes bytes. So this script builds the list once and
+#    **checks it against `lean-doc modules`, refusing to run if they differ** —
+#    which is what documents the trap rather than merely avoiding it.
 #
-# 3. **The ledger and the global-derivation cache are seeded per implementation.**
-#    `extractKey.extractor` (`ledger.ts:190`) and its Rust counterpart are
-#    *designed* to be different strings: a ledger written by one implementation
-#    must invalidate under the other (plan §6). Feeding the TS ledger to
-#    `lean-doc incremental` would report all 432 modules as changed and the run
-#    would be measuring the key mismatch, not the pipeline. So each `--impl`
-#    builds its own `base-ledger.json`, its own `base-site/` and its own
-#    `base-state/`, out of the **same** base IR — and the six whole-package
-#    artifacts of those two `base-site/` trees are recorded into the compared
-#    tree, which turns the seeding itself into an oracle instead of a setup step
-#    nobody looked at.
+# 3. **The ledger and the global-derivation cache are seeded by the run itself.**
+#    `extractKey.extractor` is *designed* to differ between implementations: a
+#    ledger written by one must invalidate under the other (plan §6). A borrowed
+#    ledger would report all 432 modules as changed and the run would be measuring
+#    the key mismatch, not the pipeline. So each run builds its own
+#    `base-ledger.json`, its own `base-site/` and its own `base-state/` out of the
+#    given base IR — and the six whole-package artifacts of that `base-site/` are
+#    recorded into the compared tree, which turns the seeding itself into an
+#    oracle instead of a setup step nobody looked at.
 #
 # ============================================================================
 # NOTHING OUTSIDE $OUT AND $OUT.work IS EVER WRITTEN TO
@@ -87,8 +85,7 @@
 #   (`merge`), so every scenario runs against copies under `$OUT.work` and
 #   `guard_writable` refuses to run a scenario whose live tree is not under it.
 #   The measurement target is opened **read-only**: the module list is a `find`
-#   over its sources and the ledger hashes its oleans. `extract-once.sh` refuses
-#   an `--ir-dir` under the target on its own (`extract-once.sh:48-50`).
+#   over its sources and the ledger hashes its oleans.
 #
 #   $OUT       the compared tree — records only, all of them implementation-neutral
 #   $OUT.work  fixtures, live copies, work directories, from-scratch sites
@@ -123,40 +120,33 @@
 # WHAT IS RECORDED PER SCENARIO — the denominator of the comparison
 # ============================================================================
 #   <s>-status.txt       the exit code
-#   <s>-stdout.txt       recorded, **not compared**: the prototype's stdout is one
-#                        JSON line and `lean-doc incremental` prints a progress
-#                        line per stage as well (pipeline.rs's heading says so).
-#                        The one thing both really print — the timings record —
-#                        is what <s>-counts.json is distilled from.
+#   <s>-stdout.txt       recorded, **not compared**: `lean-doc incremental` prints
+#                        a progress line per stage as well as the timings record
+#                        (pipeline.rs's heading says so), and only the timings
+#                        record is an answer. It is what <s>-counts.json is
+#                        distilled from.
 #   <s>-stderr.txt       recorded, **not compared** (wording is the
 #                        implementation's); <s>-complained.txt carries the fact
-#   <s>-counts.json      **the core**: the eight answers, lifted out of each
-#                        side's own timings JSON by this script so that the two
-#                        are read the same way. No `*Seconds` — a duration is not
-#                        an answer.
+#   <s>-counts.json      **the core**: the eight answers, lifted out of the run's
+#                        timings JSON by this script so that two recordings are
+#                        read the same way. No `*Seconds` — a duration is not an
+#                        answer.
 #   <s>-work/            the diagnostics the run left in `--work`
 #   <s>-work-present.txt which of them exist. `impact-set.txt` is absent exactly
-#                        when the changed set is empty and the mode is not `all`
-#                        — on *both* sides — and that absence is an answer, not a
-#                        gap in the recording.
+#                        when the changed set is empty and the mode is not `all`,
+#                        and that absence is an answer, not a gap in the recording.
 #   <s>-ir/              the whole IR tree the run left behind, byte for byte
 #   <s>-global/          the six whole-package artifacts, byte for byte
 #   <s>-pages.txt        which pages exist (see decision 1); <s>-pages-count.txt
-#   <s>-sitecheck.txt    `--impl rust` only, and skipped by the comparator
+#   <s>-sitecheck.txt    the within-run page-byte oracle, skipped by the comparator
 
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-INCREMENTAL_SH="$REPO/experiments/stage7h/incremental.sh"
-LEDGER_TS="$REPO/experiments/stage5/ledger.ts"
-GLOBAL_TS="$REPO/experiments/stage7h/global.ts"
-RENDER_TS="$REPO/experiments/stage7d/render.ts"
-EXTRACT_ONCE="$REPO/experiments/stage7g/extract-once.sh"
 PRODUCT_EXTRACT_BIN="$REPO/extractor/build/extract"
 RUST_BIN="$REPO/target/release/lean-doc"
 
-IMPL=ts
-EXTRACTOR_IMPL=proto
+EXTRACTOR_IMPL=product
 OUT=
 TARGET=/Users/haruka/dev/lean-projects
 LIB=InformationTheory
@@ -185,7 +175,6 @@ ONLY=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --impl) IMPL="$2"; shift 2 ;;
     --extractor) EXTRACTOR_IMPL="$2"; shift 2 ;;
     --out) OUT="$2"; shift 2 ;;
     --target) TARGET="$2"; shift 2 ;;
@@ -198,30 +187,21 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-case "$IMPL" in
-  ts) OUT="${OUT:-/private/tmp/lean-doc-relay/m3d3/ref}" ;;
-  rust) OUT="${OUT:-/private/tmp/lean-doc-relay/m3d3/rust}" ;;
-  *) echo "--impl wants ts or rust, not $IMPL" >&2; exit 2 ;;
-esac
+OUT="${OUT:-/private/tmp/lean-doc-relay/m3d3/rust}"
 WORKROOT="$OUT.work"
 
-# The extractor selection. `product` has no default output directory of its own
-# on purpose: the point of the M4-b gate is to compare it with a *recorded*
-# `proto` run, so the caller names where the new recording goes.
+# The extractor selection. Neither spelling has a default output directory of its
+# own on purpose: the point of the gate is to compare one *recorded* run with
+# another, so the caller names where the new recording goes.
 case "$EXTRACTOR_IMPL" in
-  proto) EXTRACTOR="$EXTRACT_ONCE" ;;
   product|resident)
-    [ "$IMPL" = rust ] || {
-      echo "--extractor $EXTRACTOR_IMPL needs --impl rust: incremental.sh calls extract-once.sh" >&2
-      echo "itself and is frozen, so there is no seam to substitute on that side." >&2
-      exit 2; }
     # `resident` passes no --extractor at all; the binary is named by
     # --extractor-bin instead, so it is what the executability check is about.
     [ "$EXTRACTOR_IMPL" = product ] && EXTRACTOR="$RUST_BIN" || EXTRACTOR="$PRODUCT_EXTRACT_BIN"
     [ -x "$PRODUCT_EXTRACT_BIN" ] || {
       echo "missing extractor binary: $PRODUCT_EXTRACT_BIN — run: extractor/build.sh" >&2; exit 1; }
     ;;
-  *) echo "--extractor wants proto, product or resident, not $EXTRACTOR_IMPL" >&2; exit 2 ;;
+  *) echo "--extractor wants product or resident, not $EXTRACTOR_IMPL" >&2; exit 2 ;;
 esac
 
 [ -d "$TARGET" ] || { echo "missing target repository: $TARGET" >&2; exit 1; }
@@ -229,8 +209,8 @@ esac
 [ -f "$LIDX" ] || { echo "missing link index: $LIDX" >&2; exit 1; }
 [ -x "$EXTRACTOR" ] || { echo "missing extractor: $EXTRACTOR" >&2; exit 1; }
 command -v python3 >/dev/null || { echo "python3 is required" >&2; exit 1; }
-# Needed by **both** implementations: the module-list check below is stated
-# against `lean-doc modules`, which is the thing whose order the run depends on.
+# The module-list check below is stated against `lean-doc modules`, which is the
+# thing whose order the run depends on.
 [ -x "$RUST_BIN" ] || {
   echo "missing: $RUST_BIN — run: cargo build --release -p lean-doc" >&2; exit 1; }
 
@@ -244,74 +224,41 @@ selected () { # selected <scenario>
   case " $ONLY " in *" $1 "*) return 0 ;; *) return 1 ;; esac
 }
 
-# ------------------------------------------------------- the two implementations
+# ----------------------------------------------------------- the implementation
 
-if [ "$IMPL" = ts ]; then
-  command -v deno >/dev/null || { echo "deno is required (node is broken here)" >&2; exit 1; }
-  for f in "$INCREMENTAL_SH" "$LEDGER_TS" "$GLOBAL_TS" "$RENDER_TS"; do
-    [ -f "$f" ] || { echo "missing: $f" >&2; exit 1; }
-  done
-  deno_ () { deno run --allow-read --allow-write --allow-env "$@"; }
-
-  ledger_build () { # ledger_build <modules> <ir> <out>
-    deno_ "$LEDGER_TS" build --modules "$1" --target "$TARGET" --ir "$2" \
-      --source-url "$URL" --out "$3"
-  }
-  ledger_touch () { # ledger_touch <ledger> <module>
-    deno_ "$LEDGER_TS" touch --ledger "$1" --module "$2"
-  }
-  # The prototype's own two halves of a full generation. `render.ts` **does**
-  # take `--link-index` (render.ts:53) even though `incremental.sh` never passes
-  # it, so it is passed here: it makes this side's base the same site the
-  # product's base is, which is what the per-scenario page *listings* are
-  # differences from.
-  base_site () { # base_site <ir> <site> <state>
-    deno_ "$RENDER_TS" --ir "$1" --pages "$2" --source-url "$URL" --link-index "$LIDX"
-    deno_ "$GLOBAL_TS" build --ir "$1" --out "$2" --state "$3"
-  }
-  pipeline () { # pipeline <ir> <pages> <ledger> <work> <state> <modules> <mode> <url> <timings>
-    "$INCREMENTAL_SH" --ir "$1" --pages "$2" --ledger "$3" --work "$4" \
-      --global new --state "$5" --modules "$6" --mode "$7" --source-url "$8" \
-      --timings "$9" --l3-1 on --jobs "$JOBS"
-  }
-else
-  ledger_build () {
-    "$RUST_BIN" ledger build --modules "$1" --target "$TARGET" --ir "$2" \
-      --source-url "$URL" --out "$3"
-  }
-  ledger_touch () { "$RUST_BIN" ledger touch --ledger "$1" --module "$2"; }
-  base_site () { # one command: `site` writes the pages, the six artifacts and the cache
-    "$RUST_BIN" site --ir "$1" --out "$2" --source-url "$URL" \
-      --link-index "$LIDX" --state "$3"
-  }
-  # How the extraction is spelled. The first two are `--extractor <program>`
-  # with `--extractor-arg` values in the order the program sees them, before the
-  # three flags `pipeline.rs` appends (`--modules --ir-dir --timings`). The third
-  # is not a program at all: `--serve` makes the pipeline own one resident Lean
-  # environment for the whole run, so the binary, the target and the job count
-  # are its own flags (M4-c).
-  case "$EXTRACTOR_IMPL" in
-    product)
-      HOW=(--extractor "$RUST_BIN"
-           --extractor-arg extract
-           --extractor-arg --extractor-bin --extractor-arg "$PRODUCT_EXTRACT_BIN"
-           --extractor-arg --target --extractor-arg "$TARGET"
-           --extractor-arg --jobs --extractor-arg "$JOBS") ;;
-    resident)
-      HOW=(--serve
-           --extractor-bin "$PRODUCT_EXTRACT_BIN"
-           --target "$TARGET"
-           --jobs "$JOBS") ;;
-    *)
-      HOW=(--extractor "$EXTRACTOR"
-           --extractor-arg --jobs --extractor-arg "$JOBS") ;;
-  esac
-  pipeline () {
-    "$RUST_BIN" incremental --ir "$1" --pages "$2" --ledger "$3" --work "$4" \
-      --state "$5" --modules "$6" --mode "$7" --source-url "$8" \
-      --link-index "$LIDX" --timings "$9" "${HOW[@]}"
-  }
-fi
+ledger_build () { # ledger_build <modules> <ir> <out>
+  "$RUST_BIN" ledger build --modules "$1" --target "$TARGET" --ir "$2" \
+    --source-url "$URL" --out "$3"
+}
+ledger_touch () { "$RUST_BIN" ledger touch --ledger "$1" --module "$2"; }
+base_site () { # one command: `site` writes the pages, the six artifacts and the cache
+  "$RUST_BIN" site --ir "$1" --out "$2" --source-url "$URL" \
+    --link-index "$LIDX" --state "$3"
+}
+# How the extraction is spelled. `product` is `--extractor <program>` with
+# `--extractor-arg` values in the order the program sees them, before the three
+# flags `pipeline.rs` appends (`--modules --ir-dir --timings`). `resident` is not
+# a program at all: `--serve` makes the pipeline own one resident Lean
+# environment for the whole run, so the binary, the target and the job count are
+# its own flags (M4-c).
+case "$EXTRACTOR_IMPL" in
+  product)
+    HOW=(--extractor "$RUST_BIN"
+         --extractor-arg extract
+         --extractor-arg --extractor-bin --extractor-arg "$PRODUCT_EXTRACT_BIN"
+         --extractor-arg --target --extractor-arg "$TARGET"
+         --extractor-arg --jobs --extractor-arg "$JOBS") ;;
+  resident)
+    HOW=(--serve
+         --extractor-bin "$PRODUCT_EXTRACT_BIN"
+         --target "$TARGET"
+         --jobs "$JOBS") ;;
+esac
+pipeline () {
+  "$RUST_BIN" incremental --ir "$1" --pages "$2" --ledger "$3" --work "$4" \
+    --state "$5" --modules "$6" --mode "$7" --source-url "$8" \
+    --link-index "$LIDX" --timings "$9" "${HOW[@]}"
+}
 
 # ------------------------------------------------------------------- plumbing
 
@@ -343,9 +290,9 @@ record () { # record <name> <status>
   fi
 }
 
-# The eight answers, taken out of whichever timings record the side wrote. Both
-# spell them the same way (`incremental.sh:393-424`, `pipeline.rs:899-931`) — that
-# is the contract `benchmarks/tools/analyze.ts` already reads.
+# The eight answers, taken out of the timings record the run wrote
+# (`pipeline.rs:899-931`) — that is the contract `benchmarks/tools/analyze.ts`
+# already reads.
 counts () { # counts <name> <timings json>
   python3 - "$2" "$OUT/$1-counts.json" <<'PY'
 import json, os, sys
@@ -406,9 +353,9 @@ page_list () { # page_list <name> <page tree>
     > "$OUT/$name-pages-count.txt"
 }
 
-# `--impl rust` only. The page-byte check decision 1 gives up, asked the way that
-# is actually legitimate: rebuild a whole site from the IR the round left behind
-# and diff it against the pages the round left behind. One renderer, both sides.
+# The page-byte check decision 1 gives up, asked the way that is actually
+# legitimate: rebuild a whole site from the IR the round left behind and diff it
+# against the pages the round left behind. One renderer on both sides of the diff.
 sitecheck () { # sitecheck <name> <live dir> <url>
   local name="$1" d="$2" url="$3" status=0
   rm -rf "$d/sitecheck-site" "$d/sitecheck-state"
@@ -471,11 +418,10 @@ ledger_build "$OUT/modules-432.txt" "$FIX/base-ir" "$FIX/base-ledger.json" \
 ledger_build "$OUT/modules-431.txt" "$FIX/base-ir" "$FIX/base-ledger-431.json" \
   > "$WORKROOT/base-ledger-431.log" 2>&1
 
-# 5. `--impl rust` only: the seed against the M2 gate's reference site. Recorded,
-#    skipped by the comparator (the TS side has no counterpart), and the whole
-#    point of it is that the base every scenario starts from is the site the gate
-#    already accepted.
-if [ "$IMPL" = rust ] && [ -d "$REF_SITE" ]; then
+# 5. The seed checked against the M2 gate's reference site. Recorded, skipped by
+#    the comparator, and the whole point of it is that the base every scenario
+#    starts from is the site the gate already accepted.
+if [ -d "$REF_SITE" ]; then
   {
     printf 'reference site    %s\n' "$REF_SITE"
     printf 'reference files   %s\n' "$(find "$REF_SITE" -type f | wc -l | tr -d ' ')"
@@ -518,9 +464,7 @@ run_scenario () { # run_scenario <name> <mode> <modules file> <url>
   cp -R "$d/ir" "$OUT/$name-ir"
   copy_globals "$OUT/$name-global" "$d/pages"
   page_list "$name" "$d/pages"
-  if [ "$IMPL" = rust ]; then
-    sitecheck "$name" "$d" "$url"
-  fi
+  sitecheck "$name" "$d" "$url"
   printf '  exit %s, %s page(s) in the tree\n' \
     "$status" "$(grep -c . "$OUT/$name-pages.txt" || true)"
 }
@@ -537,7 +481,7 @@ fi
 # 2. One module invalidated: the minimal edit. `ledger touch` is the honest fake
 #    the whole experiment rests on — the measurement target must not be modified,
 #    so "M changed" is injected by invalidating M's ledger entry and everything
-#    downstream is real (`ledger.ts:44-48`).
+#    downstream is real (`lean-doc ledger touch`).
 if selected self-one; then
   setup_live self-one "$FIX/base-ir" "$FIX/base-site" "$FIX/base-ledger.json" "$FIX/base-state"
   ledger_touch "$WORKROOT/self-one/ledger.json" "$ONE" > "$WORKROOT/self-one/touch.log"
@@ -592,11 +536,10 @@ fi
 # ----------------------------------------------------------------- conditions
 
 # CLAUDE.md「ベンチマーク」: a number without its conditions cannot be read. This
-# file is recorded and **not compared** — it is different on the two sides by
-# construction (it names the implementation and the clock).
+# file is recorded and **not compared** — it is different between two recordings
+# by construction (it names the clock and the extractor).
 {
   printf 'date              %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  printf 'impl              %s\n' "$IMPL"
   printf 'host              %s / %s / %s GB\n' \
     "$(uname -srm)" \
     "$(sysctl -n machdep.cpu.brand_string 2>/dev/null || echo '?')" \
@@ -604,20 +547,11 @@ fi
   printf 'target            %s (%s modules)\n' "$TARGET" "$NMODULES"
   printf 'lean-toolchain    %s\n' "$(tr -d '\n' < "$TARGET/lean-toolchain" 2>/dev/null || echo '?')"
   printf 'extractor         %s (%s)\n' "$EXTRACTOR_IMPL" "$EXTRACTOR"
-  if [ "$EXTRACTOR_IMPL" = product ] || [ "$EXTRACTOR_IMPL" = resident ]; then
-    printf 'extractor binary  %s (IR schema 4)\n' "$PRODUCT_EXTRACT_BIN"
-  else
-    # `extract-once.sh`'s own default. It reads $EXTRACT_BIN, which this script
-    # deliberately does not set — the product's binary is
-    # $PRODUCT_EXTRACT_BIN precisely so the two names cannot be confused.
-    printf 'extractor binary  %s (stage 7d, IR schema 4)\n' \
-      "${EXTRACT_BIN:-$REPO/experiments/stage7d/build/extract}"
-  fi
+  printf 'extractor binary  %s (IR schema 4)\n' "$PRODUCT_EXTRACT_BIN"
   printf 'jobs              %s\n' "$JOBS"
   printf 'link index        %s (%s B)\n' "$LIDX" "$(wc -c < "$LIDX" | tr -d ' ')"
   printf 'base IR           %s\n' "$BASE_IR_SRC"
   printf 'source url        %s\n' "$URL"
-  printf 'deno              %s\n' "$(deno --version 2>/dev/null | head -1 || echo 'not used')"
   printf 'rustc             %s\n' "$(rustc --version 2>/dev/null || echo '?')"
   printf 'scenarios         %s\n' "${ONLY:-$ALL_SCENARIOS}"
 } > "$OUT/conditions.txt"
@@ -626,7 +560,7 @@ fi
 # makes an accidental edit loud.
 ( cd "$OUT" && find . -type f | LC_ALL=C sort | xargs shasum -a 256 ) > "$OUT.sha256"
 
-printf 'impl: %s\n' "$IMPL"
+printf 'extractor: %s\n' "$EXTRACTOR_IMPL"
 printf 'out: %s\n' "$OUT"
 printf 'work: %s\n' "$WORKROOT"
 printf 'files: %s\n' "$(find "$OUT" -type f | wc -l | tr -d ' ')"

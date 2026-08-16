@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Moved here from `experiments/stage4c/` on 2026-08-16, when `experiments/` was
+# removed (tag `experiments-frozen`). The contents are unchanged.
 """Run one measured process, and merge its `/usr/bin/time -l` block with the
 `render.ts --timings` JSON.
 

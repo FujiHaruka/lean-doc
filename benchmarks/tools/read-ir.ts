@@ -216,7 +216,11 @@ const say = (s = "") => out.push(s);
 
 const indexStat = await Deno.stat(`${IR}/index.json`).catch(() => null);
 if (!indexStat) {
-  console.error(`no index.json under ${IR} — run experiments/stage4/run.sh with --write-ir first`);
+  console.error(
+    `no index.json under ${IR} — this reader wants the schema-2 IR that ` +
+      `experiments/stage4/run.sh --write-ir produced. That script only exists at tag ` +
+      `experiments-frozen; the product writes schema 4, which this reader does not parse.`,
+  );
   Deno.exit(1);
 }
 const index: Index = JSON.parse(await Deno.readTextFile(`${IR}/index.json`));

@@ -211,12 +211,11 @@ pub enum Extractor {
     ///
     /// **There is no default, and that is the design** 【判断】. Two jobs:
     ///
-    /// 1. **It is the seam.** A default here would make the shipped binary depend
-    ///    on a path inside `experiments/`, which is frozen; and the harnesses can
-    ///    hand the prototype's own `stage7g/extract-once.sh` straight to
-    ///    `--extractor`, because the three flags below are exactly its required
-    ///    arguments (`extract-once.sh:24, 47`). `lean-doc extract` takes the same
-    ///    three, so the product can be its own extractor.
+    /// 1. **It is the seam.** A default here would bake a path into the shipped
+    ///    binary. The contract is three flags, so anything that accepts them can
+    ///    be handed to `--extractor` — which is how the prototype's own
+    ///    `stage7g/extract-once.sh` used to be driven, and `lean-doc extract`
+    ///    takes the same three, so the product can be its own extractor.
     /// 2. **It is what lets the pipeline be tested without Lean.** The tests pass
     ///    a fake extractor that copies a baked partial IR tree into `--ir-dir`.
     ///    Without a seam here every test of this file would need a built Lean

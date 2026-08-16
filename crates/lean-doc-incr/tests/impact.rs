@@ -3,11 +3,15 @@
 //! Three oracles, none of which is this file's own opinion:
 //!
 //! - **The frozen prototype's own answers.** `tools/impact-reference.sh --impl
-//!   ts` runs `experiments/stage5/{impact,prune-pages}.ts` over the base IR, the
+//!   ts` ran `experiments/stage5/{impact,prune-pages}.ts` over the base IR, the
 //!   432-page reference tree and the whole 438-file site;
-//!   `tests/oracle/gen-impact-expected.ts` reduces that tree to
+//!   `tests/oracle/gen-impact-expected.ts` reduced that tree to
 //!   `tests/data/impact-expected.json`, which [`the_corpus_matches_the_prototype`]
 //!   compares against scenario by scenario.
+//!   **The fixture is a frozen value: HEAD has no way to regenerate it.** The
+//!   generator, the prototype and the `--impl ts` half of the harness were
+//!   removed with `experiments/` on 2026-08-16 and exist only at tag
+//!   `experiments-frozen`.
 //! - **A second reader, here.** [`SecondTree`] rebuilds the import and reference
 //!   graphs out of `serde_json::Value` and recomputes both closures, so the
 //!   counts in every summary are checked against a rule written twice rather

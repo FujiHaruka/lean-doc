@@ -40,7 +40,18 @@ LAKE="${LAKE:-$HOME/.elan/bin/lake}"
 # Which extractor to time. stage1 answers "how long is the cold import", stage4b answers
 # "how long is the whole first generation" because it also runs the semantic analysis and
 # writes the IR. EXTRACT_ARGS goes to the binary after <modules> <out.jsonl>.
-BIN="${EXTRACT_BIN:-$HERE/../../experiments/stage1/build/extract}"
+#
+# EXTRACT_BIN HAS NO DEFAULT ANY MORE
+#   It used to default to experiments/stage1/build/extract, and that default is what
+#   produced every committed ci-prefetch-* number. `experiments/` was removed on
+#   2026-08-16; stage 1 only exists at tag `experiments-frozen` and **HEAD has no
+#   equivalent** (extractor/ is the schema-4 extractor, which does strictly more work
+#   after the import). A run driven by any other binary is a NEW baseline, not a
+#   continuation of the recorded one — do not put the two in one table.
+BIN="${EXTRACT_BIN:-}"
+[ -n "$BIN" ] || { echo "EXTRACT_BIN is unset: name the extractor to time." >&2
+  echo "The recorded ci-prefetch-* numbers used experiments/stage1/build/extract," >&2
+  echo "which only exists at tag experiments-frozen; HEAD has no equivalent." >&2; exit 2; }
 read -r -a EXTRACT_ARGS_ARR <<< "${EXTRACT_ARGS:-}"
 MODULES="${MODULES:-$HERE/../results/it-modules.txt}"
 # Scratch for per-run extractor output; only the aggregated transcript and the event log
@@ -51,7 +62,7 @@ mkdir -p "$WORK"
 for t in "$RESIDENCY" "$EVICT" "$PREFETCH"; do
   [ -x "$t" ] || { echo "not built: cc -O2 -o $t $t.c" >&2; exit 1; }
 done
-[ -x "$BIN" ] || { echo "not built: run experiments/stage1/build.sh" >&2; exit 1; }
+[ -x "$BIN" ] || { echo "not executable: EXTRACT_BIN=$BIN" >&2; exit 1; }
 
 # --- helpers ----------------------------------------------------------------------------
 

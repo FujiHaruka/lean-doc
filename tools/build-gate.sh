@@ -61,7 +61,7 @@
 #   tree) is never touched and no `git commit` is ever run.
 #
 #   The clone is a baseline only if its oleans were built **at the clone's own
-#   path** (`experiments/stage5e/rebuild-own.sh`): without that, a moved
+#   path** (`tools/rebuild-own.sh`): without that, a moved
 #   declaration's referrers rebuild for the wrong reason and the gate passes for
 #   a reason nobody meant (stage 5e (e)). `require_baseline` checks it with
 #   `strings`, and checks that Lake considers the tree up to date.
@@ -70,7 +70,7 @@ set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUST_BIN="$REPO/target/release/lean-doc"
 EXTRACT_BIN="${EXTRACT_BIN:-$REPO/extractor/build/extract}"
-SETUP_CLONE="$REPO/experiments/stage5e/setup-clone.sh"
+SETUP_CLONE="$REPO/tools/setup-clone.sh"
 LAKE="${LAKE:-$HOME/.elan/bin/lake}"
 # `diff` is aliased to a colordiff that is not installed here; its exit 127
 # reads as "differences found" and has already cost this project one wrong
@@ -158,7 +158,7 @@ require_own_oleans () {
   strings "$probe" 2>/dev/null > "$dump" || true
   grep -q "$CLONE" "$dump" || {
     echo "the clone's oleans were not built at the clone's path — run" >&2
-    echo "experiments/stage5e/rebuild-own.sh first (stage 5e (e))" >&2; exit 2; }
+    echo "tools/rebuild-own.sh first (stage 5e (e))" >&2; exit 2; }
   grep -q "$TARGET/" "$dump" && {
     echo "the clone's oleans still name the measurement target's path" >&2; exit 2; }
   true
