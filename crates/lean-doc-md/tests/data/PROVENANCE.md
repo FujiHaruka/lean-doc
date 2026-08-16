@@ -8,6 +8,14 @@ this directory lives here.
 | `docgen4-expected.json` | `tests/oracle/gen-docgen4-expected.ts` → `tests/oracle/dump-html.lean` | **doc-gen4's** `docStringToHtml` |
 | `md4lean-expected.json` | `tests/oracle/gen-md4lean-expected.ts` → `tests/oracle/dump-ast.lean` | **MD4Lean's** `MD4Lean.parse` |
 | `ts-docstring-expected.json` | `tests/oracle/gen-ts-docstring-expected.ts` (**removed** — see below) | `experiments/stage7d/render.ts` (this repository, frozen) |
+| `fuzz/*.md` | written by hand for `tests/fuzz_corpus.rs` | **ours** — no third party, no oracle |
+
+`fuzz/` is not a fixture in the sense of the rows above: nothing in it is
+compared against an expected output. Each file is an *input* chosen because it
+is known or suspected to be dangerous — the NUL-in-a-fenced-block and the
+body-less GFM table that kill MD4Lean (`docs/implementation-plan.md` §7), plus
+deep nesting, unterminated constructs, astral characters, a 200 KB line, entity
+edge cases, CR without LF, and the empty string. Adding a file adds a case.
 
 `docgen4-expected.json` is the output of a program licensed under the Apache
 License, Version 2.0:
