@@ -3,6 +3,9 @@
 **位置づけ**: [`three-axes.md`](three-axes.md) の leg 1〜3 の中身。
 判断基準は `docs/approach.md` §7 の 3 行目。結果は `docs/verification-log.md` に書く。
 
+> **完了した計画の記録。この文書の `experiments/...` は tag `experiments-frozen` の中を指す**
+> (プロトタイプは 2026-08-16 に HEAD から撤去した)。本文は書き換えていない。
+
 **状態**: **増分 1・2・3 完了** (2026-08-09 / 10)。数字は `verification-log.md` の
 「段階 3 — 増分 1 / 2 / 3」。ツールは `experiments/stage3/`、
 `benchmarks/tools/compare-links.ts`、`benchmarks/tools/map-size.ts`。
