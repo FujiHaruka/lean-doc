@@ -40,8 +40,12 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use lean_doc_md::LinkResolver;
 use lean_doc_render::{ExternalLinks, LinkIndex, NameIndex, PageLinks};
 use serde::Deserialize;
+
+mod common;
+use common::{Tally, rewrite_source_path_anchors};
 
 const FIXTURE: &str = include_str!("data/docgen4-linked-expected.json");
 
@@ -70,6 +74,25 @@ struct Case {
 
 impl Case {
     fn render(&self) -> String {
+        let index = self.index();
+        // Empty: doc-gen4's module-local branch is disabled for this corpus.
+        let links = PageLinks::new(&index, &self.root, &[]);
+        links.renderer().docstring(&self.md)
+    }
+
+    /// doc-gen4's own bytes with the **source-path** branch re-answered by this
+    /// crate's resolver (`common`, M8 gate UI-2).
+    fn with_source_paths_resolved(&self, tally: &mut Tally) -> String {
+        let index = self.index();
+        let links = PageLinks::new(&index, &self.root, &[]);
+        rewrite_source_path_anchors(
+            &self.html,
+            &|stem| links.source_path_to_link(&self.root, stem),
+            tally,
+        )
+    }
+
+    fn index(&self) -> NameIndex {
         let mut builder = NameIndex::builder();
         for module in &self.modules {
             builder.module_name(module);
@@ -85,10 +108,7 @@ impl Case {
         // (`docs/implementation-plan.md` §1: gate A is suspended). The map is
         // empty rather than absent because there is nothing to fill it with:
         // these cases are synthetic worlds with no package behind them.
-        let index = builder.build(LinkIndex::default(), ExternalLinks::default());
-        // Empty: doc-gen4's module-local branch is disabled for this corpus.
-        let links = PageLinks::new(&index, &self.root, &[]);
-        links.renderer().docstring(&self.md)
+        builder.build(LinkIndex::default(), ExternalLinks::default())
     }
 }
 
@@ -125,13 +145,12 @@ fn fixture_is_doc_gen4s_own_output() {
 fn matches_doc_gen4_on_every_case() {
     let e = expected();
     let mut failures = Vec::new();
+    let mut tally = Tally::default();
     for case in &e.cases {
         let got = case.render();
-        if got != case.html {
-            failures.push(format!(
-                "{}\n  want: {}\n  got:  {}",
-                case.what, case.html, got
-            ));
+        let want = case.with_source_paths_resolved(&mut tally);
+        if got != want {
+            failures.push(format!("{}\n  want: {}\n  got:  {}", case.what, want, got));
         }
     }
     assert!(
@@ -140,6 +159,21 @@ fn matches_doc_gen4_on_every_case() {
         failures.len(),
         e.cases.len(),
         failures.join("\n")
+    );
+    // M8, gate UI-2. These worlds are `AnalyzerResult` reduced to the names each
+    // case looks up, and doc-gen4 looks nothing up to link a source path — so
+    // none of the modules the paths name is in them, and every one of these
+    // anchors is a link this crate now declines to build. What the rule does
+    // with a real world is `tests/autolink.rs`'s and `tests/pages.rs`'s number.
+    // 【実測 2026-08-16】
+    assert_eq!(
+        tally,
+        Tally {
+            unchanged: 0,
+            relinked: 0,
+            dropped: 12
+        },
+        "the corpus's source-path anchors moved differently"
     );
 }
 

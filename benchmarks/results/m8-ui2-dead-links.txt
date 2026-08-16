@@ -1,0 +1,85 @@
+M8 gate UI-2 — the internal links a generated site emits, before and after the
+source-path rule (`docs/plans/ui-redesign.md` §1「サイト内リンクの 404 が 0 本」).
+
+Conditions: m8-ui2-dead-links-env.txt. Checker: benchmarks/tools/check-dead-links.py.
+All numbers below are 実測 over the measurement target's 432 modules. Two sites
+generated from the same IR, the same .lidx, the same --source-url and the same
+--root; they differ only in which binary wrote them.
+
+=== site-before (the code at 80b8c81)
+  files                     : 442
+  internal links            : 32868
+  external links            : 101323
+  fragment-only links       : 7216
+  DEAD internal links       : 160 (99 distinct destinations, 87 pages)
+  source-path anchors       : 193 (0 external, 160 dead)
+      11  EPI/Stam/ToBridge.html   e.g. on InformationTheory/Shannon/EPI/Case1/RatioLimit.html
+       6  EPI/Case1/TwoTime.html   e.g. on InformationTheory/Shannon/EPI/Case1/TwoTime/Core.html
+       5  FisherInfo/DeBruijn.html   e.g. on InformationTheory/Shannon/EPI/Case1/RatioLimit/Assembly.html
+       5  LZ78/AsymptoticOptimality/ParentBridgeAchievability.html   e.g. on InformationTheory/Shannon/LZ78/ZivAchievabilityComposition.html
+       4  Hoeffding/TradeoffExp.html   e.g. on InformationTheory/Shannon/Hoeffding/BoundaryMinimizer.html
+       3  EPI/G2/ConvEntropyDensity.html   e.g. on InformationTheory/Shannon/EPI/Case1/RatioLimit/PathRegular.html
+       3  EPI/Case1/RatioLimit/Assembly.html   e.g. on InformationTheory/Shannon/EPI/Case1/TwoTime/EntropyPowerInequality.html
+       3  FisherInfo/DeBruijnPerTime.html   e.g. on InformationTheory/Shannon/EPI/Conv/DensitySecondDeriv.html
+
+=== site-after (the M8 UI-2 working tree)
+  files                     : 442
+  internal links            : 32861
+  external links            : 101329
+  fragment-only links       : 7216
+  DEAD internal links       : 0 (0 distinct destinations, 0 pages)
+  source-path anchors       : 192 (6 external, 0 dead)
+
+**Every dead link in the tree was this one rule.** 160 dead before, 0 after, and
+the 160 are exactly the 193 source-path anchors minus the 33 whose path already
+named a module of this package in full.
+
+Where the 193 went
+------------------
+  153  relinked to the page that exists
+       e.g. `EPI/Stam/ToBridge.lean` on InformationTheory/Shannon/EPI/Case1/RatioLimit.html
+            ../../../.././EPI/Stam/ToBridge.html                        (dead)
+         -> ../../../.././InformationTheory/Shannon/EPI/Stam/ToBridge.html
+   33  unchanged: the path already named its module in full, so the old rule
+       and the new one agree byte for byte
+    6  now a version-pinned blob URL, which is why the external count rises by
+       6 and the internal count falls by 7. These are the seven M7-c recorded as
+       "links into a dependency that stayed relative" (m7c-site-links.txt) minus
+       the one below: the branch that produced them never named a module, so
+       `ExternalLinks::href` was never reached. It is now.
+    1  dropped, and left as a code span:
+       `Mathlib/Probability/Decision/BayesEstimator.lean` on
+       InformationTheory/Shannon/Portfolio/StationaryWinfty.html.
+       `BayesEstimator` does not occur anywhere in the .lidx — the pinned mathlib
+       revision has no such module — so the path names nothing and there is no
+       link to build. It was a dead link before.
+
+Ambiguity: none on this corpus, and not for lack of exposure
+------------------------------------------------------------
+The rule refuses to link when a path is a component-suffix of **two or more**
+known modules. No source path of this package reached that case 【実測: 0 of
+193】, so every one of the 192 links above is a unique answer.
+
+That is a property of this corpus and not of the rule. Of the 18,712 distinct
+component-suffixes of two or more components in this run's 6,021 known modules,
+**479 (2.6%) belong to more than one module** — `Action/Basic.lean` names five.
+A rule that took the first match would have been a coin flip on those, and a
+wrong page is worse than a missing one: the reader who follows a 404 knows
+something is missing.
+
+The dependency map was intact for both runs
+-------------------------------------------
+Minutes after this measurement the target repository's `lake-manifest.json` was
+rewritten by other work in progress there (15 packages -> 9), which would move
+every blob URL and therefore this whole table. Both trees above were written
+before that: the cross-check is that site-before emits **101,323** github hrefs,
+which is the number M7-c recorded on the same target (m7c-site-links.txt), and
+site-after emits exactly six more. A run with the shrunken manifest would have
+resolved fewer roots and turned dependency links back into relative ones.
+
+`##name` searches
+-----------------
+`extendLink` sends an unresolved `##name` to the search page, so a name search
+whose path resolves to nothing now writes `find/?pattern=…` instead of a link.
+No docstring of this package does that 【実測: 0 occurrences of `find/?pattern=`
+in either tree】.

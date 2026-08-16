@@ -1,0 +1,18 @@
+date (UTC)          : 2026-08-16 04:49:36
+host                : Darwin 25.6.0 arm64, 8 CPU, 16 GB RAM
+target              : /Users/haruka/dev/lean-projects
+target toolchain    : leanprover/lean4:v4.31.0
+target HEAD         : c6bf3f962180dda3ab5e074055cbacd811fc7233
+                      (its lake-manifest.json was rewritten by work in that repo
+                       minutes after this run — see the results file)
+target mathlib rev  : fabf563a7c95a166b8d7b6efca11c8b4dc9d911f (read off the emitted blob URLs)
+IR                  : /private/tmp/lean-doc-relay/m4d-final/base/ir (432 modules)
+link index          : /private/tmp/lean-doc-relay/m5a/full-link-index-r4.lidx (8465776 B, 255975 names, 6021 modules)
+source url          : https://github.com/FujiHaruka/information-theory/blob/5e38aecd1e086aed4ec3475dcfad3df44184aca7
+command             : lean-doc site --ir <ir> --out <site> --source-url <url> --link-index <lidx> --root <target>
+                      then cp crates/lean-doc-render/assets/* <site>/ (the static assets `site` does not write)
+lean-doc (before)   : target/release/lean-doc built with the M8 UI-2 change stashed, i.e. the code at 80b8c81
+lean-doc (after)    : target/release/lean-doc, the M8 UI-2 working tree
+checker             : benchmarks/tools/check-dead-links.py (offline; the tree answers by itself)
+rustc               : rustc 1.97.1 (8bab26f4f 2026-07-14)
+page cache          : not controlled (this is a link comparison, not a timing)

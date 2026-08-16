@@ -13,11 +13,18 @@
 //! [`LinkIndex`] and the IR, neither of which a markdown crate should know
 //! about, and the crate dependency runs `lean-doc-render` → `lean-doc-md`.
 //!
-//! **The first branch of `nameToLink?` is not here.** A word that ends in
-//! `.lean` and contains a `/` is a path to a source file and needs no index at
-//! all, so [`lean_doc_md::Renderer::resolve_link`] answers it before the
-//! resolver is consulted. Moving it across the injection point costs 131 of the
-//! target package's 4,987 docstrings 【実測 M1-c 後半】.
+//! **The first branch of `nameToLink?` is here too, and that is an M8 change.**
+//! A word that ends in `.lean` and contains a `/` is a path to a source file,
+//! and doc-gen4 turns it into a page with no index at all: the path is read as
+//! relative to the repository root and the extension is swapped. That is right
+//! for `Mathlib/Order/Basic.lean` and wrong for the target package, whose
+//! docstrings write the path relative to their own module — the produced page
+//! was never written, and 160 of the site's 32,868 internal links were dangling
+//! because of it 【実測 2026-08-16,
+//! `benchmarks/results/m8-ui2-dead-links.txt`】.
+//! [`NameIndex::module_for_source_path`] is the answer that consults
+//! `knownModules`, and gate UI-2 is what it is for
+//! (`docs/plans/ui-redesign.md` §1).
 //!
 //! # Which name is documented where — three sources, not one
 //!
@@ -255,6 +262,55 @@ impl NameIndex {
         self.known_modules.contains(name)
     }
 
+    /// The module a **source path** written in a docstring names, or `None`
+    /// when no known module matches it or more than one does.
+    ///
+    /// `path` is the word `nameToLink?`'s first branch took, without its
+    /// `.lean`: `EPI/Stam/ToBridge`. Its components are a module name —
+    /// `EPI.Stam.ToBridge` — and the question is which module of this run's
+    /// world that is:
+    ///
+    /// 1. that name itself, when it is a known module. This is the
+    ///    repository-root-relative path doc-gen4 assumes, and it is what
+    ///    `Mathlib/Order/Basic.lean` takes.
+    /// 2. otherwise the one known module that has it as a **proper suffix on a
+    ///    component boundary**: `InformationTheory.Shannon.EPI.Stam.ToBridge`
+    ///    is a match for `EPI.Stam.ToBridge` and `XEPI.Stam.ToBridge` is not.
+    ///    This is the path a docstring writes relative to its own module, which
+    ///    is what the target package does.
+    ///
+    /// **Two matches is `None`, not the first one.** A link to the wrong page
+    /// is worse than no link: the reader who follows a 404 knows something is
+    /// missing, and the reader who lands on a plausible wrong page does not.
+    #[must_use]
+    pub fn module_for_source_path(&self, path: &str) -> Option<&str> {
+        // `escape_module` rather than `replace('/', ".")` because a directory
+        // whose name is not an identifier is a quoted component in the module
+        // name it belongs to: `Odd-Name/Inner.lean` is `«Odd-Name».Inner`.
+        let candidate = lean_doc_ir::escape_module(path.split('/'));
+        if let Some(exact) = self.known_modules.get(&candidate) {
+            return Some(exact.as_str());
+        }
+        // A `.` inside a component can only be inside `«…»`, and a name that
+        // ends in a quoted component ends in `»` — so a module that ends with
+        // these bytes and has a `.` in front of them ends with these
+        // *components*, and no component was cut in half.
+        let mut found = None;
+        for module in &self.known_modules {
+            if module.len() <= candidate.len()
+                || !module.ends_with(&candidate)
+                || module.as_bytes()[module.len() - candidate.len() - 1] != b'.'
+            {
+                continue;
+            }
+            if found.is_some() {
+                return None;
+            }
+            found = Some(module.as_str());
+        }
+        found
+    }
+
     /// **The link every page draws** (M7-c): [`ExternalLinks::href`] with this
     /// run's two maps supplied — the prefix from the dependency map, the line
     /// range from the `.lidx`.
@@ -468,7 +524,7 @@ impl<'a> PageLinks<'a> {
 
 impl LinkResolver for PageLinks<'_> {
     /// `nameToLink?` from its second branch on (`render.ts:938-956`); the first
-    /// is [`Renderer::resolve_link`]'s.
+    /// is [`PageLinks::source_path_to_link`].
     ///
     /// In order: a name literal or nothing; the name in `known` then in the
     /// `.lidx`, unless it is private; the name as a module; and finally the
@@ -509,6 +565,20 @@ impl LinkResolver for PageLinks<'_> {
             }
         }
         None
+    }
+
+    /// `nameToLink?`'s first branch, **through the index** (M8, gate UI-2):
+    /// [`NameIndex::module_for_source_path`] decides which module the path
+    /// names, and the link is that module's page — or its pinned source, when
+    /// the module belongs to a dependency, since this goes through
+    /// [`NameIndex::link_to`] like every other module link (M7-c).
+    ///
+    /// `root` is the renderer's, which is [`PageLinks::root`] by construction
+    /// ([`PageLinks::renderer`]); taking it as an argument is what lets the
+    /// trait's index-free default answer at all.
+    fn source_path_to_link(&self, root: &str, path: &str) -> Option<String> {
+        let module = self.index.module_for_source_path(path)?;
+        Some(self.index.link_to(root, module, None))
     }
 }
 
@@ -755,6 +825,96 @@ mod tests {
         assert_eq!(
             resolve(&no_range, &[], "Dep.bare").as_deref(),
             Some("https://host/o/dep/blob/abc/Dep/M.lean")
+        );
+    }
+
+    /// **M8, gate UI-2**: a source path is a question for the index like any
+    /// other, and the answers it has no right to give are the interesting ones.
+    ///
+    /// `PkgSole.Target` is the load-bearing distractor: it ends with the bytes
+    /// of `Sole.Target` and is not a match, because the match has to fall on a
+    /// component boundary. A port that compared bytes would find two candidates
+    /// for `Sole/Target.lean` and answer `None` — so this case fails in the
+    /// *safe* direction, which is why it is asserted positively.
+    #[test]
+    fn a_source_path_is_resolved_through_the_known_modules() {
+        let mut builder = NameIndex::builder();
+        for module in [
+            "Mathlib.Order.Basic",
+            "Pkg.Deep.EPI.Stam.ToBridge",
+            "Other.EPI.Stam.ToBridge",
+            "Pkg.Sole.Target",
+            "PkgSole.Target",
+            "Alpha.«Odd-Name».Inner",
+            "A.B",
+            "X.A.B",
+        ] {
+            builder.module_name(module);
+        }
+        let index = builder.build(LinkIndex::default(), ExternalLinks::default());
+
+        // 1: the path the repository root would give, which is doc-gen4's rule.
+        assert_eq!(
+            index.module_for_source_path("Mathlib/Order/Basic"),
+            Some("Mathlib.Order.Basic")
+        );
+        // …and it wins over a suffix match, without asking whether that one is
+        // unique.
+        assert_eq!(index.module_for_source_path("A/B"), Some("A.B"));
+        // 2: the path relative to a module, resolved by its one owner.
+        assert_eq!(
+            index.module_for_source_path("Sole/Target"),
+            Some("Pkg.Sole.Target")
+        );
+        // A directory whose name is not an identifier is a quoted component.
+        assert_eq!(
+            index.module_for_source_path("Odd-Name/Inner"),
+            Some("Alpha.«Odd-Name».Inner")
+        );
+        // Two owners: no link at all.
+        assert_eq!(index.module_for_source_path("EPI/Stam/ToBridge"), None);
+        // No owner.
+        assert_eq!(index.module_for_source_path("Nope/Missing"), None);
+        // Not a suffix of `PkgSole.Target` either, from the other side.
+        assert_eq!(index.module_for_source_path("Sole"), None);
+    }
+
+    /// The same three answers as bytes, through the renderer that asks the
+    /// question — including the one that must **not** appear.
+    #[test]
+    fn an_unresolved_source_path_stays_a_code_span() {
+        let mut builder = NameIndex::builder();
+        for module in [
+            "Pkg.Deep.Sub.Thing",
+            "Dep.Sub.Thing",
+            "Other.X.Amb",
+            "P.X.Amb",
+        ] {
+            builder.module_name(module);
+        }
+        let index = builder.build(
+            LinkIndex::default(),
+            ExternalLinks::new([("Dep", "https://host/o/dep/blob/abc")]),
+        );
+        let render = |md: &str| PageLinks::new(&index, "../", &[]).renderer().docstring(md);
+
+        assert_eq!(
+            render("`Deep/Sub/Thing.lean`\n"),
+            "<p><code><a href=\"../Pkg/Deep/Sub/Thing.html\">Deep/Sub/Thing.lean</a></code></p>"
+        );
+        // Into a dependency: the pinned source, like every other module link
+        // (M7-c).
+        assert_eq!(
+            render("`Dep/Sub/Thing.lean`\n"),
+            "<p><code><a href=\"https://host/o/dep/blob/abc/Dep/Sub/Thing.lean\">\
+             Dep/Sub/Thing.lean</a></code></p>"
+        );
+        // Ambiguous, and unknown: text, not a guess. `autoLinkInline`'s second
+        // lookup asks about `lean` and gets nothing either.
+        assert_eq!(render("`X/Amb.lean`\n"), "<p><code>X/Amb.lean</code></p>");
+        assert_eq!(
+            render("`Nope/Missing.lean`\n"),
+            "<p><code>Nope/Missing.lean</code></p>"
         );
     }
 

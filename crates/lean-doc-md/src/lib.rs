@@ -35,7 +35,7 @@
 //!
 //! Name resolution is the caller's: [`Renderer`] takes a [`LinkResolver`], so
 //! this crate never learns what a `LinkIndex` is. [`NoLinks`] is the resolver
-//! that answers nothing, which is what a caller without a dependency map wants
+//! that answers no name, which is what a caller without a dependency map wants
 //! and what this milestone step renders with.
 //!
 //! # How this is checked

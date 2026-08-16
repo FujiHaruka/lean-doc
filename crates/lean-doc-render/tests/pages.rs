@@ -63,6 +63,9 @@ use std::path::{Path, PathBuf};
 use lean_doc_render::{ExternalLinks, ModuleSet, RenderOptions, render_site};
 use serde::Deserialize;
 
+mod common;
+use common::{Tally, rewrite_source_path_anchors};
+
 const FIXTURE: &str = include_str!("data/pages-expected.json");
 
 const DEFAULT_IR: &str = "/private/tmp/lean-doc-relay/w7h/base-ir";
@@ -566,6 +569,42 @@ fn pages_carry_the_reference_trees_content() {
         want.keys().collect::<Vec<_>>(),
         got.keys().collect::<Vec<_>>(),
         "the two trees have different files"
+    );
+    // **M8, gate UI-2** (`common`): a source path in a docstring is the one
+    // question this crate answers differently from the prototype, so it is
+    // taken out of the comparison below and counted here instead. Collapsing
+    // the anchors on *both* sides needs no index — the anchor's text is the
+    // path either way — and it leaves every other byte of both trees in place.
+    let (mut theirs, mut ours) = (Tally::default(), Tally::default());
+    let collapse =
+        |tree: BTreeMap<String, String>, tally: &mut Tally| -> BTreeMap<String, String> {
+            tree.into_iter()
+                .map(|(path, html)| {
+                    let html = rewrite_source_path_anchors(&html, &|_| None, tally);
+                    (path, html)
+                })
+                .collect()
+        };
+    let want = collapse(want, &mut theirs);
+    let got = collapse(got, &mut ours);
+    // The prototype linked every source path it saw; this run links the ones
+    // whose path names exactly one known module and leaves the rest as text. The
+    // two counts are **not pinned** here: this test is skipped without a
+    // reference tree, so a number written into it could not be re-measured on
+    // the machine that changes the rule. Where the exact counts live: the
+    // sample in `tests/autolink.rs`, and the site scan in
+    // `benchmarks/results/m8-ui2-dead-links.txt`.
+    assert!(
+        theirs.total() > 0,
+        "the reference tree has no source-path link, so this normalisation \
+         hides nothing and the comparison below is the old one"
+    );
+    assert!(
+        ours.total() <= theirs.total(),
+        "this run wrote {} source-path links where the prototype wrote {}; the \
+         rule can only drop them",
+        ours.total(),
+        theirs.total()
     );
     // The one page the prototype and md4c disagree on: a broken nested code
     // span in a module docstring, where doc-gen4 sides with this crate. Pinned

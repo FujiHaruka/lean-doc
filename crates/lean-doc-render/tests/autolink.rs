@@ -37,15 +37,34 @@
 //!   against the real IR and the real `.lidx`, which is the only place the
 //!   *building* of the name index is exercised on real data. It is skipped
 //!   unless `LEAN_DOC_AUTOLINK_FULL` points at the generator's `--full` output.
+//!
+//! # The one branch this port answers differently on purpose (M8, gate UI-2)
+//!
+//! A **source path** — `` `EPI/Stam/ToBridge.lean` `` — is a link the prototype
+//! and doc-gen4 both build without consulting anything: the path is read as
+//! relative to the repository root and the extension is swapped. The target
+//! package writes those paths relative to the *module*, so the page named does
+//! not exist, and 160 of the site's 32,868 internal links were dangling
+//! 【実測 2026-08-16】. This port asks [`NameIndex::module_for_source_path`]
+//! instead.
+//!
+//! Both comparisons below therefore run the prototype's answer through that
+//! question before comparing ([`Case::with_source_paths_resolved`]) and pin how
+//! many anchors it moved. Everything else stays byte for byte, so a second
+//! divergence still fails.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::PathBuf;
 
 use lean_doc_ir::IrTree;
+use lean_doc_md::LinkResolver;
 use lean_doc_render::{
     ExternalLinks, LinkIndex, NameIndex, PageLinks, module_decl_names, page_root,
 };
 use serde::Deserialize;
+
+mod common;
+use common::{Tally, rewrite_source_path_anchors, unescape};
 
 const FIXTURE: &str = include_str!("data/autolink-expected.json");
 
@@ -119,6 +138,19 @@ impl Case {
         let links = PageLinks::new(&index, &self.root, &names);
         links.renderer().docstring(&self.md)
     }
+
+    /// The prototype's bytes with the source-path branch re-answered by this
+    /// port's resolver against this case's own world (`common`).
+    fn with_source_paths_resolved(&self, tally: &mut Tally) -> String {
+        let index = self.index();
+        let names: Vec<&str> = self.decl_names.iter().map(String::as_str).collect();
+        let links = PageLinks::new(&index, &self.root, &names);
+        rewrite_source_path_anchors(
+            &self.html,
+            &|stem| links.source_path_to_link(&self.root, stem),
+            tally,
+        )
+    }
 }
 
 fn expected() -> Expected {
@@ -181,16 +213,18 @@ fn matches_the_prototype_on_every_case() {
         .map(String::as_str)
         .collect();
     let mut failures = Vec::new();
+    let mut tally = Tally::default();
     for case in &e.cases {
-        if nests.contains(case.what.as_str()) {
+        if nests.contains(case.what.as_str()) || case.what == NAME_SEARCH_FOR_A_SOURCE_PATH {
             continue;
         }
         let got = case.render();
-        if got != case.html {
+        let want = case.with_source_paths_resolved(&mut tally);
+        if got != want {
             failures.push(format!(
                 "{}\n  want: {}\n  got:  {}",
                 case.what,
-                show(&case.html),
+                show(&want),
                 show(&got)
             ));
         }
@@ -201,6 +235,54 @@ fn matches_the_prototype_on_every_case() {
         failures.len(),
         e.cases.len(),
         failures.join("\n")
+    );
+    // M8, gate UI-2 — and the reason the numbers look like this: each case
+    // carries only the world the *prototype* needed, and the prototype needed
+    // nothing to link a source path. So the module a path names is in the case's
+    // world only when the path happens to be the module's own full name, which
+    // is the one anchor below that survives. What the rule does with the real
+    // world is [`the_whole_corpus_matches_the_prototype`]'s number.
+    // 【実測 2026-08-16】
+    assert_eq!(
+        tally,
+        Tally {
+            unchanged: 2,
+            relinked: 0,
+            dropped: 17
+        },
+        "the sample's source-path anchors moved differently"
+    );
+}
+
+/// The one case whose M8 answer is not in an anchor's text and so cannot be
+/// re-answered by [`rewrite_source_path_anchors`]: `##name` is a name search,
+/// and its path reaches the resolver as a link *destination*.
+const NAME_SEARCH_FOR_A_SOURCE_PATH: &str =
+    "curated: a name search resolving to a module and to a source path";
+
+/// `extendLink`'s first branch, with a source path in it (M8, gate UI-2).
+///
+/// `[b](##Foo/Bar.lean)` asks the same question a code span does, so the same
+/// answer follows: with no module of that name, there is no link to build, and
+/// `extendLink` does what it already does for an unresolved `##name` — it sends
+/// the reader to the search page (`DocString.lean:91-93`). The prototype's
+/// answer, kept in the fixture, is a link to a page nobody wrote.
+#[test]
+fn a_name_search_for_an_unknown_source_path_falls_back_to_the_find_page() {
+    let e = expected();
+    let case = e
+        .cases
+        .iter()
+        .find(|c| c.what == NAME_SEARCH_FOR_A_SOURCE_PATH)
+        .expect("the fixture records the prototype's answer for a name search on a path");
+    assert_eq!(
+        case.html, "<p><a href=\".././Pkg/A.html\">a</a> <a href=\".././Foo/Bar.html\">b</a></p>",
+        "the prototype's answer changed"
+    );
+    assert_eq!(
+        case.render(),
+        "<p><a href=\".././Pkg/A.html\">a</a> \
+         <a href=\".././find/?pattern=Foo/Bar.lean#doc\">b</a></p>"
     );
 }
 
@@ -409,6 +491,7 @@ fn the_whole_corpus_matches_the_prototype() {
     let mut compared = 0usize;
     let mut matched = 0usize;
     let mut failures = Vec::new();
+    let mut tally = Tally::default();
     for case in &full.cases {
         if excluded.contains(case.what.as_str()) {
             continue;
@@ -418,21 +501,31 @@ fn the_whole_corpus_matches_the_prototype() {
         let names = &decl_names[case.module.as_str()];
         let links = PageLinks::new(&index, &case.root, names);
         let got = links.renderer().docstring(&case.md);
+        // M8, gate UI-2: the source-path branch, and only it, is this port's
+        // own answer. Here the world is the real one, so the paths the package
+        // writes relative to a module do resolve — to a different page than the
+        // prototype's.
+        let want = rewrite_source_path_anchors(
+            &case.html,
+            &|stem| links.source_path_to_link(&case.root, stem),
+            &mut tally,
+        );
         compared += 1;
-        if got == case.html {
+        if got == want {
             matched += 1;
         } else if failures.len() < 20 {
             failures.push(format!(
                 "{}\n  want: {}\n  got:  {}",
                 case.what,
-                show(&case.html),
+                show(&want),
                 show(&got)
             ));
         }
     }
     eprintln!(
         "whole corpus: {matched} of {compared} match the prototype \
-         ({} excluded as known CommonMark-subset differences)",
+         ({} excluded as known CommonMark-subset differences); \
+         source paths: {tally:?}",
         full.cases.len() - compared
     );
     assert_eq!(
@@ -443,6 +536,20 @@ fn the_whole_corpus_matches_the_prototype() {
         failures.join("\n")
     );
     assert!(compared >= 4_800, "only {compared} cases were compared");
+    // How many source paths the corpus's docstrings write is a property of the
+    // IR, so it is pinned; how they split is a property of the `.lidx` this run
+    // was given, so it is not.
+    //
+    // 【実測 2026-08-16, IR `m4d-final/base/ir` + `.lidx m5a/full-link-index-r4`】
+    // `Tally { unchanged: 39, relinked: 153, dropped: 1 }` — the prototype's
+    // repository-root reading was right for the 39 paths that name their module
+    // in full and wrong for the 153 that name it relative to the module, which
+    // are the dangling links gate UI-2 is about. One path names no module.
+    assert_eq!(tally.total(), 193, "the corpus's source paths changed");
+    assert!(
+        tally.relinked > 0 && tally.unchanged > 0,
+        "{tally:?}: a rule that moved every link, or none, is not this one"
+    );
 }
 
 // ------------------------------------------------------------------- helpers
@@ -471,13 +578,6 @@ fn anchors_of(html: &str) -> Vec<(String, String)> {
         rest = &rest[close + 4..];
     }
     out
-}
-
-fn unescape(s: &str) -> String {
-    s.replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .replace("&amp;", "&")
 }
 
 /// Renders a string so a failure names the code points rather than printing

@@ -15,7 +15,9 @@
 //! ledger's `known`, and the `@` sections of the `.lidx` file (plan §5, pitfall
 //! 6) — and none of them belongs to a markdown crate. So it is a caller-supplied
 //! [`LinkResolver`], and this milestone step ships [`NoLinks`], which resolves
-//! nothing. Everything downstream of it is here and is exercised: `extendLink`
+//! no name. Its source-path branch is deferred the same way and for the same
+//! reason, though it kept doc-gen4's index-free rule as the trait's default
+//! (M8, gate UI-2). Everything downstream of it is here and is exercised: `extendLink`
 //! reaches all four of its branches, and `autoLinkInline` still splits, still
 //! retries on the last `.`, and still emits the same text nodes — with a
 //! resolver that never answers, the anchors are simply absent.
@@ -45,24 +47,46 @@ use crate::parse::parse;
 /// `nameToLink?` — whether a name mentioned in a docstring has a page, and
 /// where.
 ///
-/// This is `DocString.lean:43-75`, i.e. everything from the second branch on:
-/// the parts that need a name index. The first branch turns a source path
-/// (`Foo/Bar.lean`) into a link using nothing but the site root, so the
-/// renderer answers it itself and implementations never see one —
-/// [`Renderer::resolve_link`] is the whole function.
+/// This is `DocString.lean:39-75`: both the source-path branch and the name
+/// branches. [`Renderer::resolve_link`] decides which of the two a word is and
+/// asks nothing else.
 ///
-/// Implementations receive the string exactly as the docstring wrote it and
-/// return a URL ready to be escaped into an `href`.
+/// Implementations receive the string exactly as the docstring wrote it (minus
+/// the `.lean` of a source path) and return a URL ready to be escaped into an
+/// `href`.
 pub trait LinkResolver {
     /// The link for `name`, or `None` when nothing of that name is documented.
     fn name_to_link(&self, name: &str) -> Option<String>;
+
+    /// The link for a **source path** — `DocString.lean:39-42`, the branch a
+    /// word like `Foo/Bar.lean` takes. `path` is that word without its `.lean`
+    /// and always contains a `/`; `root` is the renderer's site root, passed in
+    /// so that a resolver holding no root of its own can still answer.
+    ///
+    /// The default is doc-gen4's own answer: the path is read as relative to
+    /// the **repository root**, so the page is the same path with the extension
+    /// swapped. That is right for a docstring that writes
+    /// `Mathlib/Order/Basic.lean` and wrong for one that writes a path relative
+    /// to its own module, which resolves to a page nobody wrote — 160 dangling
+    /// links on the measurement target 【実測 2026-08-16,
+    /// `benchmarks/results/m8-ui2-dead-links.txt`】.
+    ///
+    /// **A resolver that holds a module index should override this** and answer
+    /// `None` rather than guess: a link to the wrong page is worse than no link
+    /// (`lean_doc_render::PageLinks`).
+    fn source_path_to_link(&self, root: &str, path: &str) -> Option<String> {
+        Some(format!("{root}{path}.html"))
+    }
 }
 
-/// A resolver that never resolves anything.
+/// A resolver that resolves no *name*.
 ///
-/// What this milestone step renders with, and what a caller that has no
-/// dependency map should render with: every `` `Nat.succ` `` stays plain text
-/// rather than becoming a dangling link.
+/// What a caller that has no dependency map should render with: every
+/// `` `Nat.succ` `` stays plain text rather than becoming a dangling link. A
+/// source path still resolves, because [`LinkResolver::source_path_to_link`]'s
+/// default needs no index — this is the configuration that reproduces doc-gen4
+/// with an empty `AnalyzerResult`, which is what `tests/docgen4.rs` compares
+/// against.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct NoLinks;
 
@@ -370,22 +394,23 @@ impl<'a> Renderer<'a> {
 
     // --------------------------------------------------------------- links
 
-    /// `nameToLink?` (`DocString.lean:39-80`) in full.
+    /// `nameToLink?` (`DocString.lean:39-80`) in full: which of the resolver's
+    /// two questions a word is, and nothing else.
     ///
-    /// The first branch is here rather than behind [`LinkResolver`] because it
-    /// consults no index: a word that ends in `.lean` and contains a `/` is a
-    /// path to a source file, and its page is that path with the extension
-    /// swapped, under the site root. It is not a rare corner — it is how the
-    /// target package's module docs cross-reference each other, and it accounts
-    /// for **131 of the 4,987 docstrings** 【実測】.
-    ///
-    /// Everything else is the caller's.
+    /// A word that ends in `.lean` and contains a `/` is a path to a source
+    /// file. It is not a rare corner — it is how the target package's module
+    /// docs cross-reference each other, and it accounts for **131 of the 4,987
+    /// docstrings** 【実測】 — and *which page* that path names is a question
+    /// about the packages being documented, so it goes to the resolver like
+    /// every other lookup (M8, gate UI-2). This crate used to answer it here,
+    /// with doc-gen4's rule; that rule is now
+    /// [`LinkResolver::source_path_to_link`]'s default.
     #[must_use]
     pub fn resolve_link(&self, s: &str) -> Option<String> {
         if let Some(path) = s.strip_suffix(".lean")
             && s.contains('/')
         {
-            return Some(format!("{}{path}.html", self.root));
+            return self.links.source_path_to_link(self.root, path);
         }
         self.links.name_to_link(s)
     }
