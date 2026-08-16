@@ -1,0 +1,15 @@
+## runs
+run                  import_s  extract_s   render_s     docs_s major_faults    peak_MB  site_digest
+same-pmacr1            16.337 23.316939583 0.562923458     25.693            ?          ?  faf6d6c9638fa037
+same-pmacr2             6.172 12.526113959 0.557218125     14.668            ?          ?  faf6d6c9638fa037
+same-pmacr3             7.152 13.624427583 0.538013542     15.666            ?          ?  faf6d6c9638fa037
+same-pmacr4             2.606 8.248314333 0.551746875     10.307            ?          ?  faf6d6c9638fa037
+same-pmacr5             2.588 8.582269416 0.535945084     10.593            ?          ?  faf6d6c9638fa037
+
+## placement (r1 of each arm, per pair)
+pair      same_import split_import    ratio    same_docs   split_docs    ratio
+mac            16.337            -        -       25.693            -        -
+
+## each runner's own cold penalty (r1 / last rep, inside one arm)
+arm-pair          r1_import  last_import    ratio
+same-pmac            16.337        2.588    6.31x

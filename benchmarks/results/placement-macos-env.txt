@@ -1,0 +1,33 @@
+## runner
+date        2026-08-16T15:31:41Z
+kernel      Darwin 25.6.0 arm64
+nproc       8
+pagesize    16384
+runner      ? / ? / image ? ?
+
+## cpu
+
+## storage
+
+## memory
+Mach Virtual Memory Statistics: (page size of 16384 bytes)
+Pages free:                                    17396.
+Pages active:                                 219945.
+Pages inactive:                               184003.
+Pages speculative:                             37470.
+
+## df
+Filesystem        Size    Used   Avail Capacity iused ifree %iused  Mounted on
+/dev/disk3s1s1   228Gi    12Gi   2.2Gi    85%    459k   23M    2%   /
+Filesystem        Size    Used   Avail Capacity iused ifree %iused  Mounted on
+/dev/disk3s1s1   228Gi    12Gi   2.2Gi    85%    459k   23M    2%   /
+
+## cpu calibrator (1 GiB sha256, 3 runs, seconds)
+0.543
+0.580
+0.543
+
+## target
+path        /Users/haruka/dev/lean-projects
+HEAD        c4f6af29704029b3c62eaa0842c3225ad0e689a0
+toolchain   leanprover/lean4:v4.31.0
