@@ -1,0 +1,26 @@
+# 段 C 後の 1 モジュール変更、段別の内訳 (2026-08-17)
+
+出所は 1 回の warm 増分ビルドが残した timings JSON
+(<out>/work/{extract,ledger,merge,global,render}-timings*.json)。総時間は約 6.2 s。
+対象 lean-projects c4f6af29 / 422 モジュール / --jobs 4 / lean-doc 54239be。
+
+```
+段                                         秒  何をしているか
+環境ロード (ready)                          ~3.0  6,011 モジュールの import。既知の床 (approach.md §3)
+抽出器 linkIndex                         1.535  490,286 定数を走査して 10,098,730 B を書く ← 段 D の対象
+台帳 hash                               0.470  422 モジュールの olean 228,448,584 B を SHA-256
+render (1 ページ)                        0.132  段 C 前は 422 ページ
+merge                                 0.068  
+global                                0.049  cache 421 hit / 1 miss、delta 0.006
+抽出器 analyze                           0.024  1 宣言
+上記の合計                                 ~5.28  
+未計上 (プロセス起動 / ownership / impact / prune / IO)     ~0.9  
+```
+
+**読み方**: 段 C 後に残る 6.2 s のうち、環境ロード 3.0 s は既に「床」と結論が出ている
+(approach.md §3)。次に大きいのが linkIndex 1.535 s で、これが段 D の取り分。
+その次は台帳の olean ハッシュ 0.470 s — 変更量に比例しない (毎回 228 MB) が、
+L2 の検出そのものなので消せる筋は今のところ無い。
+
+**render が 0.132 s しかない**ことが、段 C で壁時計が動かなかった理由。
+422 ページでも 0.3〜0.5 s の桁で、6.2 s の中では見えない。
