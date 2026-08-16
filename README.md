@@ -324,14 +324,46 @@ doc-gen4 が読んでいた CDN 4 本 (Lato / JuliaMono / polyfill / MathJax) �
 **docs に書く数字はすべて 実測 / 外挿 / 仮定 / 理論値 のラベルを持つ** — これは
 このプロジェクトの成果物が数字だから (→ `CLAUDE.md`「計測の誠実性」)。
 
+## 品質ゲート — 何をもって「壊れていない」とするか
+
+**doc-gen4 との byte 再現ゲートは M8 で終わった。** UI を自前にした時点で、
+正しい出力を知っている第三者がいなくなったから。**消えたのは外部オラクルであって
+テストの網ではない**が、代わりを置かないと残ったテストは自分が何を守っているか言えなくなる。
+
+代わりに置いたのは**外部を要らない 3 種類の判定**:
+**(1) 自己整合性** (出力は自分の中で閉じているか) /
+**(2) 不変量** (別経路が同じ答えを出すか) / **(3) Lean 自身を上流の事実として使う**。
+
+| | 何を見るか | どこで |
+|---|---|---|
+| `cargo test --workspace` | **機材ゼロ依存**のテスト。ここが「緑」の定義 | CI (push ごと) |
+| [`tools/e2e-micro.sh`](tools/e2e-micro.sh) | **本物の Lean → 本物の抽出器 → site**。1 コマンド / 冪等 (2 回目は 0 抽出 0 描画) / 決定性 (別ディレクトリへのフル生成がバイト一致) / `--jobs` 不変 | CI |
+| [`tools/site-gate.sh`](tools/site-gate.sh) | 内部リンクの 404 = 0、外部ホストへのリソース読み込み = 0、**検索索引とページが双方向で一致** | CI |
+| [`tools/browser-gate.sh`](tools/browser-gate.sh) | 実ブラウザ: コンソールエラー 0 / ツリー / 検索 / instances / テーマ / **375 px で横スクロールなし** / JS 無効で本文が読める | CI |
+| [`tools/provenance-gate.sh`](tools/provenance-gate.sh) | 帰属表示が実在するか (27 claims)。Apache-2.0 §4 は public 化で発動している | CI |
+| [`tools/corpus-gate.sh`](tools/corpus-gate.sh) | **計測対象を要する 24 本**。機材が要るのでテストではなくゲート | 手動 |
+
+**「テスト」と「ゲート」を分けているのは、境界を CI の境界に一致させるため** —
+テストは自分の入力を持ち、ゲートは機材・対象・toolchain を要る。**corpus 依存のものが
+`cargo test` から「静かに skip」されていた間、そのうち 7 本はフィクスチャが機材から
+消えているのに緑を返していた**【実測 2026-08-16】。`#[ignore]` に変えて初めて分かった。
+
+e2e フィクスチャ [`e2e/micro`](e2e/) が**対象パッケージの持たない宣言の形**
+(`class` / `inductive` / `class inductive` / 非 `mk` constructor / 継承 field /
+BMP 外の識別子 / `scoped notation`) を構成として持つのは、**オラクルの入力に無い形は
+何バイト一致しても見えない**から。実際、最初に通した時点で **inductive の constructor が
+ページに 1 つも描かれていない**という欠陥が出た。計画と結果は
+[`docs/plans/quality-gates.md`](docs/plans/quality-gates.md)。
+
 ## リポジトリの構成
 
 ```
 crates/          製品コード (Rust)。ir / md / render / global / incr / CLI
 extractor/       抽出器 (Lean)。build.sh が対象の lake env を借りてビルドする
+e2e/micro/       e2e フィクスチャ (Lean、Mathlib 非依存)。対象が持たない形を持つ
 tools/           ハーネスとゲート。ci-build.sh もここ
-benchmarks/      計測レポート・計装パッチ・生ログ
-docs/            上の 5 文書
+benchmarks/      計測レポート・計装パッチ・生ログ・検査ツール
+docs/            上の 5 文書 + docs/plans/
 NOTICE           第三者コードの帰属。doc-gen4 / md4c / MD4Lean / UnicodeBasic / V8
 ```
 
