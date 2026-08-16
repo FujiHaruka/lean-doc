@@ -1,0 +1,613 @@
+## runs
+run                  import_s  extract_s   render_s     docs_s major_faults    peak_MB  site_digest
+cold-p1r1              14.338 28.354465474 0.666277407     34.639        37229       3886  9dc199aff67c472e
+cold-p1r2              13.929 27.236826313 0.626231678     33.418        37234       3888  9dc199aff67c472e
+cold-p2r1              14.289 26.955156127 0.593949676     32.375        36844       3889  9dc199aff67c472e
+cold-p2r2              14.206 26.805225633 0.589903148     32.233        36846       3888  9dc199aff67c472e
+cold-p3r1              13.482 27.223843931 0.658217087     33.255        37239       3888  9dc199aff67c472e
+cold-p3r2              13.567 27.285063732 0.661959594     33.393        37240       3883  9dc199aff67c472e
+cold-p4r1              19.019 27.938439037 0.479993578     39.418        14451       4004  9dc199aff67c472e
+cold-p4r2              22.263 31.070427477 0.481515021     38.705        14450       4000  9dc199aff67c472e
+cold-p5r1              14.031 26.757427559 0.590840175     33.422        37226       3890  9dc199aff67c472e
+cold-p5r2              13.961 26.609278084 0.591523045     32.865        37217       3884  9dc199aff67c472e
+same-p1r1               2.593 18.156358788 0.670488758     20.658          189       4016  9dc199aff67c472e
+same-p1r2               2.601 16.104072947 0.676085094     18.284            0       4021  9dc199aff67c472e
+same-p1r3               2.635 16.150221603 0.682268508     18.323            0       4021  9dc199aff67c472e
+same-p1r4               2.671 16.183368396 0.676991706     18.376            0       4020  9dc199aff67c472e
+same-p2r1               2.415 16.78376663 0.601503011     18.824          126       4020  9dc199aff67c472e
+same-p2r2               2.427 14.734414559 0.604148169     16.530            0       4018  9dc199aff67c472e
+same-p2r3               2.446 14.665788263 0.605500671     16.475            0       4021  9dc199aff67c472e
+same-p2r4               2.427 14.773576206 0.589768186     16.553            0       4022  9dc199aff67c472e
+same-p3r1               2.592 17.988553974 0.657843461     20.388          199       4016  9dc199aff67c472e
+same-p3r2               2.626 16.006386444 0.656828066     18.149            0       4021  9dc199aff67c472e
+same-p3r3               2.614 15.925979787 0.670781339     18.097            0       4020  9dc199aff67c472e
+same-p3r4               2.603 15.93415473 0.662398782     18.079            0       4016  9dc199aff67c472e
+same-p4r1               1.599 11.461134148 0.488985843     13.227          130       4023  9dc199aff67c472e
+same-p4r2               1.616 10.084727238 0.485338084     11.486            0       4024  9dc199aff67c472e
+same-p4r3               1.627 10.180007255 0.480469509     11.568            0       4019  9dc199aff67c472e
+same-p4r4               1.596 10.050142403 0.488573875     11.453            0       4021  9dc199aff67c472e
+same-p5r1               2.393 15.92568241 0.588138261     18.116          156       4019  9dc199aff67c472e
+same-p5r2               2.362 14.672495945 0.593858398     16.652            0       4018  9dc199aff67c472e
+same-p5r3               2.354 14.59574155 0.601685107     16.560            0       4018  9dc199aff67c472e
+same-p5r4               2.392 14.744941459 0.589880039     16.712            0       4018  9dc199aff67c472e
+split-p1r1              2.816 15.151453148 0.650789923     17.160            2       4015  9dc199aff67c472e
+split-p1r2              2.649 14.673532481 0.615716697     16.543            4       4017  9dc199aff67c472e
+split-p1r3              2.669 14.468967931 0.616002678     16.334            0       4024  9dc199aff67c472e
+split-p1r4              2.624 14.27753709 0.614273629     16.104            0       4019  9dc199aff67c472e
+split-p2r1              2.605 16.039118519 0.590043422     17.915            1       4017  9dc199aff67c472e
+split-p2r2              2.378 14.64208897 0.604455712     16.423            3       4021  9dc199aff67c472e
+split-p2r3              2.372 14.703934554 0.59495296     16.445            0       4015  9dc199aff67c472e
+split-p2r4              2.411 14.735406399 0.587185363     16.462            0       4026  9dc199aff67c472e
+split-p3r1              2.890 15.738191884 0.66896165     18.186            2       4021  9dc199aff67c472e
+split-p3r2              2.686 14.980991104 0.640658831     17.184            7       4021  9dc199aff67c472e
+split-p3r3              2.651 14.783139504 0.673425863     16.985            0       4017  9dc199aff67c472e
+split-p3r4              2.680 14.788446407 0.628492018     16.977            0       4019  9dc199aff67c472e
+split-p4r1              2.532 15.553207671 0.598166729     17.571            2       4014  9dc199aff67c472e
+split-p4r2              2.364 14.781388286 0.590213633     16.728           10       4023  9dc199aff67c472e
+split-p4r3              2.360 14.623561876 0.586088319     16.508            0       4021  9dc199aff67c472e
+split-p4r4              2.390 14.785941216 0.588048041     16.665            0       4019  9dc199aff67c472e
+split-p5r1              2.730 16.287657804 0.602281505     18.653          318       4021  9dc199aff67c472e
+split-p5r2              2.483 15.213967117 0.600940847     17.208            1       4022  9dc199aff67c472e
+split-p5r3              2.455 14.937596287  0.6046684     16.903            4       4022  9dc199aff67c472e
+split-p5r4              2.458 14.891190853 0.60165366     16.842            0       4020  9dc199aff67c472e
+
+## placement (r1 of each arm, per pair) — cold is the control, not a placement
+pair      same_imp   split_imp     s/s    cold_imp     c/s  same_docs split_docs     s/s
+1            2.593       2.816   1.09x      14.338   5.53x     20.658     17.160   0.83x
+2            2.415       2.605   1.08x      14.289   5.92x     18.824     17.915   0.95x
+3            2.592       2.890   1.11x      13.482   5.20x     20.388     18.186   0.89x
+4            1.599       2.532   1.58x      19.019  11.89x     13.227     17.571   1.33x
+5            2.393       2.730   1.14x      14.031   5.86x     18.116     18.653   1.03x
+
+## each runner's own cold penalty (r1 / last rep, inside one arm)
+arm-pair          r1_import  last_import    ratio
+cold-p1              14.338       13.929    1.03x
+cold-p2              14.289       14.206    1.01x
+cold-p3              13.482       13.567    0.99x
+cold-p4              19.019       22.263    0.85x
+cold-p5              14.031       13.961    1.01x
+same-p1               2.593        2.671    0.97x
+same-p2               2.415        2.427    1.00x
+same-p3               2.592        2.603    1.00x
+same-p4               1.599        1.596    1.00x
+same-p5               2.393        2.392    1.00x
+split-p1              2.816        2.624    1.07x
+split-p2              2.605        2.411    1.08x
+split-p3              2.890        2.680    1.08x
+split-p4              2.532        2.390    1.06x
+split-p5              2.730        2.458    1.11x
+
+## conditions, per runner (the calibrator is what says the two arms are comparable)
+
+### placement-same-1
+## runner
+date        2026-08-16T15:48:48Z
+kernel      Linux 6.17.0-1022-azure x86_64
+nproc       4
+pagesize    4096
+runner      Linux / X64 / image ubuntu24 20260810.271.1
+
+## cpu
+model name	: AMD EPYC 7763 64-Core Processor
+cpu MHz		: 3236.241
+accel flags matched: 2
+Vendor ID:                               AuthenticAMD
+Model name:                              AMD EPYC 7763 64-Core Processor
+Thread(s) per core:                      2
+Core(s) per socket:                      2
+Socket(s):                               1
+Flags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good nopl tsc_reliable nonstop_tsc cpuid extd_apicid aperfmperf tsc_known_freq pni pclmulqdq ssse3 fma cx16 pcid sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand hypervisor lahf_lm cmp_legacy svm cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw topoext vmmcall fsgsbase bmi1 avx2 smep bmi2 erms invpcid rdseed adx smap clflushopt clwb sha_ni xsaveopt xsavec xgetbv1 xsaves user_shstk clzero xsaveerptr rdpru arat npt nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold v_vmsave_vmload umip vaes vpclmulqdq rdpid fsrm
+Hypervisor vendor:                       Microsoft
+
+## storage
+NAME     SIZE MODEL        ROTA MOUNTPOINT
+sda      150G Virtual Disk    1 
+├─sda1   149G                 1 /
+├─sda14    4M                 1 
+├─sda15  106M                 1 /boot/efi
+└─sda16  913M                 1 /boot
+readahead / (/dev/sda1 -> sda): 128 kB, rotational 1, scheduler [none] mq-deadline 
+readahead /mnt (/dev/sda1 -> sda): 128 kB, rotational 1, scheduler [none] mq-deadline 
+
+## memory
+MemTotal:       16373452 kB
+MemFree:        13165452 kB
+MemAvailable:   15384928 kB
+Buffers:           78240 kB
+Cached:          2397368 kB
+SwapTotal:       3145724 kB
+
+## df
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root       145G   58G   87G  40% /
+/dev/root       145G   58G   87G  40% /
+
+## cpu calibrator (1 GiB sha256, 3 runs, seconds)
+0.982
+0.886
+0.890
+
+## target
+path        target
+HEAD        c4f6af29704029b3c62eaa0842c3225ad0e689a0
+toolchain   leanprover/lean4:v4.31.0
+
+### placement-same-2
+## runner
+date        2026-08-16T15:48:49Z
+kernel      Linux 6.17.0-1022-azure x86_64
+nproc       4
+pagesize    4096
+runner      Linux / X64 / image ubuntu24 20260810.271.1
+
+## cpu
+model name	: AMD EPYC 7763 64-Core Processor
+cpu MHz		: 3242.293
+accel flags matched: 2
+Vendor ID:                               AuthenticAMD
+Model name:                              AMD EPYC 7763 64-Core Processor
+Thread(s) per core:                      2
+Core(s) per socket:                      2
+Socket(s):                               1
+Flags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good nopl tsc_reliable nonstop_tsc cpuid extd_apicid aperfmperf tsc_known_freq pni pclmulqdq ssse3 fma cx16 pcid sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand hypervisor lahf_lm cmp_legacy svm cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw topoext vmmcall fsgsbase bmi1 avx2 smep bmi2 erms invpcid rdseed adx smap clflushopt clwb sha_ni xsaveopt xsavec xgetbv1 xsaves user_shstk clzero xsaveerptr rdpru arat npt nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold v_vmsave_vmload umip vaes vpclmulqdq rdpid fsrm
+Hypervisor vendor:                       Microsoft
+
+## storage
+NAME     SIZE MODEL        ROTA MOUNTPOINT
+sda      150G Virtual Disk    1 
+├─sda1   149G                 1 /
+├─sda14    4M                 1 
+├─sda15  106M                 1 /boot/efi
+└─sda16  913M                 1 /boot
+readahead / (/dev/sda1 -> sda): 128 kB, rotational 1, scheduler [none] mq-deadline 
+readahead /mnt (/dev/sda1 -> sda): 128 kB, rotational 1, scheduler [none] mq-deadline 
+
+## memory
+MemTotal:       16373452 kB
+MemFree:        12847752 kB
+MemAvailable:   15064544 kB
+Buffers:           77984 kB
+Cached:          2395416 kB
+SwapTotal:       3145724 kB
+
+## df
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root       145G   58G   87G  40% /
+/dev/root       145G   58G   87G  40% /
+
+## cpu calibrator (1 GiB sha256, 3 runs, seconds)
+0.972
+0.932
+0.930
+
+## target
+path        target
+HEAD        c4f6af29704029b3c62eaa0842c3225ad0e689a0
+toolchain   leanprover/lean4:v4.31.0
+
+### placement-same-3
+## runner
+date        2026-08-16T15:48:47Z
+kernel      Linux 6.17.0-1022-azure x86_64
+nproc       4
+pagesize    4096
+runner      Linux / X64 / image ubuntu24 20260810.271.1
+
+## cpu
+model name	: AMD EPYC 7763 64-Core Processor
+cpu MHz		: 3242.717
+accel flags matched: 2
+Vendor ID:                               AuthenticAMD
+Model name:                              AMD EPYC 7763 64-Core Processor
+Thread(s) per core:                      2
+Core(s) per socket:                      2
+Socket(s):                               1
+Flags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good nopl tsc_reliable nonstop_tsc cpuid extd_apicid aperfmperf tsc_known_freq pni pclmulqdq ssse3 fma cx16 pcid sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand hypervisor lahf_lm cmp_legacy svm cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw topoext vmmcall fsgsbase bmi1 avx2 smep bmi2 erms invpcid rdseed adx smap clflushopt clwb sha_ni xsaveopt xsavec xgetbv1 xsaves user_shstk clzero xsaveerptr rdpru arat npt nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold v_vmsave_vmload umip vaes vpclmulqdq rdpid fsrm
+Hypervisor vendor:                       Microsoft
+
+## storage
+NAME     SIZE MODEL        ROTA MOUNTPOINT
+sda      150G Virtual Disk    1 
+├─sda1   149G                 1 /
+├─sda14    4M                 1 
+├─sda15  106M                 1 /boot/efi
+└─sda16  913M                 1 /boot
+readahead / (/dev/sda1 -> sda): 128 kB, rotational 1, scheduler [none] mq-deadline 
+readahead /mnt (/dev/sda1 -> sda): 128 kB, rotational 1, scheduler [none] mq-deadline 
+
+## memory
+MemTotal:       16373452 kB
+MemFree:        13166008 kB
+MemAvailable:   15378540 kB
+Buffers:           78076 kB
+Cached:          2390716 kB
+SwapTotal:       3145724 kB
+
+## df
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root       145G   58G   87G  40% /
+/dev/root       145G   58G   87G  40% /
+
+## cpu calibrator (1 GiB sha256, 3 runs, seconds)
+0.947
+0.977
+0.905
+
+## target
+path        target
+HEAD        c4f6af29704029b3c62eaa0842c3225ad0e689a0
+toolchain   leanprover/lean4:v4.31.0
+
+### placement-same-4
+## runner
+date        2026-08-16T15:48:48Z
+kernel      Linux 6.17.0-1022-azure x86_64
+nproc       4
+pagesize    4096
+runner      Linux / X64 / image ubuntu24 20260810.271.1
+
+## cpu
+model name	: INTEL(R) XEON(R) PLATINUM 8573C
+cpu MHz		: 3505.660
+accel flags matched: 3
+Vendor ID:                               GenuineIntel
+Model name:                              INTEL(R) XEON(R) PLATINUM 8573C
+Thread(s) per core:                      2
+Core(s) per socket:                      2
+Socket(s):                               1
+CPU(s) scaling MHz:                      156%
+CPU max MHz:                             2300.0000
+CPU min MHz:                             800.0000
+Flags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ss ht syscall nx pdpe1gb rdtscp lm constant_tsc rep_good nopl xtopology tsc_reliable nonstop_tsc cpuid aperfmperf tsc_known_freq pni pclmulqdq vmx ssse3 fma cx16 pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand hypervisor lahf_lm abm 3dnowprefetch tpr_shadow ept vpid ept_ad fsgsbase tsc_adjust bmi1 hle avx2 smep bmi2 erms invpcid rtm avx512f avx512dq rdseed adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves user_shstk avx_vnni avx512_bf16 vnmi avx512vbmi umip waitpkg avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq la57 rdpid cldemote movdiri movdir64b fsrm serialize tsxldtrk ibt amx_bf16 avx512_fp16 amx_tile amx_int8 arch_capabilities
+Hypervisor vendor:                       Microsoft
+
+## storage
+NAME          SIZE MODEL                      ROTA MOUNTPOINT
+nvme0n1       150G MSFT NVMe Accelerator v1.0    0 
+├─nvme0n1p1   149G                               0 /
+├─nvme0n1p14    4M                               0 
+├─nvme0n1p15  106M                               0 /boot/efi
+└─nvme0n1p16  913M                               0 /boot
+readahead / (/dev/nvme0n1p1 -> nvme0n1): 65536 kB, rotational 0, scheduler [none] mq-deadline 
+readahead /mnt (/dev/nvme0n1p1 -> nvme0n1): 65536 kB, rotational 0, scheduler [none] mq-deadline 
+
+## memory
+MemTotal:       16372436 kB
+MemFree:        13019112 kB
+MemAvailable:   15346504 kB
+Buffers:           78068 kB
+Cached:          2505908 kB
+SwapTotal:       3145724 kB
+
+## df
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root       145G   58G   87G  40% /
+/dev/root       145G   58G   87G  40% /
+
+## cpu calibrator (1 GiB sha256, 3 runs, seconds)
+0.839
+0.831
+0.830
+
+## target
+path        target
+HEAD        c4f6af29704029b3c62eaa0842c3225ad0e689a0
+toolchain   leanprover/lean4:v4.31.0
+
+### placement-same-5
+## runner
+date        2026-08-16T15:48:46Z
+kernel      Linux 6.17.0-1022-azure x86_64
+nproc       4
+pagesize    4096
+runner      Linux / X64 / image ubuntu24 20260810.271.1
+
+## cpu
+model name	: AMD EPYC 7763 64-Core Processor
+cpu MHz		: 3245.456
+accel flags matched: 2
+Vendor ID:                               AuthenticAMD
+Model name:                              AMD EPYC 7763 64-Core Processor
+Thread(s) per core:                      2
+Core(s) per socket:                      2
+Socket(s):                               1
+Flags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good nopl tsc_reliable nonstop_tsc cpuid extd_apicid aperfmperf tsc_known_freq pni pclmulqdq ssse3 fma cx16 pcid sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand hypervisor lahf_lm cmp_legacy svm cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw topoext vmmcall fsgsbase bmi1 avx2 smep bmi2 erms invpcid rdseed adx smap clflushopt clwb sha_ni xsaveopt xsavec xgetbv1 xsaves user_shstk clzero xsaveerptr rdpru arat npt nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold v_vmsave_vmload umip vaes vpclmulqdq rdpid fsrm
+Hypervisor vendor:                       Microsoft
+
+## storage
+NAME     SIZE MODEL        ROTA MOUNTPOINT
+sda      150G Virtual Disk    1 
+├─sda1   149G                 1 /
+├─sda14    4M                 1 
+├─sda15  106M                 1 /boot/efi
+└─sda16  913M                 1 /boot
+readahead / (/dev/sda1 -> sda): 128 kB, rotational 1, scheduler [none] mq-deadline 
+readahead /mnt (/dev/sda1 -> sda): 128 kB, rotational 1, scheduler [none] mq-deadline 
+
+## memory
+MemTotal:       16377684 kB
+MemFree:        12581344 kB
+MemAvailable:   14800176 kB
+Buffers:           78096 kB
+Cached:          2396276 kB
+SwapTotal:       3145724 kB
+
+## df
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root       145G   58G   87G  40% /
+/dev/root       145G   58G   87G  40% /
+
+## cpu calibrator (1 GiB sha256, 3 runs, seconds)
+0.888
+0.875
+0.870
+
+## target
+path        target
+HEAD        c4f6af29704029b3c62eaa0842c3225ad0e689a0
+toolchain   leanprover/lean4:v4.31.0
+
+### placement-split-1
+## runner
+date        2026-08-16T16:12:20Z
+kernel      Linux 6.17.0-1022-azure x86_64
+nproc       4
+pagesize    4096
+runner      Linux / X64 / image ubuntu24 20260810.271.1
+
+## cpu
+model name	: AMD EPYC 9V74 80-Core Processor
+cpu MHz		: 2871.032
+accel flags matched: 2
+Vendor ID:                               AuthenticAMD
+Model name:                              AMD EPYC 9V74 80-Core Processor
+Thread(s) per core:                      2
+Core(s) per socket:                      2
+Socket(s):                               1
+Flags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good nopl tsc_reliable nonstop_tsc cpuid extd_apicid aperfmperf tsc_known_freq pni pclmulqdq ssse3 fma cx16 pcid sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand hypervisor lahf_lm cmp_legacy svm cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw topoext vmmcall fsgsbase bmi1 avx2 smep bmi2 erms invpcid rdseed adx smap clflushopt clwb sha_ni xsaveopt xsavec xgetbv1 xsaves user_shstk clzero xsaveerptr rdpru arat npt nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold v_vmsave_vmload umip vaes vpclmulqdq rdpid fsrm
+Hypervisor vendor:                       Microsoft
+
+## storage
+NAME     SIZE MODEL        ROTA MOUNTPOINT
+sda      150G Virtual Disk    1 
+├─sda1   149G                 1 /
+├─sda14    4M                 1 
+├─sda15  106M                 1 /boot/efi
+└─sda16  913M                 1 /boot
+readahead / (/dev/sda1 -> sda): 128 kB, rotational 1, scheduler [none] mq-deadline 
+readahead /mnt (/dev/sda1 -> sda): 128 kB, rotational 1, scheduler [none] mq-deadline 
+
+## memory
+MemTotal:       16373452 kB
+MemFree:        13142360 kB
+MemAvailable:   15370088 kB
+Buffers:           78204 kB
+Cached:          2407964 kB
+SwapTotal:       3145724 kB
+
+## df
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root       145G   58G   87G  40% /
+/dev/root       145G   58G   87G  40% /
+
+## cpu calibrator (1 GiB sha256, 3 runs, seconds)
+1.035
+1.008
+0.991
+
+## target
+path        target
+HEAD        c4f6af29704029b3c62eaa0842c3225ad0e689a0
+toolchain   leanprover/lean4:v4.31.0
+
+### placement-split-2
+## runner
+date        2026-08-16T16:12:20Z
+kernel      Linux 6.17.0-1022-azure x86_64
+nproc       4
+pagesize    4096
+runner      Linux / X64 / image ubuntu24 20260810.271.1
+
+## cpu
+model name	: AMD EPYC 7763 64-Core Processor
+cpu MHz		: 3241.808
+accel flags matched: 2
+Vendor ID:                               AuthenticAMD
+Model name:                              AMD EPYC 7763 64-Core Processor
+Thread(s) per core:                      2
+Core(s) per socket:                      2
+Socket(s):                               1
+Flags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good nopl tsc_reliable nonstop_tsc cpuid extd_apicid aperfmperf tsc_known_freq pni pclmulqdq ssse3 fma cx16 pcid sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand hypervisor lahf_lm cmp_legacy svm cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw topoext vmmcall fsgsbase bmi1 avx2 smep bmi2 erms invpcid rdseed adx smap clflushopt clwb sha_ni xsaveopt xsavec xgetbv1 xsaves user_shstk clzero xsaveerptr rdpru arat npt nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold v_vmsave_vmload umip vaes vpclmulqdq rdpid fsrm
+Hypervisor vendor:                       Microsoft
+
+## storage
+NAME     SIZE MODEL        ROTA MOUNTPOINT
+sda      150G Virtual Disk    1 
+├─sda1   149G                 1 /
+├─sda14    4M                 1 
+├─sda15  106M                 1 /boot/efi
+└─sda16  913M                 1 /boot
+readahead / (/dev/sda1 -> sda): 128 kB, rotational 1, scheduler [none] mq-deadline 
+readahead /mnt (/dev/sda1 -> sda): 128 kB, rotational 1, scheduler [none] mq-deadline 
+
+## memory
+MemTotal:       16373452 kB
+MemFree:        13130648 kB
+MemAvailable:   15358712 kB
+Buffers:           78172 kB
+Cached:          2406232 kB
+SwapTotal:       3145724 kB
+
+## df
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root       145G   58G   87G  40% /
+/dev/root       145G   58G   87G  40% /
+
+## cpu calibrator (1 GiB sha256, 3 runs, seconds)
+0.911
+0.889
+0.897
+
+## target
+path        target
+HEAD        c4f6af29704029b3c62eaa0842c3225ad0e689a0
+toolchain   leanprover/lean4:v4.31.0
+
+### placement-split-3
+## runner
+date        2026-08-16T16:12:20Z
+kernel      Linux 6.17.0-1022-azure x86_64
+nproc       4
+pagesize    4096
+runner      Linux / X64 / image ubuntu24 20260810.271.1
+
+## cpu
+model name	: AMD EPYC 9V74 80-Core Processor
+cpu MHz		: 2872.400
+accel flags matched: 2
+Vendor ID:                               AuthenticAMD
+Model name:                              AMD EPYC 9V74 80-Core Processor
+Thread(s) per core:                      2
+Core(s) per socket:                      2
+Socket(s):                               1
+Flags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good nopl tsc_reliable nonstop_tsc cpuid extd_apicid aperfmperf tsc_known_freq pni pclmulqdq ssse3 fma cx16 pcid sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand hypervisor lahf_lm cmp_legacy svm cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw topoext vmmcall fsgsbase bmi1 avx2 smep bmi2 erms invpcid rdseed adx smap clflushopt clwb sha_ni xsaveopt xsavec xgetbv1 xsaves user_shstk clzero xsaveerptr rdpru arat npt nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold v_vmsave_vmload umip vaes vpclmulqdq rdpid fsrm
+Hypervisor vendor:                       Microsoft
+
+## storage
+NAME     SIZE MODEL        ROTA MOUNTPOINT
+sda      150G Virtual Disk    1 
+├─sda1   149G                 1 /
+├─sda14    4M                 1 
+├─sda15  106M                 1 /boot/efi
+└─sda16  913M                 1 /boot
+readahead / (/dev/sda1 -> sda): 128 kB, rotational 1, scheduler [none] mq-deadline 
+readahead /mnt (/dev/sda1 -> sda): 128 kB, rotational 1, scheduler [none] mq-deadline 
+
+## memory
+MemTotal:       16373452 kB
+MemFree:        12787996 kB
+MemAvailable:   15013508 kB
+Buffers:           78060 kB
+Cached:          2405400 kB
+SwapTotal:       3145724 kB
+
+## df
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root       145G   58G   87G  40% /
+/dev/root       145G   58G   87G  40% /
+
+## cpu calibrator (1 GiB sha256, 3 runs, seconds)
+1.062
+0.995
+0.991
+
+## target
+path        target
+HEAD        c4f6af29704029b3c62eaa0842c3225ad0e689a0
+toolchain   leanprover/lean4:v4.31.0
+
+### placement-split-4
+## runner
+date        2026-08-16T16:12:21Z
+kernel      Linux 6.17.0-1022-azure x86_64
+nproc       4
+pagesize    4096
+runner      Linux / X64 / image ubuntu24 20260810.271.1
+
+## cpu
+model name	: AMD EPYC 7763 64-Core Processor
+cpu MHz		: 3243.156
+accel flags matched: 2
+Vendor ID:                               AuthenticAMD
+Model name:                              AMD EPYC 7763 64-Core Processor
+Thread(s) per core:                      2
+Core(s) per socket:                      2
+Socket(s):                               1
+Flags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good nopl tsc_reliable nonstop_tsc cpuid extd_apicid aperfmperf tsc_known_freq pni pclmulqdq ssse3 fma cx16 pcid sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand hypervisor lahf_lm cmp_legacy svm cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw topoext vmmcall fsgsbase bmi1 avx2 smep bmi2 erms invpcid rdseed adx smap clflushopt clwb sha_ni xsaveopt xsavec xgetbv1 xsaves user_shstk clzero xsaveerptr rdpru arat npt nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold v_vmsave_vmload umip vaes vpclmulqdq rdpid fsrm
+Hypervisor vendor:                       Microsoft
+
+## storage
+NAME     SIZE MODEL        ROTA MOUNTPOINT
+sda      150G Virtual Disk    1 
+├─sda1   149G                 1 /
+├─sda14    4M                 1 
+├─sda15  106M                 1 /boot/efi
+└─sda16  913M                 1 /boot
+readahead / (/dev/sda1 -> sda): 128 kB, rotational 1, scheduler [none] mq-deadline 
+readahead /mnt (/dev/sda1 -> sda): 128 kB, rotational 1, scheduler [none] mq-deadline 
+
+## memory
+MemTotal:       16373452 kB
+MemFree:        13115436 kB
+MemAvailable:   15340196 kB
+Buffers:           78344 kB
+Cached:          2402888 kB
+SwapTotal:       3145724 kB
+
+## df
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root       145G   58G   87G  40% /
+/dev/root       145G   58G   87G  40% /
+
+## cpu calibrator (1 GiB sha256, 3 runs, seconds)
+0.956
+0.918
+0.944
+
+## target
+path        target
+HEAD        c4f6af29704029b3c62eaa0842c3225ad0e689a0
+toolchain   leanprover/lean4:v4.31.0
+
+### placement-split-5
+## runner
+date        2026-08-16T16:12:20Z
+kernel      Linux 6.17.0-1022-azure x86_64
+nproc       4
+pagesize    4096
+runner      Linux / X64 / image ubuntu24 20260810.271.1
+
+## cpu
+model name	: AMD EPYC 7763 64-Core Processor
+cpu MHz		: 3243.147
+accel flags matched: 2
+Vendor ID:                               AuthenticAMD
+Model name:                              AMD EPYC 7763 64-Core Processor
+Thread(s) per core:                      2
+Core(s) per socket:                      2
+Socket(s):                               1
+Flags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good nopl tsc_reliable nonstop_tsc cpuid extd_apicid aperfmperf tsc_known_freq pni pclmulqdq ssse3 fma cx16 pcid sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand hypervisor lahf_lm cmp_legacy svm cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw topoext vmmcall fsgsbase bmi1 avx2 smep bmi2 erms invpcid rdseed adx smap clflushopt clwb sha_ni xsaveopt xsavec xgetbv1 xsaves user_shstk clzero xsaveerptr rdpru arat npt nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold v_vmsave_vmload umip vaes vpclmulqdq rdpid fsrm
+Hypervisor vendor:                       Microsoft
+
+## storage
+NAME     SIZE MODEL        ROTA MOUNTPOINT
+sda      150G Virtual Disk    1 
+├─sda1   149G                 1 /
+├─sda14    4M                 1 
+├─sda15  106M                 1 /boot/efi
+└─sda16  913M                 1 /boot
+readahead / (/dev/sda1 -> sda): 128 kB, rotational 1, scheduler [none] mq-deadline 
+readahead /mnt (/dev/sda1 -> sda): 128 kB, rotational 1, scheduler [none] mq-deadline 
+
+## memory
+MemTotal:       16373452 kB
+MemFree:        13140564 kB
+MemAvailable:   15364012 kB
+Buffers:           78200 kB
+Cached:          2404184 kB
+SwapTotal:       3145724 kB
+
+## df
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root       145G   58G   87G  40% /
+/dev/root       145G   58G   87G  40% /
+
+## cpu calibrator (1 GiB sha256, 3 runs, seconds)
+0.950
+0.995
+0.905
+
+## target
+path        target
+HEAD        c4f6af29704029b3c62eaa0842c3225ad0e689a0
+toolchain   leanprover/lean4:v4.31.0
