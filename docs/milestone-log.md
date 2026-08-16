@@ -1075,6 +1075,13 @@ UnicodeBasic ⊆ V8 なので「和」と「V8 のみ」は等価なプログラ
 `tools/target2-gate.sh all` を実走 (Apple M1 / 16 GB / Lean v4.31.0 / Mathlib `fabf563a` /
 target2 HEAD `18a02d58`、`--jobs 4`)。**判定は全段 PASS**:
 
+**この target2 HEAD は現在の HEAD からは再現しない**【実測 2026-08-17】 — 計測対象が
+2026-08-16 に `lake-manifest.json` / `lakefile.lean` を変えており (`c4f6af29`「v1 配布準備:
+ビルド済み olean のリリース配布 + 開発ツールを条件付き依存へ」)、`make-target2.sh` はそれを
+写すので、いま生成すると target2 の HEAD は **`525bbdb4`** になる。**下の数字は当時の入力に
+対する実測として有効**だが、同じバイトを作り直すには計測対象を `c4f6af29` より前に戻す必要が
+ある。**`--source-url` は revision を運びページのバイトに届く**ので、これは表示上の差ではない。
+
 | | 結果 |
 |---|---|
 | gate 1 (1 コマンド、マップを渡さない) | 13 モジュール / 18 宣言 / site 23 ファイル、`.lidx` **2,146,209 B をこの run が導出**。**gate1-site PASS** (20 ファイルがバイト一致) |

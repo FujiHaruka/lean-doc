@@ -16,16 +16,35 @@
 #   libraries, the module list, every boundary value — is *in this file*, so a
 #   number measured on target 2 can be re-derived from the repository alone.
 #
-# WHY THE DEPENDENCIES ARE CLONED AND NOT RESOLVED
+# WHY THE DEPENDENCIES ARE NEVER RESOLVED
 #   `lake update` needs the network and would pick today's Mathlib; this package
 #   has to be built against **the same Mathlib the measurement target uses**
 #   (`fabf563a7c95`, Lean v4.31.0) or its numbers are not comparable with any
 #   other number in this repository. So `lake-manifest.json`, `lean-toolchain`
-#   and the `[[require]]` blocks are copied verbatim and `.lake/packages` is an
-#   **APFS clonefile copy** (`cp -Rc`): copy-on-write, ~0 real disk, and the
-#   source tree is read and never written. CLAUDE.md forbids writing into the
-#   measurement target, and that includes its `.lake/packages` — a symlink would
-#   not do, because Lake writes into a package directory it believes it owns.
+#   and the `[[require]]` blocks are copied verbatim from the measurement target
+#   in **both** modes below, and the revisions are pinned by that manifest rather
+#   than by anything this script decides.
+#
+# HOW THE DEPENDENCIES GET THERE — TWO MODES  (`--deps`)
+#   clone   an **APFS clonefile copy** (`cp -Rc`) of the measurement target's
+#           `.lake/packages`: copy-on-write, ~0 real disk, no network, and the
+#           source tree is read and never written. CLAUDE.md forbids writing
+#           into the measurement target, and that includes its `.lake/packages`
+#           — a symlink would not do, because Lake writes into a package
+#           directory it believes it owns. **macOS only**: `cp -c` is a BSD
+#           extension and the filesystem has to be APFS.
+#   fetch   `lake exe cache get` in the generated package: Lake clones the
+#           revisions the copied manifest pins and downloads Mathlib's prebuilt
+#           oleans. **Needs the network**, and is the path a Linux runner takes
+#           — a GitHub runner has no measurement target to clone from, only its
+#           checkout. The manifest still decides which Mathlib, so the two modes
+#           agree on the thing that has to be identical.
+#   auto    (default) `clone` where `cp -Rc` works, `fetch` otherwise.
+#
+#   The two modes are NOT interchangeable for measurement: `fetch` leaves the
+#   oleans in the state a download leaves them in, `clone` in the state a
+#   copy-on-write leaves them in. Numbers from one are not numbers from the
+#   other; the mode is printed at the end so a log says which was used.
 #
 # THE POINT OF THE SOURCES: SIX BOUNDARY VALUES, ONE PER MODULE
 #   Plan §5, §7 and §8 each name an input that "does not occur in the target
@@ -48,23 +67,32 @@
 #                             how one name comes to be in two modules' oleans
 #
 # usage:
-#   make-target2.sh [--out <dir>] [--force]
+#   make-target2.sh [--out <dir>] [--force] [--deps auto|clone|fetch]
 #   make-target2.sh --print-modules      # the module list, without building
 set -euo pipefail
 
 SRC="${TARGET_SRC:-/Users/haruka/dev/lean-projects}"
 OUT="${TARGET2:-/private/tmp/lean-doc-relay/m5b/target2}"
+DEPS="${TARGET2_DEPS:-auto}"
 FORCE=0
 PRINT_ONLY=0
+
+usage () {
+  echo "usage: make-target2.sh [--out <dir>] [--force] [--deps auto|clone|fetch] [--print-modules]" >&2
+  exit 2
+}
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --out) OUT=$2; shift 2 ;;
     --force) FORCE=1; shift ;;
+    --deps) DEPS=$2; shift 2 ;;
     --print-modules) PRINT_ONLY=1; shift ;;
-    *) echo "usage: make-target2.sh [--out <dir>] [--force] [--print-modules]" >&2; exit 2 ;;
+    *) usage ;;
   esac
 done
+
+case "$DEPS" in auto | clone | fetch) ;; *) echo "unknown --deps: $DEPS" >&2; usage ;; esac
 
 # The one rule this script cannot get wrong: it never writes inside the
 # measurement target. Stated against the path rather than assumed.
@@ -97,9 +125,26 @@ fi
 mkdir -p "$OUT/.lake"
 
 # ---------------------------------------------------------------- the packages
-echo "### cloning $SRC/.lake/packages -> $OUT/.lake/packages (APFS clonefile)"
-time cp -Rc "$SRC/.lake/packages" "$OUT/.lake/packages"
+#
+# Decided here and reported at the end, because the two modes leave the oleans
+# in different states and a number taken on one is not a number taken on the
+# other. The probe is the operation itself: `cp -c` is a BSD flag and clonefile
+# needs APFS, so asking the kernel is more honest than asking `uname`.
+if [ "$DEPS" = auto ]; then
+  probe="$OUT/.lake/.clonefile-probe"
+  : > "$probe"
+  if cp -c "$probe" "$probe.copy" 2> /dev/null; then DEPS=clone; else DEPS=fetch; fi
+  rm -f "$probe" "$probe.copy"
+  echo "### --deps auto -> $DEPS"
+fi
 
+if [ "$DEPS" = clone ]; then
+  echo "### cloning $SRC/.lake/packages -> $OUT/.lake/packages (APFS clonefile)"
+  time cp -Rc "$SRC/.lake/packages" "$OUT/.lake/packages"
+fi
+
+# Both modes: the revisions come from the measurement target's manifest, never
+# from a resolution run here.
 cp "$SRC/lean-toolchain" "$OUT/lean-toolchain"
 cp "$SRC/lake-manifest.json" "$OUT/lake-manifest.json"
 
@@ -391,6 +436,16 @@ theorem step_succ (n : Nat) : Alpha.Basic.step (n + 1) = n := by
 end Beta.DupNames
 LEAN
 
+# ------------------------------------------------------------ the oleans (CI)
+#
+# Last, because Lake needs the lakefile and the sources to exist before it will
+# resolve anything, and because a failure here should leave a package that is
+# complete except for its dependencies rather than a half-written tree.
+if [ "$DEPS" = fetch ]; then
+  echo "### lake exe cache get in $OUT (network; revisions pinned by the copied manifest)"
+  (cd "$OUT" && lake exe cache get)
+fi
+
 # -------------------------------------------------------------------- the repo
 #
 # `lean-doc build` derives `--source-url` from git: `HEAD` has to be 40 hex
@@ -415,6 +470,7 @@ GIT_AUTHOR_DATE="2026-08-15T00:00:00+0000" GIT_COMMITTER_DATE="2026-08-15T00:00:
 git -C "$OUT" remote add origin https://github.com/lean-doc/target2.git
 
 echo "### target2 at $OUT"
+echo "    deps    $DEPS"
 echo "    HEAD    $(git -C "$OUT" rev-parse HEAD)"
 echo "    remote  $(git -C "$OUT" config --get remote.origin.url)"
 echo "    modules $(for m in $MODULES; do echo "$m"; done | wc -l | tr -d ' ')"
