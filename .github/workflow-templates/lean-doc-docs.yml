@@ -68,15 +68,15 @@ jobs:
         with:
           path: package
 
-      # lean-doc itself. While this repository is private, this step needs a
-      # token with read access to it (`ssh-key:` or a fine-grained PAT in
-      # `token:`); once it is published, drop the `token:` line.
+      # lean-doc itself. The repository is public, so no token is needed: the
+      # `GITHUB_TOKEN` this workflow already runs with reads it. Pin `ref:` to a
+      # tag or a commit if you want the documentation build to stop moving under
+      # you.
       - name: check out lean-doc
         uses: actions/checkout@v4
         with:
           repository: FujiHaruka/lean-doc
           path: lean-doc
-          token: ${{ secrets.LEAN_DOC_TOKEN }}
 
       # elan reads `package/lean-toolchain` and installs the toolchain the
       # package pins; `--default-toolchain none` keeps it from guessing one.
