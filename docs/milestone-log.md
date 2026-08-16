@@ -826,6 +826,24 @@ M8-d が塞いだ分は全部通った (`foundational_types.html` 7,354 参照�
 モジュールパスを残すよう直し、**「結果を報告したテスト数」が inventory の本数と一致するか**を
 ゲート自身が数えるようにした (7 本 → 2 本 → 3 本と、同じ形の欠陥が 3 度出ている)。
 
+**その数え上げが、初回に 4 件目を見つけた**【実測】 — **18 本しか結果を報告していなかった**。
+1 つの `--exact` 名が複数クレートのテストを選ぶ場合 (`the_corpus_matches_the_prototype` /
+`the_whole_corpus` は各 2 本)、**`--no-fail-fast` が無いと cargo は最初に落ちたバイナリで止まり、
+赤が同名の残りを隠す**。付けたら **20/20 が結果を報告**するようになった。
+**「走った本数を数える」以外にこれを見つける方法は無かった** — 落ちているテストの陰に
+別のテストが隠れるので、出力を読んでも本数は合っているように見える。
+
+**ゲート全体は赤 7 本 (EXIT=1)**【実測 2026-08-16、対象 `c4f6af29`】:
+`every_docstring_in_the_reference_pages_is_reproduced` /
+`packages::every_lidx_entry_matches_doc_gen4s_declaration_urls` /
+`pages_carry_the_reference_trees_content` /
+`reads_the_dependency_closure_of_the_target_package` /
+`the_corpus_matches_the_prototype` (impact / merge) / `the_state_file_is_the_prototypes_bytes` /
+`the_whole_corpus` (docgen4 / md4lean)。**`cargo test` は 346 passed / 0 failed で無関係** (全部
+`#[ignore]`)。**多くは削除した ledger 比較と同じ構造** — プロトタイプ / doc-gen4 由来の
+凍結フィクスチャと**動いた対象**の突き合わせ。**1 本ずつ「まだ問う相手がいるか」を見て決める**
+必要があり、この段では手を付けていない。
+
 ### M8-e: 再ホスト — **ゲート UI-4 通過**【すべて実測 2026-08-16】
 
 **計測対象がこのセッション中に動いたので、公開したのは古い IR ではなく最新の HEAD から作り直した木。**

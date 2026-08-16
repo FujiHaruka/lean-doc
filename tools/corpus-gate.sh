@@ -189,16 +189,46 @@ case "${1:-run}" in
     #
     # Each runnable test is named explicitly rather than passing `--ignored`
     # alone, so that the frozen ones do not turn this gate permanently red.
-    # Names, deduplicated: `the_corpus_matches_the_prototype` exists in three
-    # crates and one `--exact` run covers all three. (If a frozen test ever
+    # Names, deduplicated: `the_corpus_matches_the_prototype` exists in more than
+    # one crate and one `--exact` run covers them all. (If a frozen test ever
     # shares a name with a runnable one it will be pulled in here and the gate
     # will go red — which is the right way round: the alternative is running the
     # wrong test set silently.)
+    #
+    # **Only the cargo *target* is stripped, not the module path.** `--exact`
+    # matches the whole path a test binary prints, so three entries of the form
+    # `lean_doc::packages::tests::NAME` were being cut down to `NAME`, matching
+    # nothing, and `cargo test` exits 0 when a filter selects no tests: this gate
+    # reported them run, and green, without running them. That is the third time
+    # this shape of bug has been found here, so the count below is the guard —
+    # the number of tests that actually reported a result has to be the number
+    # the inventory lists.
     status=0
-    for test_name in $(runnable | sed 's/.*:://' | sort -u); do
+    ran_total=0
+    want_total="$(runnable | wc -l | tr -d ' ')"
+    for test_name in $(runnable | sed 's/^[^:]*:://' | sort -u); do
       echo "-- $test_name"
-      (cd "$ROOT" && cargo test --workspace -- --ignored --exact "$test_name" --nocapture) || status=1
+      log="$(mktemp)"
+      # `--no-fail-fast`: one `--exact` name can select a test in more than one
+      # crate, and without this cargo stops at the first binary that fails — so a
+      # red test hides its namesakes. The count below is what caught it.
+      (cd "$ROOT" && cargo test --workspace --no-fail-fast -- \
+         --ignored --exact "$test_name" --nocapture) > "$log" 2>&1 || status=1
+      cat "$log"
+      # `test result: ok. 1 passed; 0 failed; …`, summed over every test binary.
+      ran="$(sed -n 's/^test result:[^0-9]*\([0-9]*\) passed; \([0-9]*\) failed.*/\1 \2/p' "$log" \
+             | awk '{ total += $1 + $2 } END { print total + 0 }')"
+      echo "   reported a result: $ran"
+      [ "$ran" -gt 0 ] || echo "   NOTHING RAN — no test is named $test_name" >&2
+      ran_total=$((ran_total + ran))
+      rm -f "$log"
     done
+    echo
+    echo "tests that reported a result: $ran_total (the inventory lists $want_total)"
+    if [ "$ran_total" -ne "$want_total" ]; then
+      echo "the gate did not run what it claims to run" >&2
+      status=1
+    fi
     exit "$status"
     ;;
 
