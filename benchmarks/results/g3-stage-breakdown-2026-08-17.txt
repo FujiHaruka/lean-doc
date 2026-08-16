@@ -1,26 +1,56 @@
 # 段 C 後の 1 モジュール変更、段別の内訳 (2026-08-17)
 
-出所は 1 回の warm 増分ビルドが残した timings JSON
-(<out>/work/{extract,ledger,merge,global,render}-timings*.json)。総時間は約 6.2 s。
-対象 lean-projects c4f6af29 / 422 モジュール / --jobs 4 / lean-doc 54239be。
+対象 lean-projects c4f6af29 / 422 モジュール / --jobs 4 / lean-doc 54239be。総時間は約 6.2 s。
+
+**この表は「1 run の実測」ではない。** 出所ごとにラベルが違うので、行ごとに書く。
+根拠は crates/ を読んだ結果 (2026-08-17 の調査) と既存の実測ログ。
 
 ```
-段                                         秒  何をしているか
-環境ロード (ready)                          ~3.0  6,011 モジュールの import。既知の床 (approach.md §3)
-抽出器 linkIndex                         1.535  490,286 定数を走査して 10,098,730 B を書く ← 段 D の対象
-台帳 hash                               0.470  422 モジュールの olean 228,448,584 B を SHA-256
-render (1 ページ)                        0.132  段 C 前は 422 ページ
-merge                                 0.068  
-global                                0.049  cache 421 hit / 1 miss、delta 0.006
-抽出器 analyze                           0.024  1 宣言
-上記の合計                                 ~5.28  
-未計上 (プロセス起動 / ownership / impact / prune / IO)     ~0.9  
+段                        秒     ラベル       出所と注意
+環境ロード (ready)       ~3.0    実測         この run の serve.out
+抽出器 linkIndex        1.535    実測         同上。段 D の対象
+台帳の olean hash       0.470    実測(別 run) <out>/work/ledger-timings.json だが、
+                                             **増分はこのファイルを書かない**
+                                             (pipeline.rs の check_ledger は timings: None)。
+                                             値は最後のフル生成が残したもの。母数
+                                             (422 モジュール / 228,448,584 B /
+                                             concurrency 1 / sha256) は増分側と一致する
+                                             ので転用できるが、この run の測定ではない
+render (1 ページ)       0.132    実測         この run の render-timings.json
+merge                   0.068    実測         同上
+global                  0.049    実測         同上
+抽出器 analyze          0.024    実測         同上
+lake env lean --githash 0.962    実測(別 run) 段階 5 の測定 (verification-log)。
+                                             **build の clock の外**なので --timings に出ない
+Server::start の lake env
+  + exec + 171 MB ページイン 1.19  実測(別 run) 同上。extractSeconds には入るが
+                                             extract-timings-*.json には入らない
+impact                  0.158    実測(別 run) 旧実測。この run では記録されない
+                                             (pipeline.rs が json: None で呼ぶ)
+ownership                 —      未記録       ownership-{n}.json に秒はあるが
+                                             *-timings*.json の glob に拾われない
 ```
 
 **読み方**: 段 C 後に残る 6.2 s のうち、環境ロード 3.0 s は既に「床」と結論が出ている
 (approach.md §3)。次に大きいのが linkIndex 1.535 s で、これが段 D の取り分。
-その次は台帳の olean ハッシュ 0.470 s — 変更量に比例しない (毎回 228 MB) が、
-L2 の検出そのものなので消せる筋は今のところ無い。
+その後は **lake env が 2 回 (合計 2 s 規模)**、台帳の olean ハッシュ、impact と続く。
 
 **render が 0.132 s しかない**ことが、段 C で壁時計が動かなかった理由。
 422 ページでも 0.3〜0.5 s の桁で、6.2 s の中では見えない。
+
+## IR 4.00 pass の内訳 — コードで確定【2026-08-17 の調査】
+
+1,690 module read = 4.00 × 422 の全部:
+
+```
+ownership   423   (inc 1 + base 同名 1 + base 全走査 421。全走査は watching のときだけ)
+merge       422   (deps スライスを order 全体で再計算する)
+global        1   (contentHash キャッシュの miss だけ)
+impact      422   (mode を見る前に無条件で全件)
+render      422   (only フィルタより前に全件。サイト全域の known / Suppressed / SiteMeta のため)
+            ----
+            1,690
+```
+
+**描画枚数を 422 → 1 にしても動かないのは、5 つのうち 4 つがページ集合に比例していない**ため。
+フル生成が 2.00 pass なのも同じ表で説明がつく (global 422 miss + render 422 = 844)。

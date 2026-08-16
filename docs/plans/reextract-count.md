@@ -289,11 +289,26 @@ baseline のログで exit 1 / 段 C のみのログでも exit 1 / 段 D のロ
 - **増分は IR を 4 周読む。フル生成は 2 周**【実測 2026-08-17】。1 モジュール変更で
   再抽出 1 / 再描画 1 になっても **1,690 module read (= 4.00 pass) は動かない** —
   読んでいるのは描画ではなく増分機構そのもの (ownership / merge / global)。
-  IR はテキスト JSON 16 MB だが、**段別の内訳ではこれは大きくない**
-  (`benchmarks/results/g3-stage-breakdown-2026-08-17.txt`: merge 0.068 s /
-  global 0.049 s / render 0.132 s)。**「4 周読んでいる」は事実だが、
-  それが秒として効いている証拠はまだ無い。** 秒で次に大きいのは
-  **台帳の olean ハッシュ 0.470 s** (毎回 228 MB、変更量に比例しない)。
+  **1,690 = ownership 423 + merge 422 + global 1 + impact 422 + render 422**
+  【コードで確定 2026-08-17 → `benchmarks/results/g3-stage-breakdown-2026-08-17.txt`】。
+  5 つのうち 4 つがページ集合に比例していないので、描画を 422 → 1 にしても動かない。
+  IR はテキスト JSON 16 MB だが、**段別の内訳では読み込みは大きくない**
+  (merge 0.068 s / global 0.049 s / render 0.132 s)。
+  **「4 周読んでいる」は事実だが、それが秒として効いている証拠はまだ無い。**
+
+- **秒で次に大きいのは `lake env` を 2 回叩いていること**【実測 (別 run)】:
+  `resolve_external_links` の `lake env lean --githash` **0.962 s** と、
+  `Server::start` の `lake env` + exec + 171 MB のページイン **約 1.19 s**。
+  前者は **`build` の clock の外**なので `--timings` に絶対に出ない。
+  どちらもパッケージ規模にも変更規模にも比例しない**純粋な固定費**。
+  ただし両方とも「対象の toolchain を選ぶ機構そのもの」なので、
+  固定すると**別バージョンの olean を import して IR が静かにずれる**危険がある。
+
+- **一番安全な削りは `impact`**: `build` の既定モードは `self` で、
+  そのとき `selected` は変更集合そのもの。それでも **IR を 422 件全部読んで**
+  import グラフ・参照グラフ・逆グラフ 2 本を作り、**印字も保存もされない
+  要約カウンタにしか使っていない**。`self` では選択集合ぶんだけ読んでも
+  出力バイトは 1 バイトも変わらない。ゲートは `irReads.module` の整数で押さえられる。
 
 - **CI の全体像での取り分**: 対象パッケージ自身の `lake build` が CI では毎 run 走る。
   end-to-end で見ると doc 生成は 98.2% 対 1.8% の側でありうる (→ approach.md §6.5 の
