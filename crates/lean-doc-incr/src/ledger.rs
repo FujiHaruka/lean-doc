@@ -348,6 +348,11 @@ pub fn extract_key(target: &str, ir: Option<&Path>) -> Result<KeySet, Error> {
     key.insert("extractor", EXTRACTOR_ID);
     if let Some(ir) = ir {
         let path = ir.join("index.json");
+        // Two fields of the index, read as plain JSON — but a read of an IR file
+        // all the same, so it is counted like every other (`lean_doc_ir::metrics`).
+        // `detect` and `build`'s final ledger write both come through here, which
+        // is why an unchanged run still shows `index` reads with `module` at zero.
+        lean_doc_ir::metrics::record(lean_doc_ir::IrFile::Index);
         let index: serde_json::Value = serde_json::from_str(&read_to_string(&path)?)
             .map_err(|source| Error::Json { path, source })?;
         key.insert("irSchemaVersion", js_string(index.get("schemaVersion")));

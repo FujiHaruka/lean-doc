@@ -69,8 +69,10 @@
 //!
 //! `<out>/lean-doc-build.json` is written **twice** per run: `complete: false`
 //! before anything else, `complete: true` after the ledger. It records the
-//! layout version, the root it was built from and the libraries — and it is what
-//! makes the choice in step 4 answerable rather than guessed:
+//! layout version, the root it was built from, the libraries and — on the second
+//! write only — [`WorkCounts`], **how much work the run did**, which is the one
+//! thing about this command's performance that can be gated in CI (see that
+//! type). It is what makes the choice in step 4 answerable rather than guessed:
 //!
 //! * `--out` absent or empty → **full generation**;
 //! * marker present, `complete: true`, and the ledger, IR, state and site all
@@ -486,6 +488,10 @@ struct Request {
 fn run(request: &Request) -> Result<(), Failure> {
     let started = Instant::now();
     let layout = &request.layout;
+    // The IR read counters are the *process's*, and this command is one run per
+    // process — so this line changes nothing today and says what `work.irReads`
+    // means tomorrow, when something else in the process has read an IR first.
+    lean_doc_ir::metrics::reset();
 
     // 1 -- the libraries ------------------------------------------------------
     let libs = if request.libs.is_empty() {
@@ -537,7 +543,7 @@ fn run(request: &Request) -> Result<(), Failure> {
         Plan::Full(why) => println!("plan    full generation ({why})"),
         Plan::Incremental => println!("plan    incremental (continuing {})", layout.out.display()),
     }
-    write_marker(request, &libs, &source_url, modules.len(), false)?;
+    write_marker(request, &libs, &source_url, modules.len(), None)?;
     crate::pipeline::create_dir(&layout.work)?;
     let modules_file = layout.work.join("modules.txt");
     write_lines(&modules_file, &modules)?;
@@ -604,7 +610,21 @@ fn run(request: &Request) -> Result<(), Failure> {
         done.ledger_modules,
         layout.ledger.display(),
     );
-    write_marker(request, &libs, &source_url, modules.len(), true)?;
+
+    // 7 -- what the run cost, in work rather than in seconds -------------------
+    // Taken **here**, after the last stage that touches the IR: `write_ledger`'s
+    // `extractKey` reads `index.json`, so a snapshot one line earlier would
+    // report a number the next run's would not reproduce.
+    let work = WorkCounts {
+        modules_extracted: done.extracted,
+        pages_rendered: done.pages_rendered,
+        extractor_requests: extractor.requests(),
+        cache_hits: done.cache_hits,
+        cache_misses: done.cache_misses,
+        ir_reads: lean_doc_ir::metrics::snapshot(),
+    };
+    println!("{}", work.line(modules.len()));
+    write_marker(request, &libs, &source_url, modules.len(), Some(&work))?;
 
     let total = started.elapsed().as_secs_f64();
     println!(
@@ -619,6 +639,7 @@ fn run(request: &Request) -> Result<(), Failure> {
             "modules": modules.len(),
             "extracted": done.extracted,
             "rounds": done.rounds,
+            "work": work.to_json(),
             "pagesRendered": done.pages_rendered,
             "pagesInSite": pages_in_site,
             "ledgerModules": done.ledger_modules,
@@ -643,12 +664,110 @@ struct Done {
     rounds: usize,
     pages_rendered: usize,
     ledger_modules: usize,
+    /// The whole-package derivation's `contentHash` cache, exactly as the
+    /// `global  cache H hit / M miss` line reports it.
+    cache_hits: usize,
+    cache_misses: usize,
     extract_seconds: f64,
     render_seconds: f64,
     global_seconds: f64,
     /// The ledger this run licensed, with the hashes read **before** the
     /// extraction.
     detected: Ledger,
+}
+
+// ------------------------------------------------------------------- the work
+
+/// **How much work one run did, as integers that do not depend on the machine.**
+///
+/// This is the gate this project could not otherwise have. Its product is speed,
+/// and a wall clock cannot judge speed here: the oleans are `mmap`ed, so the same
+/// unchanged run's environment load moves by 5x with the page cache (2.5 s ↔ 13 s
+/// 【実測】, CLAUDE.md). A CI threshold over seconds is either loose enough to pass
+/// a regression or tight enough to fail a cold runner, and both are worse than no
+/// gate, because they look like one.
+///
+/// So the gate is over **work**: the same input does the same amount, on every
+/// machine, in every cache state. `tools/e2e-micro.sh`'s GATE 5 asserts the shape
+/// the whole incremental design exists to produce — *a second run over an
+/// unchanged package re-extracts nothing, renders nothing and starts Lean not at
+/// all* — from these numbers rather than from `grep` over a log line, which passes
+/// silently the day the wording changes.
+///
+/// # Every field is somebody else's variable
+///
+/// Not one of them is counted here. `modulesExtracted` is [`Done::extracted`],
+/// `pagesRendered` is the renderer's own `pages_written`, `extractorRequests` is
+/// the same field the `serve stopped after N request(s)` line prints,
+/// `globalCache*` is [`lean_doc_global::GlobalSummary`]'s, and `irReads` is
+/// [`lean_doc_ir::metrics`]. Re-deriving any of them for the record would create a
+/// second truth, and the failure mode of two truths is that the log stays right
+/// while the gate goes quietly wrong (or the reverse, which is worse).
+///
+/// # Why `irReads` is here at all
+///
+/// `approach.md` §5.6's open claim is that the outer half's limit is **reading the
+/// whole IR**, with five such passes left, and that the next win is the V2
+/// `contentHash` cache over them. That claim is currently a measurement somebody
+/// took once; `irReads.module / modules` makes it a number every run reports, so
+/// V2's payoff can be argued in the units the claim is stated in instead of in
+/// seconds nobody can reproduce.
+struct WorkCounts {
+    /// Modules handed to the extractor, summed over the rounds.
+    modules_extracted: usize,
+    /// Pages the renderer wrote.
+    pages_rendered: usize,
+    /// Extractions asked for: processes on `--extractor`, requests on the
+    /// resident path.
+    extractor_requests: usize,
+    cache_hits: usize,
+    cache_misses: usize,
+    ir_reads: lean_doc_ir::IrReads,
+}
+
+impl WorkCounts {
+    fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "modulesExtracted": self.modules_extracted,
+            "pagesRendered": self.pages_rendered,
+            "extractorRequests": self.extractor_requests,
+            "globalCacheHits": self.cache_hits,
+            "globalCacheMisses": self.cache_misses,
+            // Split by kind, because only the module files divide into a number
+            // of full passes: `index.json` and the dependency slices are read a
+            // fixed number of times per run whatever the package's size.
+            "irReads": {
+                "index": self.ir_reads.index,
+                "module": self.ir_reads.module,
+                "depMap": self.ir_reads.dep_map,
+                "total": self.ir_reads.total(),
+            },
+        })
+    }
+
+    /// The same numbers on stdout, so that the log and the marker cannot drift.
+    ///
+    /// `irPasses` is `irReads.module / modules` — §5.6's unit — and is printed
+    /// rather than stored: it is a quotient of two values the record already
+    /// holds, and a float in the marker would be a third spelling of a number
+    /// that is already there twice.
+    fn line(&self, modules: usize) -> String {
+        let passes = match self.ir_reads.full_passes(modules) {
+            Some(passes) => format!("{passes:.2}"),
+            None => "n/a".to_owned(),
+        };
+        format!(
+            "work    extract {} / render {} / requests {} / cache {} hit {} miss / \
+             ir {} file(s) ({} module read(s) = {passes} full pass(es))",
+            self.modules_extracted,
+            self.pages_rendered,
+            self.extractor_requests,
+            self.cache_hits,
+            self.cache_misses,
+            self.ir_reads.total(),
+            self.ir_reads.module,
+        )
+    }
 }
 
 // -------------------------------------------------------------- the two paths
@@ -740,6 +859,8 @@ fn full_generation(
         rounds: 1,
         pages_rendered: site.rendered.pages_written,
         ledger_modules: detected.modules.len(),
+        cache_hits: site.derived.cache_hits,
+        cache_misses: site.derived.cache_misses,
         extract_seconds,
         render_seconds: site.render_seconds,
         global_seconds: site.global_seconds,
@@ -777,6 +898,8 @@ fn incremental_generation(
         rounds: run.summary.rounds,
         pages_rendered: run.summary.pages_rendered,
         ledger_modules: run.detected.modules.len(),
+        cache_hits: run.summary.cache_hits,
+        cache_misses: run.summary.cache_misses,
         extract_seconds: run.timings.extract,
         render_seconds: run.timings.render,
         global_seconds: run.timings.global,
@@ -876,6 +999,7 @@ fn open_extractor(
         return Ok(Extractor::OneShot {
             program: program.clone(),
             args: request.extractor_args.clone(),
+            requests: 0,
         });
     }
     Ok(Extractor::Resident(Box::new(Resident::new(
@@ -1029,13 +1153,24 @@ fn write_ledger(
 /// It is a fixed set of keys in a fixed order and carries **no timestamp**: a
 /// file that changes when nothing changed is one that cannot be compared across
 /// two runs, and two runs of this command over an unchanged package have to be
-/// able to produce identical trees.
+/// able to produce identical trees. [`WorkCounts`] keeps that promise — every
+/// number in it is a count of work, and the same world costs the same work.
+///
+/// # `complete` and `work` are one argument 【判断】
+///
+/// `work: None` *is* `complete: false`, and it writes `"work": null` rather than
+/// a record of zeros. A half-finished run has done some amount of work and this
+/// file does not know how much — and zeros would be **the exact shape a
+/// successful second run has**, so a gate reading a marker left by a crashed
+/// first run would see "re-extracted nothing, rendered nothing" and pass. `null`
+/// makes that read fail instead, which is the direction an unfinished run should
+/// fail in.
 fn write_marker(
     request: &Request,
     libs: &[String],
     source_url: &str,
     modules: usize,
-    complete: bool,
+    work: Option<&WorkCounts>,
 ) -> Result<(), Failure> {
     let record = serde_json::json!({
         "tool": "lean-doc build",
@@ -1044,7 +1179,8 @@ fn write_marker(
         "libs": libs,
         "sourceUrl": source_url,
         "modules": modules,
-        "complete": complete,
+        "complete": work.is_some(),
+        "work": work.map(WorkCounts::to_json),
     });
     let body = serde_json::to_string(&record).expect("paths and counts serialise") + "\n";
     write_file(&request.layout.marker, &body)

@@ -102,7 +102,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use lean_doc_ir::read_module_file;
+use lean_doc_ir::{IrFile, read_module_file};
 use serde::de::{MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
@@ -280,13 +280,13 @@ impl<'de> Deserialize<'de> for JsonObject {
 pub fn merge(options: &MergeOptions<'_>) -> Result<MergeSummary, Error> {
     let started = Instant::now();
     let base_index_path = options.base.join("index.json");
-    let base_index: JsonObject = read_json(&base_index_path)?;
+    let base_index: JsonObject = read_json(&base_index_path, IrFile::Index)?;
     // A pure deletion re-extracts nothing, so there may be no incremental tree
     // at all. That is a real case, not a misuse.
     let inc_modules: Vec<IndexEntry> = match options.inc {
         Some(dir) => {
             let path = dir.join("index.json");
-            let index: JsonObject = read_json(&path)?;
+            let index: JsonObject = read_json(&path, IrFile::Index)?;
             index_entries(&index, &path)?
         }
         None => Vec::new(),
@@ -661,8 +661,8 @@ pub fn verify(a: &Path, b: &Path) -> Result<VerifyReport, Error> {
     let mut lines: Vec<String> = Vec::new();
     let a_index_path = a.join("index.json");
     let b_index_path = b.join("index.json");
-    let index_a: JsonObject = read_json(&a_index_path)?;
-    let index_b: JsonObject = read_json(&b_index_path)?;
+    let index_a: JsonObject = read_json(&a_index_path, IrFile::Index)?;
+    let index_b: JsonObject = read_json(&b_index_path, IrFile::Index)?;
     let mut problems = 0usize;
 
     let map_a = module_map(&index_a, &a_index_path)?;
@@ -806,7 +806,7 @@ fn dep_mapping(
             });
         };
         let slice_path = root.join(file);
-        let slice: JsonObject = read_json(&slice_path)?;
+        let slice: JsonObject = read_json(&slice_path, IrFile::DepMap)?;
         let Some(Value::Object(declarations)) = slice.get("declarations") else {
             return Err(Error::IndexShape {
                 path: slice_path,
@@ -879,7 +879,15 @@ fn js_display(value: Option<&Value>) -> String {
     }
 }
 
-fn read_json<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T, Error> {
+/// This stage's own reader, for the IR files it takes as **untyped JSON**.
+///
+/// It exists because the merged `index.json` has to be written back with keys
+/// this crate does not model (see [`JsonObject`]); [`lean_doc_ir::IrTree`] would
+/// parse the four columns and drop the rest. That makes it the one IR read in
+/// the workspace that does not go through the loader — so it records the work
+/// itself, or `metrics` would report a merge as costing nothing.
+fn read_json<T: serde::de::DeserializeOwned>(path: &Path, kind: IrFile) -> Result<T, Error> {
+    lean_doc_ir::metrics::record(kind);
     let text = fs::read_to_string(path).map_err(|source| Error::Io {
         path: path.to_owned(),
         source,
@@ -890,7 +898,13 @@ fn read_json<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T, Error> {
     })
 }
 
+/// One module file as bytes, for [`verify`]'s byte comparison.
+///
+/// Counted as a module read even though nothing is parsed: the file is opened
+/// and its bytes are pulled in, which is the work the counter is about. (The
+/// `fs::copy` in [`merge`] is *not* counted — see `lean_doc_ir::metrics`.)
 fn read(path: &Path) -> Result<Vec<u8>, Error> {
+    lean_doc_ir::metrics::record(IrFile::Module);
     fs::read(path).map_err(|source| Error::Io {
         path: path.to_owned(),
         source,

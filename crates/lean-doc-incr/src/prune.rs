@@ -305,6 +305,11 @@ pub fn prune(options: &PruneOptions<'_>) -> Result<PruneSummary, Error> {
 /// `index.modules[].module`, read as plain JSON.
 fn read_index_modules(ir: &Path) -> Result<Vec<String>, Error> {
     let path = ir.join("index.json");
+    // Counted like every other IR read (`lean_doc_ir::metrics`). Never fires on
+    // the pipeline's path — `prune_removed` passes no `--ir`, deliberately (see
+    // `lean-doc/src/pipeline.rs`) — so a run whose counter moves here is a run
+    // that turned the orphan rule on.
+    lean_doc_ir::metrics::record(lean_doc_ir::IrFile::Index);
     let text = fs::read_to_string(&path).map_err(|source| Error::Io {
         path: path.clone(),
         source,

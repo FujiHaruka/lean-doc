@@ -1174,7 +1174,92 @@ fn the_timings_record_names_the_path() {
     }
 }
 
+/// The marker's `work` record — **the performance gate this project could not
+/// otherwise have.**
+///
+/// Nothing here can be judged by a clock: the oleans are `mmap`ed, so the same
+/// unchanged run's environment load moves by 5x with the page cache 【実測】. So
+/// the gate is over deterministic integers instead, and this test pins the two
+/// shapes that matter — a first run does all the work, a second run over a world
+/// that did not move does **none** of it. `tools/e2e-micro.sh`'s GATE 5 asserts
+/// the same thing through a real Lean extractor; this asserts it in `cargo test`,
+/// where it actually runs on every change.
+///
+/// `extractorRequests` is cross-checked against the fixture's own tally of how
+/// often it was called, which is the point of the number: it is the one counter
+/// whose zero says Lean was never started.
+#[test]
+fn the_marker_records_the_work() {
+    let live = Live::new("build-work");
+
+    assert_eq!(code(&live.build(&[])), 0);
+    let full = work(&live);
+    assert_eq!(full["modulesExtracted"], json!(3));
+    assert_eq!(full["pagesRendered"], json!(3));
+    assert_eq!(full["extractorRequests"], json!(1));
+    assert_eq!(full["extractorRequests"], json!(live.extractions().len()));
+    // Nothing was cached before the first run, so every module is a miss.
+    assert_eq!(full["globalCacheHits"], json!(0));
+    assert_eq!(full["globalCacheMisses"], json!(3));
+    // Two whole passes over the module files: the renderer's and the
+    // whole-package derivation's (approach.md §5.6's unit). Pinned rather than
+    // bounded — a change to it is a change to what the pipeline does, and this
+    // is where that has to be noticed.
+    assert_eq!(full["irReads"]["module"], json!(2 * 3));
+
+    let before = live.extractions().len();
+    assert_eq!(code(&live.build(&[])), 0);
+    let incremental = work(&live);
+    assert_eq!(incremental["modulesExtracted"], json!(0));
+    assert_eq!(incremental["pagesRendered"], json!(0));
+    assert_eq!(incremental["extractorRequests"], json!(0));
+    assert_eq!(
+        live.extractions().len(),
+        before,
+        "the second run started the extractor",
+    );
+    assert_eq!(incremental["globalCacheHits"], json!(3));
+    assert_eq!(incremental["globalCacheMisses"], json!(0));
+    // One pass, and it is `impact`'s: the round loop never runs (nothing to
+    // re-extract, nothing removed) and the renderer is skipped on an empty set.
+    assert_eq!(incremental["irReads"]["module"], json!(3));
+    assert_eq!(
+        incremental["irReads"]["total"],
+        json!(
+            incremental["irReads"]["index"].as_u64().expect("a number")
+                + incremental["irReads"]["module"].as_u64().expect("a number")
+                + incremental["irReads"]["depMap"].as_u64().expect("a number")
+        ),
+    );
+}
+
+/// A run that dies leaves **`work: null`**, not a record of zeros.
+///
+/// Zeros are the exact shape a *successful* incremental run has, so a gate
+/// reading a crashed run's marker would see "re-extracted nothing, rendered
+/// nothing" and pass. `null` makes that read fail instead.
+#[test]
+fn an_unfinished_run_records_no_work() {
+    let live = Live::new("build-work-unfinished");
+    assert_eq!(code(&live.build(&["--extractor-arg", "--fail"])), 4);
+    let marker = marker(&live);
+    assert_eq!(marker["complete"], json!(false));
+    assert_eq!(marker["work"], Value::Null);
+}
+
 // ------------------------------------------------------------------- plumbing
+
+fn marker(live: &Live) -> Value {
+    let path = live.out.join("lean-doc-build.json");
+    serde_json::from_str(&fs::read_to_string(&path).expect("the marker was written"))
+        .expect("one JSON object")
+}
+
+fn work(live: &Live) -> Value {
+    let marker = marker(live);
+    assert_eq!(marker["complete"], json!(true), "{marker}");
+    marker["work"].clone()
+}
 
 fn lean_doc(args: &[&str]) -> Output {
     Command::new(BIN)

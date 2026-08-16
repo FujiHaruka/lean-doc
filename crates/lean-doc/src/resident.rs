@@ -269,6 +269,16 @@ impl Resident {
         Ok(())
     }
 
+    /// How many extraction requests this run has sent.
+    ///
+    /// **The same field the stop line prints** — `serve stopped after N
+    /// request(s)` — rather than a second tally: two counters of one thing are
+    /// two things that can disagree, and this one is a gate's input (see
+    /// `crate::build`'s `work` record).
+    pub fn requests(&self) -> usize {
+        self.requests
+    }
+
     /// Stops the server, if one was ever started.
     ///
     /// Called on the way out of the round loop rather than at the end of the run

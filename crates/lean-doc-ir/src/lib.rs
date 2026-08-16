@@ -8,6 +8,11 @@
 //! impact, render), and the `contentHash` cache that removes those reads
 //! belongs in one place rather than five. See plan §3.
 //!
+//! The same constraint is what makes [`metrics`] possible: a run's IR reads are
+//! counted where they happen, so "how many full passes did that cost" is a
+//! deterministic integer rather than a wall clock. That is the unit the V2 cache
+//! will have to argue in — see the module's own heading.
+//!
 //! Two things the IR is not:
 //!
 //! - It is not binary. Each module is one `.json` text file named after the
@@ -55,6 +60,7 @@
 //! ```
 
 mod error;
+pub mod metrics;
 mod model;
 pub mod name;
 mod reader;
@@ -62,6 +68,7 @@ mod span;
 pub mod utf16;
 
 pub use error::{Error, Result};
+pub use metrics::{IrFile, IrReads};
 pub use model::{
     Decl, DepMap, DepMapEntry, Index, IndexEntry, Member, ModuleDoc, ModuleFile, Ref, Tactic,
 };

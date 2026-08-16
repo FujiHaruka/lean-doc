@@ -226,6 +226,15 @@ pub enum Extractor {
         /// `--extractor-arg`, in order, placed **before** the three flags below
         /// so that a wrapper script sees its own configuration first.
         args: Vec<String>,
+        /// How many times the program has been started.
+        ///
+        /// The one-shot path's answer to the resident path's `serve stopped
+        /// after N request(s)`: both count *the extraction the run paid for*,
+        /// which is a process here and a round trip there. `build` reports one
+        /// number under one name (`work.extractorRequests`) because the gate's
+        /// question — "did an unchanged run start Lean at all" — is the same on
+        /// both paths.
+        requests: usize,
     },
     /// `--serve`: one Lean environment, imported once and asked every round.
     ///
@@ -247,9 +256,13 @@ impl Extractor {
     /// Lean side reports its phase timers — one the resident path reproduces
     /// exactly, so that two records of the same round stay comparable.
     pub fn run(&mut self, modules: &Path, ir_dir: &Path, timings: &Path) -> Result<(), Failure> {
-        let (program, args) = match self {
+        let (program, args, requests) = match self {
             Self::Resident(resident) => return resident.extract(modules, ir_dir, timings),
-            Self::OneShot { program, args } => (program, args),
+            Self::OneShot {
+                program,
+                args,
+                requests,
+            } => (program, args, requests),
         };
         let mut command = Command::new(&*program);
         command
@@ -264,6 +277,11 @@ impl Extractor {
             code: EXIT_EXTRACTOR,
             message: format!("--extractor {program}: {source}"),
         })?;
+        // Counted on the way out of the process rather than on the way in, and
+        // **before** the exit code is judged: the run started an extractor and
+        // paid for it whichever way it ended, which is what the resident path's
+        // own counter records too.
+        *requests += 1;
         if status.success() {
             return Ok(());
         }
@@ -278,6 +296,20 @@ impl Extractor {
                 modules.display(),
             ),
         })
+    }
+
+    /// How many extractions this run asked for — processes started on the
+    /// one-shot path, requests sent on the resident one.
+    ///
+    /// A run over an unchanged package must answer **0**, and that is the
+    /// sharpest of the work counters: it is the only one whose zero says Lean
+    /// was never started, which is where the whole incremental path's saving
+    /// comes from.
+    pub fn requests(&self) -> usize {
+        match self {
+            Self::OneShot { requests, .. } => *requests,
+            Self::Resident(resident) => resident.requests(),
+        }
     }
 
     /// Releases the resident environment, if there is one.
@@ -344,7 +376,20 @@ pub struct Summary {
     pub removed: usize,
     pub ir_changed: usize,
     pub global_stale: usize,
+    /// Pages the renderer **wrote**, which is [`lean_doc_render::RenderSummary`]'s
+    /// own count and the number the `render modules W/M` line prints.
+    ///
+    /// **Not the size of the render set** 【判断】. The two differ whenever the
+    /// set names a module the IR does not hold, and the set is the larger of the
+    /// two — so reporting it would be reporting work that was asked for rather
+    /// than work that was done, under a name that says otherwise. The set's own
+    /// size is on the `impact` line, where it belongs.
     pub pages_rendered: usize,
+    /// The whole-package derivation's `contentHash` cache, as
+    /// [`lean_doc_global::GlobalSummary`] counted it — the same values the
+    /// `global  cache H hit / M miss` line prints.
+    pub cache_hits: usize,
+    pub cache_misses: usize,
     pub mode: String,
 }
 
@@ -677,7 +722,7 @@ pub fn run_incremental(
     // Constraint 5. `ModuleSet::These` of an empty set already renders nothing,
     // so this skip is an optimisation — it saves reading the whole IR to write no
     // file — and **not** the guard the prototype needed it to be.
-    let pages_rendered = render_set.len();
+    let mut pages_rendered = 0usize;
     if render_set.is_empty() {
         write_file(&work.render_timings, "{\"skipped\":\"empty render set\"}\n")?;
         println!("render  nothing to render");
@@ -693,6 +738,10 @@ pub fn run_incremental(
             only: &only,
         })
         .map_err(|e| Failure::Failed(e.to_string()))?;
+        // One value, three destinations: the log line below, `render-timings.json`
+        // and the run's `work` record. Counting the render set instead would put a
+        // second, larger number under the same word.
+        pages_rendered = rendered.pages_written;
         let record = serde_json::json!({
             "command": "render",
             "pagesWritten": rendered.pages_written,
@@ -718,6 +767,8 @@ pub fn run_incremental(
             ir_changed: ir_changed.len(),
             global_stale: global_affected.len(),
             pages_rendered,
+            cache_hits: derived.cache_hits,
+            cache_misses: derived.cache_misses,
             mode: mode.name().to_owned(),
         },
         timings: Timings {
@@ -1059,6 +1110,7 @@ pub fn incremental(args: &[String]) -> Result<(), Failure> {
         Some(program) => Extractor::OneShot {
             program,
             args: extractor_args,
+            requests: 0,
         },
         None => Extractor::Resident(Box::new(Resident::new(serve_options(ServeRequest {
             bin: extractor_bin,

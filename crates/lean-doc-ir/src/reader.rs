@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 use serde::de::DeserializeOwned;
 
 use crate::error::{Error, Result};
+use crate::metrics::{self, IrFile};
 use crate::model::{DepMap, DepMapEntry, Index, IndexEntry, ModuleFile};
 
 /// The schema this reader understands. Schema 3 has no attributes, no instance
@@ -43,7 +44,7 @@ impl IrTree {
     /// an ablated or older tree rather than render it.
     pub fn open_unvalidated(root: impl Into<PathBuf>) -> Result<Self> {
         let root = root.into();
-        let index: Index = read_json(&root.join("index.json"))?;
+        let index: Index = read_json(&root.join("index.json"), IrFile::Index)?;
         Ok(Self { root, index })
     }
 
@@ -95,7 +96,7 @@ impl IrTree {
 
     /// Reads one dependency slice.
     pub fn dep_map(&self, entry: &DepMapEntry) -> Result<DepMap> {
-        read_json(&self.path(&entry.file))
+        read_json(&self.path(&entry.file), IrFile::DepMap)
     }
 
     /// Every dependency slice, in index order.
@@ -117,7 +118,7 @@ impl IrTree {
 /// constraint — every read of the IR is in this crate, so the `contentHash`
 /// cache has one place to go.
 pub fn read_module_file(path: &Path) -> Result<ModuleFile> {
-    let module: ModuleFile = read_json(path)?;
+    let module: ModuleFile = read_json(path, IrFile::Module)?;
     if module.schema_version < MIN_SCHEMA_VERSION {
         return Err(Error::Schema {
             what: path.display().to_string(),
@@ -128,7 +129,14 @@ pub fn read_module_file(path: &Path) -> Result<ModuleFile> {
     Ok(module)
 }
 
-fn read_json<T: DeserializeOwned>(path: &Path) -> Result<T> {
+/// The one place this crate touches the disk — and therefore the one place the
+/// work counter can be kept honest.
+///
+/// `kind` is a parameter rather than something derived from `path` 【判断】: a
+/// caller that adds a read has to say what it is reading, and a guess from the
+/// file name would be a fourth spelling of the tree's layout that nothing checks.
+fn read_json<T: DeserializeOwned>(path: &Path, kind: IrFile) -> Result<T> {
+    metrics::record(kind);
     // Read the whole file, then parse, rather than `from_reader`: the largest
     // file in the tree is a few MB, and `serde_json` is documented as being
     // faster over a string than over a reader.
