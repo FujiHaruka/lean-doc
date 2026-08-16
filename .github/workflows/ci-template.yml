@@ -138,6 +138,37 @@ jobs:
             --cache-get \
             --jobs 4 2>&1 | tee build-log.txt
 
+      # Not the template's, and the reason this workflow is worth more than
+      # "does the template still run".
+      #
+      # The package above is generated deterministically, so **every run after
+      # the first is a no-change run** — `extract 0 / render 0 / requests 0`,
+      # `incremental in 0.0164 s`【実測 2026-08-17, run 31962696064】. That is the
+      # cheap half of the incremental claim and it was the only half a Linux
+      # runner had ever exercised. What 段 C and 段 D buy is the cost of a
+      # **one-module edit**, and until this step existed that number came only
+      # from one laptop (`docs/plans/reextract-count.md` §6).
+      #
+      # Into a *copy* of the state, not into `docs-out` itself: `docs-out` is
+      # what the cache saves at the end of the job, and it has to keep describing
+      # the package as generated. Building the edit in place would leave the next
+      # run restoring a state whose IR carries a declaration the regenerated
+      # sources do not have, which silently turns the no-change measurement above
+      # into a second one-module measurement.
+      - name: edit one module and build again
+        run: |
+          set -o pipefail
+          cp -a docs-out docs-out-onemod
+          printf '\n/-- A probe appended by the one-module gate. -/\ndef ciOneModProbe_ : Nat := 13\n' \
+            >> package/Alpha/Basic.lean
+          lean-doc/tools/ci-build.sh \
+            --root package \
+            --out "$GITHUB_WORKSPACE/docs-out-onemod" \
+            --jobs 4 2>&1 | tee onemod-log.txt
+          lean-doc/tools/onemod-gate.sh \
+            docs-out-onemod/lean-doc-build.json \
+            docs-out-onemod/work/serve.out
+
       # Not the template's: what makes the run readable afterwards. The template
       # ends by uploading `<out>/site`, which this repeats with the timings and
       # the machine beside it.
@@ -157,6 +188,15 @@ jobs:
             echo
             echo "## lean-doc build timings"
             cat docs-out/lean-doc-timings.json 2> /dev/null || echo "(none)"
+            echo
+            echo "## what a one-module edit cost (段 C / 段 D)"
+            cat onemod-log.txt 2> /dev/null || echo "(none)"
+            echo
+            echo "## lean-doc build timings — the one-module run"
+            cat docs-out-onemod/lean-doc-timings.json 2> /dev/null || echo "(none)"
+            echo
+            echo "## the extractor's own log — the one-module run"
+            cat docs-out-onemod/work/serve.out 2> /dev/null || echo "(none)"
             echo
             echo "## site"
             find docs-out/site -type f 2> /dev/null | wc -l
@@ -178,3 +218,7 @@ jobs:
             docs-out/site
             docs-out/ci-timings.json
             docs-out/lean-doc-timings.json
+            onemod-log.txt
+            docs-out-onemod/ci-timings.json
+            docs-out-onemod/lean-doc-timings.json
+            docs-out-onemod/work/serve.out

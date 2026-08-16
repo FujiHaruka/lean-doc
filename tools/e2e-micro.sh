@@ -350,17 +350,6 @@ if ! cmp -s "$OUT/lidx-before" "$OUT/first/link-index.lidx"; then
   exit 1
 fi
 
-# 段 D. Not moving is one claim; not being *written* is another, and the bytes
-# cannot tell them apart — a map rewritten to the same content passes the check
-# above while still costing the 490,287-constant walk that produced it. The
-# extractor says which it did, so read that rather than infer it.
-if ! grep -qE '^linkIndex .* reused ' "$OUT/first/work/serve.out"; then
-  echo "GATE 6: the extractor rewrote the dependency map instead of reusing it" >&2
-  grep -E '^linkIndex ' "$OUT/first/work/serve.out" >&2 || \
-    echo "  (no linkIndex line in $OUT/first/work/serve.out)" >&2
-  exit 1
-fi
-
 # `site` writes the pages and the global artefacts; the static assets `build`
 # copies are not its business, so a name present on one side only is not a
 # difference here — a *shared* name whose bytes differ is.
@@ -385,33 +374,11 @@ if [ -n "$gate6_diff" ]; then
   exit 1
 fi
 
-python3 - "$OUT/first/lean-doc-build.json" <<'PY'
-import json
-import sys
-
-record = json.load(open(sys.argv[1], encoding="utf-8"))
-modules = record["modules"]
-rendered = record["work"]["pagesRendered"]
-extracted = record["work"]["modulesExtracted"]
-# Both bounds matter. Zero pages would mean the edit was not noticed at all,
-# which the oracle above would also catch but which deserves its own sentence;
-# `modules` pages would mean 段 C did not take.
-if not 1 <= rendered < modules:
-    print(
-        f"GATE 6 FAIL  work.pagesRendered is {rendered} for {modules} module(s) — "
-        "expected at least one and fewer than all",
-        file=sys.stderr,
-    )
-    sys.exit(1)
-if extracted < 1:
-    print(
-        f"GATE 6 FAIL  work.modulesExtracted is {extracted} — the edited module "
-        "was not re-extracted",
-        file=sys.stderr,
-    )
-    sys.exit(1)
-print(f"{'edited':12} {json.dumps(record['work'], sort_keys=True)}")
-PY
+# The integers, out of the one file that owns them. The same script runs on the
+# Linux runner against the generated package (`ci-template.yml`), so what "a
+# one-module edit is allowed to cost" is written down once and both callers get
+# the same answer.
+"$HERE/onemod-gate.sh" "$OUT/first/lean-doc-build.json" "$OUT/first/work/serve.out"
 
 say "9/9 summary"
 printf 'site files : %s\n' "$(find "$OUT/first/site" -type f | wc -l | tr -d ' ')"
