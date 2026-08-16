@@ -833,3 +833,59 @@ HTTPS (443) は通るので、`gh` の credential helper を `GIT_CONFIG_*` で*
 
 **計測対象は無傷** — `git status -uall` は作業前と同じ 5 行 (ユーザー自身のベンチログ)、HEAD 不動、
 doc-gen4 の参照木 6,080 ページ健在。
+
+---
+
+## 品質ゲート整備の結果 — doc-gen4 を失った後の「緑」【すべて実測 2026-08-16】
+
+計画とゲートの定義は [`plans/quality-gates.md`](plans/quality-gates.md)。ここは**出た数字**。
+
+**前提が 1 つ変わった**: リポジトリを **private → public** にした【決定、ユーザー判断】 —
+GitHub Actions を無料枠で回すため。帰結として **Apache-2.0 §4 が発動**したが、
+義務 (a)(b)(c) は M6 で払い済み・(d) は不発動なので**新たな履行は無かった**
+(→ [`provenance.md`](provenance.md) §4)。**tag `experiments-frozen` は実際に読める状態になった。**
+
+### CI と緑の定義
+
+| | |
+|---|---|
+| ワークフロー | `.github/workflows/ci.yml` — **3 ジョブ** (test / supply-chain / e2e)。**1m22〜1m29s** |
+| `cargo test --workspace` | **338 passed / 0 failed / 24 ignored**。機材ゼロ依存 |
+| corpus 依存 | **24 本**をテストからゲートへ (`tools/corpus-gate.sh` + `corpus-tests.txt`) |
+| 供給網 | `cargo-deny`: licenses / advisories / sources **ok** |
+| 帰属表示 | `tools/provenance-gate.sh`: **27 claims** |
+
+### e2e — 本物の Lean から本物のサイトまで
+
+**フィクスチャ `e2e/micro` は Lean core だけに依存する** (Mathlib 非依存)。
+`lake build` **約 1 秒**、抽出器のビルド **17.1 秒** (`lean` 13.9 + `leanc` 3.2)、
+`lean-doc build` **1.16 秒 / 5 モジュール** → **site 15 ファイル / IR 7 ファイル**。すべて warm。
+
+ゲートは 5 つ: **1 コマンド / 冪等 (2 回目は 0 抽出・0 描画、site バイト不動、0.053 秒) /
+決定性 (別ディレクトリへのフル生成が site も IR もバイト一致) / `--jobs` 不変 (j1 と j4 で
+site も IR もバイト一致 = **V3 の site 側が初めて実測になった**) / 仕事量**。
+
+自己整合性【実測】: 内部リンク **109 本 / dead 0**、外部リソース **0 本**、
+索引とページの双方向一致 **36 宣言**。
+ブラウザ【実測】: **9 検査すべて緑**、**375 px の overflow 0 px** →
+**UI-3 の「未判定」が決着** (ui-redesign.md がそう記録していたもの)。
+
+### この段が見つけたもの
+
+**1. レンダラの実欠陥** — `inductive` / `class_inductive` の **constructor がページに 1 つも
+描かれていなかった**。search 索引には載るので、検索で選ぶとページ先頭に着地する。
+**既存 355 本は 1 本も反応せず、byte 再現ゲートでも原理的に出なかった** —
+オラクル (doc-gen4 の参照木) 自体が inductive を 1 つも含まないページ群だったから。
+→ **「全件バイト一致は分岐被覆の証明ではない」(M1) の一段強い形: オラクルの入力に無い形は、
+何バイト一致しても見えない。**
+
+**2. 「緑」が何も検査していなかった期間** — corpus 依存 24 本のうち **7 本は、フィクスチャが
+機材から消えているのに緑を返していた**。`eprintln!("skipping: …")` + `return` は終了コードに
+出ないため。`#[ignore]` に変えて初めて分かった。**うち 3 本は生成器が HEAD に無く
+(tag `experiments-frozen`)、走らせても永久に panic する** → `corpus-tests.txt` の
+`## frozen` 区分に分け、**外したことを毎回出力する**。
+
+**3. ゲート自身のバグ 2 件** — 作った当日に両方出た。**(a)** e2e の GATE 2 が、2 回目の site を
+**自分自身にコピーして比較**していた (何をしても通る)。**(b)** corpus ゲートのテスト一覧が
+`cargo test` の **stdout と stderr の混ざり順に依存**していて、CI (非 TTY) では全部 `::name` に
+潰れた。**ゲートは自分では自分を検査しない** — (b) を捕まえたのは CI を実際に回したこと。
