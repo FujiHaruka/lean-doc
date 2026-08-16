@@ -1,0 +1,82 @@
+# olean determinism — 2026-08-16T16:35:42Z
+
+target      /Users/haruka/dev/lean-projects
+HEAD        c4f6af29704029b3c62eaa0842c3225ad0e689a0
+toolchain   leanprover/lean4:v4.31.0
+host        Darwin 25.6.0 arm64
+
+## InformationTheory.Shannon.SlepianWolf.FullRateRegion
+  olean            3680 B, rebuilt in 20 s
+  sha256  h0 as found      872d833365846f2e2726b155bc6d34949aff0d3c3c252ae91fc34a3d85836888
+  sha256  h1 rebuilt       872d833365846f2e2726b155bc6d34949aff0d3c3c252ae91fc34a3d85836888
+  sha256  h2 with a decl   6b03c7cefb5908c0e983864fb84301cad7cf300f0b4c1cc0c889092752ca3d5f
+  sha256  h3 restored      872d833365846f2e2726b155bc6d34949aff0d3c3c252ae91fc34a3d85836888
+  lake    l0 as found      f036b1422effdebc
+  lake    l1 rebuilt       f036b1422effdebc
+  lake    l2 with a decl   289f6e76fcfd9b06
+  lake    l3 restored      f036b1422effdebc
+  DETERMINISTIC    sha256 PASS / lake PASS   (1 == 0)
+  SENSITIVE        sha256 PASS / lake PASS   (2 != 1) — positive control
+  REPRODUCIBLE     sha256 PASS / lake PASS   (3 == 1)
+
+## InformationTheory.Shannon.Chernoff.NLetterZSum
+  olean            5056 B, rebuilt in 4 s
+  sha256  h0 as found      e202ee2fbc2df7a2ffed48ab7b4890b9ba17da49f2472071f6b37838185e4f45
+  sha256  h1 rebuilt       e202ee2fbc2df7a2ffed48ab7b4890b9ba17da49f2472071f6b37838185e4f45
+  sha256  h2 with a decl   5a475d3c88f226f1d2b976f737099954114737b908f09e24eacdf632e032903e
+  sha256  h3 restored      e202ee2fbc2df7a2ffed48ab7b4890b9ba17da49f2472071f6b37838185e4f45
+  lake    l0 as found      0e34a33eee801fd6
+  lake    l1 rebuilt       0e34a33eee801fd6
+  lake    l2 with a decl   2c9feb56dd48b14e
+  lake    l3 restored      0e34a33eee801fd6
+  DETERMINISTIC    sha256 PASS / lake PASS   (1 == 0)
+  SENSITIVE        sha256 PASS / lake PASS   (2 != 1) — positive control
+  REPRODUCIBLE     sha256 PASS / lake PASS   (3 == 1)
+
+## InformationTheory.Shannon.Han.DAverage
+  olean            4712 B, rebuilt in 4 s
+  sha256  h0 as found      bc24e707214e87f10a1a3f0de2f47c482492effae8b2464ebd1866a98e588764
+  sha256  h1 rebuilt       bc24e707214e87f10a1a3f0de2f47c482492effae8b2464ebd1866a98e588764
+  sha256  h2 with a decl   88e81694ec11eb39a463dade1697b69babb2d72528f0cbc40e4ab0b9a54bfdc9
+  sha256  h3 restored      bc24e707214e87f10a1a3f0de2f47c482492effae8b2464ebd1866a98e588764
+  lake    l0 as found      a89645acc7eb4edc
+  lake    l1 rebuilt       a89645acc7eb4edc
+  lake    l2 with a decl   79e836d47a35d43f
+  lake    l3 restored      a89645acc7eb4edc
+  DETERMINISTIC    sha256 PASS / lake PASS   (1 == 0)
+  SENSITIVE        sha256 PASS / lake PASS   (2 != 1) — positive control
+  REPRODUCIBLE     sha256 PASS / lake PASS   (3 == 1)
+
+## InformationTheory.Shannon.SMB.AlgoetCover
+  olean            4312 B, rebuilt in 3 s
+  sha256  h0 as found      57775d074ce89d05ce2a602498a8f42692b8d2bfb77000df7342546efd386cb1
+  sha256  h1 rebuilt       57775d074ce89d05ce2a602498a8f42692b8d2bfb77000df7342546efd386cb1
+  sha256  h2 with a decl   7718b3bdc94615d47e0ffb75f24b86186a330024f52c5086ac8369b530cfd856
+  sha256  h3 restored      57775d074ce89d05ce2a602498a8f42692b8d2bfb77000df7342546efd386cb1
+  lake    l0 as found      87c4c5ce100f45f6
+  lake    l1 rebuilt       87c4c5ce100f45f6
+  lake    l2 with a decl   26cc470750b6d278
+  lake    l3 restored      87c4c5ce100f45f6
+  DETERMINISTIC    sha256 PASS / lake PASS   (1 == 0)
+  SENSITIVE        sha256 PASS / lake PASS   (2 != 1) — positive control
+  REPRODUCIBLE     sha256 PASS / lake PASS   (3 == 1)
+
+## InformationTheory.Shannon.MultipleAccess.TimeSharingConverse
+  olean            4864 B, rebuilt in 4 s
+  sha256  h0 as found      81a59edc11bd2ecad0dcfc193258575d86c83577533d6f28994a66228d982b57
+  sha256  h1 rebuilt       81a59edc11bd2ecad0dcfc193258575d86c83577533d6f28994a66228d982b57
+  sha256  h2 with a decl   536f1e3feed4fd516b9e6809528712c6b862e615d6cd8ae3e1157688135375f2
+  sha256  h3 restored      81a59edc11bd2ecad0dcfc193258575d86c83577533d6f28994a66228d982b57
+  lake    l0 as found      fbf8817c2091ce3a
+  lake    l1 rebuilt       fbf8817c2091ce3a
+  lake    l2 with a decl   e302e4785815423a
+  lake    l3 restored      fbf8817c2091ce3a
+  DETERMINISTIC    sha256 PASS / lake PASS   (1 == 0)
+  SENSITIVE        sha256 PASS / lake PASS   (2 != 1) — positive control
+  REPRODUCIBLE     sha256 PASS / lake PASS   (3 == 1)
+
+## totals
+  modules named    5
+  modules measured 5
+  all three PASS   5
+  not             0
