@@ -1,0 +1,26 @@
+# .lidx の自パッケージぶんは描画バイトに効くか — 2026-08-17
+
+機材: arm64 Darwin 25.6.0 / M1 / 対象 lean-projects c4f6af29 / lean-doc 31d2680
+入力 IR: 422 モジュール 4,584 宣言 (base1/docs-out/ir、フル生成済み)
+レンダラ: lean-doc site --root <target> --source-url <HEAD blob>
+
+## 切り分け (tools/slice-link-index.py)
+```
+full         10448228 B   255,809 宣言 / 5,683 群 / 6,011 @行
+deps         10098730 B   自パッケージの宣言群 396 と 4,584 行を除去、@ 節はそのまま
+deps-only    10076330 B   さらに自パッケージの @ 行 422 も除去
+local         371905 B   自パッケージぶんだけ (陽性対照用)
+```
+
+## 結果 — 描画されたサイト 429 ファイルの byte 比較 (/usr/bin/diff -r -q)
+```
+full vs deps        差分 0 / 429  ← 自パッケージの宣言は 1 バイトも効いていない
+full vs deps-only   差分 0 / 429  ← @ 節の自分ぶんも効いていない
+full vs local       差分 408 / 429  ← 陽性対照。比較器は差を見ている
+```
+
+理由 (コードで確認): NameIndex::module_of は IR 由来の known を先に見る
+(crates/lean-doc-render/src/autolink.rs:258)。range_of は全リンクで引かれるが
+(autolink.rs:332)、出力に出るのは ExternalLinks が依存パッケージの URL を解決した
+ときだけ (crates/lean-doc-render/src/external.rs:146-162)。自パッケージ内リンクでは
+引いた range は捨てられる。

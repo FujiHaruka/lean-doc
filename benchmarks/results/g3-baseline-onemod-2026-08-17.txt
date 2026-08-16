@@ -1,0 +1,35 @@
+# G3 の before — 1 モジュール変更の warm ベースライン (2026-08-17、このセッション)
+
+機材 M1 / Darwin 25.6.0 / 対象 lean-projects c4f6af29 / lean-doc 31d2680
+対象 422 モジュール、--jobs 4、同一 --out を使い回す増分、同一セッション連続 10 回
+(1 宣言を足す add / 戻す del の交互、各回 lake build 込み)
+
+cold/warm の判定は ready (環境ロード)。warm は 2.4〜3.3 s。
+leg 3 の 7.3118 s と直接は比べない — 暖機状態が違う。
+
+## 壁時計 (lean-doc 自身の 'build incremental in X')
+```
+add1         ready 3291113875 incremental in 8.0642 s linkIndex            2.124s ready 3291113875
+del1         ready 3106657458 incremental in 6.6617 s linkIndex            1.326s ready 3106657458
+add2         ready 3103751167 incremental in 6.6490 s linkIndex            1.301s ready 3103751167
+del2         ready 2442998583 incremental in 5.8974 s linkIndex            1.204s ready 2442998583
+add3         ready 2965296458 incremental in 6.3856 s linkIndex            1.222s ready 2965296458
+del3         ready 2749310084 incremental in 6.2440 s linkIndex            1.274s ready 2749310084
+add4         ready 2466836459 incremental in 5.9138 s linkIndex            1.220s ready 2466836459
+del4         ready 2476025125 incremental in 6.3620 s linkIndex            1.698s ready 2476025125
+add5         ready 2594010542 incremental in 6.0442 s linkIndex            1.228s ready 2594010542
+del5         ready 2480210250 incremental in 5.9207 s linkIndex            1.214s ready 2480210250
+```
+
+収束後 (add1 を除く 9 回): 5.897 〜 6.662 s、中央値 約 6.24 s
+抽出器の linkIndex 位相: 1.204 〜 1.698 s (中央値 約 1.23 s)
+
+## 決定的な整数 (壁時計より先に見るもの)
+```
+再抽出モジュール数     1 / 422
+再描画ページ数       422 / 422   ← 症状
+IR 全読み回数        4.00 pass
+抽出器プロセス          1
+```
+
+生ログ: base1/loop.txt (scratchpad、コミットしない)。各回の stdout と serve.out も同ディレクトリ。
