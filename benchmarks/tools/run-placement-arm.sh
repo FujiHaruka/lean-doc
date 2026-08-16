@@ -19,29 +19,45 @@
 # Each run gets a fresh `--out`, so every run is a full build and none of them
 # takes the incremental path.
 #
+# THE THIRD ARM, AND WHY A NULL RESULT NEEDS IT
+#   arm `cold` is the same runner as `same` with the page cache dropped before
+#   every build. It is not a placement — it is the **positive control**. If the
+#   A/B comes back "no difference", that reading is worth nothing unless the
+#   instrument is known to be able to show one; `cold` is the condition where a
+#   difference must appear, and if it does not, the measurement is broken rather
+#   than the claim being refuted. Dropping the cache is therefore allowed to
+#   fail the run: a `cold` arm that was not cold is a control that lies.
+#
 # environment:
-#   ARM            same | split                          (required)
+#   ARM            same | split | cold                    (required)
 #   PAIR           the matrix pair this arm belongs to    (default 1)
 #   REPS           builds in this arm                     (default 2)
 #   LIB            the package's lean_lib                 (default InformationTheory)
 #   JOBS           extractor threads                      (default: nproc)
+#   DROP           1 = drop the page cache before each build (default 0)
+#   APPEND         1 = add to an existing inventory rather than start one
 #   LEAN_DOC_DIR   this repository                        (default ./lean-doc)
 #   TARGET_DIR     the Lean package to document           (default ./target)
 #   RESULTS        where the results go                   (default ./results)
 #   WORK           where the builds go                    (default $RUNNER_TEMP)
 set -euo pipefail
 
-ARM="${ARM:?ARM must be same or split}"
+ARM="${ARM:?ARM must be same, split or cold}"
 PAIR="${PAIR:-1}"
 REPS="${REPS:-2}"
 LIB="${LIB:-InformationTheory}"
+DROP="${DROP:-0}"
+APPEND="${APPEND:-0}"
 LEAN_DOC_DIR="${LEAN_DOC_DIR:-lean-doc}"
 TARGET_DIR="${TARGET_DIR:-target}"
 RESULTS="${RESULTS:-results}"
 WORK="${WORK:-${RUNNER_TEMP:-/tmp}}"
 JOBS="${JOBS:-$( (nproc 2> /dev/null || sysctl -n hw.ncpu) 2> /dev/null || echo 2)}"
 
-case "$ARM" in same | split) ;; *) echo "ARM must be same or split, not '$ARM'" >&2; exit 2 ;; esac
+case "$ARM" in
+  same | split | cold) ;;
+  *) echo "ARM must be same, split or cold, not '$ARM'" >&2; exit 2 ;;
+esac
 [ -d "$LEAN_DOC_DIR" ] || { echo "no lean-doc at $LEAN_DOC_DIR" >&2; exit 2; }
 [ -d "$TARGET_DIR" ] || { echo "no package at $TARGET_DIR" >&2; exit 2; }
 
@@ -64,11 +80,11 @@ fi
 # with nothing behind it and `check-placement.sh` says so. An inventory written
 # afterwards would only ever list what happened, which is the failure mode this
 # repository has already paid for twice (CLAUDE.md「ゲートは走った本数を数える」).
-: > "$RESULTS/runs.txt"
+[ "$APPEND" = 1 ] || : > "$RESULTS/runs.txt"
 for i in $(seq 1 "$REPS"); do
   echo "$ARM p${PAIR}r${i}" >> "$RESULTS/runs.txt"
 done
-echo "### declared $REPS run(s) for arm $ARM, pair $PAIR, jobs $JOBS"
+echo "### declared $REPS run(s) for arm $ARM, pair $PAIR, jobs $JOBS, drop=$DROP"
 cat "$RESULTS/runs.txt"
 
 for i in $(seq 1 "$REPS"); do
@@ -78,6 +94,14 @@ for i in $(seq 1 "$REPS"); do
 
   echo
   echo "########## $id ##########"
+
+  # No `|| true`: a control arm that silently stayed warm would report "no
+  # difference" from a condition that was never established.
+  if [ "$DROP" = 1 ]; then
+    sudo sh -c 'sync; echo 3 > /proc/sys/vm/drop_caches'
+    grep -E '^(MemFree|MemAvailable|Cached)' /proc/meminfo > "$RESULTS/meminfo-$id.txt"
+    echo "dropped the page cache before $id"
+  fi
   # shellcheck disable=SC2086
   $TIME_CMD "$LEAN_DOC_DIR/tools/ci-build.sh" \
     --root "$TARGET_DIR" \

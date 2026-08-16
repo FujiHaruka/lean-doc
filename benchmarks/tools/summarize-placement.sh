@@ -80,9 +80,9 @@ done
 # Printed only for pairs where both arms' r1 exist. A missing half prints the
 # pair and no number rather than a ratio against nothing.
 echo
-echo "## placement (r1 of each arm, per pair)"
-printf '%-8s %12s %12s %8s %12s %12s %8s\n' \
-  pair same_import split_import ratio same_docs split_docs ratio
+echo "## placement (r1 of each arm, per pair) — cold is the control, not a placement"
+printf '%-6s %11s %11s %7s %11s %7s %10s %10s %7s\n' \
+  pair same_imp split_imp s/s cold_imp c/s same_docs split_docs s/s
 
 pairs="$(for t in "$DIR"/timings-*-p*r1.json; do
   [ -e "$t" ] || continue
@@ -95,14 +95,16 @@ import_of () { # import_of <arm> <pair>
   awk -v n="${ns:-}" 'BEGIN{ if (n == "") print ""; else printf "%.3f", n/1e9 }'
 }
 
+ratio () { awk -v a="$1" -v b="$2" 'BEGIN{ if (a == "" || b == "" || a+0 == 0) print "-"; else printf "%.2fx", b/a }'; }
+
 for p in $pairs; do
-  si="$(import_of same "$p")"; xi="$(import_of split "$p")"
+  si="$(import_of same "$p")"; xi="$(import_of split "$p")"; ci="$(import_of cold "$p")"
   sd="$(field "$DIR/timings-same-p${p}r1.json" .phases.docs.seconds)"
   xd="$(field "$DIR/timings-split-p${p}r1.json" .phases.docs.seconds)"
-  ri="$(awk -v a="$si" -v b="$xi" 'BEGIN{ if (a == "" || b == "" || a+0 == 0) print "-"; else printf "%.2fx", b/a }')"
-  rd="$(awk -v a="$sd" -v b="$xd" 'BEGIN{ if (a == "" || b == "" || a+0 == 0) print "-"; else printf "%.2fx", b/a }')"
-  printf '%-8s %12s %12s %8s %12s %12s %8s\n' \
-    "$p" "${si:--}" "${xi:--}" "$ri" "${sd:--}" "${xd:--}" "$rd"
+  printf '%-6s %11s %11s %7s %11s %7s %10s %10s %7s\n' \
+    "$p" "${si:--}" "${xi:--}" "$(ratio "$si" "$xi")" \
+    "${ci:--}" "$(ratio "$si" "$ci")" \
+    "${sd:--}" "${xd:--}" "$(ratio "$sd" "$xd")"
 done
 
 echo

@@ -11,12 +11,17 @@
 #   placements. Every end-to-end number in README and in the milestone log is
 #   from an Apple M1 laptop with a warm page cache, and says so.
 #
-# THE TWO ARMS
+# THE THREE ARMS
 #   same   cache get -> lake build -> lean-doc build, one runner, one page cache.
 #   split  a fresh runner: cache get (Mathlib's oleans, downloaded and unpacked),
 #          the package's own oleans and the extractor **restored as bytes** from
 #          the `same` job of the same pair, then lean-doc build with
 #          `--no-lake-build`.
+#   cold   the `same` runner again, with `drop_caches` before each build. Not a
+#          placement — the **control**. The first run of this A/B came back at
+#          **1.06x** 【実測 2026-08-16, run 31955398801, n=1】, and a null result
+#          is unreadable without a condition where the instrument is known to
+#          show a difference. `cold` is that condition.
 #
 #   `split` is not a strawman: restoring the build outputs into the docs job is
 #   what a split workflow really does, and it is the case `actions/cache` is
@@ -125,6 +130,32 @@ jobs:
         working-directory: target
         run: /usr/bin/time -v lake build 2>&1 | tail -40
 
+      # Measured BEFORE anything else touches the disk. Packing the oleans for
+      # the split arm reads 519 MB of exactly the files the import is about, so
+      # doing it first would make this arm warmer than the job it stands for.
+      - name: Measure
+        env:
+          ARM: same
+          PAIR: ${{ matrix.pair }}
+          REPS: ${{ github.event.inputs.reps }}
+          LIB: ${{ github.event.inputs.lib }}
+        run: lean-doc/benchmarks/tools/run-placement-arm.sh
+
+      # The positive control, on the same runner instance, so it carries no
+      # cross-machine confound. If `same` and `split` come out equal, this is
+      # what decides between "placement does not matter here" and "this
+      # measurement cannot see placement": the import has to be slow with the
+      # cache dropped, or nothing else in this run means anything.
+      - name: Measure the ceiling (page cache dropped) — the control
+        env:
+          ARM: cold
+          PAIR: ${{ matrix.pair }}
+          REPS: "2"
+          LIB: ${{ github.event.inputs.lib }}
+          DROP: "1"
+          APPEND: "1"
+        run: lean-doc/benchmarks/tools/run-placement-arm.sh
+
       # The bytes arm `split` will restore. Only the library outputs: the docs
       # job needs the oleans, not the C intermediates.
       - name: Pack the package's oleans and the extractor for the split arm
@@ -142,14 +173,6 @@ jobs:
             extract-bin
           retention-days: 1
           compression-level: 1
-
-      - name: Measure
-        env:
-          ARM: same
-          PAIR: ${{ matrix.pair }}
-          REPS: ${{ github.event.inputs.reps }}
-          LIB: ${{ github.event.inputs.lib }}
-        run: lean-doc/benchmarks/tools/run-placement-arm.sh
 
       - name: Check this arm before anyone reads it
         run: lean-doc/benchmarks/tools/check-placement.sh results
