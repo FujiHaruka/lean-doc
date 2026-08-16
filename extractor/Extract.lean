@@ -322,13 +322,45 @@ into the `.bmp` (798 escaped names on this target), while module names are
 written unescaped, because doc-gen4 builds the page path out of
 `Name.toString (escape := false)` components (`Output/Base.lean:188`) and the
 renderer splits the module on `.` to rebuild that path. No module name on this
-target needs escaping, so the two spellings coincide here. -/
+target needs escaping, so the two spellings coincide here.
+
+**M7-a — each declaration also carries its source line range**, so that a link
+into a dependency can be a version-pinned GitHub blob URL with the anchor
+doc-gen4's own pages already have
+(`…/Mathlib/Order/Basic.lean#L67-L67`, 実装計画 §M7):
+
+```text
+#lidx2                                  the marker moves with the field count
+Mathlib.Order.Basic                     a group header, unescaped
+\tMathlib.Order.le_refl\t67\t67         name, first line, last line
+\t<a name with no range>                a declaration with no range: one field
+```
+
+The range is `findDeclarationRanges?`'s `range.pos.line` and
+`range.endPos.line` — the same two fields the IR's own `line`/`endLine` carry
+(`baseInfo`), which is what doc-gen4 builds the anchor out of. A name a tab can
+never appear in is what makes the extra fields unambiguous.
+
+**A declaration with no range keeps the one-field line.** Dropping it would lose
+the link entirely, where the missing range only costs the anchor: the fallback
+is a blob URL without one, which is the shape doc-gen4's `gh_nav_link` already
+has (実装計画 §M7「行範囲が取れない宣言でリンクを消さない」). Both counts are
+reported so that "no range" stays a number rather than a silence — and on the
+measurement target that number is **0 of 255,975**【実測 2026-08-16 →
+`benchmarks/results/m7a-summary.txt`】, so the fallback has no instance here and
+is covered by the reader's unit tests only. -/
 
 structure LinkIndexStats where
   /-- Names walked: every constant in every loaded module's olean. -/
   scanned : Nat := 0
   /-- Names written. -/
   declarations : Nat := 0
+  /-- Of those, the ones written with a source line range. -/
+  ranged : Nat := 0
+  /-- Of those, the ones `findDeclarationRanges?` had no range for. They are
+  written with one field, and their link loses its anchor rather than the whole
+  URL. `ranged + unranged = declarations`. -/
+  unranged : Nat := 0
   /-- Groups written: modules defining at least one of them. -/
   modules : Nat := 0
   /-- The `@` section: every module in the environment, whether or not it
@@ -351,7 +383,7 @@ def writeLinkIndex (path : FilePath) : MetaM LinkIndexStats := do
   let mut stats : LinkIndexStats := { moduleNames := modNames.size }
   -- Written in chunks: one `putStr` per line would be 750k calls, one string
   -- for the whole file would be 8 MB of appends.
-  let mut buf := "#lidx1\n"
+  let mut buf := "#lidx2\n"
   for m in modNames do
     buf := buf ++ "@" ++ m.toString (escape := false) ++ "\n"
     if buf.utf8ByteSize ≥ 262144 then
@@ -378,7 +410,14 @@ def writeLinkIndex (path : FilePath) : MetaM LinkIndexStats := do
                           declarations := stats.declarations + kept.size }
     buf := buf ++ m.toString (escape := false) ++ "\n"
     for n in kept do
-      buf := buf ++ "\t" ++ n.toString ++ "\n"
+      buf := buf ++ "\t" ++ n.toString
+      match ← findDeclarationRanges? n with
+      | some r =>
+        buf := buf ++ "\t" ++ toString r.range.pos.line ++ "\t" ++ toString r.range.endPos.line
+        stats := { stats with ranged := stats.ranged + 1 }
+      | none =>
+        stats := { stats with unranged := stats.unranged + 1 }
+      buf := buf ++ "\n"
     if buf.utf8ByteSize ≥ 262144 then
       stats := { stats with bytes := stats.bytes + buf.utf8ByteSize }
       h.putStr buf
@@ -2399,6 +2438,7 @@ def run (cfg : Cfg) (preEnv : Option Environment := none) : IO UInt32 := do
     linkIndex := some s
     sink.emit "stage4b.linkIndex" tLi
       [("scanned", toString s.scanned), ("declarations", toString s.declarations),
+       ("ranged", toString s.ranged), ("unranged", toString s.unranged),
        ("modules", toString s.modules), ("moduleNames", toString s.moduleNames),
        ("bytes", toString s.bytes)]
 
@@ -2749,7 +2789,8 @@ def run (cfg : Cfg) (preEnv : Option Environment := none) : IO UInt32 := do
   IO.println s!"moduleDocs           {fmtDur (tMd1 - tMd0)}  {modDocCount} docs in {modsWithDocs} modules, {importCount} imports"
   if let some s := linkIndex then
     IO.println s!"linkIndex            {fmtDur tLi}  {s.declarations} declarations in {s.modules} modules \
-      ({s.scanned} constants scanned, {s.moduleNames} module names, {s.bytes} bytes)"
+      ({s.ranged} with a line range, {s.unranged} without, {s.scanned} constants scanned, \
+      {s.moduleNames} module names, {s.bytes} bytes)"
   IO.println s!"tactics              {fmtDur (tTac1 - tTac0)}  {tacticsInEnv} in env, {tacticsAssigned} in target modules"
   if cfg.tacticsEmulate then
     IO.println s!"tacticsPerModule     {fmtDur tEmu}  (doc-gen4's shape: {targets.size} × allTacticDocs)"

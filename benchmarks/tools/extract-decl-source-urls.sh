@@ -8,8 +8,15 @@
 # so the whole dependency closure can be checked without touching the network.
 #
 # Usage: benchmarks/tools/extract-decl-source-urls.sh [out.tsv]
-# Output: one `<name>\t<url>` per line, sorted. Declarations doc-gen4 gave no
-# source link to are absent — that set is itself a finding, so it is counted.
+# Output: one `<name>\t<url>` per line, sorted.
+#
+# **What the counts below do and do not say.** They compare `decl` divs that
+# carry a source link against `decl` divs in total, so they can only report on
+# declarations doc-gen4 wrote a div for. They are silent about declarations it
+# rendered inside a parent's div (structure fields and constructors) and about
+# declarations it left off a page altogether — both exist【実測 M7-a】. So this
+# is not a coverage number for the oracle; it is a check that no div was mined
+# without its link. Do not quote it as "every declaration has a source link".
 set -u
 
 TARGET=${TARGET:-/Users/haruka/dev/lean-projects}

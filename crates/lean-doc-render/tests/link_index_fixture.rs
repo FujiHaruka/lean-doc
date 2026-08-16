@@ -48,21 +48,37 @@ fn fixture() -> Option<PathBuf> {
 #[test]
 fn reads_the_dependency_closure_of_the_target_package() {
     let Some(path) = fixture() else { return };
+    // The two halves are timed apart because they scale differently: the read
+    // is the file's bytes and the parse is its entries, and M7-a moved the
+    // first by 23.6% while adding a field to every one of the second.
+    let start = Instant::now();
     let text = std::fs::read_to_string(&path).expect("readable");
+    let read = start.elapsed();
 
     let start = Instant::now();
     let index = LinkIndex::parse(&text);
     let elapsed = start.elapsed();
     eprintln!(
-        "{}: {} entries / {} modules / {} module names in {:.3} s",
+        "{}: {} B / {} entries ({} with a line range) / {} modules / {} module names; \
+         read {:.3} s, parse {:.3} s",
         path.display(),
+        text.len(),
         index.len(),
+        index.ranged_len(),
         index.module_count(),
         index.known_modules().len(),
+        read.as_secs_f64(),
         elapsed.as_secs_f64(),
     );
 
-    assert!(text.starts_with(FORMAT_MARKER), "format marker");
+    // **Either marker**: `#lidx1` is what the prototype and M5-a wrote, and
+    // `#lidx2` is what M7-a writes. The reader branches on neither (see
+    // [`FORMAT_MARKER`]), so what this checks is that the file has one at all.
+    let marker = text.split('\n').next().unwrap_or_default();
+    assert!(
+        marker == FORMAT_MARKER || marker == "#lidx1",
+        "format marker: {marker:?}"
+    );
     // Every entry resolves, and no module name leaked into the entry table.
     for name in ["Nat.succ", "Nat.add_comm"] {
         let module = index.module_of(name).unwrap_or_else(|| panic!("{name}"));
@@ -93,13 +109,17 @@ fn reads_the_dependency_closure_of_the_target_package() {
     );
 }
 
-/// The final `\t` line of the file, and the group header above it.
+/// The final `\t` line of the file, and the group header above it. The name is
+/// the first field, since M7-a a line can carry two more.
 fn last_entry(text: &str) -> (String, String) {
     let mut current = String::new();
     let mut last = (String::new(), String::new());
     for line in text.split('\n') {
         match line.as_bytes().first() {
-            Some(b'\t') => last = (current.clone(), line[1..].to_owned()),
+            Some(b'\t') => {
+                let name = line[1..].split('\t').next().unwrap_or_default();
+                last = (current.clone(), name.to_owned());
+            }
             Some(b'@' | b'#') | None => {}
             Some(_) => current = line.to_owned(),
         }

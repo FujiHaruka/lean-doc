@@ -24,7 +24,8 @@ lean-doc extract --modules <list> --ir-dir <dir> --timings <file> \
   --extractor-bin extractor/build/extract --target /path/to/lean-project --jobs 4
 ```
 
-`--link-index` はまだ `lean-doc extract` から渡せない (製品側の配線は M5-b)。直に叩く形:
+`--link-index` は **`lean-doc extract --link-index <p>` から渡せる** (製品側の配線は M5-b 済み)。
+抽出を伴わずに写像だけ作る / 計測するときは直に叩く形:
 
 ```sh
 cd /path/to/lean-project && lake env /path/to/lean-doc/extractor/build/extract \
@@ -50,6 +51,28 @@ Mathlib** であることを前提にしていて、この対象では成り立�
 **IR は 1 バイトも動かない** — `--link-index` を足した状態でフラグ一式
 (`--equations --refs --write-ir --tagged-code --jobs 4`) を回し、M4-a のゲートの参照 IR と
 `diff -r` して**436/436 バイト一致**【実測 2026-08-15】。
+
+## M7-a で変えたもの — `.lidx` の 1 行に**ソース行範囲**が乗る
+
+依存へのリンクを版固定の GitHub blob URL (`…/Mathlib/Order/Basic.lean#L67-L67`) にするための
+入力 (計画 §M7)。マーカーが `#lidx1` → **`#lidx2`**、宣言の行が
+`\t<name>` から `\t<name>\t<line>\t<endLine>` になる。値は `findDeclarationRanges?` の
+`range.pos.line` / `range.endPos.line` で、IR の `line`/`endLine` と同じ 2 フィールド。
+
+**行範囲が取れない宣言は 1 フィールドのまま残す** — 落とすとリンクごと消えるが、
+範囲が無いだけならアンカーが落ちるだけ (doc-gen4 の `gh_nav_link` と同じ形)。
+読む側 (`crates/lean-doc-render/src/link_index.rs`) は `#lidx1` も読み続ける。
+
+| | 前 | 後 |
+|---|---:|---:|
+| `.lidx` バイト | 8,465,776 | **10,464,171** (+23.6%) |
+| 宣言数 / うち行範囲あり | 255,975 / — | 255,975 / **255,975 (100%)** |
+| `linkIndex` フェーズ warm 中央値 | 0.927 s | **1.203 s** (+29.8%) |
+| `linkIndex` フェーズ cold 中央値 | 1.504 s | **1.770 s** (+17.7%) |
+
+【実測 2026-08-16、n=5 ずつ → `benchmarks/results/m7a-summary.txt`】。
+参照木由来のオラクル 241,553 件に対し、`.lidx` から組んだ URL は
+**235,185 件を突き合わせて不一致 0**【実測、母数と残り 3 バケットは同ファイル】。
 
 ## 移動で挙動を変えた点 — 全部
 

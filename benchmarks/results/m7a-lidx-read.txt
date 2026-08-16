@@ -1,0 +1,18 @@
+LinkIndex read+parse, release build, 5 runs per file, warm (both files were just written/read)
+rustc: rustc 1.97.1 (8bab26f4f 2026-07-14)
+host : Darwin 25.6.0 arm64, 8 CPU, 16 GB RAM
+
+== /private/tmp/claude-502/-Users-haruka-dev-lean-doc/bf8993ac-8e88-4241-b524-6317d35595b6/scratchpad/m7a/before/raw/link-index-before-warm-5.lidx
+/private/tmp/claude-502/-Users-haruka-dev-lean-doc/bf8993ac-8e88-4241-b524-6317d35595b6/scratchpad/m7a/before/raw/link-index-before-warm-5.lidx: 8465776 B / 255975 entries (0 with a line range) / 5693 modules / 6021 module names; read 0.008 s, parse 0.083 s
+/private/tmp/claude-502/-Users-haruka-dev-lean-doc/bf8993ac-8e88-4241-b524-6317d35595b6/scratchpad/m7a/before/raw/link-index-before-warm-5.lidx: 8465776 B / 255975 entries (0 with a line range) / 5693 modules / 6021 module names; read 0.002 s, parse 0.043 s
+/private/tmp/claude-502/-Users-haruka-dev-lean-doc/bf8993ac-8e88-4241-b524-6317d35595b6/scratchpad/m7a/before/raw/link-index-before-warm-5.lidx: 8465776 B / 255975 entries (0 with a line range) / 5693 modules / 6021 module names; read 0.002 s, parse 0.043 s
+/private/tmp/claude-502/-Users-haruka-dev-lean-doc/bf8993ac-8e88-4241-b524-6317d35595b6/scratchpad/m7a/before/raw/link-index-before-warm-5.lidx: 8465776 B / 255975 entries (0 with a line range) / 5693 modules / 6021 module names; read 0.001 s, parse 0.043 s
+/private/tmp/claude-502/-Users-haruka-dev-lean-doc/bf8993ac-8e88-4241-b524-6317d35595b6/scratchpad/m7a/before/raw/link-index-before-warm-5.lidx: 8465776 B / 255975 entries (0 with a line range) / 5693 modules / 6021 module names; read 0.002 s, parse 0.043 s
+
+== /private/tmp/claude-502/-Users-haruka-dev-lean-doc/bf8993ac-8e88-4241-b524-6317d35595b6/scratchpad/m7a/link-index.lidx
+/private/tmp/claude-502/-Users-haruka-dev-lean-doc/bf8993ac-8e88-4241-b524-6317d35595b6/scratchpad/m7a/link-index.lidx: 10464171 B / 255975 entries (255975 with a line range) / 5693 modules / 6021 module names; read 0.004 s, parse 0.051 s
+/private/tmp/claude-502/-Users-haruka-dev-lean-doc/bf8993ac-8e88-4241-b524-6317d35595b6/scratchpad/m7a/link-index.lidx: 10464171 B / 255975 entries (255975 with a line range) / 5693 modules / 6021 module names; read 0.002 s, parse 0.051 s
+/private/tmp/claude-502/-Users-haruka-dev-lean-doc/bf8993ac-8e88-4241-b524-6317d35595b6/scratchpad/m7a/link-index.lidx: 10464171 B / 255975 entries (255975 with a line range) / 5693 modules / 6021 module names; read 0.002 s, parse 0.052 s
+/private/tmp/claude-502/-Users-haruka-dev-lean-doc/bf8993ac-8e88-4241-b524-6317d35595b6/scratchpad/m7a/link-index.lidx: 10464171 B / 255975 entries (255975 with a line range) / 5693 modules / 6021 module names; read 0.002 s, parse 0.052 s
+/private/tmp/claude-502/-Users-haruka-dev-lean-doc/bf8993ac-8e88-4241-b524-6317d35595b6/scratchpad/m7a/link-index.lidx: 10464171 B / 255975 entries (255975 with a line range) / 5693 modules / 6021 module names; read 0.002 s, parse 0.052 s
+

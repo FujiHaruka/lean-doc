@@ -1,0 +1,26 @@
+   Compiling lean-doc v0.1.0 (/Users/haruka/dev/lean-doc/crates/lean-doc)
+    Finished `release` profile [optimized] target(s) in 1.85s
+     Running unittests src/main.rs (target/release/deps/lean_doc-91c88cc7ff8188a7)
+
+running 1 test
+
+.lidx /private/tmp/claude-502/-Users-haruka-dev-lean-doc/bf8993ac-8e88-4241-b524-6317d35595b6/scratchpad/m7a/link-index.lidx
+oracle /private/tmp/claude-502/-Users-haruka-dev-lean-doc/bf8993ac-8e88-4241-b524-6317d35595b6/scratchpad/m7a/decl-source-urls.tsv
+.lidx entries                          : 255975
+  under a root the map resolves        : 251225
+    matched                            : 235185
+    mismatched                         : 0
+    not in the oracle                  : 16040
+  under a root the map does not hold   : 4750
+oracle entries                         : 241553 (241553 lines, 0 name collisions after unescaping)
+  not in the .lidx at all              : 2891
+  in the .lidx, root not in the map    : 3477
+.lidx entries with a line range        : 255975 of 255975
+of the 16040 not in the oracle, 16038 have a parent that is (a structure field or constructor, which doc-gen4 renders inside its parent)
+the 2891 the .lidx does not have, by first component: [("Lake", 2890), ("Opaque", 1)]
+.lidx-only sample : Part.get, Lean.Meta.Omega.OmegaConfig.splitNatSub, PProd.mk, Lean.NameSanitizerState.mk, RingEquivClass.map_add, Lean.Server.References.DocumentRefInfo.location, Lean.Elab.Command.Structure.StructParentInfo.addTermInfo, Lean.Elab.Tactic.Context.recover, ProbabilityTheory.IsSFiniteKernel.mk, LawfulAlternative.map_orElse
+oracle-only sample: Lake.Ansi.chalk, Lake.AnsiMode, Lake.AnsiMode.isEnabled, Lake.ArgList, Lake.ArgList.mk, Lake.ArgsT, Lake.ArgsT.run, Lake.ArgsT.run', Lake.Argument, Lake.Artifact
+test packages::tests::every_lidx_entry_matches_doc_gen4s_declaration_urls ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 19 filtered out; finished in 1.51s
+

@@ -1,0 +1,13 @@
+date (UTC)          : 2026-08-16 01:12:38
+host                : Darwin 25.6.0 arm64, 8 CPU, 16 GB RAM
+target              : /Users/haruka/dev/lean-projects
+target toolchain    : leanprover/lean4:v4.31.0
+target mathlib rev  : fabf563a7c95a166b8d7b6efca11c8b4dc9d911f
+lean core githash   : 68218e876d2a38b1985b8590fff244a83c321783
+doc-gen4 tree       : /Users/haruka/dev/lean-projects/.lake/build/doc
+doc-gen4 tree built : Aug  9 17:39:17 2026
+oracle              : /private/tmp/claude-502/-Users-haruka-dev-lean-doc/bf8993ac-8e88-4241-b524-6317d35595b6/scratchpad/m7a/decl-source-urls.tsv (241553 entries, 41006908 B)
+link index          : /private/tmp/claude-502/-Users-haruka-dev-lean-doc/bf8993ac-8e88-4241-b524-6317d35595b6/scratchpad/m7a/link-index.lidx (10464171 B, marker #lidx2)
+extractor           : /Users/haruka/dev/lean-doc/extractor/build/extract (Aug 16 10:06:04 2026)
+rustc               : rustc 1.97.1 (8bab26f4f 2026-07-14)
+page cache          : not controlled (this check is I/O over two files, not a timing)

@@ -1,0 +1,147 @@
+M7-a — the .lidx carries each declaration's source line range
+=============================================================
+2026-08-16. Target: /Users/haruka/dev/lean-projects (432 modules, closure 6,021).
+Conditions: m7a-linkindex-{before,after}-env.txt, m7a-lidx-url-check-env.txt.
+
+Every number below is 実測 unless labelled otherwise; the raw logs are named
+next to each block.
+
+
+1. Acceptance — the .lidx against doc-gen4's own per-declaration URLs
+--------------------------------------------------------------------
+Oracle: benchmarks/tools/extract-decl-source-urls.sh over the target's
+reference tree (.lake/build/doc, built 2026-08-09). 6,080 pages ->
+241,553 entries, every one with an #L<a>-L<b> anchor, 41,006,908 B.
+Candidate: `lean-doc extract --link-index`, 10,464,171 B, marker #lidx2.
+Comparison: packages::tests::every_lidx_entry_matches_doc_gen4s_declaration_urls
+(the product's own `external_links` + `ExternalLinks::url_for`), raw output in
+m7a-lidx-url-check.txt.
+
+  .lidx entries                             255,975   【実測】
+    under a root the map resolves           251,225   <- 母数 of the three below
+      matched                               235,185   (93.6% of 251,225)
+      MISMATCHED                                  0
+      not in the oracle                      16,040   (6.4% of 251,225)
+    under a root the map does not hold        4,750   InformationTheory, i.e. the
+                                                      package being documented; M7
+                                                      does not link these
+  oracle entries                            241,553   【実測】
+    matched (same 235,185 as above)         235,185   (97.4% of 241,553)
+    not in the .lidx at all                   2,891   (1.2%)
+    in the .lidx, root not in the map         3,477   (1.4%)
+
+  235,185 + 16,040 = 251,225 and 235,185 + 2,891 + 3,477 = 241,553: the two
+  populations are fully accounted for.
+
+What the two one-sided buckets are (investigated, not waved away):
+
+  * 16,040 in the .lidx and not in the oracle — 16,038 of them have a *parent*
+    name that IS in the oracle: they are structure constructors (`.mk`, 3,493)
+    and structure field projections (`name` 97, `type` 62, `ref` 56, …), which
+    doc-gen4 renders inside the parent structure's decl div instead of giving
+    each one a `<div class="decl" id=…>` of its own. The oracle mines those
+    divs, so it is silent about them — not a disagreement.
+    The remaining 2 are `Qq.Impl.mkLambdaQ` and `Qq.Impl.withLetHave`
+    (Qq/MatchImpl.lean:51 and Qq/Match.lean:99, real `def`s). doc-gen4's
+    Qq/MatchImpl.html carries 9 decl divs and stops at `mkLambda'`/`mkLet'`
+    (lines 45-49); the two declarations after them are on no page in the tree.
+    That is a gap in the oracle, not in the .lidx.
+  * 2,891 in the oracle and not in the .lidx — 2,890 are `Lake.*` and the last
+    one is `Opaque.mk`, which is Lake's (Lake/Util/Opaque.html), not core's.
+    **Lake is not in the target's import closure**; doc-gen4's own build
+    documents it because doc-gen4 imports Lake. Nothing the extraction saw.
+
+Name escaping — the difference the brief expected, and its size:
+
+  * `.lidx` writes `Name.toString` (escaping on): 795 names carry guillemets,
+    and all 795 are in the oracle with the same guillemets.
+  * the oracle's names come from doc-gen4's HTML `id=`, so `<` `>` `&` arrive as
+    entities: 65 such names, e.g.
+        oracle  Cardinal.«term_^&lt;_»
+        .lidx   Cardinal.«term_^<_»
+    Undoing the HTML escape (and only that) reconciles all 65, with 0 name
+    collisions over the whole 241,553-entry oracle. It is the *only* spelling
+    difference between the two sides: nothing else needed normalising.
+
+
+2. Coverage of the range itself
+-------------------------------
+  declarations written                      255,975   【実測】
+  with a line range                         255,975   (100.0%)
+  without                                         0
+
+`findDeclarationRanges?` answered for every declaration the writer keeps
+(non-private, non-recursor, non-blacklisted, owned by the group's module). The
+no-range fallback path therefore has **no instance on this target** — it is
+covered by unit tests only, and the 0 above is what makes that a measured claim
+rather than an assumption.
+
+
+3. Size
+-------
+                                   before            after        delta
+  .lidx bytes                   8,465,776       10,464,171   +1,998,395 (+23.6%)
+  entries                         255,975          255,975            0
+  bytes per entry                   33.07            40.88        +7.81
+  modules (group headers)           5,693            5,693            0
+  @ module names                    6,021            6,021            0
+【実測, m7a-linkindex-{before,after}.jsonl, byte counts from the extractor and
+from stat, which agree】
+
+The +7.81 B per entry is two tabs plus the two decimal line numbers.
+
+Note on the 8.51 MB figure the plan quotes 【実測, 段階 7c】: that file was the
+prototype's, derived from a doc-gen4 site's declaration-data.bmp, and had
+258,760 entries. This project's writer (M5-a) produces 255,975 from the target's
+own environment. **8.51 MB and 8,465,776 B are not the same file** — the
+before/after pair above is the comparable one, both from this extractor, same
+session, same machine.
+
+
+4. Extractor time
+-----------------
+Measured with `benchmarks/tools/measure-link-index.sh`: `lake env extract
+<432 modules> --skip-analyze --link-index <p>`, so the run is importModules
+plus the phase and nothing else. 5 runs per series after one discarded run;
+cold = olean-evict over the closure's 9,780 oleans before every run.
+
+  linkIndex phase, seconds (min / median / max over n=5)
+                     before                      after            median delta
+    warm   0.924 / 0.927 / 1.037    1.173 / 1.203 / 1.214    +0.276 s (+29.8%)
+    cold   1.484 / 1.504 / 1.516    1.744 / 1.770 / 1.845    +0.266 s (+17.7%)
+
+  whole --skip-analyze run, median seconds (n=5)
+                  before    after     delta
+    warm real       4.54     4.74     +0.20
+    warm cpu        4.38     4.64     +0.26
+    cold real       9.35     9.62     +0.27
+    cold cpu        4.85     5.14     +0.29
+    peak RSS       3.13 GB  3.13 GB    0.00  (warm; cold 3.11 -> 3.12 GB)
+【実測, m7a-linkindex-{before,after}.jsonl】
+
+The added cost is one `findDeclarationRanges?` per written declaration:
++0.27 s / 255,975 = 1.06 µs each, and it is CPU (user+sys moves by the same
+amount as wall), not I/O — cold and warm gain the same 0.27 s.
+
+For scale: one **full** extraction of the same 432 modules through the product
+path (`lean-doc extract`, --jobs 4, all four fixed flags, IR written) took
+15.48 s real / 16.56 s user, warm 【実測, 1 回 — a single sample, not a series;
+it is here as the denominator for the 1.20 s phase, not as a timing claim】.
+No full-extraction before/after series was run: the diff is confined to
+`writeLinkIndex`, so the phase pair above is the whole of the change.
+
+
+5. Read side (LinkIndex::parse)
+-------------------------------
+release build, warm, 5 runs per file (m7a-lidx-read.txt):
+
+                     before (8,465,776 B)      after (10,464,171 B)
+    read_to_string   0.002 s                   0.002 s
+    parse            0.043 s (0.083 first run) 0.051-0.052 s
+    read + parse     0.045 s                   0.054 s   (+0.009, +20%)
+【実測】
+
+Not comparable with the 0.076 s the plan quotes 【実測, 段階 7c】: that was the
+prototype's TypeScript renderer parsing a different file (258,760 entries,
+8,494,819 UTF-16 code units). Same job, different implementation and different
+input — the before/after pair above is this reader on both files.

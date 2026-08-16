@@ -1,0 +1,13 @@
+date (UTC)          : 2026-08-16 01:01:29
+host                : Darwin 25.6.0 arm64, 8 CPU, 16 GB RAM
+target              : /Users/haruka/dev/lean-projects
+target toolchain    : leanprover/lean4:v4.31.0
+target mathlib rev  : fabf563a7c95a166b8d7b6efca11c8b4dc9d911f
+lean core githash   : 68218e876d2a38b1985b8590fff244a83c321783
+modules imported    : 432 (the target's own library; the closure is 6,021 modules)
+extractor           : extractor/build/extract built Aug 15 21:47 (pre-M7-a Extract.lean)
+command             : lake env extract <modules> <events> --skip-analyze --link-index <p>
+parallelism         : 1 (--skip-analyze; --jobs is not used)
+rounds              : 5 warm then 5 cold, after one discarded run (series "warmup")
+cold                : olean-evict over 9780 closure oleans before every run
+warm                : consecutive runs, no eviction

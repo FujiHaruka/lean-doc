@@ -395,7 +395,7 @@ fn core_githash(root: &Path, lake: &Path) -> Result<String, String> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, HashSet};
     use std::path::PathBuf;
 
     use super::*;
@@ -678,6 +678,199 @@ mod tests {
                 .expect("Mathlib resolves"),
             want
         );
+    }
+
+    // ------------------------------------------------- the whole map, per name
+
+    /// **The gate of M7-a**: for every declaration the `.lidx` carries, the URL
+    /// built out of it — `ExternalLinks::url_for(module_of(name),
+    /// range_of(name))` — is the one doc-gen4 itself wrote on that
+    /// declaration's page.
+    ///
+    /// Both inputs live outside the repository and are ~10 MB and ~41 MB, so
+    /// the test **skips** unless both are named:
+    ///
+    /// ```text
+    /// LEAN_DOC_LINK_INDEX=<lean-doc extract --link-index …>
+    /// LEAN_DOC_DECL_URLS=<benchmarks/tools/extract-decl-source-urls.sh out.tsv>
+    /// ```
+    ///
+    /// `benchmarks/tools/check-lidx-urls.sh` is the driver that produces both
+    /// and files the output under `benchmarks/results/`.
+    ///
+    /// **Only the mismatch bucket is a failure.** The two populations are not
+    /// the same set and never were — the `.lidx` is the environment this
+    /// extraction loaded, while the oracle is whatever pages that doc-gen4 build
+    /// happened to write — so every bucket is printed with its 母数 and only a
+    /// name the two *both* have and disagree about fails.
+    #[test]
+    fn every_lidx_entry_matches_doc_gen4s_declaration_urls() {
+        let (Ok(lidx), Ok(oracle)) = (
+            std::env::var("LEAN_DOC_LINK_INDEX"),
+            std::env::var("LEAN_DOC_DECL_URLS"),
+        ) else {
+            eprintln!(
+                "skipping: set LEAN_DOC_LINK_INDEX and LEAN_DOC_DECL_URLS (see \
+                 benchmarks/tools/check-lidx-urls.sh)"
+            );
+            return;
+        };
+        let target = PathBuf::from(
+            std::env::var("LEAN_DOC_TARGET").unwrap_or_else(|_| DEFAULT_TARGET.to_owned()),
+        );
+        let index = lean_doc_render::LinkIndex::read(&lidx)
+            .unwrap_or_else(|source| panic!("{lidx}: {source}"));
+        let oracle_text =
+            fs::read_to_string(&oracle).unwrap_or_else(|source| panic!("{oracle}: {source}"));
+        let mut wanted: BTreeMap<String, &str> = BTreeMap::new();
+        let mut oracle_lines = 0usize;
+        let mut oracle_collisions = 0usize;
+        for line in oracle_text.lines() {
+            let Some((name, url)) = line.split_once('\t') else {
+                continue;
+            };
+            oracle_lines += 1;
+            // doc-gen4 writes the name into an HTML attribute, so `<` `>` `&`
+            // arrive escaped; the `.lidx` writes `Name.toString`. Undoing the
+            // *HTML* escape is the only difference between the two spellings —
+            // the guillemets are in both.
+            if wanted.insert(unescape_html(name), url).is_some() {
+                oracle_collisions += 1;
+            }
+        }
+
+        let resolved = external_links(&target, Path::new("lake"));
+        assert_eq!(resolved.problems, Vec::<String>::new());
+
+        let (mut matched, mut unlinkable) = (0usize, 0usize);
+        let mut mismatched: Vec<String> = Vec::new();
+        let mut lidx_only: Vec<&str> = Vec::new();
+        let mut seen: HashSet<&str> = HashSet::new();
+        for name in index.names() {
+            let module = index.module_of(name).unwrap_or_default();
+            let Some(got) = resolved.links.url_for(module, index.range_of(name)) else {
+                // The package being documented: M7 changes dependency links
+                // only, and a map that does not hold the root is how that is
+                // said (`ExternalLinks`'s heading).
+                unlinkable += 1;
+                continue;
+            };
+            match wanted.get(name) {
+                None => lidx_only.push(name),
+                Some(want) => {
+                    seen.insert(name);
+                    if got == *want {
+                        matched += 1;
+                    } else if mismatched.len() < 20 {
+                        mismatched.push(format!("  {name}\n    want: {want}\n    got:  {got}"));
+                    } else {
+                        mismatched.push(String::new());
+                    }
+                }
+            }
+        }
+        let linkable = matched + mismatched.len() + lidx_only.len();
+        let mut oracle_only: Vec<&str> = Vec::new();
+        let mut oracle_unlinkable = 0usize;
+        for name in wanted.keys() {
+            if seen.contains(name.as_str()) {
+                continue;
+            }
+            if index.module_of(name).is_some() {
+                oracle_unlinkable += 1;
+            } else {
+                oracle_only.push(name);
+            }
+        }
+
+        let sample = |names: &[&str]| {
+            names
+                .iter()
+                .take(10)
+                .copied()
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        // Why each of the two one-sided buckets is one-sided, counted rather
+        // than asserted: a `.lidx` entry whose *parent* is in the oracle is a
+        // structure field or constructor, which doc-gen4 renders inside the
+        // parent's `decl` div instead of giving it one of its own — so the
+        // oracle has nothing to compare against. An oracle entry with no
+        // `.lidx` name at all is a module the extraction never imported.
+        let nested = lidx_only
+            .iter()
+            .filter(|name| {
+                name.rsplit_once('.')
+                    .is_some_and(|(parent, _)| wanted.contains_key(parent))
+            })
+            .count();
+        let mut absent_roots: BTreeMap<&str, usize> = BTreeMap::new();
+        for name in &oracle_only {
+            *absent_roots
+                .entry(name.split('.').next().unwrap_or(name))
+                .or_default() += 1;
+        }
+        let mut absent_roots: Vec<_> = absent_roots.into_iter().collect();
+        absent_roots.sort_by_key(|(_, count)| std::cmp::Reverse(*count));
+        absent_roots.truncate(5);
+        eprintln!(
+            "\n.lidx {lidx}\noracle {oracle}\n\
+             .lidx entries                          : {}\n\
+             \x20 under a root the map resolves        : {linkable}\n\
+             \x20   matched                            : {matched}\n\
+             \x20   mismatched                         : {}\n\
+             \x20   not in the oracle                  : {}\n\
+             \x20 under a root the map does not hold   : {unlinkable}\n\
+             oracle entries                         : {} ({oracle_lines} lines, \
+             {oracle_collisions} name collisions after unescaping)\n\
+             \x20 not in the .lidx at all              : {}\n\
+             \x20 in the .lidx, root not in the map    : {oracle_unlinkable}\n\
+             .lidx entries with a line range        : {} of {}\n\
+             of the {} not in the oracle, {nested} have a parent that is (a structure field or \
+             constructor, which doc-gen4 renders inside its parent)\n\
+             the {} the .lidx does not have, by first component: {:?}\n\
+             .lidx-only sample : {}\n\
+             oracle-only sample: {}",
+            index.len(),
+            mismatched.len(),
+            lidx_only.len(),
+            wanted.len(),
+            oracle_only.len(),
+            index.ranged_len(),
+            index.len(),
+            lidx_only.len(),
+            oracle_only.len(),
+            absent_roots,
+            sample(&lidx_only),
+            sample(&oracle_only),
+        );
+        assert!(
+            mismatched.is_empty(),
+            "{} of {linkable} resolvable .lidx entries disagree with doc-gen4:\n{}",
+            mismatched.len(),
+            mismatched.join("\n"),
+        );
+        assert!(matched > 0, "nothing was compared");
+    }
+
+    /// The five entities doc-gen4's HTML escape produces, undone. `&amp;` last,
+    /// so that a name that really contains `&lt;` is not turned into `<`.
+    fn unescape_html(name: &str) -> String {
+        let mut out = name.to_owned();
+        for (entity, ch) in [
+            ("&lt;", "<"),
+            ("&gt;", ">"),
+            ("&quot;", "\""),
+            ("&#39;", "'"),
+        ] {
+            if out.contains(entity) {
+                out = out.replace(entity, ch);
+            }
+        }
+        if out.contains("&amp;") {
+            out = out.replace("&amp;", "&");
+        }
+        out
     }
 
     /// One module under `root` that the reference tree has a page and a source
