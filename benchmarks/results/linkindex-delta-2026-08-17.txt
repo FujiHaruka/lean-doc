@@ -1,0 +1,20 @@
+# dependency map (link-index.lidx) delta for a one-declaration change — 2026-08-17
+
+target      /Users/haruka/dev/lean-projects (c4f6af29), 422 modules
+host        Darwin 25.6.0 arm64
+change      one added declaration in InformationTheory.Shannon.SlepianWolf.FullRateRegion
+            (`theorem irCacheProbe2_ : True := trivial`), reverted afterwards
+
+before      267506 lines, 10448303 bytes
+after       267504 lines, 10448228 bytes
+diff        2 changed line(s)
+
+## /usr/bin/diff before after
+249967,249968d249966
+< InformationTheory.Shannon.SlepianWolf.FullRateRegion
+< 	irCacheProbe2_	13	13
+
+## what the build did with that 2-line delta
+  render-all linkIndex: the dependency map moved during this run
+  impact  mode all -> 422 page(s) (422 from the changed set, 0 from the global map)
+  global  delta: 2 name(s) moved in or out of the map (5111 -> 5113) -> 0 page(s) to re-render
