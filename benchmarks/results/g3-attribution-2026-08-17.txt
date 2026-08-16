@@ -1,0 +1,58 @@
+# 段 D 後の 1 モジュール変更、秒の全額割り当て (2026-08-17)
+
+対象 lean-projects c4f6af29 / 422 モジュール / --jobs 4 / lean-doc 5f58482 / M1 warm。
+
+**新しいコードは足していない。** `lean-doc build --timings` は 4 つしか出さないが、
+`lean-doc incremental --timings` は 10 段を出す (detect / extract / ownership / merge /
+rounds / prune / global / impact / render / total)。`incremental` は台帳を書かないので、
+同じ 1 モジュール変更を同条件で何度でも測り直せる。
+壁時計は `/usr/bin/time -p` を外から噛ませた — `resolve_external_links`
+(`lake env lean --githash`) は測定 clock が始まる**前**に走るので、
+wall − total がそれ (+ 引数処理) になる。
+
+```
+run     wall    detect   extract ownership     merge    rounds     prune    global    impact    render     total   outside
+1     20.220     0.500    18.046     0.315     0.070    18.548     0.000     0.049     0.076     0.129    19.302     0.918   <- cold
+2      5.330     0.474     3.361     0.310     0.068     3.860     0.000     0.023     0.078     0.129     4.563     0.767
+3      5.630     0.463     3.682     0.308     0.071     4.173     0.000     0.023     0.079     0.132     4.870     0.760
+4      6.830     0.463     4.782     0.311     0.069     5.284     0.000     0.024     0.079     0.132     5.982     0.848
+5      4.930     0.456     3.241     0.067     0.069     3.490     0.000     0.022     0.074     0.131     4.173     0.757
+```
+
+warm 4 回の中央値: detect 0.463 / extract 3.522 / ownership 0.309 / merge 0.069 /
+global 0.023 / impact 0.078 / render 0.132 / total 4.717 / outside 0.763。
+
+## 内訳 — 何が残っているか
+
+抽出器自身のログ (同 run): `ready 2.363 s`、要求の合計 `0.022 s`
+(うち `linkIndex 0.006s reused`、`analyze 0.004s`)。
+
+```
+段                                          秒     比例するもの
+Lean の環境ロード (ready)                  2.363   6,011 モジュールの import。既知の床
+Server::start の lake env + exec
+  + 171 MB のページイン                    ~1.14   何にも比例しない固定費
+                                                   (extract 3.522 − ready 2.363 − 要求 0.022)
+lake env lean --githash (clock の外)       0.763   同じく固定費。--timings に出ない
+detect: olean 228,448,584 B の SHA-256     0.463   パッケージ規模 (422)
+ownership                                  0.309   パッケージ規模 (base 全走査、watching のとき)
+render (1 ページ)                          0.132   変更規模
+impact                                     0.078   パッケージ規模 (422 件読むが安い)
+merge                                      0.069   パッケージ規模
+global                                     0.023   キャッシュ miss = 変更規模
+抽出器の要求 (analyze + linkIndex)         0.022   変更規模
+                                          ------
+合計                                       5.359   wall 5.33 とほぼ一致 — 全額説明がついた
+```
+
+## 読み方 — 次に大きいのは `lake env` を 2 回叩いていること
+
+- **`lake env` の合計は約 1.90 s** (0.763 + 約 1.14)。環境ロードの床 2.363 s を除けば
+  **残り約 3.0 s の 63%**。パッケージ規模にも変更規模にも比例しない純粋な固定費。
+- **impact は 0.078 s しかない。** IR を 422 件読んでいるのは事実だが、
+  **秒としては効いていない** — 「4 周読んでいる」を秒の問題として扱わない根拠。
+- **detect の 0.463 s は、この run の実測**になった (前の内訳表ではフル生成が残した値の転用だった)。
+- **危険**: `lake env` は対象の toolchain を選ぶ機構そのもの。固定した `LEAN_PATH` や
+  キャッシュした githash は、対象が toolchain を変えた瞬間に**別バージョンの olean を
+  import して IR が静かにずれる**。減らすなら「run を跨いでキャッシュする」ではなく
+  「同一 run 内で 1 回にまとめる」側に倒す。
