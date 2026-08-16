@@ -780,3 +780,43 @@ M8-d が塞いだ分は全部通った (`foundational_types.html` 7,354 参照�
 `lakefile.toml` → `lakefile.lean`、**依存パッケージが 15 → 9** に変わったため。
 **変更を stash して HEAD で走らせても同じ 2 件が落ちることを確認済み。**
 → **テストを弱めない。** 対象側の作業が落ち着いてから、母数を取り直す。
+
+### M8-e: 再ホスト — **ゲート UI-4 通過**【すべて実測 2026-08-16】
+
+**計測対象がこのセッション中に動いたので、公開したのは古い IR ではなく最新の HEAD から作り直した木。**
+既存の IR (rev 5e38aecd) を使うと**公開中の内容が後退する**ため。
+
+```
+lean-doc build --root <target> --lib InformationTheory --out <dir>
+               --extractor-bin extractor/build/extract --jobs 4
+```
+**24.51 s / 422 モジュール / 4,394 宣言** (抽出 23.43 s、常駐へのリクエスト 1 回)【実測、warm】。
+`--lib` が要るのは対象が `lakefile.toml` → **`lakefile.lean`** に変わったため — CLI は
+「Lean コードであってデータではないので推測しない」と言って止まる (設計どおり)。
+
+出た木: **432 ファイル** (422 ページ + 全域成果物 7 + 静的資産 3) / 35 MB。
+
+| 検査 | 結果 |
+|---|---|
+| 外部ホストへの**リソース読み込み** | **0 本** (`<script src>` / `<link href>` に外部が無い) |
+| 内部リンク | **31,265 本、404 は 0** |
+| ソースパス anchor | 190 本 (うち 6 本は依存の blob URL)、**dead 0** |
+| 外部リンク (`<a href>`) | 96,699 本 — 依存ソースへの版固定リンク (M7) |
+
+**公開**: `tools/publish-pages.sh` (新規) で gh-pages を**置き換え**。マージではないのは、
+**消えたモジュールのページを残さない**ため。459 パス変更 / +54,029 / −113,049 行、commit `aae92b9`。
+
+**ssh (port 22) はこの機材から通らない**【実測: `ssh -T git@github.com` がタイムアウト】。
+HTTPS (443) は通るので、`gh` の credential helper を `GIT_CONFIG_*` で**その 1 コマンドの間だけ**
+指して push した。**git の設定は汚していない。**
+
+**公開後の実測** (https://fujiharuka.github.io/information-theory/):
+
+| | |
+|---|---|
+| 新 UI の 11 パス | **全部 200** (`search.html` も — **公開前は 404 だった**) |
+| doc-gen4 の資産 **16 本** | **全部 404**。手でコピーされていたものは 1 本も残っていない |
+| gzip (GitHub Pages が掛ける) | `style.css` 20,578 → **6,159 B** / `app.js` 18,424 → **6,001 B** / `search-index.json` 405,402 → **49,193 B** |
+
+**計測対象は無傷** — `git status -uall` は作業前と同じ 5 行 (ユーザー自身のベンチログ)、HEAD 不動、
+doc-gen4 の参照木 6,080 ページ健在。
