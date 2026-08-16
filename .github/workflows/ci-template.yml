@@ -155,16 +155,29 @@ jobs:
       # run restoring a state whose IR carries a declaration the regenerated
       # sources do not have, which silently turns the no-change measurement above
       # into a second one-module measurement.
+      # **Two edits, and the gate reads the second.** The restored state may have
+      # been written by a lean-doc from before 段 C — the cache's `restore-keys`
+      # match on a prefix, so it usually was. Such a map still carries the
+      # package's own declaration groups and has no `.key` sidecar, so the first
+      # edit's build rewrites it into the current shape, its digest moves, and
+      # every page re-renders. **That is a real cost and it is not a bug**: it is
+      # what upgrading lean-doc across 段 C costs, once, on a state built before
+      # it【実測 2026-08-17, run 31963079828, where this step first ran and
+      # failed exactly here】. It is also not what this gate asks. So the first
+      # round takes the state to its steady shape and the second is the one
+      # measured; both logs are kept so the transition stays visible.
       - name: edit one module and build again
         run: |
           set -o pipefail
           cp -a docs-out docs-out-onemod
-          printf '\n/-- A probe appended by the one-module gate. -/\ndef ciOneModProbe_ : Nat := 13\n' \
-            >> package/Alpha/Basic.lean
-          lean-doc/tools/ci-build.sh \
-            --root package \
-            --out "$GITHUB_WORKSPACE/docs-out-onemod" \
-            --jobs 4 2>&1 | tee onemod-log.txt
+          for round in 1 2; do
+            printf '\n/-- Probe %s, appended by the one-module gate. -/\ndef ciOneModProbe%s_ : Nat := 13\n' \
+              "$round" "$round" >> package/Alpha/Basic.lean
+            lean-doc/tools/ci-build.sh \
+              --root package \
+              --out "$GITHUB_WORKSPACE/docs-out-onemod" \
+              --jobs 4 2>&1 | tee "onemod-log-$round.txt"
+          done
           lean-doc/tools/onemod-gate.sh \
             docs-out-onemod/lean-doc-build.json \
             docs-out-onemod/work/serve.out
@@ -189,8 +202,11 @@ jobs:
             echo "## lean-doc build timings"
             cat docs-out/lean-doc-timings.json 2> /dev/null || echo "(none)"
             echo
-            echo "## what a one-module edit cost (段 C / 段 D)"
-            cat onemod-log.txt 2> /dev/null || echo "(none)"
+            echo "## the format transition, if the restored state predates 段 C"
+            cat onemod-log-1.txt 2> /dev/null || echo "(none)"
+            echo
+            echo "## what a one-module edit cost in the steady state (段 C / 段 D)"
+            cat onemod-log-2.txt 2> /dev/null || echo "(none)"
             echo
             echo "## lean-doc build timings — the one-module run"
             cat docs-out-onemod/lean-doc-timings.json 2> /dev/null || echo "(none)"
@@ -218,7 +234,8 @@ jobs:
             docs-out/site
             docs-out/ci-timings.json
             docs-out/lean-doc-timings.json
-            onemod-log.txt
+            onemod-log-1.txt
+            onemod-log-2.txt
             docs-out-onemod/ci-timings.json
             docs-out-onemod/lean-doc-timings.json
             docs-out-onemod/work/serve.out
