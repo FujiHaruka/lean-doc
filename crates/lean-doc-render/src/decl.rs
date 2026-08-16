@@ -76,6 +76,13 @@ impl std::error::Error for UnplaceableName {}
 /// The lookup is [`NameIndex::known`] and deliberately **not**
 /// [`NameIndex::module_of`] — the dependency closure's `.lidx` belongs to the
 /// docstring path, as it does in [`CodeRenderer::const_link`].
+///
+/// **Which module the field is in is one question; where that module's source
+/// lives is another** (M7-c). The lookup above is unchanged and still refuses to
+/// guess; what changed is that the href it hands back is
+/// [`NameIndex::link_to`]'s, so an inherited field of a structure declared in a
+/// dependency links at that dependency's pinned source. Inherited fields are the
+/// case where that matters most: the parent structure is very often mathlib's.
 pub fn decl_name_to_link(
     name: &str,
     root: &str,
@@ -89,7 +96,7 @@ pub fn decl_name_to_link(
         .ok_or_else(|| UnplaceableName {
             name: name.to_owned(),
         })?;
-    Ok(format!("{}#{name}", module_link(root, module)))
+    Ok(names.link_to(root, module, Some(name)))
 }
 
 /// `instancesForToHtml` (`Inductive.lean:12-17`): an empty list the browser
@@ -535,6 +542,7 @@ mod tests {
     use super::*;
 
     use crate::autolink::{PageLinks, module_decl_names};
+    use crate::external::ExternalLinks;
     use crate::link_index::LinkIndex;
     use lean_doc_ir::SpanKind;
 
@@ -543,7 +551,7 @@ mod tests {
         for (name, module) in entries {
             builder.declaration(name, module);
         }
-        builder.build(LinkIndex::default())
+        builder.build(LinkIndex::default(), ExternalLinks::default())
     }
 
     /// A schema-4 declaration with everything empty, which the tests fill in.
@@ -699,6 +707,30 @@ mod tests {
                 name: "nowhere".to_owned()
             })
         );
+    }
+
+    /// **M7-c**: the same lookup, with the field's module in the dependency map.
+    /// The refusal above is unchanged — a name in no module is still an error,
+    /// not a blob URL to nowhere.
+    #[test]
+    fn an_inherited_field_of_a_dependencys_structure_links_at_its_source() {
+        let mut builder = NameIndex::builder();
+        builder.declaration("Mathlib.P.y", "Mathlib.Order.Basic");
+        builder.declaration("Pkg.M.z", "Pkg.M");
+        let names = builder.build(
+            LinkIndex::parse("Mathlib.Order.Basic\n\tMathlib.P.y\t67\t67\n"),
+            ExternalLinks::new([("Mathlib", "https://host/o/mathlib4/blob/abc")]),
+        );
+        assert_eq!(
+            decl_name_to_link("Mathlib.P.y", ".././", &Refs::default(), &names).as_deref(),
+            Ok("https://host/o/mathlib4/blob/abc/Mathlib/Order/Basic.lean#L67-L67")
+        );
+        assert_eq!(
+            decl_name_to_link("Pkg.M.z", ".././", &Refs::default(), &names).as_deref(),
+            Ok(".././Pkg/M.html#Pkg.M.z"),
+            "the package being documented is not in the map"
+        );
+        assert!(decl_name_to_link("nowhere", "./", &Refs::default(), &names).is_err());
     }
 
     /// The range test is non-strict at both ends and skips the parent itself.

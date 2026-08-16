@@ -40,6 +40,7 @@ use lean_doc_ir::IrTree;
 
 use crate::autolink::NameIndex;
 use crate::decl::UnplaceableName;
+use crate::external::ExternalLinks;
 use crate::link_index::LinkIndex;
 use crate::page::{Suppressed, page_html, page_path};
 
@@ -93,6 +94,20 @@ pub struct RenderOptions<'a> {
     /// Plan 決定 1: the revision has to be 40 hex digits or the acceptance
     /// oracle scores the tree lower.
     pub source_url: &'a str,
+    /// Where each **dependency's** source lives (M7-c).
+    ///
+    /// Next to `source_url` because it is the same kind of thing one level out:
+    /// that one says where *this* package's sources are, this one says where
+    /// everything it imports keeps theirs. Both are configuration the IR does
+    /// not carry — `lean-doc`'s `packages` module resolves this one from the
+    /// target's `lake-manifest.json` and its toolchain.
+    ///
+    /// [`ExternalLinks::default`] is the pre-M7 renderer, byte for byte: every
+    /// link into a dependency stays a relative page link to a page this site
+    /// never writes. It is spelled as an empty map rather than an `Option`
+    /// because the two mean the same thing here and one of them cannot be
+    /// misread as "the default".
+    pub external_links: &'a ExternalLinks,
     /// The dependency closure's `name -> module` map.
     ///
     /// `None` is a decision, not a default: without it 150 of the target
@@ -147,7 +162,7 @@ pub fn render_site(options: &RenderOptions<'_>) -> Result<RenderSummary, Error> 
         })?,
         None => LinkIndex::default(),
     };
-    let index = builder.build(links);
+    let index = builder.build(links, options.external_links.clone());
 
     // Site-wide, not per module: see [`Suppressed`].
     let suppressed = Suppressed::of_site(&modules);

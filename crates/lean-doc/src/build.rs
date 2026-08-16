@@ -124,15 +124,24 @@
 //! IR was written by whatever wrote the old one, and if the two differ every
 //! later run re-extracts all 432 modules for ever.
 //!
-//! # What is deliberately *not* covered, and what to do about it 【実測】
+//! # What `renderKey` covers, and what `--full` is still for 【実測】
 //!
-//! `renderKey` is `renderer` + `sourceUrl` (`ledger.rs`), so a run whose
-//! **dependency map changed** and whose IR did not is not detected: the map
-//! reaches 150 of the target's 432 pages' bytes 【実測, plan 決定 4】 and nothing
-//! in the ledger names it. `--full` is the escape hatch, and the honest fix
-//! belongs with M5, which is where the map stops being a file somebody passes
-//! and starts being something the product derives (and therefore something with
-//! an identity worth putting in the key).
+//! `renderKey` was `renderer` + `sourceUrl` alone, so a run whose **dependency
+//! map changed** and whose IR did not was not detected — and the map reaches 150
+//! of the target's 432 pages' bytes 【実測, plan 決定 4】. That hole is closed
+//! twice over: M5-b put the `.lidx`'s digest in the key, and M7-c put the
+//! **dependency link map's** there ([`Request::external_links`]), so a bumped
+//! dependency — which moves a `rev` and therefore every href into that package —
+//! re-renders on its own.
+//!
+//! `--full` remains the escape hatch for whatever is *not* in the key — a set
+//! that cannot be closed, because it is every input the ledger does not name.
+//! And the M7-c key has a mirror-image cost worth stating: a run whose
+//! resolution **degraded** (a package gone from disk, `lake` not on the path)
+//! produces a smaller map, a different digest, and therefore a full re-render.
+//! That is the right direction — the links really would have changed — but it
+//! means an environment that half-works re-renders 432 pages rather than
+//! reporting nothing.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -422,10 +431,15 @@ pub fn build(args: &[String]) -> Result<(), Failure> {
     let layout = Layout::new(&out);
     let derived = link_index.is_none();
     let link_index = absolute(&link_index.unwrap_or_else(|| layout.link_index.clone()));
+    // Before anything is written, and once: `lake env lean --githash` starts a
+    // process inside the target, and the digest it feeds has to be the same one
+    // on both sides of this run.
+    let external_links = crate::resolve_external_links(Some(&root), lake.as_deref());
     run(&Request {
         root,
         layout,
         libs,
+        external_links,
         link_index,
         derived_link_index: derived,
         source_url,
@@ -446,6 +460,12 @@ struct Request {
     root: PathBuf,
     layout: Layout,
     libs: Vec<String>,
+    /// Where each **dependency's** source lives (M7-c), resolved **once** — in
+    /// [`build`], from `--root`'s manifest and toolchain — and then used by both
+    /// the renderer and `renderKey.externalLinks`. Resolving it twice is how the
+    /// two would come to disagree, and a disagreement there re-renders every page
+    /// on every run for ever.
+    external_links: lean_doc_render::ExternalLinks,
     /// The dependency map the pages are rendered against, absolute.
     link_index: PathBuf,
     /// Whether this run *writes* that file (M5-b) or only reads it.
@@ -550,6 +570,7 @@ fn run(request: &Request) -> Result<(), Failure> {
         &layout.ir,
         &source_url,
         &request.link_index,
+        &request.external_links,
     )?;
     println!(
         "ledger  {} module(s) -> {} ({bytes} B)",
@@ -634,10 +655,11 @@ fn full_generation(
         // ledger is computed **before** the extraction that writes it, and the
         // key is filled in from the finished file by [`write_ledger`].
         link_index: Some(&request.link_index),
-        // M7-b. See [`crate::external_links_digest`]: the key is in the ledger
-        // from now on, and M7-c is what makes its value depend on the package's
-        // dependencies rather than on nothing.
-        external_links: Some(&crate::external_links_digest()),
+        // M7-c: the map this run renders with, so the ledger's claim and the
+        // pages agree by construction. A bumped dependency moves a `rev`, which
+        // moves the href of every link into it — and this is the key that makes
+        // the next run notice.
+        external_links: Some(&request.external_links.digest()),
         algorithm: &Algorithm::sha256(),
         // The ledger's bytes do not depend on this (M3-a 【実測】); its speed
         // does. One is the pipeline's own choice too.
@@ -682,6 +704,7 @@ fn full_generation(
         &layout.ir,
         &layout.site,
         source_url,
+        &request.external_links,
         Some(&request.link_index),
         Some(&layout.state),
     )?;
@@ -716,6 +739,7 @@ fn incremental_generation(
             modules,
             source_url,
             link_index: &request.link_index,
+            external_links: &request.external_links,
             state: &layout.state,
             mode: request.mode.clone(),
             max_rounds: request.max_rounds,
@@ -949,6 +973,7 @@ fn write_ledger(
     ir: &Path,
     source_url: &str,
     link_index: &Path,
+    external_links: &lean_doc_render::ExternalLinks,
 ) -> Result<usize, Failure> {
     ledger.extract_key = extract_key(&ledger.target, Some(ir)).map_err(refused)?;
     // **The map as it is now, not as `detect` saw it** (M5-b), for exactly the
@@ -963,10 +988,11 @@ fn write_ledger(
         link_index_digest(Some(link_index))
             .map_err(refused)?
             .as_deref(),
-        // Not recomputed after the run, unlike the two above: the dependency
-        // link map is resolved from the manifest and the toolchain, and this
-        // command writes into neither.
-        Some(&crate::external_links_digest()),
+        // Not re-resolved after the run, unlike the two above: the dependency
+        // link map comes from the manifest and the toolchain, and this command
+        // writes into neither — so the value it rendered with is still the value
+        // that describes the tree on disk.
+        Some(&external_links.digest()),
     ));
     let body = ledger.to_json();
     write_file(path, &body)?;

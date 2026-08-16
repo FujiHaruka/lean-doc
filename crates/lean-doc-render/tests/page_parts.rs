@@ -48,9 +48,9 @@ use std::path::PathBuf;
 
 use lean_doc_ir::{Decl, IrTree, ModuleFile};
 use lean_doc_render::{
-    CodeRenderer, DeclRenderer, LinkIndex, NameIndex, PageLinks, UnplaceableName, decl_header,
-    head_html, internal_nav_html, module_decl_names, module_source_url, page_header_html,
-    page_root,
+    CodeRenderer, DeclRenderer, ExternalLinks, LinkIndex, NameIndex, PageLinks, UnplaceableName,
+    decl_header, head_html, internal_nav_html, module_decl_names, module_source_url,
+    page_header_html, page_root,
 };
 use serde::Deserialize;
 
@@ -141,7 +141,11 @@ impl Case {
         for (name, module) in &self.known {
             builder.declaration(name, module);
         }
-        builder.build(LinkIndex::parse(&self.lidx))
+        // M7-c: the prototype had no dependency map, so its bytes are the
+        // **fallback** branch — which an empty [`ExternalLinks`] reproduces
+        // exactly. With a map every link into a dependency moves, on purpose
+        // (`docs/implementation-plan.md` §1).
+        builder.build(LinkIndex::parse(&self.lidx), ExternalLinks::default())
     }
 
     fn render(&self) -> Got {
@@ -389,6 +393,9 @@ fn frames_match_the_prototype() {
                 &frame.source_url,
                 &frame.imports,
                 &frame.names(),
+                // M7-c: the prototype's import list is every href relative, and
+                // the empty map is what reproduces it (see `Case::index`).
+                &ExternalLinks::default(),
             ),
             &frame.nav,
         );
@@ -668,7 +675,11 @@ fn the_whole_corpus_matches_the_prototype() {
     for module in &modules {
         builder.module(module);
     }
-    let index = builder.build(links);
+    // M7-c: the prototype had no dependency map, so its bytes are the
+    // **fallback** branch — which an empty [`ExternalLinks`] reproduces
+    // exactly. With a map every link into a dependency moves, on purpose
+    // (`docs/implementation-plan.md` §1).
+    let index = builder.build(links, ExternalLinks::default());
     let code = CodeRenderer::new(&index);
 
     // `render.ts:2043-2048` — across **every** module, which is why it cannot
@@ -781,6 +792,7 @@ fn the_whole_corpus_matches_the_prototype() {
             &source_url,
             &module.imports,
             &member_names,
+            &ExternalLinks::default(),
         );
         if got != frame.nav {
             note(

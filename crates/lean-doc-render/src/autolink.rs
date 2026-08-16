@@ -49,6 +49,7 @@ use std::collections::{HashMap, HashSet};
 use lean_doc_ir::{Decl, DepMap, ModuleFile};
 use lean_doc_md::{LinkResolver, Renderer};
 
+use crate::external::ExternalLinks;
 use crate::link_index::LinkIndex;
 
 /// The prefix Lean prints on a private name. `nameToLink` refuses to look one
@@ -198,15 +199,27 @@ pub fn is_name_lit(s: &str) -> bool {
 
 // ------------------------------------------------------------------ the index
 
-/// Which name is documented in which module, and which names are modules.
+/// Which name is documented in which module, which names are modules, and —
+/// since M7-c — where a **dependency's** source lives.
 ///
 /// Built once per run by [`NameIndexBuilder`] and shared by every page. See the
 /// module comment for what goes in.
+///
+/// # Why the dependency map is in here
+///
+/// Because every caller that has to answer "what is the href for this name"
+/// already holds this index — the docstring resolver below, the signature path
+/// ([`crate::CodeRenderer::const_link`]) and the structure-field path
+/// ([`crate::decl_name_to_link`]) — and the answer needs *both* the `.lidx`'s
+/// source range and the dependency map's prefix. Threading a second value
+/// through the same three constructors would let the two get out of step on the
+/// one thing [`NameIndex::link_to`] exists to keep together.
 #[derive(Debug, Default)]
 pub struct NameIndex {
     known: HashMap<String, String>,
     links: LinkIndex,
     known_modules: HashSet<String>,
+    external: ExternalLinks,
 }
 
 impl NameIndex {
@@ -240,6 +253,34 @@ impl NameIndex {
     #[must_use]
     pub fn is_known_module(&self, name: &str) -> bool {
         self.known_modules.contains(name)
+    }
+
+    /// **The link every page draws** (M7-c): [`ExternalLinks::href`] with this
+    /// run's two maps supplied — the prefix from the dependency map, the line
+    /// range from the `.lidx`.
+    ///
+    /// `module` is where the target is defined and `anchor` is the declaration
+    /// being linked to, or `None` when the link is to a module rather than into
+    /// one. Every call site in this crate that builds a link to *another*
+    /// module goes through here; the one that does not is a declaration's own
+    /// self-link, which is on this page by construction.
+    #[must_use]
+    pub fn link_to(&self, root: &str, module: &str, anchor: Option<&str>) -> String {
+        self.external.href(
+            root,
+            module,
+            anchor,
+            anchor.and_then(|name| self.links.range_of(name)),
+        )
+    }
+
+    /// The dependency map this index was built with, for the one caller that
+    /// builds a link without holding an index — the page frame's import list
+    /// ([`crate::internal_nav_html`]), where there is no declaration and so
+    /// nothing to look a range up for.
+    #[must_use]
+    pub const fn external(&self) -> &ExternalLinks {
+        &self.external
     }
 
     /// Names in `known` (the IR's own map).
@@ -332,15 +373,22 @@ impl NameIndexBuilder {
         self
     }
 
-    /// Closes the index over the dependency closure's map.
+    /// Closes the index over the dependency closure's map and the dependency
+    /// **link** map.
     ///
     /// This is where the three sources of `knownModules` meet
     /// (`render.ts:2051-2052, 2079`). Taking the `.lidx` by value here is the
     /// reason a caller cannot finish without deciding about it: the product
     /// always has one (plan 決定 4), and passing [`LinkIndex::default`] is a
     /// visible choice rather than an omission.
+    ///
+    /// **`external` is the second argument for exactly the same reason** (M7-c).
+    /// [`ExternalLinks::default`] is the pre-M7 renderer — every link into a
+    /// dependency stays a relative page link — and that has to be something a
+    /// caller *says*, because the failure it produces is a site full of hrefs
+    /// pointing at pages this run never wrote.
     #[must_use]
-    pub fn build(self, links: LinkIndex) -> NameIndex {
+    pub fn build(self, links: LinkIndex, external: ExternalLinks) -> NameIndex {
         let Self { known, mut modules } = self;
         for module in known.values() {
             if !modules.contains(module) {
@@ -356,6 +404,7 @@ impl NameIndexBuilder {
             known,
             links,
             known_modules: modules,
+            external,
         }
     }
 }
@@ -425,6 +474,11 @@ impl LinkResolver for PageLinks<'_> {
     /// `.lidx`, unless it is private; the name as a module; and finally the
     /// first declaration of *this* module whose trailing components match —
     /// which is what links a bare `succ` inside `Nat`'s page.
+    ///
+    /// Three of the four branches name a module that may belong to a
+    /// dependency, so all three go through [`NameIndex::link_to`] (M7-c). The
+    /// second branch is where most of them are: it is the one the `.lidx`
+    /// answers, and the `.lidx` *is* the dependency closure.
     fn name_to_link(&self, s: &str) -> Option<String> {
         if !is_name_lit(s) {
             return None;
@@ -432,10 +486,10 @@ impl LinkResolver for PageLinks<'_> {
         if !s.starts_with(PRIVATE_PREFIX)
             && let Some(module) = self.index.module_of(s)
         {
-            return Some(format!("{}#{s}", module_link(self.root, module)));
+            return Some(self.index.link_to(self.root, module, Some(s)));
         }
         if self.index.is_known_module(s) {
-            return Some(module_link(self.root, s));
+            return Some(self.index.link_to(self.root, s, None));
         }
         // "find a similar name in the same module": compare components from the
         // end, over as many as the shorter of the two has. `succ` matches
@@ -451,7 +505,7 @@ impl LinkResolver for PageLinks<'_> {
                     .index
                     .known(name)
                     .expect("a declaration of this page is in the name index");
-                return Some(format!("{}#{name}", module_link(self.root, module)));
+                return Some(self.index.link_to(self.root, module, Some(name)));
             }
         }
         None
@@ -570,7 +624,7 @@ mod tests {
         .expect("the literal is schema 4");
         let mut builder = NameIndex::builder();
         builder.dep_map(&dep).module(&module());
-        let index = builder.build(LinkIndex::default());
+        let index = builder.build(LinkIndex::default(), ExternalLinks::default());
 
         // The declaration read later overwrote the dependency slice…
         assert_eq!(index.known("Pkg.Two.a"), Some("Pkg.Two"));
@@ -593,7 +647,7 @@ mod tests {
     fn known_modules_is_the_union_of_three_sources() {
         let mut builder = NameIndex::builder();
         builder.module(&module()).module_name("Pkg.Empty");
-        let index = builder.build(LinkIndex::parse("@Lidx.Only\n"));
+        let index = builder.build(LinkIndex::parse("@Lidx.Only\n"), ExternalLinks::default());
 
         assert!(index.is_known_module("Pkg.Empty"), "the IR's module names");
         assert!(index.is_known_module("Pkg.One"), "a value in `known`");
@@ -609,11 +663,15 @@ mod tests {
         PageLinks::new(index, "../", decl_names).name_to_link(s)
     }
 
+    /// The `.lidx` the branch tests share: one dependency declaration, with a
+    /// source range, and one dependency module that declares nothing.
+    const LIDX: &str = "@Lidx.Only\nDep.M\n\tDep.only_in_lidx\t12\t14\n";
+
     #[test]
     fn resolution_takes_the_branches_in_order() {
         let mut builder = NameIndex::builder();
         builder.module(&module());
-        let index = builder.build(LinkIndex::parse("@Lidx.Only\nDep.M\n\tDep.only_in_lidx\n"));
+        let index = builder.build(LinkIndex::parse(LIDX), ExternalLinks::default());
         let names = ["Pkg.Two.a", "Pkg.Two.b"];
 
         // 2: `known`, then the .lidx.
@@ -647,13 +705,66 @@ mod tests {
         assert_eq!(resolve(&index, &names, "_private.Pkg.Two.hidden"), None);
     }
 
+    /// **M7-c**: the same four branches with a dependency map, one root of which
+    /// (`Dep`) is a dependency and one of which (`Pkg`) is not.
+    ///
+    /// The three branches that can name another package's module move to its
+    /// pinned source; the two that can only name this package's own do not. The
+    /// case above is the same assertions with an empty map, so the two together
+    /// are both sides of [`ExternalLinks::href`].
+    #[test]
+    fn a_docstring_link_into_a_dependency_is_a_blob_url() {
+        let mut builder = NameIndex::builder();
+        builder.module(&module());
+        let index = builder.build(
+            LinkIndex::parse(LIDX),
+            ExternalLinks::new([
+                ("Dep", "https://host/o/dep/blob/abc"),
+                ("Lidx", "https://h/o/l/blob/def"),
+            ]),
+        );
+        let names = ["Pkg.Two.a", "Pkg.Two.b"];
+
+        // 2, through the .lidx — which carried a range, so the URL is anchored
+        // at the lines rather than at the declaration.
+        assert_eq!(
+            resolve(&index, &names, "Dep.only_in_lidx").as_deref(),
+            Some("https://host/o/dep/blob/abc/Dep/M.lean#L12-L14")
+        );
+        // 3, a module: no anchor of any kind.
+        assert_eq!(
+            resolve(&index, &names, "Lidx.Only").as_deref(),
+            Some("https://h/o/l/blob/def/Lidx/Only.lean")
+        );
+        // 2 and 4 into this package: **unchanged**, which is what §M7
+        // 「自パッケージのリンクを巻き込まない」 means at a call site.
+        assert_eq!(
+            resolve(&index, &names, "Pkg.Two.a").as_deref(),
+            Some("../Pkg/Two.html#Pkg.Two.a")
+        );
+        assert_eq!(
+            resolve(&index, &names, "a").as_deref(),
+            Some("../Pkg/Two.html#Pkg.Two.a")
+        );
+        // A name the .lidx has no range for keeps the file's URL rather than
+        // losing the link (§M7「行範囲が取れない宣言でリンクを消さない」).
+        let no_range = NameIndex::builder().build(
+            LinkIndex::parse("Dep.M\n\tDep.bare\n"),
+            ExternalLinks::new([("Dep", "https://host/o/dep/blob/abc")]),
+        );
+        assert_eq!(
+            resolve(&no_range, &[], "Dep.bare").as_deref(),
+            Some("https://host/o/dep/blob/abc/Dep/M.lean")
+        );
+    }
+
     /// The empty piece `splitAround` leaves between two separators must not
     /// resolve — an anchor there would land in the middle of every double space.
     #[test]
     fn the_empty_string_never_resolves() {
         let mut builder = NameIndex::builder();
         builder.declaration("", "Pkg.Two").module_name("");
-        let index = builder.build(LinkIndex::parse("@\n"));
+        let index = builder.build(LinkIndex::parse("@\n"), ExternalLinks::default());
         assert_eq!(resolve(&index, &[""], ""), None);
     }
 }

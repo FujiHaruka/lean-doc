@@ -189,6 +189,11 @@ pub struct Incremental<'a> {
     pub modules: Vec<String>,
     pub source_url: &'a str,
     pub link_index: &'a Path,
+    /// Where each **dependency's** source lives (M7-c). Resolved by the caller,
+    /// once, and used twice in here: `detect` hashes it into the render key and
+    /// step 7 renders with it. A round that resolved it a second time could
+    /// disagree with the ledger it just checked.
+    pub external_links: &'a lean_doc_render::ExternalLinks,
     pub state: &'a Path,
     pub mode: Mode,
     pub max_rounds: usize,
@@ -407,9 +412,9 @@ pub fn run_incremental(
         // the ledger records. The other half — the map this run's own extractor
         // is about to rewrite — is [`map_before`] / the check after the rounds.
         link_index: Some(options.link_index),
-        // M7-b. See [`crate::external_links_digest`] — the same value `build`
-        // records, so the two commands' ledgers stay comparable.
-        external_links: Some(&crate::external_links_digest()),
+        // M7-c: the same map step 7 renders with, so "the pages were rendered
+        // against this" is one value rather than two derivations of one.
+        external_links: Some(&options.external_links.digest()),
         // The ledger's bytes do not depend on this (M3-a 【実測】); its speed
         // does, and a flag for it belongs with the rest of M4's tuning.
         concurrency: 1,
@@ -683,6 +688,7 @@ pub fn run_incremental(
             ir: options.ir,
             pages: options.pages,
             source_url: options.source_url,
+            external_links: options.external_links,
             link_index: Some(options.link_index),
             only: &only,
         })
@@ -795,6 +801,7 @@ pub fn incremental(args: &[String]) -> Result<(), Failure> {
     let mut extractor_bin: Option<PathBuf> = None;
     let mut target: Option<PathBuf> = None;
     let mut lake: Option<PathBuf> = None;
+    let mut package: Option<PathBuf> = None;
 
     let mut rest = args.iter();
     while let Some(arg) = rest.next() {
@@ -834,6 +841,16 @@ pub fn incremental(args: &[String]) -> Result<(), Failure> {
             "--extractor-bin" => extractor_bin = Some(value("--extractor-bin")?.into()),
             "--target" => target = Some(value("--target")?.into()),
             "--lake" => lake = Some(value("--lake")?.into()),
+            // M7-c. **A flag of neither extraction path**, and not `--target`:
+            // `--target` is the package the resident extractor runs `lake env`
+            // inside, and exists only on the `--serve` path; this is the package
+            // whose lake-manifest.json and toolchain pin the dependencies, which
+            // is a question about the *pages* and is asked however the extraction
+            // is done. On a real package the two are the same directory. Left
+            // out, dependency links stay relative and the run says so — and the
+            // ledger that licenses those pages has to have been built the same
+            // way, which is why `ledger` takes the same flag under the same name.
+            "--root" => package = Some(value("--root")?.into()),
             // **A flag of `--serve` only, and that is constraint 6 spelled out**
             // (plan §6): the resident server's job count is its start-up `cfg`
             // (`Extract.lean:2751`), so it is the pipeline's to choose exactly
@@ -1029,6 +1046,9 @@ pub fn incremental(args: &[String]) -> Result<(), Failure> {
     }
 
     let module_list = read_module_list(&modules).map_err(refused)?;
+    // M7-c, once, before anything else runs: the same value `detect` hashes into
+    // the render key and step 7 renders with.
+    let external_links = crate::resolve_external_links(package.as_deref(), lake.as_deref());
     // **Built before the run starts, so the generation is the world `detect` is
     // about to look at.** [`Resident::new`] starts nothing; it records the
     // oleans, and every later check — before the spawn, after `ready`, around
@@ -1058,6 +1078,7 @@ pub fn incremental(args: &[String]) -> Result<(), Failure> {
             modules: module_list,
             source_url: &source_url,
             link_index: &link_index,
+            external_links: &external_links,
             state: &state,
             mode,
             max_rounds,

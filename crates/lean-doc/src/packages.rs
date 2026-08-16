@@ -91,19 +91,6 @@ pub struct Packages {
     pub collisions: Vec<String>,
 }
 
-impl Packages {
-    /// The problems as one message, or `None` when there were none — the shape a
-    /// caller wants for a refusal or a log line.
-    #[must_use]
-    pub fn problem_report(&self) -> Option<String> {
-        if self.problems.is_empty() {
-            None
-        } else {
-            Some(self.problems.join("\n"))
-        }
-    }
-}
-
 /// The dependency link map for the package at `root`.
 ///
 /// `lake` is the program `lean --githash` is run through — a name looked up on
@@ -547,7 +534,10 @@ mod tests {
         assert_eq!(resolved.resolved, 0);
         assert_eq!(resolved.problems.len(), 2, "{:?}", resolved.problems);
         assert!(resolved.collisions.is_empty());
-        let report = resolved.problem_report().expect("there were problems");
+        // One line per thing that did not resolve — the shape M7-c's caller
+        // prints, one `external  note:` per line, so that a partial map says
+        // which halves are missing rather than that something went wrong.
+        let report = resolved.problems.join("\n");
         assert!(report.contains("lake-manifest.json"), "{report}");
         assert!(report.contains("--githash"), "{report}");
     }

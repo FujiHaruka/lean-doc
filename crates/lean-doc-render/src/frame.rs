@@ -25,9 +25,10 @@
 //! reaches the output — Lean's tokenizer eats it — so there is none here
 //! either.
 
+use crate::break_within;
 use crate::escape::{escape_html_into, lean_quote_into};
+use crate::external::ExternalLinks;
 use crate::order::cmp_name;
-use crate::{break_within, module_link};
 
 /// `getSourceUrl` for a module: the configured repository/revision prefix, the
 /// module's components as directories, and `.lean` (`render.ts:1903`).
@@ -164,6 +165,19 @@ pub fn page_header_html(module: &str, root: &str) -> String {
 /// `member_names` is the page's declarations **in page order** — the order
 /// `moduleToHtml` emitted them in, not a sort — because the nav is a table of
 /// contents for what is below it.
+///
+/// # The import list is the most visibly dead link on the page (M7-c)
+///
+/// Nearly every import of a package like the measurement target is a
+/// *dependency's* module — `Mathlib.Order.Basic`, `Init.Prelude` — and this site
+/// has a page for none of them, so the relative `.././Mathlib/Order/Basic.html`
+/// this used to write was a 404 on every page of the site. `external` turns
+/// those into the dependency's pinned source file; an import of the package's
+/// own modules is not in the map and keeps the page link it has always had.
+///
+/// There is no anchor and no line range here — an import names a module, not a
+/// declaration — which is why this is the one call site that takes the map
+/// directly instead of going through [`crate::NameIndex::link_to`].
 #[must_use]
 pub fn internal_nav_html(
     module: &str,
@@ -171,6 +185,7 @@ pub fn internal_nav_html(
     module_source_url: &str,
     imports: &[String],
     member_names: &[&str],
+    external: &ExternalLinks,
 ) -> String {
     let mut out = String::with_capacity(512 + imports.len() * 64 + member_names.len() * 64);
     out.push_str("<nav class=\"internal_nav\"><p><a href=\"#top\">return to top</a></p>");
@@ -180,7 +195,7 @@ pub fn internal_nav_html(
     out.push_str("<div class=\"imports\"><details><summary>Imports</summary><ul>");
     for import in sorted_imports(imports) {
         out.push_str("<li><a href=\"");
-        escape_html_into(&mut out, &module_link(root, import));
+        escape_html_into(&mut out, &external.href(root, import, None, None));
         out.push_str("\">");
         escape_html_into(&mut out, import);
         out.push_str("</a></li>");
@@ -296,7 +311,14 @@ mod tests {
     #[test]
     fn the_nav_lists_imports_then_members() {
         let imports = vec!["B.C".to_owned(), "A".to_owned()];
-        let nav = internal_nav_html("M.N", ".././", "https://x/M/N.lean", &imports, &["M.N.f"]);
+        let nav = internal_nav_html(
+            "M.N",
+            ".././",
+            "https://x/M/N.lean",
+            &imports,
+            &["M.N.f"],
+            &ExternalLinks::default(),
+        );
         assert_eq!(
             nav,
             "<nav class=\"internal_nav\"><p><a href=\"#top\">return to top</a></p>\
@@ -314,8 +336,33 @@ mod tests {
 
     #[test]
     fn a_module_with_no_imports_and_no_members_still_has_both_details() {
-        let nav = internal_nav_html("M", "./", "u", &[], &[]);
+        let nav = internal_nav_html("M", "./", "u", &[], &[], &ExternalLinks::default());
         assert!(nav.contains("<ul></ul></details>"), "{nav}");
         assert!(nav.ends_with("</details></div></nav>"), "{nav}");
+    }
+
+    /// **M7-c**: an import of a dependency is the dependency's source file; an
+    /// import of the package's own modules keeps its page link.
+    ///
+    /// The sort is unaffected — it is over the module names, not the hrefs — so
+    /// `A` still leads even though its href is now the longer one.
+    #[test]
+    fn an_import_of_a_dependency_points_at_its_pinned_source() {
+        let imports = vec!["B.C".to_owned(), "A".to_owned()];
+        let nav = internal_nav_html(
+            "M.N",
+            ".././",
+            "https://x/M/N.lean",
+            &imports,
+            &[],
+            &ExternalLinks::new([("A", "https://host/o/dep/blob/abc")]),
+        );
+        assert!(
+            nav.contains(
+                "<ul><li><a href=\"https://host/o/dep/blob/abc/A.lean\">A</a></li>\
+                 <li><a href=\".././B/C.html\">B.C</a></li></ul>"
+            ),
+            "{nav}"
+        );
     }
 }

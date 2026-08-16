@@ -43,7 +43,9 @@ use std::collections::{BTreeSet, HashSet};
 use std::path::{Path, PathBuf};
 
 use lean_doc_ir::{IrTree, ModuleFile};
-use lean_doc_render::{LinkIndex, NameIndex, PageLinks, escape_html, module_decl_names, page_root};
+use lean_doc_render::{
+    ExternalLinks, LinkIndex, NameIndex, PageLinks, escape_html, module_decl_names, page_root,
+};
 
 const DEFAULT_IR: &str = "/private/tmp/lean-doc-relay/w7h/base-ir";
 const DEFAULT_LINK_INDEX: &str = "/private/tmp/lean-doc-relay/w7c/linkindex/link-index.lidx";
@@ -73,13 +75,35 @@ fn inputs() -> Option<(PathBuf, PathBuf, PathBuf)> {
     let ir = env_path("LEAN_DOC_IR", DEFAULT_IR);
     let lidx = env_path("LEAN_DOC_LINK_INDEX", DEFAULT_LINK_INDEX);
     let pages = env_path("LEAN_DOC_REF_PAGES", DEFAULT_REF_PAGES);
+    // Counted in **files**: `/private/tmp` is swept, and an emptied `ref-pages`
+    // leaves its directory behind — `exists()` said yes to that and every page
+    // then failed to read, which is an environmental failure wearing a
+    // regression's clothes (`lean-doc-incr/tests/impact.rs` documents it).
     for (what, path) in [("IR", &ir), (".lidx", &lidx), ("reference pages", &pages)] {
-        if !path.exists() {
-            eprintln!("skipping: no {what} at {}", path.display());
+        if file_count(path) == 0 {
+            eprintln!(
+                "skipping: no {what} at {} (empty or missing)",
+                path.display()
+            );
             return None;
         }
     }
     Some((ir, lidx, pages))
+}
+
+/// Regular files at or under `path`; 1 for a file, 0 for a missing path.
+fn file_count(path: &Path) -> usize {
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return usize::from(path.is_file());
+    };
+    entries
+        .flatten()
+        .map(|entry| match entry.file_type() {
+            Ok(kind) if kind.is_dir() => file_count(&entry.path()),
+            Ok(kind) if kind.is_file() => 1,
+            _ => 0,
+        })
+        .sum()
 }
 
 /// The text between `open` and the next `</div>`, and where it started.
@@ -135,7 +159,14 @@ fn every_docstring_in_the_reference_pages_is_reproduced() {
     for module in &modules {
         builder.module(module);
     }
-    let index = builder.build(LinkIndex::read(&lidx).expect("the .lidx reads"));
+    // M7-c: the prototype had no dependency map, so its bytes are the
+    // **fallback** branch — which an empty [`ExternalLinks`] reproduces
+    // exactly. With a map every link into a dependency moves, on purpose
+    // (`docs/implementation-plan.md` §1).
+    let index = builder.build(
+        LinkIndex::read(&lidx).expect("the .lidx reads"),
+        ExternalLinks::default(),
+    );
 
     // `DocInfo.ofConstant` sets `render := false` for projection functions and
     // constructors, i.e. exactly the names that appear as another declaration's

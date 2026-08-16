@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 # Compare two whole sites byte for byte and say what differs.
 #
+# **M7-c moved dependency links, and this compares against a doc-gen4-era
+# reference.** Every link into a dependency is now that package's version-pinned
+# GitHub blob URL whenever the run resolves a package root (`build` always does;
+# `site` and `render` do when given `--root`), so a diff here is **expected** and
+# is no longer a failure of the port. Gate A is suspended, not redefined — see
+# `docs/implementation-plan.md` §1.
+#
 # A "site" here is what full generation produces: the module pages **and** the
 # six whole-package artifacts in one tree — 438 files for the target package,
 # 439 once a module has been added. `render-compare.sh` looks at `*.html` only,

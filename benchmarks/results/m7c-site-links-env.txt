@@ -1,0 +1,19 @@
+date (UTC)          : 2026-08-16 02:03:26
+host                : Darwin 25.6.0 arm64, 8 CPU, 16 GB RAM
+target              : /Users/haruka/dev/lean-projects
+target toolchain    : leanprover/lean4:v4.31.0
+target HEAD         : ca4fd931952b5e93045d210007bdd7e14c118d34
+target mathlib rev  : fabf563a7c95a166b8d7b6efca11c8b4dc9d911f
+lean core githash   : 68218e876d2a38b1985b8590fff244a83c321783
+doc-gen4 tree       : /Users/haruka/dev/lean-projects/.lake/build/doc (6080 pages)
+oracle (per decl)   : /private/tmp/claude-502/-Users-haruka-dev-lean-doc/bf8993ac-8e88-4241-b524-6317d35595b6/scratchpad/decl-source-urls.tsv (241553 lines, 41006908 B)
+oracle (per module) : the reference tree's own gh_nav_link, read by the checker
+link index          : /private/tmp/claude-502/-Users-haruka-dev-lean-doc/bf8993ac-8e88-4241-b524-6317d35595b6/scratchpad/m7a/link-index.lidx (10464171 B, marker #lidx2)
+IR                  : /private/tmp/claude-502/-Users-haruka-dev-lean-doc/bf8993ac-8e88-4241-b524-6317d35595b6/scratchpad/m7a/ir (432 modules, extracted for M7-a)
+source url          : https://github.com/FujiHaruka/information-theory/blob/ca4fd931952b5e93045d210007bdd7e14c118d34
+command             : lean-doc site --ir <ir> --out <site> --source-url <url> --link-index <lidx> [--root <target>]
+checker             : benchmarks/tools/check-site-links.py
+lean-doc (before)   : /private/tmp/claude-502/-Users-haruka-dev-lean-doc/bf8993ac-8e88-4241-b524-6317d35595b6/scratchpad/m7c/lean-doc-before (pre-M7-c release binary, HEAD 0002a90)
+lean-doc (after)    : target/release/lean-doc, M7-c working tree
+rustc               : rustc 1.97.1 (8bab26f4f 2026-07-14)
+page cache          : not controlled (this is a byte comparison, not a timing)

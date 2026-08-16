@@ -40,7 +40,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lean_doc_render::{LinkIndex, NameIndex, PageLinks};
+use lean_doc_render::{ExternalLinks, LinkIndex, NameIndex, PageLinks};
 use serde::Deserialize;
 
 const FIXTURE: &str = include_str!("data/docgen4-linked-expected.json");
@@ -77,7 +77,15 @@ impl Case {
         for (name, module) in &self.names {
             builder.declaration(name, module);
         }
-        let index = builder.build(LinkIndex::default());
+        // **The doc-gen4 oracle still applies here, and M7-c is why that needs
+        // saying.** doc-gen4 wrote these answers with every link a relative page
+        // link, which is what an empty [`ExternalLinks`] produces byte for byte.
+        // Give this corpus a dependency map instead and the two would part
+        // company on every resolved name — by design, and no longer a failure
+        // (`docs/implementation-plan.md` §1: gate A is suspended). The map is
+        // empty rather than absent because there is nothing to fill it with:
+        // these cases are synthetic worlds with no package behind them.
+        let index = builder.build(LinkIndex::default(), ExternalLinks::default());
         // Empty: doc-gen4's module-local branch is disabled for this corpus.
         let links = PageLinks::new(&index, &self.root, &[]);
         links.renderer().docstring(&self.md)

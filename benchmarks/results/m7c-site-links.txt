@@ -1,0 +1,106 @@
+M7-c — the dependency links a generated site emits, against doc-gen4's own tree.
+Conditions: m7c-site-links-env.txt. Checker: benchmarks/tools/check-site-links.py.
+
+All numbers below are 実測 over the measurement target's 432 modules.
+
+Three trees were generated from the same IR, the same .lidx and the same
+--source-url, and they differ only in which binary and which flag:
+
+  site-before : the pre-M7-c release binary (HEAD 0002a90), no dependency map
+  site-noroot : the M7-c binary with no --root, i.e. the empty map
+  site-root   : the M7-c binary with --root /Users/haruka/dev/lean-projects
+
+  438 files each (432 module pages + 6 whole-package artifacts). The checker
+  below reports 435 because it reads `*.html` only: 3 of the 6 artifacts are
+  navbar/references/tactics.html and 3 are .bmp / .json / .bib.
+
+  Re-running the last command with the final binary reproduced site-root byte
+  for byte (`diff -r` identical), so the numbers below are not a one-off.
+
+  diff -r site-before site-noroot -> identical, 0 lines.
+    ** The empty map reproduces the pre-M7 bytes exactly, over the real corpus. **
+    This is the property the frozen prototype's and doc-gen4's fixtures still
+    stand on: they are the oracle of the *fallback* branch.
+
+  external  39 root(s) from 15/15 package(s) + core
+  external  note: module root `Main` is claimed by package `MD4Lean` and by
+                  doc-gen4 — keeping the first (nothing imports either)
+
+site                             : /private/tmp/claude-502/-Users-haruka-dev-lean-doc/bf8993ac-8e88-4241-b524-6317d35595b6/scratchpad/m7c/site-root (435 pages)
+oracle                           : /private/tmp/claude-502/-Users-haruka-dev-lean-doc/bf8993ac-8e88-4241-b524-6317d35595b6/scratchpad/decl-source-urls.tsv (235486 declaration URLs, 241553 names)
+                                   /Users/haruka/dev/lean-projects/.lake/build/doc (6072 module URLs)
+
+github hrefs emitted             : 101323
+  the package's own source links : 4992
+  into a dependency              : 96331  (1046 distinct)
+    with a #L anchor             : 94855
+    a whole file, no anchor      : 1476
+
+anchored, matching the oracle exactly            : 72038
+anchored, not in the oracle                      : 22817 (69 distinct)
+      22817  a field or constructor: doc-gen4 renders it inside its parent's div
+unanchored, the file is one doc-gen4 links too   : 1476
+unanchored, MISMATCH (file unknown to the oracle): 0
+
+MISMATCHED (the milestone fails if this is not 0): 0
+
+links into a dependency that stayed relative     : 7
+       1  Mathlib/InformationTheory/KullbackLeibler/ChainRule.html
+      e.g. '../.././Mathlib/InformationTheory/KullbackLeibler/ChainRule.html' on InformationTheory/Shannon/CondKLIntegral.html
+       1  Mathlib/Analysis/Calculus/ParametricIntegral.html
+      e.g. '../../../.././Mathlib/Analysis/Calculus/ParametricIntegral.html' on InformationTheory/Shannon/EPI/Conv/Density.html
+       1  Mathlib/Analysis/Calculus/LogDeriv.html
+      e.g. '../../.././Mathlib/Analysis/Calculus/LogDeriv.html' on InformationTheory/Shannon/FisherInfo/Basic.html
+       1  Mathlib/Data/List/Nodup.html
+      e.g. '../../.././Mathlib/Data/List/Nodup.html' on InformationTheory/Shannon/LZ78/GreedyLongestPrefix.html
+       1  Mathlib/Analysis/Calculus/LagrangeMultipliers.html
+      e.g. '../../.././Mathlib/Analysis/Calculus/LagrangeMultipliers.html' on InformationTheory/Shannon/MaxEntropy/Constrained.html
+       1  Mathlib/InformationTheory/Coding/KraftMcMillan.html
+      e.g. '../.././Mathlib/InformationTheory/Coding/KraftMcMillan.html' on InformationTheory/Shannon/McMillanKraftBridge.html
+       1  Mathlib/Probability/Decision/BayesEstimator.html
+      e.g. '../../.././Mathlib/Probability/Decision/BayesEstimator.html' on InformationTheory/Shannon/Portfolio/StationaryWinfty.html
+
+baseline                         : /private/tmp/claude-502/-Users-haruka-dev-lean-doc/bf8993ac-8e88-4241-b524-6317d35595b6/scratchpad/m7c/site-noroot
+  pages whose bytes moved outside an href       : 0
+  hrefs that moved                              : 96331
+  of those, relative page link -> blob URL      : 96331
+  of those, anything else                       : 0
+  the package's own source links that moved     : 0
+
+Why the 22,817 are not disagreements 【実測 M7-a, restated here】
+----------------------------------------------------------------
+69 distinct URLs, and for every one of them the .lidx name at that range is a
+structure field or an inductive constructor whose **parent** the oracle does
+hold. doc-gen4 renders those inside the parent's `decl` div — as
+`<li class="structure_field">` or inside `Instances For` — so it writes no
+`gh_link` of their own and the miner has nothing to compare against. The five
+most frequent are, by name:
+
+  Init.Prelude  110-111  Bool.true                          (a constructor)
+  Init.Prelude 1280-1280 LE.le                              (a class field)
+  Init.Prelude 1359-1359 HAdd.hAdd                          (a class field)
+  Init.Prelude 1746-1746 Membership.mem                     (a class field)
+  Init.Core     578-578  EmptyCollection.emptyCollection    (a class field)
+
+They are the commonest constants in a signature (`+`, `≤`, `∈`), which is why
+69 URLs account for 22,817 of the 94,855 anchored hrefs. Grepping the reference
+page for the anchor confirms it: `#L110-L111` does not occur anywhere in
+Init/Prelude.html.
+
+The 7 that stayed relative
+--------------------------
+All seven are `nameToLink?`'s **first branch**, which is not one of M7-c's call
+sites and does not live in this crate: a docstring word that ends in `.lean` and
+contains a `/` is a *source path*, and `lean_doc_md::Renderer::resolve_link`
+answers it before the name resolver is consulted (see the heading of
+`crates/lean-doc-render/src/autolink.rs`). It maps
+`Mathlib/…/ChainRule.lean` -> `<root>Mathlib/…/ChainRule.html` without ever
+naming a module, so `ExternalLinks::href` is never reached. Converting it needs a
+path -> module rule, which is a different function from the one M7-c added.
+
+  96,331 of 96,338 links whose destination is a dependency became blob URLs.
+
+Not M7's, and unchanged by it: 7,354 relative hrefs to `foundational_types.html`
+(a doc-gen4 artifact page this site does not write — `SpanKind::Sort`'s target is
+a hard-coded name, not a module) and 153 relative hrefs to partial own-package
+module names. Both are byte-identical in site-before.

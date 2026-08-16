@@ -46,8 +46,8 @@ use std::path::PathBuf;
 
 use lean_doc_ir::{IrTree, Span, SpanKind, Utf16Text};
 use lean_doc_render::{
-    CodeRenderer, LinkIndex, NameIndex, Refs, Rendered, break_within, css_kind, decl_refs,
-    kind_description, module_from_private_prefix, page_root, private_to_user_name,
+    CodeRenderer, ExternalLinks, LinkIndex, NameIndex, Refs, Rendered, break_within, css_kind,
+    decl_refs, kind_description, module_from_private_prefix, page_root, private_to_user_name,
 };
 use serde::Deserialize;
 
@@ -126,7 +126,12 @@ impl Case {
         for (name, module) in &self.known {
             builder.declaration(name, module);
         }
-        builder.build(LinkIndex::default())
+        // M7-c: the oracle is the frozen prototype, which had no dependency
+        // map, so the comparison is against the **fallback** branch — which an
+        // empty [`ExternalLinks`] reproduces byte for byte. A populated map
+        // would move every link into a dependency, on purpose
+        // (`docs/implementation-plan.md` §1).
+        builder.build(LinkIndex::default(), ExternalLinks::default())
     }
 
     fn refs(&self) -> Refs<'_> {
@@ -569,7 +574,12 @@ fn the_whole_corpus_matches_the_prototype() {
     for module in &modules {
         builder.module(module);
     }
-    let index = builder.build(LinkIndex::default());
+    // M7-c: the oracle is the frozen prototype, which had no dependency
+    // map, so the comparison is against the **fallback** branch — which an
+    // empty [`ExternalLinks`] reproduces byte for byte. A populated map
+    // would move every link into a dependency, on purpose
+    // (`docs/implementation-plan.md` §1).
+    let index = builder.build(LinkIndex::default(), ExternalLinks::default());
     let renderer = CodeRenderer::new(&index);
     eprintln!("{} names in `known`", index.len());
 

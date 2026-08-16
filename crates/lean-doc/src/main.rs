@@ -22,7 +22,7 @@
 //! name every path itself still can; a caller that wants documentation runs
 //! `build`.
 //!
-//! Two flags are deliberately more awkward than the prototype's:
+//! Three flags are deliberately more awkward than the prototype's:
 //!
 //! - **`--only` and `--only-from` are the same option in two spellings, and
 //!   `--only-from` an empty file renders nothing.** `render.ts` could not say
@@ -32,6 +32,13 @@
 //! - **One of `--link-index` and `--no-link-index` is required.** The
 //!   dependency map is not optional in the product (plan 決定 4); leaving it
 //!   out costs 150 of 432 pages their correct bytes, and it does so silently.
+//! - **`--root` on a stage command is the package, not the output** (M7-c). It
+//!   is what the dependency link map is resolved from, it is optional there
+//!   because a stage command may be pointed at an IR tree with no package next
+//!   to it, and leaving it out is a *different site* — every link into a
+//!   dependency stays a relative link to a page nothing writes. So the run says
+//!   which of the two it did, on its own line, rather than letting the answer be
+//!   read off the pages. [`build`] has a package by construction and never asks.
 
 use std::collections::BTreeSet;
 use std::path::PathBuf;
@@ -51,11 +58,6 @@ use lean_doc_render::{ModuleSet, RenderOptions, RenderSummary, render_site};
 mod build;
 mod extract;
 mod lakefile;
-// **M7-b lands the resolver; M7-c is what calls it.** The dependency link map
-// has to exist and be checked against doc-gen4's own tree before the renderer is
-// switched over to it, so for one milestone it is product code with no caller —
-// which is what the `allow` is for, and what removing it will mark as done.
-#[allow(dead_code)]
 mod packages;
 mod pipeline;
 mod resident;
@@ -69,7 +71,7 @@ usage: lean-doc build  --root <repo> --out <dir> [--link-index <file>]
                        [--timings <file>]
        lean-doc incremental --ir <dir> --pages <dir> --ledger <file> --work <dir>
                        --modules <file> --source-url <url> --link-index <file>
-                       --state <dir> [--make-link-index]
+                       --state <dir> [--make-link-index] [--root <repo>]
                        (--extractor <program> [--extractor-arg <arg>]...
                         | --serve --extractor-bin <path> --target <repo>
                           [--lake <path>] [--jobs <n>])
@@ -81,9 +83,11 @@ usage: lean-doc build  --root <repo> --out <dir> [--link-index <file>]
                        [--events <file>] [--jobs <n>] [--link-index <file>]
        lean-doc site   --ir <dir> --out <dir> --source-url <url>
                        (--link-index <file> | --no-link-index)
+                       [--root <repo>] [--lake <path>]
                        [--state <dir>] [--timings <file>]
        lean-doc render --ir <dir> --pages <dir> --source-url <url>
                        (--link-index <file> | --no-link-index)
+                       [--root <repo>] [--lake <path>]
                        [--only <Module>]... [--only-from <file>]
        lean-doc global --ir <dir> --out <dir> [--state <dir>]
                        [--before <map.json>] [--print-set <file>]
@@ -91,10 +95,11 @@ usage: lean-doc build  --root <repo> --out <dir> [--link-index <file>]
        lean-doc ledger build --modules <file> --target <repo> --out <ledger.json>
                        [--algorithm sha256|lake] [--concurrency <n>]
                        [--ir <dir>] [--source-url <url>] [--link-index <file>]
-                       [--timings <file>]
+                       [--root <repo>] [--lake <path>] [--timings <file>]
        lean-doc ledger check --ledger <ledger.json> [--modules <file>]
                        [--algorithm sha256|lake] [--concurrency <n>] [--ir <dir>]
-                       [--source-url <url>] [--link-index <file>] [--changed-out <file>]
+                       [--source-url <url>] [--link-index <file>]
+                       [--root <repo>] [--lake <path>] [--changed-out <file>]
                        [--removed-out <file>] [--render-all-out <file>]
                        [--timings <file>]
        lean-doc ledger touch --ledger <ledger.json> --module <Module> [--out <file>]
@@ -111,7 +116,17 @@ usage: lean-doc build  --root <repo> --out <dir> [--link-index <file>]
 
   --root         (`build`, `modules`) the Lean package: the sources are globbed
                  under it, its oleans are hashed, `lake env` runs inside it, and
-                 for `build` its git HEAD is where --source-url comes from
+                 for `build` its git HEAD is where --source-url comes from.
+                 (`site`, `render`, `incremental`, `ledger`) optional, and
+                 only for the dependency link map: with it, every link into a
+                 dependency is that package's version-pinned GitHub blob URL,
+                 read out of its lake-manifest.json plus `lean --githash`
+                 (M7-c); without it those links stay relative to pages this
+                 site does not write. It is **not** --target: that names the
+                 tree whose oleans are hashed. A ledger and the run it licenses
+                 have to agree about this flag, or the render key moves and
+                 every page is re-rendered. `build` has one by construction, so
+                 its sites always carry the links.
   --out          (`build`) the directory this command owns: <out>/site is the
                  site, <out>/{ir,state,work} the caches, <out>/ledger.json the
                  ledger. Required, with no default — <root>/.lake/build/doc is
@@ -167,7 +182,10 @@ usage: lean-doc build  --root <repo> --out <dir> [--link-index <file>]
                  under it is refused, and its oleans are the generation every
                  resident request is checked against
   --lake         (`extract`, `incremental --serve`) the lake executable, or
-                 $LAKE (default: `lake`)
+                 $LAKE (default: `lake`). Also (`build`, `site`, `render`,
+                 `ledger`) how `lake env lean --githash` is run to learn Lean
+                 core's revision, which is the one dependency the manifest does
+                 not pin
   --events       (`extract`) the extractor's phase events JSONL. Defaults to
                  <timings without .json>-events.jsonl, which is what
                  `incremental` relies on: it passes only --timings
@@ -194,7 +212,11 @@ usage: lean-doc build  --root <repo> --out <dir> [--link-index <file>]
                  come out in — a from-scratch extraction's, which is the order
                  the extractor was handed the list in. A list that names other
                  modules than the merged tree holds is exit 3, not a guess.
-  --target       the repository whose .lake/build/lib/lean holds the oleans
+  --target       the repository whose .lake/build/lib/lean holds the oleans.
+                 **Not** where the dependency link map comes from — that is
+                 --root, even for `ledger`, where on a real package the two name
+                 the same directory but on a hashed tree with no package behind
+                 it only one of them exists
   --ledger       a ledger.json written by `ledger build`. `incremental` reads
                  it and never rewrites it; `build` writes it back, after the
                  last step that could fail.
@@ -273,19 +295,52 @@ fn usage<T>(message: impl Into<String>) -> Result<T, Failure> {
     Err(Failure::Usage(message.into()))
 }
 
-/// `renderKey.externalLinks` — the identity of the map that says where each
-/// **dependency's** source lives (M7-b).
+/// The map that says where each **dependency's** source lives, resolved **once
+/// per run** and then handed to both the renderer and the render key (M7-c).
 ///
-/// **TODO(M7-c): resolve it instead of defaulting it.** [`packages`] already
-/// builds the real map out of the target's `lake-manifest.json` and its
-/// toolchain, and it is checked against doc-gen4's own tree; what is missing is
-/// the renderer using it, and until then no page's bytes depend on it. Feeding
-/// the empty map's digest — rather than `None` — is what puts the key in every
-/// ledger this command writes now, so that M7-c *moves* a key that is already
-/// there instead of introducing one. It is one function so that the switch is
-/// one edit and every subcommand turns over together.
-fn external_links_digest() -> String {
-    lean_doc_render::ExternalLinks::default().digest()
+/// `root` is the package being documented. `None` is a real case rather than an
+/// oversight: `render` and `site` are pointed at an *IR tree*, which need not sit
+/// next to any checkout — the harnesses under `tools/` run them against trees
+/// extracted months ago — and with no package there is no manifest, no
+/// revisions, and therefore nothing to link a dependency at. The map comes out
+/// empty and every dependency link stays the relative page link v0.1 shipped
+/// before M7. The run says which of the two happened, because the difference is
+/// invisible in the exit code and visible on every page.
+///
+/// **Problems do not stop the run** (`docs/implementation-plan.md` §M7): a
+/// package missing from disk, a manifest that will not parse, a `lake` that will
+/// not run — each costs the roots it would have contributed and is printed. A
+/// partial map renders a partial improvement; refusing would trade a site with
+/// some dead links for no site at all.
+fn resolve_external_links(
+    root: Option<&std::path::Path>,
+    lake: Option<&std::path::Path>,
+) -> lean_doc_render::ExternalLinks {
+    let Some(root) = root else {
+        println!(
+            "external  no package named (--root), so links into a dependency stay relative to \
+             pages this site does not write"
+        );
+        return lean_doc_render::ExternalLinks::default();
+    };
+    let lake = lake.map_or_else(
+        || extract::or_env(None, "LAKE").unwrap_or_else(|| PathBuf::from("lake")),
+        std::path::Path::to_path_buf,
+    );
+    let resolved = packages::external_links(root, &lake);
+    println!(
+        "external  {} root(s) from {}/{} package(s) + core",
+        resolved.links.len(),
+        resolved.resolved,
+        resolved.declared,
+    );
+    // Counted and printed, not folded into the line above: a collision means the
+    // map holds one of two candidates, which is a different answer from "a
+    // package contributed nothing".
+    for line in resolved.collisions.iter().chain(&resolved.problems) {
+        println!("external  note: {line}");
+    }
+    resolved.links
 }
 
 fn run(args: &[String]) -> Result<(), Failure> {
@@ -366,6 +421,8 @@ fn site(args: &[String]) -> Result<(), Failure> {
     let mut source_url: Option<String> = None;
     let mut link_index: Option<PathBuf> = None;
     let mut no_link_index = false;
+    let mut root: Option<PathBuf> = None;
+    let mut lake: Option<PathBuf> = None;
     let mut state: Option<PathBuf> = None;
     let mut timings: Option<PathBuf> = None;
 
@@ -383,6 +440,8 @@ fn site(args: &[String]) -> Result<(), Failure> {
             "--source-url" => source_url = Some(value("--source-url")?),
             "--link-index" => link_index = Some(value("--link-index")?.into()),
             "--no-link-index" => no_link_index = true,
+            "--root" => root = Some(value("--root")?.into()),
+            "--lake" => lake = Some(value("--lake")?.into()),
             "--state" => state = Some(value("--state")?.into()),
             "--timings" => timings = Some(value("--timings")?.into()),
             // Refused by name rather than as "unknown argument": each of these
@@ -430,10 +489,12 @@ fn site(args: &[String]) -> Result<(), Failure> {
         return usage(link_index_required());
     }
 
+    let external = resolve_external_links(root.as_deref(), lake.as_deref());
     let site = generate_site(
         &ir,
         &out,
         &source_url,
+        &external,
         link_index.as_deref(),
         state.as_deref(),
     )?;
@@ -492,6 +553,7 @@ fn generate_site(
     ir: &std::path::Path,
     out: &std::path::Path,
     source_url: &str,
+    external_links: &lean_doc_render::ExternalLinks,
     link_index: Option<&std::path::Path>,
     state: Option<&std::path::Path>,
 ) -> Result<Site, Failure> {
@@ -500,6 +562,7 @@ fn generate_site(
         ir,
         pages: out,
         source_url,
+        external_links,
         link_index,
         // Not a parameter. See `site`'s own documentation.
         only: &ModuleSet::All,
@@ -658,6 +721,8 @@ fn ledger(args: &[String]) -> Result<(), Failure> {
     let mut ir: Option<PathBuf> = None;
     let mut source_url = String::new();
     let mut link_index: Option<PathBuf> = None;
+    let mut package: Option<PathBuf> = None;
+    let mut lake: Option<PathBuf> = None;
     let mut algorithm: Option<Algorithm> = None;
     let mut concurrency: usize = 1;
     let mut module: Option<String> = None;
@@ -688,6 +753,14 @@ fn ledger(args: &[String]) -> Result<(), Failure> {
             // and `ledger check` have to be able to name it. Absent, and a path
             // that does not exist, both leave the key out.
             "--link-index" => link_index = Some(value("--link-index")?.into()),
+            // M7-c. **Not `--target`**, even though on a real package the two
+            // are the same directory: `--target` is the tree whose oleans are
+            // hashed, and this is the package whose manifest and toolchain pin
+            // the dependencies. Keeping them apart is what lets `ledger build`
+            // over a hashed tree with no package behind it — every test in this
+            // repository — go on producing the key it produced before M7.
+            "--root" => package = Some(value("--root")?.into()),
+            "--lake" => lake = Some(value("--lake")?.into()),
             "--algorithm" => algorithm = Some(Algorithm::new(value("--algorithm")?)),
             "--concurrency" => {
                 let raw = value("--concurrency")?;
@@ -717,6 +790,7 @@ fn ledger(args: &[String]) -> Result<(), Failure> {
             };
             let names = read_module_list(&modules).map_err(refused)?;
             let algorithm = algorithm.unwrap_or_else(Algorithm::sha256);
+            let external = resolve_external_links(package.as_deref(), lake.as_deref());
             let summary = build_ledger(&BuildOptions {
                 modules: &names,
                 target: &target,
@@ -724,7 +798,7 @@ fn ledger(args: &[String]) -> Result<(), Failure> {
                 ir: ir.as_deref(),
                 source_url: &source_url,
                 link_index: link_index.as_deref(),
-                external_links: Some(&external_links_digest()),
+                external_links: Some(&external.digest()),
                 algorithm: &algorithm,
                 concurrency,
                 timings: timings.as_deref(),
@@ -748,6 +822,7 @@ fn ledger(args: &[String]) -> Result<(), Failure> {
                 Some(list) => Some(read_module_list(&list).map_err(refused)?),
                 None => None,
             };
+            let external = resolve_external_links(package.as_deref(), lake.as_deref());
             let summary = check_ledger(&CheckOptions {
                 ledger: &path,
                 algorithm: algorithm.as_ref(),
@@ -755,7 +830,7 @@ fn ledger(args: &[String]) -> Result<(), Failure> {
                 ir: ir.as_deref(),
                 source_url: &source_url,
                 link_index: link_index.as_deref(),
-                external_links: Some(&external_links_digest()),
+                external_links: Some(&external.digest()),
                 concurrency,
                 changed_out: changed_out.as_deref(),
                 removed_out: removed_out.as_deref(),
@@ -1177,6 +1252,8 @@ fn render(args: &[String]) -> Result<(), Failure> {
     let mut source_url: Option<String> = None;
     let mut link_index: Option<PathBuf> = None;
     let mut no_link_index = false;
+    let mut root: Option<PathBuf> = None;
+    let mut lake: Option<PathBuf> = None;
     // `None` until an `--only` of either spelling appears: the distinction
     // between "no subset asked for" and "a subset that came out empty" is the
     // whole point (plan §5).
@@ -1196,6 +1273,8 @@ fn render(args: &[String]) -> Result<(), Failure> {
             "--source-url" => source_url = Some(value("--source-url")?),
             "--link-index" => link_index = Some(value("--link-index")?.into()),
             "--no-link-index" => no_link_index = true,
+            "--root" => root = Some(value("--root")?.into()),
+            "--lake" => lake = Some(value("--lake")?.into()),
             "--only" => {
                 only.get_or_insert_with(BTreeSet::new)
                     .insert(value("--only")?);
@@ -1238,10 +1317,12 @@ fn render(args: &[String]) -> Result<(), Failure> {
         Some(names) => ModuleSet::These(names),
         None => ModuleSet::All,
     };
+    let external = resolve_external_links(root.as_deref(), lake.as_deref());
     let summary = render_site(&RenderOptions {
         ir: &ir,
         pages: &pages,
         source_url: &source_url,
+        external_links: &external,
         link_index: link_index.as_deref(),
         only: &only,
     })

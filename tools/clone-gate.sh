@@ -3,6 +3,13 @@
 # target, each followed by a real `lake build`, each run through both
 # implementations of the incremental pipeline.
 #
+# **M7-c moved dependency links, and this compares against a doc-gen4-era
+# reference.** Every link into a dependency is now that package's version-pinned
+# GitHub blob URL whenever the run resolves a package root (`build` always does;
+# `site` and `render` do when given `--root`), so a diff here is **expected** and
+# is no longer a failure of the port. Gate A is suspended, not redefined — see
+# `docs/implementation-plan.md` §1.
+#
 # **The sibling of tools/incremental-reference.sh**: same `--impl ts|rust`, same
 # per-scenario record shape (`<s>-counts.json` / `<s>-work/` / `<s>-status.txt` /
 # `<s>-complained.txt` / `<s>-pages.txt` / `<s>-work-present.txt` / `<s>-ir/` /

@@ -39,7 +39,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use lean_doc_render::{ModuleSet, RenderOptions, render_site};
+use lean_doc_render::{ExternalLinks, ModuleSet, RenderOptions, render_site};
 use serde::Deserialize;
 
 const FIXTURE: &str = include_str!("data/pages-expected.json");
@@ -363,6 +363,114 @@ fn the_sample_reaches_every_shape() {
     );
 }
 
+/// **M7-c**, over the same curated corpus: the three dependency-link shapes the
+/// test above reads out of the prototype's bytes, rendered again with a
+/// dependency map, become that package's version-pinned source.
+///
+/// The oracle here is **not** the prototype and cannot be — it has no notion of
+/// a dependency's revision. What is asserted instead is a property of the pair
+/// of runs, which is stronger than a recorded expectation would be:
+///
+/// 1. every byte outside an `href` attribute is identical to the empty-map run;
+/// 2. the hrefs are the same in number and in order;
+/// 3. every href that moved was a link into `Dep`, and moved to `Dep`'s blob URL;
+/// 4. no href into the package being documented moved.
+///
+/// So the empty-map run keeps the prototype as its oracle
+/// ([`every_case_reproduces_the_prototypes_pages`]) and this one says exactly
+/// what the map added on top of it.
+#[test]
+fn a_dependency_map_moves_exactly_the_links_into_the_dependency() {
+    let e = expected();
+    let external = ExternalLinks::new([("Dep", DEP_BASE)]);
+    let mut moved: BTreeSet<String> = BTreeSet::new();
+    let mut cases_with_a_dependency_link = 0usize;
+
+    for case in &e.cases {
+        if case.only.as_ref().is_some_and(Vec::is_empty) {
+            continue;
+        }
+        let work = TempDir::new(&case.what);
+        let before = case.render(&work);
+        let work = TempDir::new(&case.what);
+        let after = case.render_with(&work, &external);
+        assert_eq!(
+            before.keys().collect::<Vec<_>>(),
+            after.keys().collect::<Vec<_>>(),
+            "{}: the map changed which pages exist",
+            case.what
+        );
+        let mut touched = false;
+        for (path, want) in &before {
+            let got = &after[path];
+            let (want_between, want_hrefs) = split_hrefs(want);
+            let (got_between, got_hrefs) = split_hrefs(got);
+            assert_eq!(
+                want_between, got_between,
+                "{} {path}: the map changed a byte outside an href",
+                case.what
+            );
+            assert_eq!(
+                want_hrefs.len(),
+                got_hrefs.len(),
+                "{} {path}: the map added or dropped a link",
+                case.what
+            );
+            for (was, now) in want_hrefs.iter().zip(&got_hrefs) {
+                if was == now {
+                    assert!(
+                        !was.contains("/Dep/"),
+                        "{} {path}: a link into Dep stayed relative: {was}",
+                        case.what
+                    );
+                    continue;
+                }
+                touched = true;
+                assert!(
+                    was.contains("/Dep/"),
+                    "{} {path}: {was} is not a link into Dep and moved anyway (-> {now})",
+                    case.what
+                );
+                assert!(
+                    now.starts_with(DEP_BASE) && now.ends_with(".lean"),
+                    "{} {path}: {was} -> {now}",
+                    case.what
+                );
+                moved.insert((*now).to_owned());
+            }
+        }
+        if touched {
+            cases_with_a_dependency_link += 1;
+        }
+    }
+
+    // The three shapes `the_sample_reaches_every_shape` pins on the prototype's
+    // side, by name, so a corpus that stopped exercising one of them fails here
+    // rather than passing vacuously. The `.lidx` these cases carry is `#lidx1`
+    // and has no ranges, so every URL is the file's — which is the fallback
+    // §M7「行範囲が取れない宣言でリンクを消さない」 asks for.
+    assert_eq!(
+        moved.iter().map(String::as_str).collect::<Vec<_>>(),
+        [
+            // a link through the .lidx's declaration section (`Dep.M.thing`)
+            &format!("{DEP_BASE}/Dep/M.lean"),
+            // a link through a dependency slice (`Dep.thing` in `Dep.Home`)
+            &format!("{DEP_BASE}/Dep/Home.lean"),
+            // a module the .lidx alone knows (`Dep.Only.Module`)
+            &format!("{DEP_BASE}/Dep/Only/Module.lean"),
+        ]
+        .map(String::as_str)
+        .into_iter()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>(),
+    );
+    assert!(
+        cases_with_a_dependency_link >= 2,
+        "only {cases_with_a_dependency_link} case(s) have a link into a dependency"
+    );
+}
+
 /// All 432 pages, against the tree the prototype wrote.
 ///
 /// Skipped unless the reference tree is present. This is the same comparison
@@ -377,8 +485,17 @@ fn pages_match_the_reference_tree() {
     let lidx = PathBuf::from(
         std::env::var("LEAN_DOC_LINK_INDEX").unwrap_or_else(|_| DEFAULT_LINK_INDEX.into()),
     );
-    if !reference.is_dir() || !ir.is_dir() || !lidx.is_file() {
-        eprintln!("skipping: no corpus at {}", ir.display());
+    // Presence is counted in **files**, not directories: `/private/tmp` is
+    // swept, and an emptied `ref-pages` leaves its directory behind. `is_dir()`
+    // said yes to that and the comparison then failed for an environmental
+    // reason — the same trap `lean-doc-incr/tests/impact.rs` documents.
+    if file_count(&reference) == 0 || file_count(&ir) == 0 || !lidx.is_file() {
+        eprintln!(
+            "skipping: no corpus (empty or missing: {} / {} / {})",
+            reference.display(),
+            ir.display(),
+            lidx.display(),
+        );
         return;
     }
     let e = expected();
@@ -387,6 +504,11 @@ fn pages_match_the_reference_tree() {
         ir: &ir,
         pages: &work.path,
         source_url: &e.source_url,
+        // M7-c: the reference tree is the **prototype's**, whose links into a
+        // dependency are all relative. The empty map is what reproduces them;
+        // this test is therefore an oracle for the fallback branch only, and
+        // `benchmarks/results/m7c-*` is where the populated one is measured.
+        external_links: &ExternalLinks::default(),
         link_index: Some(&lidx),
         only: &ModuleSet::All,
     })
@@ -422,7 +544,18 @@ fn pages_match_the_reference_tree() {
 
 impl Case {
     /// Writes the case's IR into `work`, renders it, and reads the pages back.
+    ///
+    /// **The empty dependency map is what makes the prototype's bytes the right
+    /// expectation** (M7-c): with one, every link into `Dep` becomes that
+    /// package's pinned source and the prototype — which had no such notion —
+    /// stops being an oracle for those hrefs.
+    /// [`a_dependency_map_moves_exactly_the_links_into_the_dependency`] is the
+    /// other side.
     fn render(&self, work: &TempDir) -> BTreeMap<String, String> {
+        self.render_with(work, &ExternalLinks::default())
+    }
+
+    fn render_with(&self, work: &TempDir, external: &ExternalLinks) -> BTreeMap<String, String> {
         let ir = work.path.join("ir");
         for (name, text) in &self.ir {
             let path = ir.join(name);
@@ -443,12 +576,50 @@ impl Case {
             ir: &ir,
             pages: &pages,
             source_url: &e.source_url,
+            external_links: external,
             link_index: self.link_index.then_some(lidx.as_path()),
             only: &only,
         })
         .unwrap_or_else(|e| panic!("{}: {e}", self.what));
         read_tree(&pages)
     }
+}
+
+/// The prefix the `Dep` package's sources live under in the test below. 40 hex
+/// digits, because plan 決定 1 wants one everywhere a revision reaches a URL.
+const DEP_BASE: &str = "https://github.com/o/dep/blob/0123456789abcdef0123456789abcdef01234567";
+
+/// Every `href="…"` in `html`, and the bytes between them.
+///
+/// Two documents whose `between` halves agree differ **only** inside href
+/// attributes, which is the claim M7-c has to be held to.
+fn split_hrefs(html: &str) -> (Vec<&str>, Vec<&str>) {
+    let (mut between, mut hrefs) = (Vec::new(), Vec::new());
+    let mut rest = html;
+    while let Some(at) = rest.find("href=\"") {
+        between.push(&rest[..at]);
+        let value = &rest[at + 6..];
+        let end = value.find('"').expect("an href attribute is closed");
+        hrefs.push(&value[..end]);
+        rest = &value[end..];
+    }
+    between.push(rest);
+    (between, hrefs)
+}
+
+/// Regular files under `dir`, recursively. Zero for a missing directory.
+fn file_count(dir: &Path) -> usize {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return 0;
+    };
+    entries
+        .flatten()
+        .map(|entry| match entry.file_type() {
+            Ok(kind) if kind.is_dir() => file_count(&entry.path()),
+            Ok(kind) if kind.is_file() => 1,
+            _ => 0,
+        })
+        .sum()
 }
 
 /// Every `.html` under `dir`, keyed by its path relative to it. A missing

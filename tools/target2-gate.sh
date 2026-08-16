@@ -2,6 +2,13 @@
 # M5-b — the gate of plan §1's **gate B**: `lean-doc build`, one command, on a
 # Mathlib-dependent package that has never seen doc-gen4.
 #
+# **M7-c moved dependency links, and the reference side here predates it.**
+# `build` always resolves a package root and so writes version-pinned GitHub blob
+# URLs into every link into a dependency; the `lean-doc site` reference below is
+# invoked **without `--root`** and still writes relative ones. A site diff is
+# therefore **expected**, and is not a failure of the port. Gate A is suspended,
+# not redefined — see `docs/implementation-plan.md` §1.
+#
 # usage: tools/target2-gate.sh <phase> [--target2 DIR] [--out DIR] [--jobs N]
 #   phases: gate1 | gate2 | gate3 | gate4 | boundary | reset | all
 #

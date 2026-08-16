@@ -42,7 +42,9 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::PathBuf;
 
 use lean_doc_ir::IrTree;
-use lean_doc_render::{LinkIndex, NameIndex, PageLinks, module_decl_names, page_root};
+use lean_doc_render::{
+    ExternalLinks, LinkIndex, NameIndex, PageLinks, module_decl_names, page_root,
+};
 use serde::Deserialize;
 
 const FIXTURE: &str = include_str!("data/autolink-expected.json");
@@ -104,7 +106,11 @@ impl Case {
         for (name, module) in &self.known {
             builder.declaration(name, module);
         }
-        builder.build(LinkIndex::parse(&self.lidx))
+        // M7-c: the prototype had no dependency map, so its bytes are the
+        // **fallback** branch — which an empty [`ExternalLinks`] reproduces
+        // exactly. With a map every link into a dependency moves, on purpose
+        // (`docs/implementation-plan.md` §1).
+        builder.build(LinkIndex::parse(&self.lidx), ExternalLinks::default())
     }
 
     fn render(&self) -> String {
@@ -379,7 +385,14 @@ fn the_whole_corpus_matches_the_prototype() {
     for module in &modules {
         builder.module(module);
     }
-    let index = builder.build(LinkIndex::read(&lidx_path).expect("the .lidx reads"));
+    // M7-c: the prototype had no dependency map, so its bytes are the
+    // **fallback** branch — which an empty [`ExternalLinks`] reproduces
+    // exactly. With a map every link into a dependency moves, on purpose
+    // (`docs/implementation-plan.md` §1).
+    let index = builder.build(
+        LinkIndex::read(&lidx_path).expect("the .lidx reads"),
+        ExternalLinks::default(),
+    );
     eprintln!(
         "{} names / {} in the .lidx / {} modules",
         index.len(),

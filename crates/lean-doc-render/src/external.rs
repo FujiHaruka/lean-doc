@@ -1,8 +1,10 @@
 //! Where a **dependency's** source lives: a version-pinned GitHub blob URL.
 //!
 //! Milestone **M7-b** — the value type; the resolver that fills it is
-//! `lean-doc`'s `packages` module, and the renderer call sites that consume it
-//! are M7-c.
+//! `lean-doc`'s `packages` module. **M7-c** added [`ExternalLinks::href`], which
+//! is the one place in this crate that decides between a blob URL and a relative
+//! page link, and wired the map into every call site that builds a link to
+//! another module (`docs/implementation-plan.md` §M7).
 //!
 //! # The rule is doc-gen4's, not a new one
 //!
@@ -41,6 +43,7 @@
 
 use sha2::{Digest, Sha256};
 
+use crate::autolink::module_link;
 use crate::frame::module_source_url;
 
 /// The first line of the canonical serialization [`ExternalLinks::digest`]
@@ -119,6 +122,43 @@ impl ExternalLinks {
             url.push_str(&to.to_string());
         }
         Some(url)
+    }
+
+    /// **The M7-c decision, and the only copy of it**: the `href` a page uses to
+    /// reach `module`, anchored at the declaration `anchor` when there is one.
+    ///
+    /// Into a **dependency** — a module whose root this map holds — that is the
+    /// version-pinned blob URL, with the `#L…-L…` anchor when the `.lidx` had a
+    /// range for the declaration. Everywhere else it is the relative page link
+    /// this site has always written, `<root><module path>.html#<anchor>`.
+    ///
+    /// **The empty map therefore reproduces the pre-M7 bytes exactly.** That is
+    /// load-bearing rather than incidental: it is what confines M7 to dependency
+    /// links (`docs/implementation-plan.md` §M7「自パッケージのリンクを巻き込ま
+    /// ない」), and it is what keeps the frozen prototype's and doc-gen4's
+    /// fixtures valid as the oracle of the *fallback* branch.
+    ///
+    /// The two anchors are different kinds of thing and never both appear:
+    /// `#Nat.succ` names a declaration on a page this site wrote, `#L26-L27`
+    /// names lines of a file on GitHub. A blob URL carrying a declaration
+    /// fragment would point at nothing.
+    #[must_use]
+    pub fn href(
+        &self,
+        root: &str,
+        module: &str,
+        anchor: Option<&str>,
+        lines: Option<(u32, u32)>,
+    ) -> String {
+        if let Some(url) = self.url_for(module, lines) {
+            return url;
+        }
+        let mut out = module_link(root, module);
+        if let Some(anchor) = anchor {
+            out.push('#');
+            out.push_str(anchor);
+        }
+        out
     }
 
     /// The roots, in the order they were given.
@@ -238,6 +278,62 @@ mod tests {
             odd.url_for("«Odd-Name».Inner", None).unwrap(),
             "https://host/o/r/blob/abc/Odd-Name/Inner.lean"
         );
+    }
+
+    /// [`ExternalLinks::href`]'s two branches, side by side, with the same
+    /// arguments: into a dependency it is the blob URL, and into the package
+    /// being documented it is the relative page link.
+    #[test]
+    fn a_link_into_a_dependency_is_a_blob_url_and_one_into_this_site_is_not() {
+        let links = links();
+        assert_eq!(
+            links.href(
+                ".././",
+                "Mathlib.Order.Basic",
+                Some("LE.ext"),
+                Some((67, 67))
+            ),
+            format!("{MATHLIB}/Mathlib/Order/Basic.lean#L67-L67"),
+            "the declaration fragment is replaced by the line anchor, not appended"
+        );
+        // No range: the file's URL, which is the shape `gh_nav_link` already has
+        // (§M7「行範囲が取れない宣言でリンクを消さない」).
+        assert_eq!(
+            links.href(".././", "Mathlib.Order.Basic", Some("LE.ext"), None),
+            format!("{MATHLIB}/Mathlib/Order/Basic.lean")
+        );
+        // A module link — the import list, and `nameToLink`'s third branch.
+        assert_eq!(
+            links.href(".././", "Init.Prelude", None, None),
+            format!("{CORE}/Init/Prelude.lean")
+        );
+        // The package being documented: unchanged, anchor and all.
+        assert_eq!(
+            links.href(".././", "Pkg.Two", Some("Pkg.Two.a"), Some((5, 5))),
+            ".././Pkg/Two.html#Pkg.Two.a",
+            "a range must not turn an own-package link into anything else"
+        );
+    }
+
+    /// **The property M7-c is confined by**: with no map, every one of those
+    /// answers is the byte the renderer wrote before M7.
+    #[test]
+    fn the_empty_map_reproduces_the_relative_link_for_everything() {
+        let none = ExternalLinks::default();
+        assert_eq!(
+            none.href(
+                ".././",
+                "Mathlib.Order.Basic",
+                Some("LE.ext"),
+                Some((67, 67))
+            ),
+            ".././Mathlib/Order/Basic.html#LE.ext"
+        );
+        assert_eq!(
+            none.href("./", "Init.Prelude", None, None),
+            "./Init/Prelude.html"
+        );
+        assert_eq!(none.href("", "Foo", Some("Foo.f"), None), "Foo.html#Foo.f");
     }
 
     #[test]

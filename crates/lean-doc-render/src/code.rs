@@ -47,7 +47,7 @@ use std::collections::HashMap;
 use lean_doc_ir::{Decl, Span, SpanKind, Utf16Text};
 use lean_doc_md::escape_html_into;
 
-use crate::autolink::{NameIndex, PRIVATE_PREFIX, module_link};
+use crate::autolink::{NameIndex, PRIVATE_PREFIX};
 use crate::whitespace::apply_ws_widths;
 
 /// A declaration's resolved references, inverted to name -> defining module.
@@ -238,13 +238,19 @@ impl<'a> CodeRenderer<'a> {
     /// 2. [`find_linkable_parent`] after auxiliary-name removal;
     /// 3. for a private name, the module its prefix names;
     /// 4. otherwise no link, and the caller renders a `span.fn`.
+    ///
+    /// All three linking branches go through [`NameIndex::link_to`] (M7-c), so
+    /// a constant defined in a dependency links at that dependency's pinned
+    /// source rather than at a page this site never wrote. **Which name the
+    /// anchor is taken from is not always `name`**: branch 2 links the *parent*,
+    /// and it is the parent's source range that belongs on that URL.
     #[must_use]
     pub fn const_link(&self, name: &str, root: &str, refs: &Refs<'_>) -> Option<String> {
         let is_private = name.starts_with(PRIVATE_PREFIX);
         if !is_private
             && let Some(module) = refs.get(name).copied().or_else(|| self.names.known(name))
         {
-            return Some(format!("{}#{name}", module_link(root, module)));
+            return Some(self.names.link_to(root, module, Some(name)));
         }
         // Step 1: auxiliary name removal.
         let search = if is_private {
@@ -257,11 +263,11 @@ impl<'a> CodeRenderer<'a> {
                 .names
                 .known(parent)
                 .expect("find_linkable_parent only returns names the index knows");
-            return Some(format!("{}#{parent}", module_link(root, module)));
+            return Some(self.names.link_to(root, module, Some(parent)));
         }
         // Step 2: the module link a private name still has.
         if is_private && let Some(module) = module_from_private_prefix(name) {
-            return Some(module_link(root, module));
+            return Some(self.names.link_to(root, module, None));
         }
         None
     }
@@ -502,6 +508,7 @@ pub fn break_within(name: &str) -> String {
 mod tests {
     use super::*;
 
+    use crate::external::ExternalLinks;
     use crate::link_index::LinkIndex;
 
     fn index(entries: &[(&str, &str)]) -> NameIndex {
@@ -509,7 +516,20 @@ mod tests {
         for (name, module) in entries {
             builder.declaration(name, module);
         }
-        builder.build(LinkIndex::default())
+        builder.build(LinkIndex::default(), ExternalLinks::default())
+    }
+
+    /// The same index with a dependency map and a `.lidx` that carries ranges —
+    /// the M7-c side of every case below that has one.
+    fn index_with_dependency(entries: &[(&str, &str)], lidx: &str) -> NameIndex {
+        let mut builder = NameIndex::builder();
+        for (name, module) in entries {
+            builder.declaration(name, module);
+        }
+        builder.build(
+            LinkIndex::parse(lidx),
+            ExternalLinks::new([("Init", "https://github.com/leanprover/lean4/blob/dead/src")]),
+        )
     }
 
     /// `[start, stop, 1, name]`.
@@ -635,6 +655,54 @@ mod tests {
         let names = index(&[("f", "A&B")]);
         let out = render("f", &[konst(0, 1, "f")], "./", &names);
         assert_eq!(out.html, "<a href=\"./A&amp;B.html#f\">f</a>");
+    }
+
+    /// **M7-c**, on all three of [`CodeRenderer::const_link`]'s linking
+    /// branches. The empty-map form of each is the case above or below it.
+    #[test]
+    fn a_constant_from_a_dependency_links_at_its_pinned_source() {
+        // Branch 1: a direct hit.
+        let names = index_with_dependency(
+            &[
+                ("Nat", "Init.Prelude"),
+                ("Nat.rec", "Init.Prelude"),
+                ("Pkg.f", "Pkg.A"),
+            ],
+            "Init.Prelude\n\tNat\t26\t27\n\tNat.rec\t44\t50\n",
+        );
+        let out = render("Nat", &[konst(0, 3, "Nat")], "./", &names);
+        assert_eq!(
+            out.html,
+            "<a href=\"https://github.com/leanprover/lean4/blob/dead/src/Init/Prelude.lean\
+             #L26-L27\">Nat</a>"
+        );
+        // The package being documented is not in the map, so its constants are
+        // untouched.
+        let out = render("f", &[konst(0, 1, "Pkg.f")], "./", &names);
+        assert_eq!(out.html, "<a href=\"./Pkg/A.html#Pkg.f\">f</a>");
+
+        // Branch 2: the *parent* is what is linked, so the parent's range is
+        // what the anchor has to come from.
+        let out = render("h", &[konst(0, 1, "Nat.rec._eq_2")], "./", &names);
+        assert_eq!(
+            out.html,
+            "<a href=\"https://github.com/leanprover/lean4/blob/dead/src/Init/Prelude.lean\
+             #L44-L50\">h</a>",
+            "the anchor is Nat.rec's range, not Nat's and not none"
+        );
+
+        // Branch 3: a private name falls back to its module — a file, so no
+        // anchor at all.
+        let out = render(
+            "h",
+            &[konst(0, 1, "_private.Init.Prelude.0.Foo")],
+            "./",
+            &names,
+        );
+        assert_eq!(
+            out.html,
+            "<a href=\"https://github.com/leanprover/lean4/blob/dead/src/Init/Prelude.lean\">h</a>"
+        );
     }
 
     #[test]

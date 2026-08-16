@@ -2,6 +2,13 @@
 # M4-d — the gate of M4: **one command**, run against a clone of the measurement
 # target, with a real edit and a real `lake build` in the middle.
 #
+# **M7-c moved dependency links, and the reference side here predates it.**
+# `build` always resolves a package root and so writes version-pinned GitHub blob
+# URLs into every link into a dependency; the `lean-doc site` reference below is
+# invoked **without `--root`** and still writes relative ones. A site diff is
+# therefore **expected**, and is not a failure of the port. Gate A is suspended,
+# not redefined — see `docs/implementation-plan.md` §1.
+#
 # usage: tools/build-gate.sh <phase> [--clone DIR] [--out DIR] [--lidx FILE]
 #                            [--jobs N] [--move-module <Module>]
 #   phases: gate1 | gate2 | gate3 | gate4 | reset | all

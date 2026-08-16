@@ -63,13 +63,28 @@
 //! compared to the frozen prototype's, byte for byte, by
 //! `tools/render-compare.sh`.
 //!
-//! # What is here so far (M7-b)
+//! # What is here so far (M7-b, M7-c)
 //!
 //! [`external`] — the map from a **dependency's** module root to the
 //! version-pinned GitHub blob prefix its sources live under, and the lookup that
-//! turns a module name into a URL. It is the value type only: `lean-doc`'s
-//! `packages` module resolves it out of the target's `lake-manifest.json`, and
-//! the page's link-building call sites start using it in M7-c.
+//! turns a module name into a URL. `lean-doc`'s `packages` module resolves it out
+//! of the target's `lake-manifest.json` and its toolchain.
+//!
+//! **M7-c is where the pages use it.** Every link *into another module* — a
+//! docstring autolink, a constant in a signature, an inherited structure field,
+//! an entry in the import list — is built by [`ExternalLinks::href`], which is
+//! the only place the choice is made:
+//!
+//! | the module is | the href |
+//! |---|---|
+//! | in the map (a dependency) | `…/blob/<rev>/<path>.lean#L<from>-L<to>` |
+//! | not in the map | the relative page link, unchanged |
+//!
+//! The package being documented is never in the map, so its own links do not
+//! move — and **an empty map reproduces the pre-M7 bytes exactly**, which is what
+//! keeps the frozen prototype's fixtures meaningful as the fallback branch's
+//! oracle (`docs/implementation-plan.md` §1: gate A is suspended, and byte
+//! compatibility with doc-gen4 is no longer claimed for dependency links).
 
 pub mod autolink;
 pub mod code;

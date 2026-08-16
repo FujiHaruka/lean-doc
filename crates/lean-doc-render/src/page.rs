@@ -176,6 +176,7 @@ pub fn page_html(
         &module_url,
         &module.imports,
         &member_names,
+        index.external(),
     ));
     out.push_str("<main>\n");
     out.push_str(&main);
@@ -349,7 +350,7 @@ mod tests {
         let module = module();
         let mut builder = NameIndex::builder();
         builder.module(&module);
-        let index = builder.build(crate::LinkIndex::default());
+        let index = builder.build(crate::LinkIndex::default(), crate::ExternalLinks::default());
         let html = page_html(
             &module,
             &index,
