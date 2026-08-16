@@ -4836,6 +4836,12 @@ require する (これらのソースが import する唯一の依存)。`lake b
 
 **target2 の HEAD は `18a02d58` → `0a072ea2` に動いた** (原因 2 つ、→ 結果ログ「E2」)。
 
+**直したうえで E2 を実走し直した — `tools/target2-gate.sh all` は全段 PASS**【実測
+2026-08-16、Apple M1 / 16 GB / Lean v4.31.0 / Mathlib `fabf563a` / target2 HEAD
+`0a072ea2` / `--jobs 4`】: gate4-site 24 ファイル identical、gate4-ir 16 ファイル
+identical、ledger と link index も identical。**require を 3 本から 1 本に減らしても
+E2 の判定は動かない** (これらのソースは loogle も doc-gen4 も import していなかった)。
+
 ---
 
 ## 書き方
