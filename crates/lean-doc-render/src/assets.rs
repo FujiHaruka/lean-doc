@@ -236,6 +236,49 @@ mod tests {
         }
     }
 
+    /// **A size budget, and what it is for.**
+    ///
+    /// The assets ship inside the binary and land on every generated site, so
+    /// they are the one part of the output whose size is a property of this
+    /// project rather than of the package being documented. `ui-redesign.md`
+    /// 決定 1 refuses a CSS framework and names the failure mode that would
+    /// justify revisiting it — "自前 CSS が doc-gen4 の 836 行より大きくなる …
+    /// 大きくなったら削る。フレームワークには戻らない" — but nothing was
+    /// measuring it.
+    ///
+    /// The limits are **round numbers above the current size, not the current
+    /// size**: a budget pinned to today's bytes is a test that fails on every
+    /// edit, which teaches people to raise it without looking. This one only
+    /// speaks when something grows by a lot 【実測 2026-08-16: style.css
+    /// 21,516 B / app.js 18,424 B / favicon.svg 360 B】.
+    ///
+    /// Raising a limit is allowed. Raising it *without reading what grew* is
+    /// the thing this is here to make awkward.
+    #[test]
+    fn the_assets_stay_within_their_budget() {
+        const BUDGET: [(&str, usize); 3] = [
+            ("style.css", 32 * 1024),
+            ("app.js", 32 * 1024),
+            ("favicon.svg", 4 * 1024),
+        ];
+        for (path, limit) in BUDGET {
+            let body = ASSETS
+                .iter()
+                .find(|(name, _)| *name == path)
+                .unwrap_or_else(|| panic!("{path} is no longer an asset"))
+                .1;
+            assert!(
+                body.len() <= limit,
+                "{path} is {} B, over its {limit} B budget. Either shrink it or \
+                 raise the budget deliberately — but read what grew first: the \
+                 assets are downloaded by every reader of every generated site, \
+                 and 決定 1 says the answer to a large stylesheet is to delete \
+                 from it, not to adopt a framework.",
+                body.len(),
+            );
+        }
+    }
+
     /// Every asset the `<head>` names is an asset this module writes. Stated in
     /// that direction on purpose: what must never happen is a reference to a
     /// file nothing puts in the tree — which is the bug M8-a is fixing. M8-b

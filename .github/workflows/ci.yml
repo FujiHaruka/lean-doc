@@ -81,6 +81,12 @@ jobs:
       - name: Verify the corpus gate's inventory
         run: tools/corpus-gate.sh --verify-list
 
+      # Apache-2.0 §4 went live when this repository went public (2026-08-16).
+      # The obligations were paid before that; this is what keeps a refactor from
+      # quietly deleting an attribution that is now legally load-bearing.
+      - name: Provenance
+        run: tools/provenance-gate.sh
+
   # The only job that runs a real Lean environment. It exists because every test
   # in the job above fakes the extractor, so nothing there checks the contract
   # between `extractor/Extract.lean` and the Rust side: change what the extractor

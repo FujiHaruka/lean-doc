@@ -1,0 +1,51 @@
+# What must carry an attribution, and what that attribution must say.
+#
+# `docs/provenance.md` is the SoT for *which* third-party work is in this tree
+# and *why* each obligation applies. This file is the machine-checkable half:
+# one line per claim that document makes about a file, so that the claim cannot
+# quietly stop being true. `tools/provenance-gate.sh` reads it.
+#
+# The obligations became live on 2026-08-16, when the repository went public and
+# Apache-2.0 §4 fired (provenance.md §4). Every one of them was paid before that
+# — this gate is what keeps them paid.
+#
+# Format: <path> : <substring that must appear somewhere in the file>
+# A file may have several lines; all of them must hold.
+
+# --- the two documents §4(a) and §4(b) are satisfied by ------------------
+LICENSE : Apache License
+LICENSE : Version 2.0, January 2004
+NOTICE : doc-gen4
+NOTICE : md4c
+NOTICE : MD4Lean
+NOTICE : Unicode Basic
+NOTICE : V8
+NOTICE : Böving
+# §4(b) at the level of the work, not just the file (provenance.md §1.1)
+README.md : 派生物
+NOTICE : has been changed
+
+# --- doc-gen4 (Apache-2.0): the files §4(b)(c) names -----------------------
+extractor/Extract.lean : Böving
+extractor/Extract.lean : Apache
+crates/lean-doc-render/assets/style.css : Böving
+crates/lean-doc-render/assets/style.css : Apache 2.0
+crates/lean-doc-md/src/html.rs : doc-gen4
+crates/lean-doc-md/src/escape.rs : doc-gen4
+crates/lean-doc-render/src/code.rs : doc-gen4
+crates/lean-doc-render/src/whitespace.rs : doc-gen4
+crates/lean-doc-render/src/autolink.rs : doc-gen4
+
+# --- the other third-party works (provenance.md §7) -----------------------
+crates/lean-doc-md/vendor/md4c/LICENSE.md : MIT
+crates/lean-doc-md/vendor/md4c/PROVENANCE.md : md4c
+crates/lean-doc-md/src/parse.rs : MD4Lean
+crates/lean-doc-md/src/ffi.rs : md4c
+crates/lean-doc-md/src/gc.rs : Unicode
+crates/lean-doc-global/src/v8_gc.rs : V8
+
+# --- generated fixtures whose origin has to stay recoverable --------------
+# These are program output, not copied source, but "由来の記録は等しく要る —
+# 再生成の手順が分からなくなる方が実害が大きい" (provenance.md §7).
+crates/lean-doc-md/tests/data/PROVENANCE.md : doc-gen4
+crates/lean-doc-render/tests/data/PROVENANCE.md : experiments-frozen
