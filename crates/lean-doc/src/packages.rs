@@ -595,12 +595,14 @@ mod tests {
             resolved.resolved, resolved.declared,
             "a manifest package contributed no module root"
         );
-        assert_eq!(resolved.declared, 15, "the target's manifest declares 15");
-        // 実測: the target's one root collision, and what it is. A second one
-        // appearing is a fact about the dependency set worth failing on.
-        assert_eq!(resolved.collisions.len(), 1, "{:?}", resolved.collisions);
-        assert!(
-            resolved.collisions[0].starts_with("module root `Main` is claimed"),
+        assert_eq!(resolved.declared, 9, "the target's manifest declares 9");
+        // 実測 2026-08-16: no root collision at all. At 15 declared packages two
+        // of them claimed the root `Main`; at 9 only one claimant is left. A
+        // collision reappearing is a fact about the dependency set worth failing
+        // on, so this is asserted as an empty set rather than as a count.
+        assert_eq!(
+            resolved.collisions,
+            Vec::<String>::new(),
             "{:?}",
             resolved.collisions,
         );

@@ -29,7 +29,6 @@ state_and_delta::the_seven_states_agree_over_the_real_corpus  # LEAN_DOC_IR
 state_and_delta::the_state_file_is_the_prototypes_bytes       # LEAN_DOC_IR + LEAN_DOC_PROTOTYPE_STATE
 state_and_delta::the_delta_is_the_prototypes_delta            # LEAN_DOC_IR + LEAN_DOC_REFERENCE_GLOBAL
 state_and_delta::the_curated_tokens_reach_what_the_corpus_does_not  # LEAN_DOC_IR
-ledger::the_corpus_matches_the_prototype              # LEAN_DOC_TARGET + LEAN_DOC_IR
 impact::the_corpus_matches_the_prototype              # LEAN_DOC_BASE_IR + LEAN_DOC_PAGES + LEAN_DOC_SITE
 merge::the_corpus_matches_the_prototype               # LEAN_DOC_BASE_IR + LEAN_DOC_MERGE_FIXTURES
 merge::the_dependency_slices_are_the_from_scratch_bytes        # same

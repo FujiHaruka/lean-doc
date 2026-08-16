@@ -1,37 +1,38 @@
 //! Milestone **M3-a**: the `detect` stage — the olean hash ledger.
 //!
-//! Two oracles, neither of which is this file's own opinion:
+//! # The oracle this file used to have, and why it is gone
 //!
-//! - **The frozen prototype's own files.** `tools/ledger-reference.sh --impl ts`
-//!   ran `experiments/stage5/ledger.ts` over the measurement target and wrote
-//!   seven ledgers, a touched ledger and the check outputs of twelve scenarios;
-//!   `tests/oracle/gen-ledger-expected.ts` reduced that tree to
-//!   `tests/data/ledger-expected.json`, which is what
-//!   [`the_corpus_matches_the_prototype`] compares against, file by file. The
-//!   two key strings the port deliberately changed are substituted there and
-//!   nowhere else — see the fixture's own note and plan §6.
-//!   **The fixture is a frozen value: HEAD has no way to regenerate it.** The
-//!   generator, the prototype and the `--impl ts` half of the harness were
-//!   removed with `experiments/` on 2026-08-16 and exist only at tag
-//!   `experiments-frozen`.
-//! - **The dependency packages**, for the shape the target package does not
-//!   have: its own 432 modules carry one `.olean` each, and the three-file form
-//!   of Lean's module system only appears in Mathlib's.
+//! Until 2026-08-16 the exercises here were scored against **the frozen
+//! prototype's own files**: `tools/ledger-reference.sh --impl ts` ran
+//! `experiments/stage5/ledger.ts` over the measurement target, and
+//! `tests/data/ledger-expected.json` held the sizes and digests of everything it
+//! wrote. That oracle is **retired**, not lost: the port it was there to check is
+//! finished, the prototype was removed with `experiments/` (tag
+//! `experiments-frozen`), and the fixture compared a run over **today's** target
+//! with bytes taken from an **older build of it** — so when the target moved (9
+//! of its 432 modules rebuilt) the comparison failed for a reason that was never
+//! about this code. **The comparison was deleted rather than re-frozen**: a
+//! fixture regenerated from the port's own output is not an oracle, it is a
+//! photograph.
 //!
-//! # Byte equality is not branch coverage (plan §7)
+//! What the exercises still have is their own input — a synthetic package built
+//! by [`FakeRepo`], including **the dependency shape the target package does not
+//! have** (its own modules carry one `.olean` each; the three-file form of
+//! Lean's module system only appears in its dependencies').
+//!
+//! # Branch coverage is counted, not believed (plan §7)
 //!
 //! Of the **53** [`BRANCHES`] this milestone added:
 //!
 //! | exercise | reaches |
 //! |---|---:|
-//! | the ledger byte comparison — one `build` over the target ([`LEDGER_BYTE_COMPARISON`]) | **7** |
+//! | one `build` over a package shaped like the target ([`LEDGER_BYTE_COMPARISON`]) | **7** |
 //! | everything the twelve scenarios reach ([`HARNESS_SCENARIOS`]) | **34** |
 //! | curated cases only ([`NO_REAL_DATA_REACHES`]) | **19** |
 //!
-//! The artifact of this stage is one JSON file, so "the ledger is byte for byte
-//! the prototype's" is a comparison that takes a single path through the code:
-//! one algorithm, one olean per module, both keys present, nothing removed and
-//! nothing added. The dependency is asserted rather than commented:
+//! The 34 are **measured** by
+//! [`the_harness_scenarios_are_measured_on_a_synthetic_package`] and the
+//! accounting is asserted rather than commented by
 //! [`the_curated_cases_cover_what_the_package_does_not`].
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -41,17 +42,9 @@ use std::path::{Path, PathBuf};
 use lean_doc_incr::{
     Algorithm, BuildOptions, BuildSummary, CheckOptions, CheckSummary, Error, KeySet,
     LEDGER_SCHEMA, Ledger, TouchOptions, build_ledger, check_ledger, extract_key, hash_module,
-    module_paths, read_module_list, render_key, touch_ledger,
+    module_paths, render_key, touch_ledger,
 };
 use serde_json::{Value, json};
-
-/// The measurement target. Read only — every number in this repository rests on
-/// its `.lake/build`, and `touch` exists so that nothing here has to write to it.
-const DEFAULT_TARGET: &str = "/Users/haruka/dev/lean-projects";
-const DEFAULT_IR: &str = "/private/tmp/lean-doc-relay/w7h/base-ir";
-/// The reference tree `tools/ledger-reference.sh --impl ts` writes. Only needed
-/// to *regenerate* the fixture; the fixture itself is committed.
-const DEFAULT_REFERENCE: &str = "/private/tmp/lean-doc-relay/m3/ref";
 
 /// The same URLs `tools/ledger-reference.sh` passes. A rev is configuration:
 /// the first only has to be 40 hex, the second only has to differ.
@@ -63,19 +56,6 @@ const URL2: &str = "https://github.com/FujiHaruka/information-theory/blob/000000
 /// *before* `ﬀ` in UTF-16 and after it by code point (plan §7, U1).
 const ASTRAL: &str = "\u{1D49C}";
 const LIGATURE: &str = "\u{FB00}";
-
-/// The eight Mathlib modules `tools/ledger-reference.sh` hashes, all of which
-/// have all three olean files.
-const MATHLIB_MODULES: [&str; 8] = [
-    "Mathlib.Init",
-    "Mathlib.Logic.Basic",
-    "Mathlib.Logic.Denumerable",
-    "Mathlib.Order.Basic",
-    "Mathlib.Data.Set.Defs",
-    "Mathlib.Algebra.Group.Defs",
-    "Mathlib.Tactic.Ring.Basic",
-    "Mathlib.Topology.Basic",
-];
 
 // --------------------------------------------------------------- the branches
 
@@ -152,9 +132,9 @@ const BRANCHES: [&str; 53] = [
     "touchRefusedNoSuchModule",
 ];
 
-/// What the ledger byte comparison reaches: **one `build`** of the target
-/// package, which is the artifact `tools/ledger-compare.sh` puts side by side
-/// with the prototype's.
+/// What **one `build`** of a package shaped like the target reaches — the
+/// artifact `tools/ledger-compare.sh` used to put side by side with the
+/// prototype's.
 ///
 /// Seven of the fifty-three. Every question `check` asks is invisible to it,
 /// and so is every shape of file the target does not have.
@@ -170,7 +150,7 @@ const LEDGER_BYTE_COMPARISON: [&str; 7] = [
 
 /// What the whole harness reaches — the seven ledgers, the two touches and the
 /// twelve check scenarios of `tools/ledger-reference.sh`, replayed in process by
-/// [`the_corpus_matches_the_prototype`].
+/// [`the_harness_scenarios_are_measured_on_a_synthetic_package`].
 const HARNESS_SCENARIOS: [&str; 34] = [
     "buildWrote",
     "changedOutWritten",
@@ -626,147 +606,61 @@ fn run_touch(options: &TouchOptions<'_>) -> (Result<usize, Error>, BTreeSet<&'st
     (result, fired)
 }
 
-// ------------------------------------------------------------- the corpus
-
-/// The committed answers, generated from the prototype's own output by the
-/// (now frozen) `tests/oracle/gen-ledger-expected.ts`.
-struct Expected {
-    package: Counts,
-    dependency: Counts,
-    files: BTreeMap<String, Recorded>,
-    /// Which of them a run actually put side by side with the prototype's, so
-    /// that a file the fixture holds and nothing compares is loud.
-    seen: std::cell::RefCell<BTreeSet<String>>,
-}
-
-struct Counts {
-    modules: usize,
-    olean_files: usize,
-    olean_bytes: u64,
-}
-
-struct Recorded {
-    bytes: usize,
-    fnv1a64: String,
-}
-
-fn expected() -> Expected {
-    let raw = include_str!("data/ledger-expected.json");
-    let value: Value = serde_json::from_str(raw).expect("the fixture is JSON");
-    let counts = |key: &str| Counts {
-        modules: value[key]["modules"].as_u64().expect("a count") as usize,
-        olean_files: value[key]["oleanFiles"].as_u64().expect("a count") as usize,
-        olean_bytes: value[key]["oleanBytes"].as_u64().expect("a count"),
-    };
-    Expected {
-        package: counts("package"),
-        dependency: counts("dependency"),
-        files: value["files"]
-            .as_object()
-            .expect("a file map")
-            .iter()
-            .map(|(name, entry)| {
-                (
-                    name.clone(),
-                    Recorded {
-                        bytes: entry["bytes"].as_u64().expect("a size") as usize,
-                        fnv1a64: entry["fnv1a64"].as_str().expect("a digest").to_owned(),
-                    },
-                )
-            })
-            .collect(),
-        seen: std::cell::RefCell::new(BTreeSet::new()),
-    }
-}
-
-/// The target package and its generated IR, or a panic naming what to set.
+/// The same twelve scenarios, over a package this test owns.
 ///
-/// The only caller is `#[ignore]`d, so reaching this function at all means the
-/// corpus gate asked for the test by name. Returning "not here, never mind"
-/// there would be a green result for a comparison that never ran.
-fn corpus() -> (String, PathBuf) {
-    let target = std::env::var("LEAN_DOC_TARGET").unwrap_or_else(|_| DEFAULT_TARGET.into());
-    let ir = PathBuf::from(std::env::var("LEAN_DOC_IR").unwrap_or_else(|_| DEFAULT_IR.into()));
-    assert!(
-        Path::new(&target).is_dir(),
-        "no target package at {target}: set LEAN_DOC_TARGET, or run this test through \
-         tools/corpus-gate.sh, which is the only thing that should be asking for it"
-    );
-    assert!(
-        ir.is_dir(),
-        "no IR tree at {}: set LEAN_DOC_IR, or run this test through tools/corpus-gate.sh, \
-         which is the only thing that should be asking for it",
-        ir.display()
-    );
-    (target, ir)
-}
-
-fn module_list() -> Vec<String> {
-    let path =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../benchmarks/results/it-modules.txt");
-    read_module_list(&path).expect("the committed module list reads")
-}
-
-/// What the prototype counted over the target package, pinned **whether or not
-/// the corpus is on this machine**, so the numbers in the report have a home.
+/// **Why this exists.** The twelve used to run only inside
+/// `the_corpus_matches_the_prototype` (deleted 2026-08-16), which compared every file it produced
+/// with the frozen prototype's bytes over the measurement target. That
+/// comparison asked "does the port write what the prototype wrote" — a question
+/// the port answered when it was ported, and one nobody can ask again: the
+/// prototype was removed on 2026-08-16 (tag `experiments-frozen`) and the target
+/// keeps moving, so the fixture and the package it was taken against drift apart
+/// and the drift is reported as a failure of code that did not change.
 ///
-/// Split out of [`the_corpus_matches_the_prototype`], which needs the target
-/// package and its IR and is therefore `#[ignore]`d: a fixture that quietly
-/// changed which package it was taken against has to be caught on a machine
-/// that has never seen that package.
-///
-/// [`the_corpus_matches_the_prototype`]: the_corpus_matches_the_prototype
+/// **What it also did, and nothing else does, is *measure* [`HARNESS_SCENARIOS`]
+/// rather than assume it.** [`the_curated_cases_cover_what_the_package_does_not`]
+/// reads the 34 as a constant and checks only that the other 19 have a
+/// written-down case; if nothing measures the 34, the branch accounting is a
+/// claim about the code with no exercise behind it. That is the half kept here,
+/// and it is kept **without a corpus**, so it runs on CI and needs no gate.
 #[test]
-fn the_recorded_corpus_counts_are_pinned_without_the_corpus() {
-    let e = expected();
-    assert_eq!(e.package.modules, 432);
-    assert_eq!(e.package.olean_files, 432);
-    assert_eq!(e.package.olean_bytes, 237_909_832);
-    assert_eq!(e.dependency.modules, 8);
-    assert_eq!(e.dependency.olean_files, 24);
-    assert_eq!(e.dependency.olean_bytes, 10_323_184);
-    assert_eq!(e.files["ledger-sha256.json"].bytes, 142_557);
-    assert_eq!(e.files["ledger-lake.json"].bytes, 120_103);
-}
-
-/// The whole harness, in process: seven ledgers, two touches, twelve checks —
-/// each file compared with the size and digest the prototype produced.
-///
-/// This is `tools/ledger-compare.sh` without the shell. It is also where
-/// [`HARNESS_SCENARIOS`] is measured rather than assumed. The fixture's own
-/// counts are pinned without the corpus by
-/// [`the_recorded_corpus_counts_are_pinned_without_the_corpus`].
-///
-/// [`the_recorded_corpus_counts_are_pinned_without_the_corpus`]: the_recorded_corpus_counts_are_pinned_without_the_corpus
-#[test]
-#[ignore = "corpus: needs LEAN_DOC_TARGET + LEAN_DOC_IR (tools/corpus-gate.sh)"]
-fn the_corpus_matches_the_prototype() {
-    let e = expected();
-    let (target, ir) = corpus();
-    let work = TempDir::new("corpus");
-    let modules = module_list();
-    assert_eq!(modules.len(), e.package.modules);
-    let mathlib_target = format!("{target}/.lake/packages/mathlib");
-    let mathlib: Vec<String> = MATHLIB_MODULES.iter().map(|m| (*m).to_owned()).collect();
+fn the_harness_scenarios_are_measured_on_a_synthetic_package() {
+    let package = FakeRepo::new(
+        "harness-package",
+        &[
+            FakeModule::one("Pkg.A"),
+            FakeModule::one("Pkg.B"),
+            FakeModule::one("Pkg.C"),
+            FakeModule::one("Pkg.D"),
+        ],
+    );
+    // The dependency shape — all three files of Lean's module system — which the
+    // target package does not have and only its dependencies do.
+    let dependency = FakeRepo::new(
+        "harness-dependency",
+        &[FakeModule::three("Dep.One"), FakeModule::three("Dep.Two")],
+    );
+    let work = TempDir::new("harness");
     let mut covered: BTreeSet<&'static str> = BTreeSet::new();
 
-    // The two module lists the drift scenario needs, sliced exactly as
-    // tools/ledger-reference.sh slices them.
+    let modules = package.module_names();
+    let dep_modules = dependency.module_names();
+    // The two lists the drift scenario needs, sliced the way
+    // `tools/ledger-reference.sh` sliced the target's: the ledger is missing the
+    // first two modules, and the list drops the third while naming one module
+    // that has no olean at all.
     let minus_ab: Vec<String> = modules[2..].to_vec();
     let mut minus_c_plus_ghost: Vec<String> = modules.clone();
     minus_c_plus_ghost.remove(2);
-    minus_c_plus_ghost.push("InformationTheory.NotAModule.Ghost".to_owned());
-    check_file(&e, "list-minus-ab.txt", &(minus_ab.join("\n") + "\n"));
-    check_file(
-        &e,
-        "list-minus-c-plus-ghost.txt",
-        &(minus_c_plus_ghost.join("\n") + "\n"),
-    );
-    check_file(&e, "list-mathlib.txt", &(mathlib.join("\n") + "\n"));
+    minus_c_plus_ghost.push("Pkg.Ghost".to_owned());
 
-    // --- the ledgers
     let sha256 = Algorithm::sha256();
     let lake = Algorithm::lake();
+    let package_target = package.target();
+    let dependency_target = dependency.target();
+    let ir = package.ir();
+
+    // --- the seven ledgers
     let mut build = |name: &str,
                      modules: &[String],
                      target: &str,
@@ -775,7 +669,7 @@ fn the_corpus_matches_the_prototype() {
                      concurrency: usize| {
         let out = work.path.join(format!("ledger-{name}.json"));
         let timings = work.path.join(format!("ledger-{name}.timings.json"));
-        let options = BuildOptions {
+        let (result, fired) = run_build(&BuildOptions {
             link_index: None,
             external_links: None,
             modules,
@@ -786,44 +680,46 @@ fn the_corpus_matches_the_prototype() {
             algorithm,
             concurrency,
             timings: Some(&timings),
-        };
-        let (result, fired) = run_build(&options);
-        let summary = result.expect("the corpus builds");
+        });
+        let summary = result.expect("the synthetic package builds");
         covered.extend(fired);
-        check_file(
-            &e,
-            &format!("ledger-{name}.json"),
-            &fs::read_to_string(&out).expect("the ledger was written"),
-        );
         (out, summary)
     };
-    let (sha_path, sha_summary) = build("sha256", &modules, &target, Some(&ir), &sha256, 1);
-    assert_eq!(sha_summary.modules, e.package.modules);
-    assert_eq!(sha_summary.files, e.package.olean_files);
-    assert_eq!(sha_summary.hashed_bytes, e.package.olean_bytes);
-    let (lake_path, lake_summary) = build("lake", &modules, &target, Some(&ir), &lake, 1);
+    let (sha_path, sha_summary) = build("sha256", &modules, &package_target, Some(&ir), &sha256, 1);
+    assert_eq!(sha_summary.modules, modules.len());
+    assert_eq!(sha_summary.files, modules.len(), "one olean per module");
+    let (lake_path, lake_summary) = build("lake", &modules, &package_target, Some(&ir), &lake, 1);
     assert_eq!(
         lake_summary.hashed_bytes, 0,
         "the lake algorithm reads no olean at all"
     );
-    let (minus_ab_path, _) = build("minus-ab", &minus_ab, &target, Some(&ir), &sha256, 1);
-    let (conc8_path, _) = build("conc8", &modules, &target, Some(&ir), &sha256, 8);
-    let (noir_path, _) = build("noir", &modules, &target, None, &sha256, 1);
-    let (mathlib_path, mathlib_summary) = build(
-        "mathlib-sha256",
-        &mathlib,
-        &mathlib_target,
+    let (minus_ab_path, _) = build(
+        "minus-ab",
+        &minus_ab,
+        &package_target,
         Some(&ir),
         &sha256,
         1,
     );
-    assert_eq!(mathlib_summary.modules, e.dependency.modules);
-    assert_eq!(mathlib_summary.files, e.dependency.olean_files);
-    assert_eq!(mathlib_summary.hashed_bytes, e.dependency.olean_bytes);
-    let (mathlib_lake_path, _) = build(
-        "mathlib-lake",
-        &mathlib,
-        &mathlib_target,
+    let (conc8_path, _) = build("conc8", &modules, &package_target, Some(&ir), &sha256, 8);
+    let (noir_path, _) = build("noir", &modules, &package_target, None, &sha256, 1);
+    let (dep_path, dep_summary) = build(
+        "dep-sha256",
+        &dep_modules,
+        &dependency_target,
+        Some(&ir),
+        &sha256,
+        1,
+    );
+    assert_eq!(
+        dep_summary.files,
+        dep_modules.len() * 3,
+        "three olean files per dependency module"
+    );
+    let (dep_lake_path, _) = build(
+        "dep-lake",
+        &dep_modules,
+        &dependency_target,
         Some(&ir),
         &lake,
         1,
@@ -850,11 +746,6 @@ fn the_corpus_matches_the_prototype() {
         result.expect("the module is in the ledger");
         covered.extend(fired);
     }
-    check_file(
-        &e,
-        "ledger-touched.json",
-        &fs::read_to_string(&touched).expect("the touched ledger was written"),
-    );
 
     // --- the twelve questions
     let mut scenario = |name: &str,
@@ -866,7 +757,7 @@ fn the_corpus_matches_the_prototype() {
         let removed = work.path.join(format!("{name}-removed.txt"));
         let render_all = work.path.join(format!("{name}-render-all.txt"));
         let timings = work.path.join(format!("{name}-timings.json"));
-        let options = CheckOptions {
+        let (result, fired) = run_check(&CheckOptions {
             link_index: None,
             external_links: None,
             ledger,
@@ -879,21 +770,9 @@ fn the_corpus_matches_the_prototype() {
             removed_out: Some(&removed),
             render_all_out: Some(&render_all),
             timings: Some(&timings),
-        };
-        let (result, fired) = run_check(&options);
-        let summary = result.expect("the corpus checks");
+        });
+        let summary = result.expect("the synthetic package checks");
         covered.extend(fired);
-        for (path, what) in [
-            (&changed, "changed"),
-            (&removed, "removed"),
-            (&render_all, "render-all"),
-        ] {
-            check_file(
-                &e,
-                &format!("{name}-{what}.txt"),
-                &fs::read_to_string(path).expect("the output was written"),
-            );
-        }
         summary
     };
     let all = Some(modules.as_slice());
@@ -914,10 +793,7 @@ fn the_corpus_matches_the_prototype() {
     assert_eq!(drift.added, modules[..2].to_vec());
     assert_eq!(
         drift.removed,
-        vec![
-            "InformationTheory.NotAModule.Ghost".to_owned(),
-            modules[2].clone()
-        ],
+        vec!["Pkg.Ghost".to_owned(), modules[2].clone()],
         "the module with no olean comes first, in list order, then the one the list dropped"
     );
     let no_ir = scenario("extractkey", &sha_path, all, None, URL);
@@ -925,7 +801,11 @@ fn the_corpus_matches_the_prototype() {
         no_ir.extract_key_changed,
         ["irGenerator", "irSchemaVersion"]
     );
-    assert_eq!(no_ir.re_extract.len(), 432, "every module is re-extracted");
+    assert_eq!(
+        no_ir.re_extract.len(),
+        modules.len(),
+        "every module is re-extracted"
+    );
     let other_rev = scenario("rendervalue", &sha_path, all, Some(&ir), URL2);
     assert_eq!(other_rev.render_key_changed, ["sourceUrl"]);
     assert!(
@@ -936,12 +816,12 @@ fn the_corpus_matches_the_prototype() {
     assert_eq!(no_url.render_key_changed, ["sourceUrl"]);
     scenario("lake", &lake_path, all, Some(&ir), URL);
     let from_ledger = scenario("fromledger", &sha_path, None, Some(&ir), URL);
-    assert_eq!(from_ledger.modules, 432);
-    scenario("mathlib", &mathlib_path, Some(&mathlib), Some(&ir), URL);
+    assert_eq!(from_ledger.modules, modules.len());
+    scenario("dependency", &dep_path, Some(&dep_modules), Some(&ir), URL);
     scenario(
-        "mathliblake",
-        &mathlib_lake_path,
-        Some(&mathlib),
+        "dependencylake",
+        &dep_lake_path,
+        Some(&dep_modules),
         Some(&ir),
         URL,
     );
@@ -956,66 +836,11 @@ fn the_corpus_matches_the_prototype() {
         "a trailing slash is not a different source URL"
     );
 
-    // Every file of the reference tree, and no more: a scenario added to
-    // tools/ledger-reference.sh and not here shows up as a file the fixture
-    // holds and nothing compared.
-    let compared = e.seen.borrow().clone();
-    assert_eq!(
-        compared,
-        e.files.keys().cloned().collect::<BTreeSet<String>>(),
-        "the fixture and this test disagree about which files exist"
-    );
-    assert_eq!(compared.len(), 47);
-
     assert_eq!(
         covered,
         BTreeSet::from(HARNESS_SCENARIOS),
-        "which branches the harness reaches has changed"
+        "which branches the twelve scenarios reach has changed"
     );
-}
-
-/// Compares one produced file with the prototype's, by size and digest.
-fn check_file(expected: &Expected, name: &str, body: &str) {
-    let recorded = expected
-        .files
-        .get(name)
-        .unwrap_or_else(|| panic!("{name} is not in the fixture; regenerate it"));
-    expected.seen.borrow_mut().insert(name.to_owned());
-    assert_eq!(
-        body.len(),
-        recorded.bytes,
-        "{name}: {} bytes against the prototype's {}",
-        body.len(),
-        recorded.bytes
-    );
-    assert_eq!(
-        fnv1a64(body.as_bytes()),
-        recorded.fnv1a64,
-        "{name} differs from the prototype's somewhere in {} bytes",
-        body.len()
-    );
-}
-
-fn fnv1a64(bytes: &[u8]) -> String {
-    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-    for byte in bytes {
-        hash = (hash ^ u64::from(*byte)).wrapping_mul(0x0000_0100_0000_01b3);
-    }
-    format!("{hash:016x}")
-}
-
-/// The fixture is only as good as its provenance: this is the one test that
-/// says where it came from and refuses to let it drift silently.
-#[test]
-fn the_fixture_names_the_tree_it_came_from() {
-    let raw = include_str!("data/ledger-expected.json");
-    let value: Value = serde_json::from_str(raw).expect("the fixture is JSON");
-    assert_eq!(value["reference"], DEFAULT_REFERENCE);
-    assert_eq!(value["target"], DEFAULT_TARGET);
-    // The substitution the generator applied has to be the port's own strings,
-    // or the whole comparison is against a ledger nobody writes.
-    assert_eq!(value["extractor"], lean_doc_incr::EXTRACTOR_ID);
-    assert_eq!(value["renderer"], lean_doc_incr::RENDERER_ID);
 }
 
 /// The identity strings are the cache's version key (plan §3, §6).
@@ -1094,7 +919,7 @@ fn the_dependency_link_maps_digest_is_a_render_key_of_its_own() {
 /// 1. The ledger byte comparison — one `build` over the target — reaches **7 of
 ///    the 53**. Everything `check` decides is invisible to it.
 /// 2. The whole harness reaches **34 of 53** ([`HARNESS_SCENARIOS`], measured in
-///    [`the_corpus_matches_the_prototype`]).
+///    [`the_harness_scenarios_are_measured_on_a_synthetic_package`]).
 /// 3. The other **19** are reachable only by a written-down case, so every one
 ///    of them is one.
 /// 4. Everything together is all 53.
