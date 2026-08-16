@@ -25,7 +25,7 @@
 #   4. The site is not uploaded. The template's last step is an
 #      `upload-artifact` of a directory, which is not in doubt.
 #
-#   Everything else — `actions/checkout@v4`, the three `actions/cache@v4` blocks
+#   Everything else — `actions/checkout@v4`, the four `actions/cache@v4` blocks
 #   and their keys, the elan install line, and the single `ci-build.sh` call with
 #   its four flags — is the template's, verbatim.
 #
@@ -113,14 +113,30 @@ jobs:
             lean-doc/target
           key: cargo-${{ runner.os }}-${{ hashFiles('lean-doc/Cargo.lock') }}
 
-      # The template's one step, verbatim.
+      # The template's fourth cache. `id:` is the one addition — the run has to
+      # be able to say whether it restored anything, because "extract was fast"
+      # and "extract was skipped" are different claims and a timing alone cannot
+      # tell them apart.
+      - name: cache the documentation state (IR + ledger + site)
+        id: docs-cache
+        uses: actions/cache@v4
+        with:
+          path: docs-out
+          key: leandoc-docs-${{ github.sha }}
+          restore-keys: |
+            leandoc-docs-
+
+      # The template's one step, verbatim except for `tee`: the counts that say
+      # how many modules were re-extracted are on stdout, and this is a
+      # measurement run.
       - name: build the package and its documentation
         run: |
+          set -o pipefail
           lean-doc/tools/ci-build.sh \
             --root package \
-            --out "$RUNNER_TEMP/docs" \
+            --out "$GITHUB_WORKSPACE/docs-out" \
             --cache-get \
-            --jobs 4
+            --jobs 4 2>&1 | tee build-log.txt
 
       # Not the template's: what makes the run readable afterwards. The template
       # ends by uploading `<out>/site`, which this repeats with the timings and
@@ -129,15 +145,22 @@ jobs:
         if: always()
         run: |
           {
+            echo "## documentation-state cache"
+            echo "cache-hit    ${{ steps.docs-cache.outputs.cache-hit }}"
+            echo "matched-key  ${{ steps.docs-cache.outputs.cache-matched-key }}"
+            echo
+            echo "## what the build said (the module counts are here)"
+            cat build-log.txt 2> /dev/null || echo "(none)"
+            echo
             echo "## ci-build.sh timings"
-            cat "$RUNNER_TEMP/docs/ci-timings.json" 2> /dev/null || echo "(none)"
+            cat docs-out/ci-timings.json 2> /dev/null || echo "(none)"
             echo
             echo "## lean-doc build timings"
-            cat "$RUNNER_TEMP/docs/lean-doc-timings.json" 2> /dev/null || echo "(none)"
+            cat docs-out/lean-doc-timings.json 2> /dev/null || echo "(none)"
             echo
             echo "## site"
-            find "$RUNNER_TEMP/docs/site" -type f 2> /dev/null | wc -l
-            (cd "$RUNNER_TEMP/docs/site" && find . -type f | sort | xargs sha256sum | sha256sum) \
+            find docs-out/site -type f 2> /dev/null | wc -l
+            (cd docs-out/site && find . -type f | sort | xargs sha256sum | sha256sum) \
               2> /dev/null || true
             echo
             echo "## conditions"
@@ -152,6 +175,6 @@ jobs:
           path: |
             template-run.txt
             env-before.txt
-            ${{ runner.temp }}/docs/site
-            ${{ runner.temp }}/docs/ci-timings.json
-            ${{ runner.temp }}/docs/lean-doc-timings.json
+            docs-out/site
+            docs-out/ci-timings.json
+            docs-out/lean-doc-timings.json

@@ -49,7 +49,7 @@
 #   working set. One job does not have to ask that question.
 #
 # ============================================================================
-# THE THREE CACHES, AND WHAT EACH IS KEYED ON
+# THE FOUR CACHES, AND WHAT EACH IS KEYED ON
 # ============================================================================
 #   ~/.cache/mathlib   what `lake exe cache get` downloads. Keyed on
 #                      lake-manifest.json: the manifest pins the revisions, so
@@ -62,10 +62,35 @@
 #                      14.90 s on an M1 with a warm cache 【実測】; the reason to
 #                      cache it is that it never changes, not that it is slow.
 #   cargo + target     the Rust side. Keyed on Cargo.lock, which pins it.
+#   docs-out           **the documentation state** — the IR, the ledger and the
+#                      site of the previous run. This is the one that makes the
+#                      incremental path reachable at all: without it every run
+#                      starts with no ledger, so every module is re-extracted and
+#                      the extractor re-analyses every declaration. Keyed on the
+#                      commit with a rolling prefix, so a run restores the most
+#                      recent state it can find and writes its own.
 #
-#   None of these caches is required for correctness, and all three are restored
-#   into the same job that uses them. The one that decides the job's order of
-#   magnitude is Mathlib's: without it the package builds Mathlib from source.
+#   The first three are not required for correctness and each is restored into
+#   the job that uses it; the one that decides the job's order of magnitude is
+#   Mathlib's, since without it the package builds Mathlib from source.
+#
+#   `docs-out` is different in kind and worth reading twice. What makes a
+#   restored state safe is not the cache but the ledger: the run compares the
+#   oleans it has now against the hashes the ledger recorded, and re-extracts
+#   what moved. A stale or partial restore therefore costs time, not
+#   correctness — a run that dies leaves `complete: false` in the marker and the
+#   next run redoes the work rather than trusting it.
+#
+#   IT DEPENDS ON ONE EMPIRICAL PROPERTY, AND IT IS NOT FREE TO ASSUME: the
+#   ledger's key is the SHA-256 of each `.olean`, so a rebuilt olean has to come
+#   out byte-identical or nothing matches and the cache buys nothing. Measured
+#   on 9 modules (3.6 KB - 1.2 MB oleans) on an M1: byte-identical after a
+#   delete-and-rebuild and again after an edit was reverted, with the edited
+#   build as the positive control 【実測 2026-08-17,
+#   benchmarks/results/olean-determinism-2026-08-17*.txt】. **Not yet measured on
+#   a Linux runner across two jobs** — that is what the validation workflow
+#   `.github/workflows/ci-template.yml` is for, and until it has run this entry
+#   claims a mechanism, not a speedup.
 name: docs
 
 on:
@@ -127,6 +152,27 @@ jobs:
             lean-doc/target
           key: cargo-${{ runner.os }}-${{ hashFiles('lean-doc/Cargo.lock') }}
 
+      # The previous run's documentation state. `key` is unique per commit so
+      # every run writes its own entry; `restore-keys` is the prefix, so a run
+      # restores the newest state that exists rather than only an exact match.
+      #
+      # The path has to be stable across runs, which is why it is in the
+      # workspace and not under `$RUNNER_TEMP` (a fresh directory every job).
+      # It also has to be outside `--root`: `lean-doc build` refuses an `--out`
+      # inside the package it is documenting.
+      #
+      # `lean-doc build` records the absolute `--root` in the state's marker and
+      # exits 3 if a later run points it at a different one. On a
+      # GitHub-hosted runner the workspace path is a function of the repository,
+      # so this holds; the refusal is the loud direction if it ever does not.
+      - name: cache the documentation state (IR + ledger + site)
+        uses: actions/cache@v4
+        with:
+          path: docs-out
+          key: leandoc-docs-${{ github.sha }}
+          restore-keys: |
+            leandoc-docs-
+
       # ONE step: dependencies, `lake build`, the extractor, the Rust binary and
       # the site, in that order and in this job. Everything the command needs
       # beyond these two paths it derives itself — the libraries from the
@@ -146,7 +192,7 @@ jobs:
         run: |
           lean-doc/tools/ci-build.sh \
             --root package \
-            --out "$RUNNER_TEMP/docs" \
+            --out "$GITHUB_WORKSPACE/docs-out" \
             --cache-get \
             --jobs 4
 
@@ -154,7 +200,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: docs
-          path: ${{ runner.temp }}/docs/site
+          path: docs-out/site
 
       # To publish instead of archiving, replace the step above with
       # actions/upload-pages-artifact + actions/deploy-pages, add
