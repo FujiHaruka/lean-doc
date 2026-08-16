@@ -390,6 +390,12 @@ mod tests {
     /// The measurement target, as `lean-doc-incr`'s corpus tests spell it.
     const DEFAULT_TARGET: &str = "/Users/haruka/dev/lean-projects";
 
+    /// Where `benchmarks/tools/check-lidx-urls.sh` — the driver that makes both
+    /// — leaves them (its `WORK_DIR`). Tens of megabytes each, so they live
+    /// outside the repository like every other corpus input.
+    const DEFAULT_LINK_INDEX: &str = "/private/tmp/lean-doc-m7a/link-index.lidx";
+    const DEFAULT_DECL_URLS: &str = "/private/tmp/lean-doc-m7a/decl-source-urls.tsv";
+
     // ------------------------------------------------------ without the target
 
     #[test]
@@ -691,15 +697,22 @@ mod tests {
     /// declaration's page.
     ///
     /// Both inputs live outside the repository and are ~10 MB and ~41 MB, so
-    /// the test is `#[ignore]`d and needs both to be named:
+    /// the test is `#[ignore]`d and reads them from
+    /// [`DEFAULT_LINK_INDEX`]/[`DEFAULT_DECL_URLS`], or from:
     ///
     /// ```text
-    /// LEAN_DOC_LINK_INDEX=<lean-doc extract --link-index …>
+    /// LEAN_DOC_LINK_INDEX=<lean-doc build … writes <out>/link-index.lidx>
     /// LEAN_DOC_DECL_URLS=<benchmarks/tools/extract-decl-source-urls.sh out.tsv>
     /// ```
     ///
     /// `benchmarks/tools/check-lidx-urls.sh` is the driver that produces both
     /// and files the output under `benchmarks/results/`.
+    ///
+    /// **The defaults were added on 2026-08-16**, when this test ran for the
+    /// first time: the gate had been cutting `lean_doc::packages::tests::NAME`
+    /// down to `NAME`, which `--exact` matched nothing, so it never asked for
+    /// these inputs and nobody noticed it was the only corpus test with no
+    /// default path.
     ///
     /// **Only the mismatch bucket is a failure.** The two populations are not
     /// the same set and never were — the `.lidx` is the environment this
@@ -709,16 +722,29 @@ mod tests {
     #[test]
     #[ignore = "corpus: needs LEAN_DOC_LINK_INDEX + LEAN_DOC_DECL_URLS (tools/corpus-gate.sh)"]
     fn every_lidx_entry_matches_doc_gen4s_declaration_urls() {
-        let (Ok(lidx), Ok(oracle)) = (
-            std::env::var("LEAN_DOC_LINK_INDEX"),
-            std::env::var("LEAN_DOC_DECL_URLS"),
-        ) else {
-            panic!(
-                "set LEAN_DOC_LINK_INDEX and LEAN_DOC_DECL_URLS (see \
-                 benchmarks/tools/check-lidx-urls.sh), or run this test through \
-                 tools/corpus-gate.sh, which is the only thing that should be asking for it"
+        let lidx =
+            std::env::var("LEAN_DOC_LINK_INDEX").unwrap_or_else(|_| DEFAULT_LINK_INDEX.to_owned());
+        let oracle =
+            std::env::var("LEAN_DOC_DECL_URLS").unwrap_or_else(|_| DEFAULT_DECL_URLS.to_owned());
+        for (what, path, how) in [
+            (
+                "LEAN_DOC_LINK_INDEX",
+                &lidx,
+                "lean-doc build --root <target> --out <dir>  (writes <dir>/link-index.lidx)",
+            ),
+            (
+                "LEAN_DOC_DECL_URLS",
+                &oracle,
+                "benchmarks/tools/extract-decl-source-urls.sh <out.tsv>",
+            ),
+        ] {
+            assert!(
+                Path::new(path).is_file(),
+                "no input at {path}: set {what}, or make it with\n    {how}\n\
+                 or run this test through tools/corpus-gate.sh, which is the only thing \
+                 that should be asking for it",
             );
-        };
+        }
         let target = PathBuf::from(
             std::env::var("LEAN_DOC_TARGET").unwrap_or_else(|_| DEFAULT_TARGET.to_owned()),
         );

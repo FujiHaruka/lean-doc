@@ -833,16 +833,86 @@ M8-d が塞いだ分は全部通った (`foundational_types.html` 7,354 参照�
 **「走った本数を数える」以外にこれを見つける方法は無かった** — 落ちているテストの陰に
 別のテストが隠れるので、出力を読んでも本数は合っているように見える。
 
-**ゲート全体は赤 7 本 (EXIT=1)**【実測 2026-08-16、対象 `c4f6af29`】:
-`every_docstring_in_the_reference_pages_is_reproduced` /
+**ゲート全体は赤 8 本 (EXIT=1)**【実測 2026-08-16、対象 `c4f6af29`】:
+`ref_pages::every_docstring_in_the_reference_pages_is_reproduced` /
 `packages::every_lidx_entry_matches_doc_gen4s_declaration_urls` /
-`pages_carry_the_reference_trees_content` /
-`reads_the_dependency_closure_of_the_target_package` /
-`the_corpus_matches_the_prototype` (impact / merge) / `the_state_file_is_the_prototypes_bytes` /
-`the_whole_corpus` (docgen4 / md4lean)。**`cargo test` は 346 passed / 0 failed で無関係** (全部
-`#[ignore]`)。**多くは削除した ledger 比較と同じ構造** — プロトタイプ / doc-gen4 由来の
-凍結フィクスチャと**動いた対象**の突き合わせ。**1 本ずつ「まだ問う相手がいるか」を見て決める**
-必要があり、この段では手を付けていない。
+`pages::pages_carry_the_reference_trees_content` /
+`link_index_fixture::reads_the_dependency_closure_of_the_target_package` /
+`impact::the_corpus_matches_the_prototype` /
+`state_and_delta::the_state_file_is_the_prototypes_bytes` /
+`the_whole_corpus` (docgen4 と md4lean の 2 本)。
+**`cargo test` は 346 passed / 0 failed で無関係** (全部 `#[ignore]`)。→ 仕分けは次節。
+
+### 赤 8 本の仕分け — **全部「入力が消えていた」だった**【実測 2026-08-16】
+
+**最初の見立て (「プロトタイプ / doc-gen4 由来の凍結フィクスチャと動いた対象の突き合わせ」) は
+誤りだった。** 8 本とも**バイトの不一致ではなく入力の不在**で落ちていた。
+`/private/tmp` の定期削除が**ファイルだけ消してディレクトリを残す**ので (残骸の mtime は全部
+`2026-08-16 00:00`)、`ls` では在るように見えていた。**コミット済フィクスチャは 1 つも壊れていない。**
+
+仕分けの軸は「**入力を HEAD の道具だけで作り直せるか**」:
+
+| テスト | 欠けていた入力 | 処置 |
+|---|---|---|
+| `link_index_fixture::reads_the_dependency_closure_of_the_target_package` | `.lidx` | **再生成 → 緑**。`lean-doc build` が書く |
+| `packages::every_lidx_entry_matches_doc_gen4s_declaration_urls` | `.lidx` + 宣言 URL | **再生成 → 緑**。235,185 件が doc-gen4 の blob URL と一致、**mismatched 0** |
+| `docgen4::the_whole_corpus` | `--full` 録画 | **削除**【決定、ユーザー判断】 |
+| `md4lean::the_whole_corpus` | `--full` 録画 | **削除**【同上】 |
+| `ref_pages::every_docstring_in_the_reference_pages_is_reproduced` | `m1/ref-pages` | **frozen** — プロトタイプが書いた木 |
+| `pages::pages_carry_the_reference_trees_content` | `m1/ref-pages` | **frozen** |
+| `impact::the_corpus_matches_the_prototype` | `m1/ref-pages` | **frozen** |
+| `state_and_delta::the_state_file_is_the_prototypes_bytes` | `w7h/base-state` | **frozen** |
+
+**`packages::every_lidx_entry_...` はこの日が初回の実走**だった (名前バグで一度も走っていなかった)。
+**そして通った。** ついでに分かったのは、**これだけが既定パスを持たない corpus テストだった**こと —
+ゲートが名前を潰していたので誰も入力を要求せず、整備の機会が無かった。他と揃えた。
+
+#### 全件録画 2 本を畳んだ理由 — **オラクルは「正しさ」ではなく「方言」を定義している**
+
+移植時 (M1-c) には価値があった: `0c1896b` は **doc-gen4 本体をオラクルに 4,987 件バイト一致**を
+確認している。**移植が終わった今、残る価値は「方言を勝手に変えていないことの検出」に縮む**。
+
+- **doc-gen4 は正しさの基準ではない** — NUL 入りの fenced code や本文なし GFM table で**死ぬ**
+  (再生成を試した際、**99 件**の crash を跨いで進んだ)。定義しているのは**どの拡張が有効か /
+  実体参照と数式をどう読むか / 相対リンクをどこから解決するか**という**方言**であって、
+  Lean の docstring はその方言で書かれている
+- **byte 一致は方言一致の十分条件**にすぎない (属性順や空白の差でも落ちる)。
+  ただし「方言が同じか」を直接判定する器を書くと**同じ間違いを共有する第 2 実装**になるので、
+  byte 比較で代理するのは安い。**この代理は 320 ケースで既に成立している** —
+  コミット済サンプルは無作為ではなく**設計された被覆** (手書き全部 → 出力フィーチャの貪欲被覆 →
+  バイト特徴の初出 → 残りに等間隔ストライド)
+- 全件が足すのは「**その分類が取りこぼした入力での一致**」だけで、代償は
+  **消える `/private/tmp` に数十 MB を置き、消えるたびに doc-gen4 を全 docstring に回すこと**
+
+→ **削除。「4,414 ケースは検査していない」を両テストのヘッダと生成器に明記した** (隠さず値段を書く)。
+
+#### `.lidx` の 4 母数は「取り直す」のではなく「問いが成立しなくなった」
+
+再生成した `.lidx` を既定パスに置いたら `link_index_fixture` が落ちた — **255,809 に対して
+期待値 258,760**。**これは母数の取り直し案件ではない**:
+
+- 期待値 4 つ (258,760 entries / 8,494,819 UTF-16 code units / 5,775 modules / 6,115 `@` names)
+  の出所は**コミット済の生ログ** (`benchmarks/results/stage7c-render-timings.jsonl`) で、**失われていない**
+- 失われたのは**その数を出した `.lidx` の作り方**。あれは Mathlib の `declaration-data.bmp` から
+  `experiments/stage7d/build-link-index.ts` が作ったもので、tag の中
+- **製品は同じ地図を環境走査で作る** (V1、M5-a)。**構成が違うので数が違って当然** —
+  同じ対象で **255,809**【実測】
+
+→ **走査由来の地図を bmp 由来の集計に突き合わせるのは、そもそも同じ問いではなかった。**
+4 母数の比較を外し、**「書いたものを読めるか」の検査 (marker / 全エントリの解決 /
+テキストから読んだ最後のエントリと見出し) は残した**。既定パスも
+`lean-doc build` が書くものを置く場所に変えたので、**HEAD の道具だけで走る**。
+
+**危なかったのはここ**: 既定パスに別物を置いた瞬間、テストは「母数を測った当のファイル」だと
+誤認した (環境変数で渡すと構造検査だけに落ちる設計だった)。**入力の同一性を「パス」で
+判定していた**ので、パスに何を置くかで主張の強さが黙って変わる。
+
+#### ゲートを「1 エントリ = 1 テストバイナリ = 1 テスト」に作り直した
+
+`impact::` を frozen に、`merge::` を runnable に置いた時点で、**同名 (`the_corpus_matches_the_prototype`)
+が区分をまたぐ**。`--exact NAME` 方式では frozen 側を巻き込むので、cargo にテストバイナリを問い合わせて
+**target で名指しして直接実行する**形にした。inventory が `<target>::<test>` を持っているのは
+まさにこの衝突のためで、**その接頭辞を使うようになった**のは今回が初めて。
 
 ### M8-e: 再ホスト — **ゲート UI-4 通過**【すべて実測 2026-08-16】
 

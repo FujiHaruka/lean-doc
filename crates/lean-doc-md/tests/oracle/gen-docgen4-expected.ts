@@ -318,9 +318,13 @@ function textFeatures(md: string): string[] {
 /**
  * Which cases the committed fixture keeps: every hand-written one, then a
  * greedy cover of the output features, then the first case showing each
- * byte-level feature, then an even stride over the rest. The whole corpus is
- * still checked -- see `--full` and `LEAN_DOC_DOCGEN4_FULL` in
- * `tests/docgen4.rs`.
+ * byte-level feature, then an even stride over the rest.
+ *
+ * **This selection is now the whole of what any test checks.** The
+ * `the_whole_corpus` test that read `--full` was deleted on 2026-08-16: its
+ * recording lived in `/private/tmp`, which is emptied, so it was either red or
+ * paid for by another doc-gen4 run over every docstring. `--full` still writes
+ * every case, for a check by hand.
  */
 function selectCases(
   cases: Case[],

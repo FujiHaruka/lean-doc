@@ -11,10 +11,10 @@
 //! deno run --allow-read --allow-write --allow-run --allow-env \
 //!   crates/lean-doc-md/tests/oracle/gen-docgen4-expected.ts
 //! ... --check      # verify the committed file
-//! ... --full PATH  # also write every case, for [`the_whole_corpus`]
+//! ... --full PATH  # write every case, for a check by hand (no test reads it)
 //! ```
 //!
-//! # Why the whole corpus can be compared, auto-links included
+//! # Why the whole corpus *can* be compared, auto-links included
 //!
 //! doc-gen4 resolves names against the environment, so a naive run of it would
 //! produce anchors this milestone step cannot produce, and the comparison would
@@ -22,9 +22,31 @@
 //! of them. It does not have to: `nameToLink?` reads *only* the `AnalyzerResult`
 //! in its context, and the dumper hands it the empty one. Every lookup then
 //! misses, which is precisely [`NoLinks`]. So nothing is excluded and nothing is
-//! normalised away — 4,987 of 4,989 cases are compared byte for byte, the two
-//! exceptions being the inputs that kill the Lean side outright
-//! ([`the_inputs_that_kill_doc_gen4_here`]).
+//! normalised away — **when the port was made (M1-c), 4,987 of 4,989 cases were
+//! compared byte for byte**, the two exceptions being the inputs that kill the
+//! Lean side outright ([`the_inputs_that_kill_doc_gen4_here`]).
+//!
+//! # What runs now, and what the oracle is for【判断 2026-08-16】
+//!
+//! **The committed sample, and only that** — the whole-corpus test was deleted.
+//! It read a multi-megabyte `--full` recording from `/private/tmp`, which is
+//! emptied, so it spent its life either red or regenerated at the cost of a
+//! doc-gen4 run over every docstring in the package.
+//!
+//! **The point of this oracle is not "doc-gen4 is right".** It is not: it dies
+//! outright on a NUL in a fenced code block and on a header-only GFM table, and
+//! the generator has to resume around 99 such inputs. What it *defines* is the
+//! **dialect** — which extensions are on, how entities and math are read, where
+//! relative links resolve from — and Lean's docstrings are written against that
+//! dialect. Byte equality is a cheap sufficient condition for "the dialect did
+//! not move"; writing a judge for dialect equality directly would be a second
+//! implementation sharing this one's mistakes.
+//!
+//! That claim is about the *rules*, and the committed sample is a designed cover
+//! of them (every hand-written case, then a greedy cover of the output features,
+//! then the first case showing each byte-level feature, then a stride over the
+//! rest). **The 4,414 cases outside the sample are not checked** — that is the
+//! price, stated rather than hidden.
 //!
 //! What this does *not* check is `nameToLink?` itself. That is the next
 //! milestone step's, and it will need an oracle run with a real environment.
@@ -165,50 +187,6 @@ fn every_case_matches_doc_gen4() {
             .collect::<Vec<_>>()
             .join("\n")
     );
-}
-
-/// Where the generator's `--full` file was left on the machine these numbers
-/// were measured on. Megabytes of generated JSON, so it lives outside the
-/// repository like the parser's does.
-const DEFAULT_FULL: &str = "/private/tmp/lean-doc-relay/m1c/docgen4-full.json";
-
-/// The whole corpus, from the generator's `--full` file.
-///
-/// `#[ignore]`d rather than silently skipped: that file is not in this
-/// repository, `cargo test` has to pass where the target package does not
-/// exist, and a run that reports this as ignored says out loud that the other
-/// 4,414 cases were not checked.
-#[test]
-#[ignore = "corpus: needs LEAN_DOC_DOCGEN4_FULL (tools/corpus-gate.sh)"]
-fn the_whole_corpus() {
-    let path = std::env::var("LEAN_DOC_DOCGEN4_FULL").unwrap_or_else(|_| DEFAULT_FULL.to_owned());
-    assert!(
-        std::path::Path::new(&path).is_file(),
-        "no --full file at {path}: set LEAN_DOC_DOCGEN4_FULL, or regenerate with \
-         tests/oracle/gen-docgen4-expected.ts --full, or run this test through \
-         tools/corpus-gate.sh, which is the only thing that should be asking for it"
-    );
-    let text = std::fs::read_to_string(&path).expect("the --full file");
-    let full: Expected = serde_json::from_str(&text).expect("a --full file");
-    assert!(
-        full.cases.len() > 4_000,
-        "{path} holds only {} cases",
-        full.cases.len()
-    );
-    let failures: Vec<String> = full.cases.iter().filter_map(check).collect();
-    assert!(
-        failures.is_empty(),
-        "{} of {} cases disagree with doc-gen4:\n{}",
-        failures.len(),
-        full.cases.len(),
-        failures
-            .iter()
-            .take(10)
-            .cloned()
-            .collect::<Vec<_>>()
-            .join("\n")
-    );
-    eprintln!("{} cases agreed with doc-gen4", full.cases.len());
 }
 
 /// The committed sample has to keep reaching every branch of the renderer, or

@@ -450,9 +450,11 @@ function textFeatures(md: string): string[] {
  * 4. an even stride over the rest, up to `FIXTURE_TARGET`, so the fixture is
  *    not made only of oddities.
  *
- * The whole corpus is still checked -- see `--full` and the env var
- * `LEAN_DOC_MD4LEAN_FULL` in `tests/md4lean.rs`. This selection decides what
- * a machine without the target package can check, not what was checked.
+ * **This selection is now the whole of what any test checks.** The
+ * `the_whole_corpus` test that read `--full` was deleted on 2026-08-16: its
+ * recording lived in `/private/tmp`, which is emptied, so it was either red or
+ * paid for by another MD4Lean run over every docstring. `--full` still writes
+ * every case, for a check by hand.
  */
 function selectCases(
   cases: Case[],

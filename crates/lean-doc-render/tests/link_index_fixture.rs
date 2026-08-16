@@ -1,35 +1,45 @@
 //! Reads the real `.lidx` of the target package's dependency closure.
 //!
-//! 8.5 MB derived from Mathlib's `declaration-data.bmp`
-//! (`experiments/stage7d/build-link-index.ts`). It lives outside the repository,
+//! ~10 MB, written by `lean-doc build` itself. It lives outside the repository,
 //! so this test is `#[ignore]`d rather than silently skipped: `cargo test` has
 //! to pass on a machine that has never run the pipeline, and a run that reports
-//! it as ignored says out loud that it did not run. Point
-//! `LEAN_DOC_LINK_INDEX` at another file to run the structural half against it.
+//! it as ignored says out loud that it did not run.
 //!
-//! The expected counts come from the TypeScript side, not from this reader:
+//! # What it checks — the reader against the writer, on real data
 //!
-//! | | value | source |
-//! |---|---:|---|
-//! | entries (`linkIndex.size`) | 258,760 | `benchmarks/results/stage7c-render-timings.jsonl` |
-//! | file, in UTF-16 code units | 8,494,819 | same |
-//! | modules that define an entry | 5,775 | `docs/verification-log.md` (段階 7c) |
-//! | `@` module names | 6,115 | `benchmarks/results/stage5b-stale-summary.txt` (`declaration-data.bmp`'s `modules`) |
+//! The format marker; that every entry resolves and no module name leaked into
+//! the entry table; and — read out of the **text**, not out of this reader — the
+//! last entry with the group header above it, and a module that is a link target
+//! in its own right.
+//!
+//! # What it stopped checking【判断 2026-08-16】
+//!
+//! Four counts the **prototype's** reader measured over the **prototype's**
+//! `.lidx`: 258,760 entries / 8,494,819 UTF-16 code units / 5,775 modules /
+//! 6,115 `@` names (`benchmarks/results/stage7c-render-timings.jsonl`).
+//!
+//! **The question stopped being askable, and not because the numbers were lost.**
+//! That file was derived from Mathlib's `declaration-data.bmp` by
+//! `experiments/stage7d/build-link-index.ts`, which left with `experiments/`
+//! (tag `experiments-frozen`). The product derives the same map **by walking the
+//! environment** instead (V1, M5-a) — a different construction, so a different
+//! tally: **255,809 entries over the same target**【実測 2026-08-16】. Holding a
+//! walk-derived map to a bmp-derived count was never the same question; keeping
+//! it only meant the test ran on a file nobody can rebuild, which is where the
+//! four counts had already left it (the default path was empty, so the gate read
+//! this as "no input").
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Instant;
 
 use lean_doc_render::LinkIndex;
 use lean_doc_render::link_index::FORMAT_MARKER;
 
-const DEFAULT_LINK_INDEX: &str = "/private/tmp/lean-doc-relay/w7c/linkindex/link-index.lidx";
-
-/// 実測, `stage7c-render-timings.jsonl`: what the prototype's renderer counted
-/// after parsing this same file.
-const TS_ENTRIES: usize = 258_760;
-const TS_CODE_UNITS: usize = 8_494_819;
-const TS_MODULES: usize = 5_775;
-const TS_KNOWN_MODULES: usize = 6_115;
+/// Where `benchmarks/tools/check-lidx-urls.sh` leaves the `.lidx` it drives
+/// (its `WORK_DIR`), which is also where `crates/lean-doc/src/packages.rs`'s
+/// corpus test looks. Any `lean-doc build --out <dir>` writes one at
+/// `<dir>/link-index.lidx`; copy it here.
+const DEFAULT_LINK_INDEX: &str = "/private/tmp/lean-doc-m7a/link-index.lidx";
 
 /// The fixture, or a panic naming what to set.
 ///
@@ -89,20 +99,6 @@ fn reads_the_dependency_closure_of_the_target_package() {
         let module = index.module_of(name).unwrap_or_else(|| panic!("{name}"));
         assert!(!module.is_empty(), "{name} landed in the empty module");
     }
-
-    if path != Path::new(DEFAULT_LINK_INDEX) {
-        eprintln!("structural checks only: not the file the counts were measured on");
-        return;
-    }
-
-    assert_eq!(index.len(), TS_ENTRIES);
-    assert_eq!(index.module_count(), TS_MODULES);
-    assert_eq!(index.known_modules().len(), TS_KNOWN_MODULES);
-    assert_eq!(
-        text.encode_utf16().count(),
-        TS_CODE_UNITS,
-        "the prototype measured the file in UTF-16 code units, not bytes"
-    );
 
     // Spot check against the file itself rather than against this reader: the
     // last entry in the text, and the header it sits under.

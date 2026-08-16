@@ -79,6 +79,30 @@ for line in sys.stdin:
 ' | sort -u
 }
 
+# `<cargo test target> <the binary cargo built for it>`, from cargo's own output
+# rather than by guessing at `target/debug/deps/*`: the hash suffix is cargo's
+# and stale binaries from earlier builds sit in the same directory.
+executables() {
+  (cd "$ROOT" && cargo test --workspace --no-run --message-format=json 2>/dev/null) \
+    | "$PYTHON" -c '
+import json, os, sys
+
+for line in sys.stdin:
+    try:
+        message = json.loads(line)
+    except ValueError:
+        continue
+    if message.get("reason") != "compiler-artifact":
+        continue
+    if not message.get("profile", {}).get("test"):
+        continue
+    exe = message.get("executable")
+    if not exe:
+        continue
+    print(os.path.basename(exe).rsplit("-", 1)[0], exe)
+' | sort -u
+}
+
 # The inventory, minus comments and section headers. A trailing `# note` on a
 # line is documentation of *why* that test needs the corpus and is not part of
 # the name.
@@ -187,42 +211,54 @@ case "${1:-run}" in
     # A missing input is a failure here, not a skip: these tests panic naming the
     # variable they wanted. That is the whole point of the move to #[ignore].
     #
-    # Each runnable test is named explicitly rather than passing `--ignored`
-    # alone, so that the frozen ones do not turn this gate permanently red.
-    # Names, deduplicated: `the_corpus_matches_the_prototype` exists in more than
-    # one crate and one `--exact` run covers them all. (If a frozen test ever
-    # shares a name with a runnable one it will be pulled in here and the gate
-    # will go red — which is the right way round: the alternative is running the
-    # wrong test set silently.)
+    # **One inventory entry, one test binary, one test.** The gate used to hand
+    # `cargo test --workspace -- --exact NAME` the bare test name, which is wrong
+    # in three ways that each hid tests rather than failing:
     #
-    # **Only the cargo *target* is stripped, not the module path.** `--exact`
-    # matches the whole path a test binary prints, so three entries of the form
-    # `lean_doc::packages::tests::NAME` were being cut down to `NAME`, matching
-    # nothing, and `cargo test` exits 0 when a filter selects no tests: this gate
-    # reported them run, and green, without running them. That is the third time
-    # this shape of bug has been found here, so the count below is the guard —
-    # the number of tests that actually reported a result has to be the number
-    # the inventory lists.
+    #   1. `--exact` matches the whole path a binary prints, so entries of the
+    #      form `lean_doc::packages::tests::NAME` cut down to `NAME` matched
+    #      nothing — and `cargo test` exits 0 when a filter selects no tests, so
+    #      three tests were reported run, and green, without running.
+    #   2. Without `--no-fail-fast`, cargo stopped at the first binary that
+    #      failed, so a red test hid its namesakes in other crates.
+    #   3. A name shared by a runnable entry and a frozen one pulls the frozen
+    #      one in — which is exactly the case now that `impact::` is frozen and
+    #      `merge::` is not, both being `the_corpus_matches_the_prototype`.
+    #
+    # Asking cargo for the binaries and running each **by target** removes all
+    # three: the target prefix in the inventory is what disambiguates, and it is
+    # in the inventory precisely because these names collide. The count below
+    # stays as the guard — one entry has to report exactly one result.
     status=0
     ran_total=0
     want_total="$(runnable | wc -l | tr -d ' ')"
-    for test_name in $(runnable | sed 's/^[^:]*:://' | sort -u); do
-      echo "-- $test_name"
+    EXES="$(mktemp)"
+    trap 'rm -f "$TMP_RUNNABLE" "$TMP_FROZEN" "$EXES"' EXIT
+    executables > "$EXES"
+    while read -r entry; do
+      target_name="${entry%%::*}"
+      test_path="${entry#*::}"
+      exe="$(awk -v t="$target_name" '$1 == t { print $2 }' "$EXES")"
+      echo "-- $target_name :: $test_path"
+      if [ -z "$exe" ]; then
+        echo "   NO SUCH TEST TARGET: $target_name — the inventory names a binary cargo did not build" >&2
+        status=1
+        continue
+      fi
       log="$(mktemp)"
-      # `--no-fail-fast`: one `--exact` name can select a test in more than one
-      # crate, and without this cargo stops at the first binary that fails — so a
-      # red test hides its namesakes. The count below is what caught it.
-      (cd "$ROOT" && cargo test --workspace --no-fail-fast -- \
-         --ignored --exact "$test_name" --nocapture) > "$log" 2>&1 || status=1
+      "$exe" --ignored --exact "$test_path" --nocapture > "$log" 2>&1 || status=1
       cat "$log"
-      # `test result: ok. 1 passed; 0 failed; …`, summed over every test binary.
+      # `test result: ok. 1 passed; 0 failed; …` — one binary, so one line.
       ran="$(sed -n 's/^test result:[^0-9]*\([0-9]*\) passed; \([0-9]*\) failed.*/\1 \2/p' "$log" \
              | awk '{ total += $1 + $2 } END { print total + 0 }')"
       echo "   reported a result: $ran"
-      [ "$ran" -gt 0 ] || echo "   NOTHING RAN — no test is named $test_name" >&2
+      if [ "$ran" -ne 1 ]; then
+        echo "   NOT ONE TEST — $target_name has no test at $test_path" >&2
+        status=1
+      fi
       ran_total=$((ran_total + ran))
       rm -f "$log"
-    done
+    done < <(runnable)
     echo
     echo "tests that reported a result: $ran_total (the inventory lists $want_total)"
     if [ "$ran_total" -ne "$want_total" ]; then
