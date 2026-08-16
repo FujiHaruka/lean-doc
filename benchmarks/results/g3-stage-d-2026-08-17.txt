@@ -1,0 +1,51 @@
+# 段 D の after — 地図が既に正しいなら書き直さない (2026-08-17)
+
+機材 M1 / Darwin 25.6.0 / 対象 lean-projects c4f6af29 / lean-doc c8c0fae
+before は g3-baseline-onemod-2026-08-17.txt (段 C 前) と
+g3-stage-c-2026-08-17.txt (段 C 後)。同一機材・同一手順・同一セッション。
+
+## オラクル (verd1/report.txt)
+```
+増分ツリー vs 同じ IR の全描画     差分 0 ファイル
+陽性対照 (編集前 IR vs 増分ツリー)   差分 4 ファイル
+link-index.lidx                     1 モジュール変更を跨いで BYTE 不動
+```
+
+## 決定的な整数 — 3 点比較
+```
+                          baseline   段 C     段 D
+再抽出モジュール数              1        1        1
+再描画ページ数                422        1        1
+IR 全読み回数             4.00 pass 4.00 pass 4.00 pass
+抽出器が走査した定数        490,287  490,286        0    <- 段 D の取り分
+抽出器が書いた地図のバイト 10,448,228 10,098,730       0
+```
+
+## 壁時計 — warm、1 モジュール変更 (add1 は cold なので除外、9 回)
+```
+add1 incremental in 8.5485 s ready 4576557959 linkIndex 0.006s
+del1 incremental in 4.8318 s ready 2622845541 linkIndex 0.007s
+add2 incremental in 4.8799 s ready 2780756750 linkIndex 0.007s
+del2 incremental in 4.7966 s ready 2639444834 linkIndex 0.006s
+add3 incremental in 5.3212 s ready 3122548500 linkIndex 0.006s
+del3 incremental in 4.2282 s ready 2480534750 linkIndex 0.006s
+add4 incremental in 6.4496 s ready 3809491416 linkIndex 0.006s
+del4 incremental in 5.8544 s ready 3614869208 linkIndex 0.007s
+add5 incremental in 4.5908 s ready 2650036250 linkIndex 0.007s
+del5 incremental in 5.0974 s ready 2981979833 linkIndex 0.007s
+```
+
+段 D    4.228 〜 6.450 s、中央値 **4.880 s**
+段 C    5.804 〜 7.498 s、中央値   6.228 s
+baseline 5.897 〜 6.662 s、中央値   6.244 s
+
+**baseline → 段 D で −1.364 s (−21.8%)。** 差は抽出器の linkIndex 位相
+(1.23 s → 0.006 s) とほぼ一致していて、辻褄が合う。
+残差の広がりは環境ロード (ready 2.48〜3.81 s) と相関する。
+
+## 抽出要求そのもの
+```
+フル生成       6.138 s  (linkIndex 1.948 s、490,286 定数を走査)
+1 モジュール変更 0.022 s  (linkIndex 0.006 s、reused)
+```
+フル生成では地図が無いので必ず書く。段 D が効くのは増分だけ。

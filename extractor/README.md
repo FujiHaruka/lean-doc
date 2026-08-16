@@ -53,6 +53,21 @@ Mathlib** であることを前提にしていて、この対象では成り立�
 (`--equations --refs --write-ir --tagged-code --jobs 4`) を回し、M4-a のゲートの参照 IR と
 `diff -r` して**436/436 バイト一致**【実測 2026-08-15】。
 
+## 段 C / 段 D で足したもの — `--link-index-omit` と `--link-index-key`
+
+どちらも `--link-index` と組でのみ意味を持つ (単独で渡すと usage エラー)。
+設計と数字は `docs/plans/reextract-count.md` §6、実測は
+`benchmarks/results/lidx-own-half-2026-08-17.txt` と `g3-stage-*-2026-08-17.txt`。
+
+| フラグ | 何をするか |
+|---|---|
+| `--link-index-omit <modules.txt>` | **段 C**。ここに名前がある モジュールの**宣言群を書かない** (`@` 節には残す)。レンダラは自パッケージの名前を IR 由来の索引で先に解決するので、この 3.6% は読まれない — **落としてもサイトは 429/429 バイト一致**。落とす理由は速度ではなく、**そこだけが 1 モジュール編集で動く**ため (動くと `renderKey` が動き全ページ再描画になる) |
+| `--link-index-key <token>` | **段 D**。地図の隣に `<path>.key` を置き、次回**トークン一致 + `#lidx2` マーカー一致 + `@` 節が現環境と一致**なら**走査ごと飛ばす**。トークンは呼び手が作る不透明文字列で、抽出器から見えないもの (依存 olean の同一性 = `extractKey`、omit 一覧の中身) を担う |
+
+製品側 (`lean-doc build` / `incremental --serve`) は**両方を自動で渡す**ので、
+利用者がこのフラグを意識することはない (`crates/lean-doc/src/resident.rs`)。
+手で叩くときだけ意味がある。
+
 ## M7-a で変えたもの — `.lidx` の 1 行に**ソース行範囲**が乗る
 
 依存へのリンクを版固定の GitHub blob URL (`…/Mathlib/Order/Basic.lean#L67-L67`) にするための

@@ -2758,10 +2758,18 @@ def run (cfg : Cfg) (preEnv : Option Environment := none) : IO UInt32 := do
         if ← linkIndexIsCurrent p key header.moduleNames then
           pure { reused := true }
         else do
+          -- Down before the map, up after it, and the "down" is not redundant
+          -- with the "up". The sidecar this rewrite replaces may hold the *same*
+          -- token — the usual reason to be here is that the module set moved,
+          -- not that the token did — so a rewrite that died halfway would leave
+          -- last run's sidecar vouching for a half-written map, and a truncation
+          -- past the `@` section is exactly the shape `linkIndexIsCurrent`
+          -- cannot see. With no sidecar during the write, a death leaves the
+          -- next run no choice but to write it again.
+          let keyPath := linkIndexKeyPath p
+          if ← keyPath.pathExists then IO.FS.removeFile keyPath
           let s ← runMeta (writeLinkIndex p omitModules)
-          -- After the map, never before: a sidecar written first and a write
-          -- that then died would leave a token vouching for a half-written map.
-          IO.FS.writeFile (linkIndexKeyPath p) (key ++ "\n")
+          IO.FS.writeFile keyPath (key ++ "\n")
           pure s
       | none => do
         let s ← runMeta (writeLinkIndex p omitModules)
