@@ -87,6 +87,19 @@ jobs:
       - name: Provenance
         run: tools/provenance-gate.sh
 
+  # The tree we pull in, as opposed to the attributions we wrote (which the test
+  # job checks). Both became obligations rather than tidiness when the repository
+  # went public on 2026-08-16 — see deny.toml.
+  supply-chain:
+    name: supply chain (licences, advisories)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+
   # The only job that runs a real Lean environment. It exists because every test
   # in the job above fakes the extractor, so nothing there checks the contract
   # between `extractor/Extract.lean` and the Rust side: change what the extractor

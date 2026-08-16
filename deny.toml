@@ -1,0 +1,48 @@
+# Supply-chain policy, checked by `cargo deny check` (CI runs it).
+#
+# WHY IT MATTERS HERE AND DID NOT BEFORE
+#   This repository went public on 2026-08-16 and ships under Apache-2.0
+#   (docs/provenance.md). A dependency whose licence is incompatible, or that
+#   carries an advisory, is now something distributed rather than something on
+#   one machine. `tools/provenance-gate.sh` covers the attributions *we* wrote;
+#   this covers the tree we pull in.
+#
+#   The dependency list is deliberately small — anyhow, serde, serde_json, sha2,
+#   cc and their transitive closure — because the whole build is `cargo build`
+#   with no network at runtime (README「インストール」).
+
+[graph]
+all-features = true
+
+[licenses]
+# Everything in the current closure is one of these. A new licence is not
+# refused because it is bad — it is refused because nobody has read it yet, and
+# the answer is to read it and add it here in a reviewed commit.
+allow = [
+    "Apache-2.0",
+    "MIT",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+]
+confidence-threshold = 0.9
+
+[advisories]
+# A yanked release is a decision by its author that we should not be on it.
+yanked = "deny"
+# Advisories with no fix available still have to be seen and decided about, one
+# at a time, with the reason written here. Nothing is ignored today.
+ignore = []
+
+[bans]
+# Two versions of the same crate is usually harmless and occasionally the sign
+# of something worth knowing about, so: report, do not fail.
+multiple-versions = "warn"
+# A wildcard version is not a dependency, it is a promise to be surprised.
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
