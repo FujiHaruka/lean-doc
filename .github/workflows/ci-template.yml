@@ -1,0 +1,157 @@
+# Runs the workflow template — `.github/workflow-templates/lean-doc-docs.yml` —
+# so that its header stops saying it has never been run.
+#
+# WHAT THE TEMPLATE'S HEADER SAYS IS UNVERIFIED, AND WHAT THIS COVERS
+#   "the actions' versions and inputs, the cache keys, the elan install, and
+#   `lake exe cache get` (which needs the network)". Every one of those is below,
+#   copied from the template rather than rewritten, so a run of this workflow is
+#   evidence about that file and not about a paraphrase of it.
+#
+# THE FOUR DIFFERENCES, AND WHY EACH IS FORCED
+#   1. `on:` is `workflow_dispatch` only. The template also runs on push, which
+#      here would download several GB per commit of a repository that is not a
+#      Lean package.
+#   2. The package is **generated, not checked out**. lean-doc has no Lean
+#      package of its own and creating one outside this repository was ruled out,
+#      so `tools/make-target2.sh` builds the second target in the job. It is the
+#      right package for this: its `lakefile.toml` declares **two**
+#      `[[lean_lib]]` blocks, which is what `lean-doc build` has to read to
+#      derive `--lib` — the step the template depends on and never states.
+#   3. elan is installed **before** the package exists, from the measurement
+#      target's `lean-toolchain` — the same bytes `make-target2.sh` then copies
+#      into the package. The template installs it from `package/lean-toolchain`;
+#      generating the package needs `lake` first, so the order is inverted and
+#      the file read is the same one.
+#   4. The site is not uploaded. The template's last step is an
+#      `upload-artifact` of a directory, which is not in doubt.
+#
+#   Everything else — `actions/checkout@v4`, the three `actions/cache@v4` blocks
+#   and their keys, the elan install line, and the single `ci-build.sh` call with
+#   its four flags — is the template's, verbatim.
+#
+# WHAT A GREEN RUN HERE DOES NOT PROVE
+#   That the template works **in a user's repository**: there, `package` is the
+#   caller's own checkout and the workflow triggers on push. Both are ordinary
+#   GitHub mechanics, and neither is what the header called into question.
+name: template (validation)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: "commit of FujiHaruka/information-theory whose toolchain and manifest the package copies"
+        required: false
+        default: "c4f6af29704029b3c62eaa0842c3225ad0e689a0"
+
+permissions:
+  contents: read
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      # lean-doc itself — the template's second checkout, with no token, which
+      # is the line the public repository made possible.
+      - name: check out lean-doc
+        uses: actions/checkout@v4
+        with:
+          repository: FujiHaruka/lean-doc
+          path: lean-doc
+
+      # Difference 2/3: the package does not exist yet, so what is checked out
+      # here is only the source of its `lean-toolchain` and `lake-manifest.json`.
+      - name: check out the measurement target (for its pinned toolchain and manifest)
+        uses: actions/checkout@v4
+        with:
+          repository: FujiHaruka/information-theory
+          ref: ${{ github.event.inputs.target_ref }}
+          path: target-src
+
+      # The template's elan step, reading the same `lean-toolchain` the package
+      # will carry.
+      - name: install elan
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: record the machine
+        run: lean-doc/benchmarks/tools/record-runner.sh env-before.txt target-src
+
+      # `--deps fetch` is the path this script has never taken: on a runner there
+      # is no measurement target to clone `.lake/packages` from with APFS
+      # clonefile, so Lake fetches the revisions the copied manifest pins and
+      # `lake exe cache get` downloads Mathlib's oleans.
+      - name: generate the package
+        env:
+          TARGET_SRC: ${{ github.workspace }}/target-src
+        run: |
+          lean-doc/tools/make-target2.sh --out "$GITHUB_WORKSPACE/package" --deps fetch
+          cat package/lakefile.toml
+
+      - name: cache Mathlib's oleans
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mathlib
+          key: mathlib-${{ hashFiles('package/lake-manifest.json') }}
+
+      - name: cache the Lean extractor
+        uses: actions/cache@v4
+        with:
+          path: lean-doc/extractor/build
+          key: >-
+            extractor-${{ hashFiles('package/lean-toolchain',
+            'lean-doc/extractor/Extract.lean') }}
+
+      - name: cache the Rust build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            lean-doc/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('lean-doc/Cargo.lock') }}
+
+      # The template's one step, verbatim.
+      - name: build the package and its documentation
+        run: |
+          lean-doc/tools/ci-build.sh \
+            --root package \
+            --out "$RUNNER_TEMP/docs" \
+            --cache-get \
+            --jobs 4
+
+      # Not the template's: what makes the run readable afterwards. The template
+      # ends by uploading `<out>/site`, which this repeats with the timings and
+      # the machine beside it.
+      - name: what the run produced
+        if: always()
+        run: |
+          {
+            echo "## ci-build.sh timings"
+            cat "$RUNNER_TEMP/docs/ci-timings.json" 2> /dev/null || echo "(none)"
+            echo
+            echo "## lean-doc build timings"
+            cat "$RUNNER_TEMP/docs/lean-doc-timings.json" 2> /dev/null || echo "(none)"
+            echo
+            echo "## site"
+            find "$RUNNER_TEMP/docs/site" -type f 2> /dev/null | wc -l
+            (cd "$RUNNER_TEMP/docs/site" && find . -type f | sort | xargs sha256sum | sha256sum) \
+              2> /dev/null || true
+            echo
+            echo "## conditions"
+            cat env-before.txt
+          } | tee template-run.txt
+
+      - name: upload the site and the log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: template-validation
+          path: |
+            template-run.txt
+            env-before.txt
+            ${{ runner.temp }}/docs/site
+            ${{ runner.temp }}/docs/ci-timings.json
+            ${{ runner.temp }}/docs/lean-doc-timings.json

@@ -114,6 +114,16 @@ jobs:
       # beyond these two paths it derives itself — the libraries from the
       # lakefile, the modules from the source glob, the source URL from git, and
       # the dependency map from the environment the extractor imports anyway.
+      #
+      # ONE EXCEPTION, AND IT IS NOT OPTIONAL: `lakefile.lean`.  【実測 2026-08-17】
+      #   The libraries are derived from `lakefile.toml`. A package that uses
+      #   `lakefile.lean` instead gets a refusal, not a guess — `lean_lib` there
+      #   is a Lake DSL command whose argument can come from any Lean expression,
+      #   so reading it honestly means elaborating it. Add the libraries by hand:
+      #
+      #     --jobs 4 -- --lib YourLib --lib YourOtherLib
+      #
+      #   (everything after `--` is passed on to `lean-doc build`).
       - name: build the package and its documentation
         run: |
           lean-doc/tools/ci-build.sh \
