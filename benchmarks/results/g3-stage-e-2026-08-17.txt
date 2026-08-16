@@ -70,24 +70,46 @@ after5  build   full in 1.9519 s  wall 1.99s
 - `--lake <path>` を渡すと `lean` は**その兄弟**から取る。toolchain 局所の lake を
   名指しした呼び手は、その toolchain の lean を意味しているため (`PATH` の先頭ではなく)。
 
-## 測っていないもの — **422 モジュール対象での end-to-end A/B**
+## 壁時計 — 対象 (422 モジュール)、1 モジュール変更の交互 A/B
 
-**回していない。** 機材のディスクが満杯になり (残り 1 GB 未満)、
-2 つの `--out` を要する交互 A/B を安全に走らせられなかった。**完走したことにしない。**
+各サイクルで 1 宣言を足して `lake build` し、両バイナリを**順番を入れ替えながら**回す
+(2 番目に走る方が page cache で得をするので、固定順は片方に下駄を履かせる)。
+`outside` = wall − `build … in X s` = **`resolve_external_links` (置き換えた呼び出し) + 引数処理**。
 
-代わりに主張の根拠にしているのは 2 つ:
+```
+run              wall    inside   outside
+A1  before      6.97s   6.1558s   0.814s
+B1  after       4.38s   4.3418s   0.038s
+B2  after       4.80s   4.7660s   0.034s
+A2  before      4.73s   3.9694s   0.761s
+A3  before      7.05s   6.2524s   0.798s
+B3  after       4.35s   4.3152s   0.035s
+B4  after       4.79s   4.7568s   0.033s
+A4  before      4.95s   4.1939s   0.756s
+```
 
-1. **置き換えた呼び出しそのものを実対象で直接測った** — `lake env lean --githash` 0.84 s
-   → `lean --githash` 0.03 s (上の表)。段 E が消すのはこの差だけで、
-   他の段には触れていない。
-2. **第 2 の対象で end-to-end に出た** — wall 中央値 −0.94 s、出力はバイト一致。
+| | before (段 D) | after (段 E) |
+|---|---|---|
+| **outside 中央値** | **0.780 s** | **0.0345 s** |
+| wall 中央値 | 5.96 s | 4.59 s |
+| inside 中央値 | 5.17 s | 4.55 s |
 
-**この 2 つから 422 モジュール対象の壁時計を引き算で書かない。**
-書くとしたら「約 0.8 s 減るはず【外挿】」であって実測ではない。
+**取り分は outside の −0.745 s。** ここは**暖機の影響を受けない** — 同じ 1 つの子プロセスを
+起こすかどうかの差で、両者とも毎 run 同じ仕事をする。実際 before の 4 回は
+0.756〜0.814 s、after の 4 回は 0.033〜0.038 s に収まっている。
 
-なお、このディスク満杯は**対象リポジトリの olean を 1 つ欠落させた**
-(中断された `lake build` が消したまま終わった)。`lake build InformationTheory` で復旧、
-`Build completed successfully (3769 jobs)`、ソースツリーは clean を確認済み。
+**wall の差 (1.37 s) をそのまま取り分として引用しない** — inside が before で
+3.97〜6.25 s と散っており (page cache)、その散らばりが乗っている。
+**取り分として主張できるのは outside の 0.745 s。**
+
+## 途中で起きたこと — ディスク満杯【記録】
+
+最初の A/B はディスク満杯で落ち、**中断された `lake build` が対象の olean を 1 つ
+欠落させた**。ソースは `git checkout` で戻したがディスクが無くて `lake build` ができず、
+**シェルコマンド自体が動かなくなった** (ハーネスが出力ファイルを作れない)。
+空きを作ってから `lake build InformationTheory` で復旧
+(`Build completed successfully (3769 jobs)`)、ソースツリー clean を確認してから測り直した。
+→ 規則を CLAUDE.md「ベンチマーク」に追加した。
 
 ## ゲート
 
