@@ -1,3 +1,6 @@
+//! Derived from doc-gen4 (Copyright (c) 2021 Henrik Böving, Apache-2.0) and
+//! changed; see this repository's NOTICE and `docs/provenance.md`.
+//!
 //! `Html.escape` — the only escape doc-gen4 applies to HTML text and attributes.
 //!
 //! It covers `& < > "` and **nothing else**; in particular `'` is left alone

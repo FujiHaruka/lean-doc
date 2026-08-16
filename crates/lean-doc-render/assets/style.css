@@ -12,6 +12,15 @@
    The colour pairs are written `light-dark(light, dark)` so both themes sit
    on one line and cannot drift apart. `color-scheme` on :root decides which
    half wins; the theme toggle sets `data-theme` and overrides it.
+
+   Two rules are taken from doc-gen4 rather than written here — `.fn` and
+   `.break_within` (marked in place). Both solve a problem specific to Lean
+   signatures, and both are reformatted but otherwise unchanged:
+
+       Copyright (c) 2021 Henrik Böving. All rights reserved.
+       Released under Apache 2.0 license as described in the file LICENSE.
+
+   Everything else in this file is lean-doc's own. See docs/provenance.md.
    ========================================================================== */
 
 /* -- 1. reset ------------------------------------------------------------ */
@@ -315,8 +324,8 @@ code, pre, .sig, .tree, .toc a, .decl-name, kbd { font-family: var(--mono); }
 }
 
 /* Hanging indent per term, so a wrapped subterm sits under its opener instead
-   of at the left margin. Same trick doc-gen4 uses, and the reason a signature
-   stays readable at 375 px. */
+   of at the left margin. This is the reason a signature stays readable at
+   375 px. From doc-gen4 `static/style.css:608-615` (see the header). */
 .fn {
   display: inline-block;
   text-indent: -1ex; padding-left: 1ex;
@@ -343,6 +352,8 @@ code, pre, .sig, .tree, .toc a, .decl-name, kbd { font-family: var(--mono); }
   color: var(--link); text-decoration-color: currentColor;
 }
 
+/* Break a long name anywhere, except across the dots that separate its
+   components. From doc-gen4 `static/style.css:664-670` (see the header). */
 .break_within { word-break: break-all; }
 .break_within .name { word-break: normal; }
 

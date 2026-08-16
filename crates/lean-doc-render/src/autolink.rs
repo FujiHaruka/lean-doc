@@ -1,3 +1,6 @@
+//! Derived from doc-gen4 (Copyright (c) 2021 Henrik Böving, Apache-2.0) and
+//! changed; see this repository's NOTICE and `docs/provenance.md`.
+//!
 //! Resolving the names a docstring mentions to pages.
 //!
 //! Ported from `experiments/stage7d/render.ts` (925-1077), which is frozen —

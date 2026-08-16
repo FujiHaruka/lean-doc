@@ -1,3 +1,6 @@
+//! Derived from md4c (MIT, Copyright (c) 2016-2024 Martin Mitáš); the licence
+//! is at `vendor/md4c/LICENSE.md`. See this repository's NOTICE.
+//!
 //! The md4c C ABI, transcribed from `vendor/md4c/md4c.h` (md4c 0.5.2).
 //!
 //! Everything here is a one-to-one transcription of the vendored header. It is

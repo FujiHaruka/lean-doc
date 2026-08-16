@@ -1,3 +1,14 @@
+This patch instruments doc-gen4 for the measurements in benchmarks/. Its diff
+context quotes doc-gen4's own sources verbatim:
+
+    Copyright (c) 2021 Henrik Böving. All rights reserved.
+    Released under Apache 2.0 license as described in the file LICENSE.
+    Authors: Henrik Böving
+
+Licensed under the Apache License, Version 2.0. The changes below add timing
+counters and change nothing about what doc-gen4 outputs; see NOTICE and
+docs/provenance.md. Applied with `git apply`, which skips this preamble.
+
 diff --git a/DocGen4/Load.lean b/DocGen4/Load.lean
 index 03d6c27..1334ec9 100644
 --- a/DocGen4/Load.lean

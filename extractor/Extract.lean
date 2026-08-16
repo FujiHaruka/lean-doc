@@ -1,4 +1,23 @@
 /-
+**Portions of this file are derived from doc-gen4.**
+
+    Copyright (c) 2021 Henrik Böving. All rights reserved.
+    Released under Apache 2.0 license as described in the file LICENSE.
+    Authors: Henrik Böving
+
+Those portions have been **changed** from the original: some were transcribed
+verbatim, others were restructured to write an IR instead of HTML. The blocks
+concerned are marked in place with the doc-gen4 source path they came from —
+`isProjFn` / `isBlackListed`, the attribute stringifiers, `getInstanceTypes`,
+`getInstPriority`, `getDefaultInstanceAttr`, `getFieldOrigin`, `mkTacticOut`,
+the `Core.Context` options, `collectSpans`, the kind/modifier split, and
+`structureMembers`. See `docs/provenance.md` for the full inventory.
+
+lean-doc as a whole is licensed separately; see this repository's LICENSE.
+This binary does **not** link doc-gen4 — it imports only `Lean`.
+
+---
+
 **lean-doc's extractor.** Milestone M4-a **moved** this file — it did not port
 it: the extractor is the one stage that has to run inside the target package's
 Lean environment (`importModules` over its oleans), so it stays Lean while
@@ -253,6 +272,12 @@ def Cfg.ablations (c : Cfg) : Array String :=
 
 /-! ## doc-gen4's blacklist, transcribed
 
+**Copied verbatim from doc-gen4, changed only by dropping its comments:**
+
+    Copyright (c) 2021 Henrik Böving. All rights reserved.
+    Released under Apache 2.0 license as described in the file LICENSE.
+    Authors: Henrik Böving
+
 `DocGen4/Process/DocInfo.lean:142-165`. Kept identical on purpose: a different
 exclusion granularity changes the declaration count, and then the time
 comparison against doc-gen4 means nothing.
@@ -428,6 +453,13 @@ def writeLinkIndex (path : FilePath) : MetaM LinkIndexStats := do
 
 /-! ## Attributes — doc-gen4's `getAllAttributes`, transcribed
 
+**Copied verbatim from doc-gen4**, changed only where a `ToString` instance was
+turned into a plain `def`:
+
+    Copyright (c) 2021 Henrik Böving. All rights reserved.
+    Released under Apache 2.0 license as described in the file LICENSE.
+    Authors: Henrik Böving
+
 `DocGen4/Process/Attributes.lean`. doc-gen4 calls it from `Info.ofTypedName`
 (`Process/NameInfo.lean:125`) for **every** declaration and prints the result as
 one `div.attributes` line (`Output/Module.lean:88-94`). Stage 7a did not collect
@@ -537,6 +569,13 @@ def getAllAttributes (decl : Name) : MetaM (Array String) := do
   return customs ++ tags ++ enums ++ parametric
 
 /-! ## Instance type index — doc-gen4's `InstanceInfo`, transcribed
+
+**Copied verbatim from doc-gen4**, changed only in `getInstPriority`, where a
+`panic!` became a `throwError`:
+
+    Copyright (c) 2021 Henrik Böving. All rights reserved.
+    Released under Apache 2.0 license as described in the file LICENSE.
+    Authors: Henrik Böving
 
 `DocGen4/Process/InstanceInfo.lean`. Two different things live here:
 
@@ -1314,7 +1353,14 @@ def withEquations (cfg : Cfg) (probe : PpProbe) (refs : RefSink) (v : Definition
 /-- doc-gen4's `getFieldOrigin` (`Process/StructureInfo.lean:39-47`): whether the
 field was declared in this structure, and which projection function names it.
 For an inherited field the answer is the **parent's** projection function, which
-is the name `fieldToHtml` links to. -/
+is the name `fieldToHtml` links to.
+
+**Body copied verbatim from doc-gen4** (only this docstring is new):
+
+    Copyright (c) 2021 Henrik Böving. All rights reserved.
+    Released under Apache 2.0 license as described in the file LICENSE.
+    Authors: Henrik Böving
+-/
 partial def getFieldOrigin (structName field : Name) : MetaM (Bool × Name) := do
   let env ← getEnv
   for parent in getStructureParentInfo env structName do
@@ -1586,7 +1632,13 @@ def ModuleOut.toJson (m : ModuleOut) : Json :=
                   ("definingModule", Json.str t.definingModule.toString)]))
   ]
 
-/-- doc-gen4's `collectTactics` body for one `TacticDoc`, kept byte-identical. -/
+/-- doc-gen4's `collectTactics` body for one `TacticDoc`, kept byte-identical
+(`Process/Analyze.lean:142-148`). **Copied verbatim from doc-gen4:**
+
+    Copyright (c) 2021 Henrik Böving. All rights reserved.
+    Released under Apache 2.0 license as described in the file LICENSE.
+    Authors: Henrik Böving
+-/
 def mkTacticOut (doc : TacticDoc) (definingModule : Name) : TacticOut :=
   { internalName := doc.internalName
     userName := doc.userName
@@ -2407,7 +2459,10 @@ def run (cfg : Cfg) (preEnv : Option Environment := none) : IO UInt32 := do
      ("candidates", toString candidates.size)]
 
   -- Options and heartbeat budget copied from doc-gen4 (`DocGen4/Load.lean` for the
-  -- options, `Process/Analyze.lean` for the per-constant `maxHeartbeats`).
+  -- options, `Process/Analyze.lean` for the per-constant `maxHeartbeats`):
+  --   Copyright (c) 2021 Henrik Böving. All rights reserved.
+  --   Released under Apache 2.0 license as described in the file LICENSE.
+  --   Authors: Henrik Böving
   -- `pp.funBinderTypes` in particular changes the printed text (`fun (n : ℕ) =>`
   -- instead of `fun n =>`), so without it the two tools are not printing the same
   -- thing and the times are not comparable either.

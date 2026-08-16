@@ -1,3 +1,6 @@
+//! Derived from doc-gen4 (Copyright (c) 2021 Henrik Böving, Apache-2.0) and
+//! changed; see this repository's NOTICE and `docs/provenance.md`.
+//!
 //! Turning one printed code fragment into HTML.
 //!
 //! A *fragment* is one of the five text/span pairs the IR carries — a

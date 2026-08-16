@@ -18,6 +18,7 @@ Mathlib に依存する Lean パッケージのための、高速ドキュメン
 | `docs/implementation-plan.md` | v0.1 のゲート / 移設の順序 / ファイル別内訳 / Rust 側の構成と制約。**実装の SoT** |
 | `docs/milestone-log.md` | **実装段階 (M1〜M6) の結果**。移設元と移設先・オラクル・母数・出た数字 |
 | `docs/verification-log.md` | **検証段階 (approach.md §7 の 1〜8) の結果**。**予測と食い違ったらこちらが SoT** |
+| `docs/provenance.md` | doc-gen4 / 第三者コードの由来判定とライセンス上の義務。**由来判定の SoT** |
 | `benchmarks/` | 実測レポート・計装パッチ・ツール・生ログ。**数字の出所** |
 | `crates/` | **製品コード (Rust)**。マイルストーン M1〜M6 で埋まる |
 | `experiments/` | 検証段階ごとの使い捨てプロトタイプ。**2026-08-11 に凍結** (→ `experiments/README.md`) |

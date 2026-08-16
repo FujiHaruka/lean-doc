@@ -308,6 +308,7 @@ doc-gen4 が読んでいた CDN 4 本 (Lato / JuliaMono / polyfill / MathJax) �
 | [`docs/implementation-plan.md`](docs/implementation-plan.md) | 実装の **SoT**。ゲート / 移設の順序 / Rust 側の構成と制約 |
 | [`docs/milestone-log.md`](docs/milestone-log.md) | 上の**結果**。M1〜M7 の各段で何を通し、どの数字が出たか |
 | [`docs/verification-log.md`](docs/verification-log.md) | **数字の SoT**。予測と食い違ったらこちらが正 |
+| [`docs/provenance.md`](docs/provenance.md) | **由来判定の SoT**。どのコードが doc-gen4 / 第三者由来か、そこから出る義務は何か |
 | [`benchmarks/`](benchmarks/) | 実測レポート・計装パッチ・生ログ。**数字の出所** |
 
 **docs に書く数字はすべて 実測 / 外挿 / 仮定 / 理論値 のラベルを持つ** — これは
@@ -321,7 +322,8 @@ extractor/       抽出器 (Lean)。build.sh が対象の lake env を借りて�
 tools/           ハーネスとゲート。ci-build.sh もここ
 experiments/     検証段階ごとの使い捨てプロトタイプ。2026-08-11 に凍結 (読むだけ)
 benchmarks/      計測レポート・計装パッチ・生ログ
-docs/            上の 3 文書
+docs/            上の 5 文書
+NOTICE           第三者コードの帰属。doc-gen4 / md4c / MD4Lean / UnicodeBasic / V8
 ```
 
 `experiments/` を凍結しているのは、**verification-log がそこを数字の出所として
@@ -336,3 +338,13 @@ Rust 版を採点する側なので、同じ言語で書き直すと「両方同
 (`InformationTheory`、432 モジュール、Mathlib 全体に依存) — **比較は同一ワークロード上でのみ
 意味を持つ**ため。第 2 の対象は `tools/make-target2.sh` が同じ Mathlib rev で合成する
 13 モジュール 2 ライブラリのパッケージ。
+
+## ライセンス
+
+**Apache License 2.0** ([`LICENSE`](LICENSE))。
+
+一部のファイルは **doc-gen4 (Apache-2.0, © 2021 Henrik Böving) の派生物**で、
+そのことは各ファイルに書いてある。第三者コードの帰属は [`NOTICE`](NOTICE) に、
+どのファイルが何に由来するかの内訳は [`docs/provenance.md`](docs/provenance.md) にある。
+**lean-doc は doc-gen4 をリンクしない** — 抽出器は `import Lean` だけ、Rust 側は Lean に
+一切依存しない。

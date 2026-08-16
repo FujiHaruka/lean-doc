@@ -1,3 +1,6 @@
+//! Derived from doc-gen4 (Copyright (c) 2021 Henrik Böving, Apache-2.0) and
+//! changed; see this repository's NOTICE and `docs/provenance.md`.
+//!
 //! Replaying doc-gen4's `splitWhitespaces` from the schema-3 widths.
 //!
 //! Ported from `experiments/stage7d/render.ts` (`applyWsWidths` 555-593), which

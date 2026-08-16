@@ -1,3 +1,6 @@
+//! Derived from MD4Lean's `wrapper/wrapper.c` (MIT, Copyright (c) 2024 Jz Pan)
+//! and changed; see this repository's NOTICE and `docs/provenance.md`.
+//!
 //! md4c's push callbacks, assembled into the AST of [`crate::ast`].
 //!
 //! # This file is a transliteration, not a design

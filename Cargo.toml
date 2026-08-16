@@ -6,6 +6,9 @@ members = ["crates/*"]
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.97"
+# Portions are derived from doc-gen4, which is Apache-2.0; NOTICE lists every
+# third-party work and docs/provenance.md says which files are affected.
+license = "Apache-2.0"
 
 # SHA-256 is 20x slower unoptimised, and the ledger's corpus test hashes about
 # 4 GB of olean. Only the hash crate is optimised — everything under test stays

@@ -1,3 +1,6 @@
+//! Holds the answers of V8 (BSD-3-Clause, Copyright 2006-2011 the V8 project
+//! authors). See this repository's NOTICE.
+//!
 //! V8's `\p{Z}\p{C}` — the separator set the **frozen prototype** tokenises
 //! code spans on.
 //!

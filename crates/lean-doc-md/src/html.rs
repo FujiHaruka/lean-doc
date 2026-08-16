@@ -1,3 +1,6 @@
+//! Derived from doc-gen4 (Copyright (c) 2021 Henrik Böving, Apache-2.0) and
+//! changed; see this repository's NOTICE and `docs/provenance.md`.
+//!
 //! `DocGen4/Output/DocString.lean:112-402`, transcribed.
 //!
 //! doc-gen4 builds an `Html` tree and then serialises it; every element the

@@ -1,0 +1,115 @@
+lean-doc
+Copyright (c) 2026 FujiHaruka
+
+This product includes software developed by third parties, listed below.
+`docs/provenance.md` records, file by file, what was copied, what was ported,
+and what only follows an interface.
+
+================================================================================
+doc-gen4 — https://github.com/leanprover/doc-gen4
+================================================================================
+
+    Copyright (c) 2021 Henrik Böving. All rights reserved.
+    Released under Apache 2.0 license as described in the file LICENSE.
+    Authors: Henrik Böving
+
+Licensed under the Apache License, Version 2.0.
+doc-gen4 itself ships no NOTICE file; this entry is lean-doc's own attribution.
+
+Portions of the following files are derived from doc-gen4 and have been
+**changed** — some transcribed verbatim, some rewritten in Rust to preserve the
+output byte for byte, some restructured to write an IR instead of HTML:
+
+    extractor/Extract.lean
+    crates/lean-doc-md/src/html.rs
+    crates/lean-doc-md/src/escape.rs
+    crates/lean-doc-render/src/code.rs
+    crates/lean-doc-render/src/whitespace.rs
+    crates/lean-doc-render/src/autolink.rs
+    crates/lean-doc-render/assets/style.css   (the `.fn` and `.break_within` rules)
+
+Test fixtures produced by running doc-gen4:
+
+    crates/lean-doc-md/tests/data/docgen4-expected.json
+    crates/lean-doc-render/tests/data/docgen4-linked-expected.json
+
+A patch against doc-gen4's own sources, quoting them as diff context:
+
+    benchmarks/doc-gen4-instrumentation.patch
+
+lean-doc does not link doc-gen4. The extractor imports only `Lean`; the Rust
+crates have no Lean dependency at all.
+
+================================================================================
+md4c — https://github.com/mity/md4c
+================================================================================
+
+    Copyright (c) 2016-2024 Martin Mitáš
+
+Licensed under the MIT License; the full text is vendored next to the sources
+at crates/lean-doc-md/vendor/md4c/LICENSE.md, with crates/lean-doc-md/vendor/
+md4c/PROVENANCE.md recording where the copy came from.
+
+    crates/lean-doc-md/vendor/md4c/{md4c.c,md4c.h}   verbatim, unmodified
+    crates/lean-doc-md/src/ffi.rs                    transcribed from md4c.h
+
+================================================================================
+MD4Lean — https://github.com/acmepjz/md4lean
+================================================================================
+
+    MIT License
+    Copyright (c) 2024 Jz Pan
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+
+Derived from MD4Lean's `wrapper/wrapper.c` and its AST, changed (transliterated
+into Rust):
+
+    crates/lean-doc-md/src/parse.rs
+    crates/lean-doc-md/src/ast.rs
+
+================================================================================
+Lean 4 / Unicode Basic — https://github.com/fgdorais/lean4-unicode-basic
+================================================================================
+
+    Copyright © 2023-2026 François G. Dorais. All rights reserved.
+
+Licensed under the Apache License, Version 2.0. The character property data it
+answers from is derived from Unicode's `UnicodeData.txt` / `PropList.txt`:
+
+    Copyright © 1991-2025 Unicode®, Inc. All rights reserved.
+    Distributed under the Unicode® Copyright and Terms of Use,
+    https://www.unicode.org/copyright.html
+
+The following file holds that library's answers, enumerated code point by code
+point rather than copied from its sources:
+
+    crates/lean-doc-md/src/gc.rs
+
+================================================================================
+V8 — https://v8.dev
+================================================================================
+
+    Copyright 2006-2011, the V8 project authors. All rights reserved.
+    Licensed under the BSD 3-Clause License.
+
+The following file holds V8's `\p{Z}\p{C}` answers, enumerated code point by
+code point rather than copied from its sources:
+
+    crates/lean-doc-global/src/v8_gc.rs
