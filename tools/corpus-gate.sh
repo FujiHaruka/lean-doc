@@ -34,6 +34,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 INVENTORY="$HERE/corpus-tests.txt"
+PYTHON="${PYTHON:-python3}"
 
 # Every `#[ignore]`d test cargo knows about, as `<target>::<name>`.
 #
@@ -42,20 +43,40 @@ INVENTORY="$HERE/corpus-tests.txt"
 # `the_whole_corpus`, so a bare name collapses the inventory from 24 entries to
 # 20 and hides four tests inside their namesakes. The prefix comes from cargo's
 # own `Running … (target/debug/deps/NAME-HASH)` line.
+# Asking each test binary directly, rather than reading `cargo test`'s combined
+# output: cargo prints `Running …` on stderr and the binary prints the names on
+# stdout, so the interleaving depends on whether stdout is a terminal. On a
+# CI runner it is not, the names arrive in one block after the last `Running`
+# line, and an awk script that pairs them up produces `::name` for everything.
+# That is exactly the shape of bug this gate exists to catch, so it should not
+# have one of its own.
 listed() {
-  (cd "$ROOT" && cargo test --workspace -- --ignored --list 2>&1) | awk '
-    /Running .*deps\// {
-      target = $0
-      sub(/.*deps\//, "", target)
-      sub(/-[0-9a-f]+\)$/, "", target)
-      next
-    }
-    /: test$/ {
-      name = $0
-      sub(/: test$/, "", name)
-      print target "::" name
-    }
-  ' | sort -u
+  (cd "$ROOT" && cargo test --workspace --no-run --message-format=json 2>/dev/null) \
+    | "$PYTHON" -c '
+import json, os, subprocess, sys
+
+for line in sys.stdin:
+    try:
+        message = json.loads(line)
+    except ValueError:
+        continue
+    if message.get("reason") != "compiler-artifact":
+        continue
+    if not message.get("profile", {}).get("test"):
+        continue
+    exe = message.get("executable")
+    if not exe:
+        continue
+    # `target/debug/deps/global-0e4a257eabf6c141` -> `global`
+    target = os.path.basename(exe).rsplit("-", 1)[0]
+    listed = subprocess.run(
+        [exe, "--ignored", "--list"], capture_output=True, text=True
+    ).stdout
+    suffix = ": test"
+    for entry in listed.splitlines():
+        if entry.endswith(suffix):
+            print(target + "::" + entry[: -len(suffix)])
+' | sort -u
 }
 
 # The inventory, minus comments and section headers. A trailing `# note` on a
