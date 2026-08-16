@@ -20,12 +20,33 @@
 //! maps are built in, the site-wide suppressed set, and which modules get a
 //! page. Slicing that would mean re-implementing it in order to test it.
 //!
+//! # M8-b: what a page *says*, not the bytes it says it in
+//!
+//! Up to M7 the comparison was `got == want` over whole pages. M8-b rewrote the
+//! markup on purpose (`docs/plans/ui-redesign.md`), so gate A is finished (plan
+//! §1) and that comparison cannot hold. What is compared instead is
+//! [`PageContent`] — and it is chosen to be exactly this file's own subject:
+//!
+//! | | how |
+//! |---|---|
+//! | which modules got a page | the paths, unchanged |
+//! | which items are on it and in what order | the ordered list of declaration anchors and module docstrings |
+//! | what a module docstring rendered to | **byte for byte** — M8 did not touch `lean-doc-md` |
+//! | where the page links | the hrefs out of `main`, plus the two things M8-b moved *into* it |
+//!
+//! The declaration blocks themselves are `tests/page_parts.rs`'s subject and are
+//! compared there; a page is checked for having the right ones in the right
+//! order, not for their insides. **This is weaker than the byte comparison it
+//! replaces**: markup inside a block can move without failing here.
+//!
 //! # What this file does **not** stand on
 //!
-//! The real corpus. That is [`pages_match_the_reference_tree`] (env-gated) and
-//! `tools/render-compare.sh`, which compares all 432 pages against the
-//! prototype's own output. The cases here exist to reach the corners the corpus
-//! has none of.
+//! The real corpus. That is [`pages_carry_the_reference_trees_content`]
+//! (env-gated) and `tools/render-compare.sh`, which compare all 432 pages
+//! against the prototype's own output, and
+//! [`pages_carry_the_doc_gen4_trees_declarations`], which is the one oracle here
+//! that this repository did not write. The cases below exist to reach the
+//! corners the corpus has none of.
 //!
 //! # Eight of the twenty-one branches never fire on the real corpus
 //!
@@ -47,6 +68,9 @@ const FIXTURE: &str = include_str!("data/pages-expected.json");
 const DEFAULT_IR: &str = "/private/tmp/lean-doc-relay/w7h/base-ir";
 const DEFAULT_LINK_INDEX: &str = "/private/tmp/lean-doc-relay/w7c/linkindex/link-index.lidx";
 const DEFAULT_REFERENCE: &str = "/private/tmp/lean-doc-relay/m1/ref-pages";
+/// doc-gen4's own output on the measurement target. Inside the target's
+/// `.lake`, which is gitignored there and never written to from here.
+const DEFAULT_DOCGEN4_TREE: &str = "/Users/haruka/dev/lean-projects/.lake/build/doc";
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -111,18 +135,32 @@ fn fixture_is_the_prototypes_own_output() {
 /// modules", so its answer to an empty render set is every page. That case is
 /// checked the other way round — see [`an_empty_render_set_renders_nothing`].
 #[test]
-fn every_case_reproduces_the_prototypes_pages() {
+fn every_case_carries_the_prototypes_page_content() {
     let e = expected();
     let mut failures = Vec::new();
     let mut compared = 0usize;
+    let mut items = 0usize;
     for case in &e.cases {
         if case.only.as_ref().is_some_and(Vec::is_empty) {
             continue;
         }
         let work = TempDir::new(&case.what);
         let got = case.render(&work);
-        if got != case.pages {
-            failures.push(describe(&case.what, &case.pages, &got));
+        if got.keys().collect::<Vec<_>>() != case.pages.keys().collect::<Vec<_>>() {
+            failures.push(format!(
+                "{}: different files\n  want: {:?}\n  got:  {:?}",
+                case.what,
+                case.pages.keys().collect::<Vec<_>>(),
+                got.keys().collect::<Vec<_>>()
+            ));
+            continue;
+        }
+        for (path, want) in &case.pages {
+            let want = PageContent::prototype(want);
+            items += want.items.len();
+            if let Err(why) = want.matches(&PageContent::of(&got[path])) {
+                failures.push(format!("{} {path}: {why}", case.what));
+            }
         }
         compared += case.pages.len();
     }
@@ -134,6 +172,10 @@ fn every_case_reproduces_the_prototypes_pages() {
         failures.join("\n")
     );
     assert!(compared >= 14, "only {compared} pages were compared");
+    // A `PageContent` that came out empty on both sides would pass every
+    // comparison above, so the extractor is held to finding something.
+    // 【実測 2026-08-16: 19 items over the committed cases】
+    assert!(items >= 15, "only {items} page items were compared");
 }
 
 /// The hole plan §5 names: `render.ts:2088` reads the module filter off the
@@ -471,13 +513,14 @@ fn a_dependency_map_moves_exactly_the_links_into_the_dependency() {
     );
 }
 
-/// All 432 pages, against the tree the prototype wrote.
+/// All 432 pages, against the tree the prototype wrote — by content since
+/// M8-b, exactly as the curated cases above.
 ///
 /// Skipped unless the reference tree is present. This is the same comparison
 /// `tools/render-compare.sh` makes; it is here so that `cargo test` on a
 /// machine that has the corpus does not need the shell script.
 #[test]
-fn pages_match_the_reference_tree() {
+fn pages_carry_the_reference_trees_content() {
     let reference = PathBuf::from(
         std::env::var("LEAN_DOC_REFERENCE_PAGES").unwrap_or_else(|_| DEFAULT_REFERENCE.into()),
     );
@@ -526,17 +569,205 @@ fn pages_match_the_reference_tree() {
     );
     // The one page the prototype and md4c disagree on: a broken nested code
     // span in a module docstring, where doc-gen4 sides with this crate. Pinned
-    // by name and by count, so a *second* divergence fails here.
+    // by name and by count, so a *second* divergence fails here. It survives
+    // the move to a content comparison because the divergence is *in* a module
+    // docstring, and those are still compared byte for byte.
     // 【実測, plan §5 / `lean-doc-md/tests/ts_docstring.rs`】
     let differing: Vec<&String> = want
         .iter()
-        .filter(|(path, html)| got.get(*path) != Some(*html))
+        .filter(|(path, html)| {
+            got.get(*path).is_none_or(|got| {
+                PageContent::prototype(html)
+                    .matches(&PageContent::of(got))
+                    .is_err()
+            })
+        })
         .map(|(path, _)| path)
         .collect();
     assert_eq!(
         differing,
         ["InformationTheory/Shannon/TimeBandLimiting/Count.html"],
         "the set of pages that differ from the prototype changed"
+    );
+}
+
+/// The oracle that did **not** come out of this repository: doc-gen4's own tree
+/// on the measurement target (`<root>/.lake/build/doc`).
+///
+/// Every other comparison in this crate is against `experiments/stage7d`, which
+/// is a transcription this repository wrote. M8-b ended the byte comparison with
+/// it, and the honest question is then whether anything independent is left.
+/// This is what is: two facts about a page that no UI decision can move.
+///
+/// | | compared |
+/// |---|---|
+/// | which declarations get an entry | the anchors, as a **set**; and as a sequence except where doc-gen4's own sort is unstable |
+/// | what a module docstring says | its **text**, tags stripped, in order |
+/// | which file a declaration's source link names | the path under `/blob/<rev>` |
+///
+/// # Two things this cannot compare, and why
+///
+/// 1. **The line ranges in the source links.** The tree on disk is older than
+///    the IR: 286 of the 348 shared pages have at least one declaration whose
+///    `#L…-L…` moved because the `.lean` file was edited 【実測 2026-08-16】.
+///    That is source drift, not a renderer difference, and comparing it would
+///    fail for a reason this suite cannot fix. The *path* is compared instead.
+/// 2. **Anything about the 84 modules doc-gen4 has no page for.** They were
+///    added to the package after the tree was last built.
+///
+/// # doc-gen4's page order is not deterministic and this says where
+///
+/// `Process.Module.members` finishes with `qsort ModuleMember.order`, which is
+/// not stable, so two declarations at the same `(line, col)` come out in an
+/// order that is a property of the run rather than of the package. Both of the
+/// pages where this tree and these pages disagree are that case (auto-generated
+/// `ext` / `ext_iff` and a `_def`), and the assertion below is the precise one:
+/// the two orders visit the same *positions* in the same order.
+#[test]
+fn pages_carry_the_doc_gen4_trees_declarations() {
+    let tree = PathBuf::from(
+        std::env::var("LEAN_DOC_DOCGEN4_TREE").unwrap_or_else(|_| DEFAULT_DOCGEN4_TREE.into()),
+    );
+    let ir = PathBuf::from(std::env::var("LEAN_DOC_IR").unwrap_or_else(|_| DEFAULT_IR.into()));
+    if file_count(&tree) == 0 || file_count(&ir) == 0 {
+        eprintln!(
+            "skipping: no doc-gen4 tree or IR (empty or missing: {} / {})",
+            tree.display(),
+            ir.display(),
+        );
+        return;
+    }
+
+    // Where each declaration sits, so a disagreement about order can be told
+    // apart from a disagreement about content.
+    let modules = lean_doc_ir::IrTree::open(&ir)
+        .expect("the IR opens")
+        .load_modules()
+        .expect("every module reads");
+    let positions: BTreeMap<&str, BTreeMap<&str, (u32, u32)>> = modules
+        .iter()
+        .map(|module| {
+            let decls = module
+                .declarations
+                .iter()
+                .map(|decl| (decl.name.as_str(), (decl.line, decl.col)))
+                .collect();
+            (module.module.as_str(), decls)
+        })
+        .collect();
+
+    let e = expected();
+    let work = TempDir::new("docgen4");
+    // No `.lidx`: it decides where a link into a **dependency** points, and
+    // nothing compared here is such a link. Requiring one would make this
+    // oracle skip on a machine that has the target checked out but no relay
+    // directory, which is the machine it is most worth running on.
+    render_site(&RenderOptions {
+        ir: &ir,
+        pages: &work.path,
+        source_url: &e.source_url,
+        external_links: &ExternalLinks::default(),
+        link_index: None,
+        only: &ModuleSet::All,
+    })
+    .expect("the corpus renders");
+
+    let (mut pages, mut anchors, mut docs) = (0usize, 0usize, 0usize);
+    let mut reordered: Vec<String> = Vec::new();
+    let mut failures: Vec<String> = Vec::new();
+    for (path, got) in read_tree(&work.path) {
+        // A module doc-gen4 has no page for is one added since the tree was
+        // built, not a disagreement.
+        let Ok(want) = fs::read_to_string(tree.join(&path)) else {
+            continue;
+        };
+        pages += 1;
+        let module = path.trim_end_matches(".html").replace('/', ".");
+
+        let want_ids = attr_after(&want, "<div class=\"decl\" id=\"");
+        let got_ids = attr_after(&got, "<section class=\"decl\" id=\"");
+        anchors += want_ids.len();
+        if sorted_owned(&want_ids) != sorted_owned(&got_ids) {
+            let missing: Vec<&&str> = want_ids.iter().filter(|w| !got_ids.contains(w)).collect();
+            let extra: Vec<&&str> = got_ids.iter().filter(|g| !want_ids.contains(g)).collect();
+            failures.push(format!(
+                "{module}: the page's declarations differ\n  missing: {missing:?}\n  extra: {extra:?}"
+            ));
+        } else if want_ids != got_ids {
+            // Only doc-gen4's unstable sort may explain this: the two orders
+            // have to walk the same source positions in the same order.
+            let at = |name: &str| {
+                positions
+                    .get(module.as_str())
+                    .and_then(|m| m.get(name))
+                    .copied()
+            };
+            if want_ids
+                .iter()
+                .map(|n| at(n))
+                .ne(got_ids.iter().map(|n| at(n)))
+            {
+                failures.push(format!(
+                    "{module}: the page order differs somewhere other than a tie"
+                ));
+            }
+            reordered.push(module.clone());
+        }
+
+        let want_docs = wrapped_texts(&want, "<div class=\"mod_doc\">");
+        let got_docs = wrapped_texts(&got, "<div class=\"moddoc\">");
+        docs += want_docs.len();
+        if want_docs != got_docs {
+            failures.push(format!(
+                "{module}: the module docstrings differ\n  want: {want_docs:?}\n  got:  {got_docs:?}"
+            ));
+        }
+
+        // Both of doc-gen4's spellings: the per-declaration `div.gh_link` and
+        // the module's own `p.gh_nav_link`, which is the only one a module with
+        // no page entries has. This crate spells both as `a.src`.
+        let want_files = source_files(
+            &want,
+            &[
+                "class=\"gh_link\"><a href=\"",
+                "class=\"gh_nav_link\"><a href=\"",
+            ],
+        );
+        let got_files = source_files(&got, &["<a class=\"src\" href=\""]);
+        if want_files != got_files {
+            failures.push(format!(
+                "{module}: the source links name different files\n  want: {want_files:?}\n  got:  {got_files:?}"
+            ));
+        }
+    }
+
+    assert!(
+        failures.is_empty(),
+        "{} of {pages} pages differ from doc-gen4's tree:\n{}",
+        failures.len(),
+        failures
+            .iter()
+            .take(10)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+    eprintln!("doc-gen4 tree: {pages} pages, {anchors} anchors, {docs} module docstrings");
+    // A run that matched nothing would pass every assertion above.
+    // 【実測 2026-08-16: 348 pages, 3,477 anchors, 1,232 module docstrings】
+    assert!(
+        pages >= 300 && anchors >= 3_000 && docs >= 1_000,
+        "{pages} pages, {anchors} anchors, {docs} docstrings: the tree stopped overlapping the IR"
+    );
+    // Named rather than tolerated. If a third page starts disagreeing about
+    // order it is a new fact and not this one.
+    assert_eq!(
+        reordered,
+        [
+            "InformationTheory.Polymatroid.Basic",
+            "InformationTheory.Shannon.EntropyPower.Ext"
+        ],
+        "which pages doc-gen4's unstable sort put in another order has changed"
     );
 }
 
@@ -583,6 +814,259 @@ impl Case {
         .unwrap_or_else(|e| panic!("{}: {e}", self.what));
         read_tree(&pages)
     }
+}
+
+/// What a page says, independently of the markup it says it in.
+///
+/// See the file heading. Everything here is a decision of `page_html`'s top
+/// level — which items, in what order, and where the page points — rather than
+/// of the pieces it is assembled from.
+#[derive(Debug)]
+struct PageContent {
+    /// The page's items **in order**, which is this file's subject.
+    items: Vec<Item>,
+    /// The module's own source link.
+    source: String,
+    /// `(href, name)` per import, in order.
+    imports: Vec<(String, String)>,
+    /// Every link out of the page body, sorted.
+    links: Vec<String>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum Item {
+    /// A module docstring's rendered HTML, compared **byte for byte**: M8 did
+    /// not touch `lean-doc-md`, and this is the largest piece of a page that is
+    /// still identical to the prototype's.
+    Doc(String),
+    /// A declaration's anchor. Its block is `tests/page_parts.rs`'s subject.
+    Decl(String),
+}
+
+impl PageContent {
+    /// A page the frozen prototype wrote. Its source link and its import list
+    /// live in `nav.internal_nav`, outside `main`.
+    fn prototype(html: &str) -> Self {
+        let main = between(html, "<main>", "</main>").unwrap_or_default();
+        Self {
+            items: items(main, "<div class=\"mod_doc\">", "<div class=\"decl\" id=\""),
+            source: html
+                .find("gh_nav_link")
+                .and_then(|at| attr_values(&html[at..], "href").first().copied())
+                .unwrap_or_default()
+                .to_owned(),
+            imports: list_after(html, "<summary>Imports</summary>"),
+            links: sorted(attr_values(main, "href")),
+        }
+    }
+
+    /// A page this crate wrote. M8-b moved the source link into the module's
+    /// heading and the import list under it, so both are inside `main` here.
+    fn of(html: &str) -> Self {
+        let main =
+            between(html, "<main class=\"content\" id=\"content\">", "</main>").unwrap_or_default();
+        Self {
+            items: items(
+                main,
+                "<div class=\"moddoc\">",
+                "<section class=\"decl\" id=\"",
+            ),
+            source: between(html, "<div class=\"modhead\">", "</div>")
+                .and_then(|head| attr_values(head, "href").first().copied())
+                .unwrap_or_default()
+                .to_owned(),
+            imports: list_after(html, "<div class=\"modmeta\">"),
+            links: sorted(attr_values(main, "href")),
+        }
+    }
+
+    fn matches(&self, got: &Self) -> Result<(), String> {
+        if self.items != got.items {
+            return Err(format!(
+                "the page's items differ\n  want: {:?}\n  got:  {:?}",
+                summarise(&self.items),
+                summarise(&got.items)
+            ));
+        }
+        if self.source != got.source {
+            return Err(format!(
+                "source link: want {}, got {}",
+                self.source, got.source
+            ));
+        }
+        if self.imports != got.imports {
+            return Err(format!(
+                "imports differ\n  want: {:?}\n  got:  {:?}",
+                self.imports, got.imports
+            ));
+        }
+        // The two things M8-b moved into `main`: the module's source link and
+        // its import list. Everything else the body points at is the same.
+        let mut want = self.links.clone();
+        want.push(self.source.clone());
+        want.extend(self.imports.iter().map(|(href, _)| href.clone()));
+        want.sort();
+        if want != got.links {
+            let missing: Vec<&String> = want.iter().filter(|w| !got.links.contains(w)).collect();
+            let extra: Vec<&String> = got.links.iter().filter(|g| !want.contains(g)).collect();
+            return Err(format!(
+                "links differ\n  missing: {missing:?}\n  extra:   {extra:?}"
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// Names each item without printing a docstring's whole HTML.
+fn summarise(items: &[Item]) -> Vec<String> {
+    items
+        .iter()
+        .map(|item| match item {
+            Item::Doc(html) => format!("doc({})", &html[..html.len().min(40)]),
+            Item::Decl(name) => format!("decl({name})"),
+        })
+        .collect()
+}
+
+/// The module docstrings and the declaration anchors of `main`, interleaved in
+/// document order — which is the order `page_items` decided.
+fn items(main: &str, doc_open: &str, decl_open: &str) -> Vec<Item> {
+    let mut out = Vec::new();
+    let mut rest = main;
+    loop {
+        let (doc, decl) = (rest.find(doc_open), rest.find(decl_open));
+        let take_doc = match (doc, decl) {
+            (Some(d), Some(k)) => d < k,
+            (Some(_), None) => true,
+            (None, Some(_)) => false,
+            (None, None) => break,
+        };
+        let (at, end) = if take_doc {
+            // A rendered docstring contains no `<div>` (`MD_FLAG_NOHTML`), so
+            // the first close is the wrapper's — the same reasoning
+            // `tests/ref_pages.rs` runs on.
+            let at = doc.expect("checked") + doc_open.len();
+            let end = rest[at..].find("</div>").map_or(rest.len(), |e| at + e);
+            out.push(Item::Doc(rest[at..end].to_owned()));
+            (at, end)
+        } else {
+            let at = decl.expect("checked") + decl_open.len();
+            let end = rest[at..].find('"').map_or(rest.len(), |e| at + e);
+            out.push(Item::Decl(rest[at..end].to_owned()));
+            (at, end)
+        };
+        debug_assert!(end >= at);
+        rest = &rest[end..];
+    }
+    out
+}
+
+/// Every ` name="…"` value, in document order.
+fn attr_values<'a>(html: &'a str, name: &str) -> Vec<&'a str> {
+    let needle = format!(" {name}=\"");
+    let mut out = Vec::new();
+    let mut rest = html;
+    while let Some(at) = rest.find(&needle) {
+        let value = &rest[at + needle.len()..];
+        let end = value.find('"').unwrap_or(value.len());
+        out.push(&value[..end]);
+        rest = &value[end..];
+    }
+    out
+}
+
+fn sorted(values: Vec<&str>) -> Vec<String> {
+    let mut out: Vec<String> = values.into_iter().map(str::to_owned).collect();
+    out.sort();
+    out
+}
+
+fn between<'a>(html: &'a str, open: &str, close: &str) -> Option<&'a str> {
+    let at = html.find(open)? + open.len();
+    let end = html[at..].find(close)? + at;
+    Some(&html[at..end])
+}
+
+/// The `(href, text)` of every `<li>` of the first `<ul>` after `from`.
+fn list_after(html: &str, from: &str) -> Vec<(String, String)> {
+    let Some(at) = html.find(from) else {
+        return Vec::new();
+    };
+    let Some(list) = between(&html[at..], "<ul>", "</ul>") else {
+        return Vec::new();
+    };
+    list.split("<li>")
+        .skip(1)
+        .filter_map(|item| {
+            let href = (*attr_values(item, "href").first()?).to_owned();
+            Some((href, text_of(item)))
+        })
+        .collect()
+}
+
+/// The value that follows each `marker`, up to the `"` that closes it.
+fn attr_after<'a>(html: &'a str, marker: &str) -> Vec<&'a str> {
+    let mut out = Vec::new();
+    let mut rest = html;
+    while let Some(at) = rest.find(marker) {
+        let value = &rest[at + marker.len()..];
+        let end = value.find('"').unwrap_or(value.len());
+        out.push(&value[..end]);
+        rest = &value[end..];
+    }
+    out
+}
+
+fn sorted_owned<'a>(values: &[&'a str]) -> Vec<&'a str> {
+    let mut out = values.to_vec();
+    out.sort_unstable();
+    out
+}
+
+/// The text of every element opened by `open`, up to its `</div>`.
+///
+/// No nesting count is needed: a rendered docstring contains no `<div>`
+/// (`MD_FLAG_NOHTML`), which is the same reasoning `tests/ref_pages.rs` runs on.
+fn wrapped_texts(html: &str, open: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut rest = html;
+    while let Some(at) = rest.find(open) {
+        let from = at + open.len();
+        let end = rest[from..].find("</div>").map_or(rest.len(), |e| from + e);
+        out.push(text_of(&rest[from..end]));
+        rest = &rest[end..];
+    }
+    out
+}
+
+/// The `.lean` files a page's source links name, with the revision and the line
+/// range dropped — the part of those URLs that does not move when the package's
+/// sources are edited.
+fn source_files(html: &str, markers: &[&str]) -> BTreeSet<String> {
+    markers
+        .iter()
+        .flat_map(|marker| attr_after(html, marker))
+        .filter_map(|href| {
+            let path = href.split('#').next()?;
+            let after_blob = path.split_once("/blob/")?.1;
+            Some(after_blob.split_once('/')?.1.to_owned())
+        })
+        .collect()
+}
+
+/// The text of a fragment, tags removed and whitespace collapsed.
+fn text_of(html: &str) -> String {
+    let mut out = String::new();
+    let mut rest = html;
+    loop {
+        let at = rest.find('<').unwrap_or(rest.len());
+        out.push_str(&rest[..at]);
+        match rest[at..].find('>') {
+            Some(end) => rest = &rest[at + end + 1..],
+            None => break,
+        }
+    }
+    out.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 /// The prefix the `Dep` package's sources live under in the test below. 40 hex
@@ -642,41 +1126,6 @@ fn read_tree(dir: &Path) -> BTreeMap<String, String> {
     }
     walk(dir, "", &mut out);
     out
-}
-
-fn describe(what: &str, want: &BTreeMap<String, String>, got: &BTreeMap<String, String>) -> String {
-    let mut lines = vec![what.to_owned()];
-    for path in want.keys().chain(got.keys()).collect::<BTreeSet<_>>() {
-        match (want.get(path), got.get(path)) {
-            (Some(a), Some(b)) if a == b => {}
-            (Some(a), Some(b)) => {
-                let at = a
-                    .bytes()
-                    .zip(b.bytes())
-                    .position(|(x, y)| x != y)
-                    .unwrap_or_else(|| a.len().min(b.len()));
-                let from = at.saturating_sub(60);
-                lines.push(format!(
-                    "  {path} differs at byte {at}\n    want: …{}\n    got:  …{}",
-                    &a[floor_char(a, from)..floor_char(a, (at + 90).min(a.len()))],
-                    &b[floor_char(b, from)..floor_char(b, (at + 90).min(b.len()))],
-                ));
-            }
-            (Some(_), None) => lines.push(format!("  {path} was not written")),
-            (None, Some(_)) => lines.push(format!("  {path} should not exist")),
-            (None, None) => unreachable!(),
-        }
-    }
-    lines.join("\n")
-}
-
-/// The nearest char boundary at or below `at`, so slicing a page for a failure
-/// message cannot itself panic.
-fn floor_char(s: &str, mut at: usize) -> usize {
-    while at > 0 && !s.is_char_boundary(at) {
-        at -= 1;
-    }
-    at
 }
 
 /// A directory that removes itself, so a failed run does not leave a tree of

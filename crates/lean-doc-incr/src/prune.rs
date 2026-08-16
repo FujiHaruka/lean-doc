@@ -49,13 +49,27 @@
 //! の `orphans-site` シナリオ】. The other three are not `.html`
 //! (`declarations/declaration-data.bmp`, `declarations/name-map.json`,
 //! `references.bib`) and are invisible to it, as are the static assets
-//! (`style.css`, `jump-src.js`), which are **not in the byte-reproduction
-//! denominator at all** (plan §6: 432 pages + 6 artifacts = 438).
+//! (`style.css`, `app.js`, `favicon.svg` since M8-a), which are **not in the
+//! byte-reproduction denominator at all** (plan §6: 432 pages + 6 artifacts =
+//! 438).
 //!
 //! **The pipeline never passes `--ir`** — `incremental.sh:304-305` passes only
 //! `--remove` — so nothing has been deleting them. Reproduced as it is, and
 //! written down here because "prune the orphans" is a plausible thing for M3-d to
 //! start doing and it would take three artifacts with it.
+//!
+//! # The static assets survive both halves, and that is now asserted (M8-a)
+//!
+//! From M8-a every build writes `style.css`, `app.js` and `favicon.svg` into the
+//! site root (`docs/plans/ui-redesign.md` 決定 6). They are **not** module
+//! pages, no ledger names them, and nothing regenerates them mid-pipeline — so
+//! an incremental run that deleted them would leave a site that renders unstyled
+//! until the next full generation, which is a silent failure of exactly the kind
+//! this stage's heading is otherwise about. Nothing here deletes them today: the
+//! orphan rule only looks at names ending in `.html`, and the empty-directory
+//! pass never removes the root. The two tests at the foot of this file hold it
+//! to that, so a later change to either rule fails here rather than in a
+//! browser.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -439,4 +453,146 @@ struct PruneJson<'a> {
     orphan_pages: &'a [String],
     emptied_directories: usize,
     total_seconds: f64,
+}
+
+#[cfg(test)]
+mod tests {
+    //! **M8-a's gate on this stage**: the static assets are not pages, and
+    //! neither half of `prune` may take them.
+    //!
+    //! The corpus tests (`tests/impact.rs`) compare this stage against the
+    //! frozen prototype over a site that had **no** assets in it — the prototype
+    //! never wrote any — so they cannot answer this question at all. These two
+    //! are curated for the same reason four of the sixteen branches over there
+    //! are: the shape does not exist in the recorded corpus.
+
+    use super::*;
+
+    /// The three files `lean-doc build` writes into the site root (M8-a).
+    ///
+    /// Spelled out rather than imported: this crate does not depend on the
+    /// renderer, and the property under test is not about *these* names — the
+    /// rule is "a file that is not a module page stays", and any non-page the
+    /// site grows later has to survive the same way.
+    const ASSETS: [&str; 3] = ["style.css", "app.js", "favicon.svg"];
+
+    /// A site with two module pages, one of which no IR knows about, plus the
+    /// assets. Returns the page tree and the IR tree.
+    fn site_with_assets(dir: &Path) -> (PathBuf, PathBuf) {
+        let pages = dir.join("site");
+        fs::create_dir_all(pages.join("Pkg")).expect("the page tree is creatable");
+        write_file(&pages.join("Pkg.html"), "<html>Pkg</html>");
+        write_file(&pages.join("Pkg/B.html"), "<html>Pkg.B</html>");
+        for name in ASSETS {
+            write_file(&pages.join(name), "/* the shipped bytes */");
+        }
+        // A whole-package artifact too: three of the six are `.html` and the
+        // orphan rule really does take them (see the module heading). Keeping
+        // one here is what stops this test from passing because the rule
+        // stopped deleting anything at all.
+        write_file(&pages.join("navbar.html"), "<html>nav</html>");
+
+        let ir = dir.join("ir");
+        fs::create_dir_all(&ir).expect("the IR tree is creatable");
+        write_file(
+            &ir.join("index.json"),
+            r#"{"modules":[{"module":"Pkg"},{"module":"Pkg.B"}]}"#,
+        );
+        (pages, ir)
+    }
+
+    fn write_file(path: &Path, body: &str) {
+        fs::write(path, body).unwrap_or_else(|source| panic!("{}: {source}", path.display()));
+    }
+
+    fn assets_are_intact(pages: &Path) {
+        for name in ASSETS {
+            let path = pages.join(name);
+            assert_eq!(
+                fs::read_to_string(&path).ok().as_deref(),
+                Some("/* the shipped bytes */"),
+                "{} was deleted or rewritten by prune",
+                path.display(),
+            );
+        }
+    }
+
+    /// The pipeline's own call — a deletion list and no `--ir`. The empty
+    /// directory pass runs on this path, which is the one that could plausibly
+    /// take the site root's contents with it.
+    #[test]
+    fn the_deletion_path_leaves_the_assets() {
+        let dir = TempDir::new("prune-assets-remove");
+        let (pages, _) = site_with_assets(&dir.path);
+        let remove = dir.path.join("removed.txt");
+        write_file(&remove, "Pkg.B\n");
+
+        let summary = prune(&PruneOptions {
+            pages: &pages,
+            remove: Some(&remove),
+            ir: None,
+            dry_run: false,
+            json: None,
+        })
+        .expect("prune runs");
+
+        assert_eq!(summary.deleted, ["Pkg.B"]);
+        assert!(!pages.join("Pkg/B.html").exists(), "the page survived");
+        assert_eq!(summary.emptied, ["Pkg"], "the emptied directory went");
+        assets_are_intact(&pages);
+    }
+
+    /// The orphan rule, which is the half that walks the whole tree. It deletes
+    /// `.html` files no module owns — `navbar.html` here, as the heading says —
+    /// and must not widen to the assets, which no module owns either.
+    #[test]
+    fn the_static_assets_are_not_orphans() {
+        let dir = TempDir::new("prune-assets-orphans");
+        let (pages, ir) = site_with_assets(&dir.path);
+
+        let summary = prune(&PruneOptions {
+            pages: &pages,
+            remove: None,
+            ir: Some(&ir),
+            dry_run: false,
+            json: None,
+        })
+        .expect("prune runs");
+
+        assert_eq!(
+            summary.orphans,
+            ["navbar.html"],
+            "the orphan rule changed which files it takes",
+        );
+        assets_are_intact(&pages);
+        assert!(pages.join("Pkg.html").is_file(), "a live page went");
+        assert!(pages.join("Pkg/B.html").is_file(), "a live page went");
+    }
+
+    /// A unique directory under the system temporary one, removed with its
+    /// contents when the test ends.
+    struct TempDir {
+        path: PathBuf,
+    }
+
+    impl TempDir {
+        fn new(what: &str) -> Self {
+            use std::sync::atomic::{AtomicU32, Ordering};
+            static NEXT: AtomicU32 = AtomicU32::new(0);
+            let path = std::env::temp_dir().join(format!(
+                "lean-doc-prune-{}-{}-{what}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed),
+            ));
+            let _ = fs::remove_dir_all(&path);
+            fs::create_dir_all(&path).expect("the temporary directory is creatable");
+            Self { path }
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
 }

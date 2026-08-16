@@ -128,33 +128,63 @@ function nest(list) {
   return rootNode;
 }
 
+/**
+ * One `<ul>` per level.
+ *
+ * **Not `<details>`/`<summary>`**, which is the obvious spelling and the wrong
+ * one here: a module can be both a page and a parent (`Foo` and `Foo.Bar` both
+ * exist), so its row has to carry a link *and* a disclosure. Put the link inside
+ * a `<summary>` and clicking it both navigates and toggles — the toggle is the
+ * summary's activation behaviour, not something a handler on the link can call
+ * off. A button next to the link keeps the two targets apart, which is also what
+ * a reader expects from a file tree.
+ */
 function treeHtml(node, prefix, here) {
   const ul = document.createElement("ul");
   for (const [part, child] of node.children) {
     const full = prefix ? `${prefix}.${part}` : part;
     const li = document.createElement("li");
-    const link = (text) => {
-      const a = document.createElement("a");
-      a.textContent = text;
-      if (child.page) {
-        a.href = url(child.page.p);
-        if (full === here) a.setAttribute("aria-current", "page");
-      } else {
-        a.setAttribute("aria-disabled", "true");
-      }
-      return a;
-    };
+    const row = document.createElement("div");
+    row.className = "row";
 
-    if (child.children.size === 0) {
-      li.append(link(part));
+    let sub = null;
+    if (child.children.size > 0) {
+      sub = treeHtml(child, full, here);
+      // Open exactly the spine down to the current page; everything else stays
+      // folded, or the sidebar is 432 lines long on arrival.
+      sub.hidden = !(here === full || here.startsWith(`${full}.`));
+      const twisty = document.createElement("button");
+      twisty.type = "button";
+      twisty.className = "twisty";
+      twisty.setAttribute("aria-expanded", String(!sub.hidden));
+      twisty.setAttribute("aria-label", full);
+      twisty.addEventListener("click", () => {
+        sub.hidden = !sub.hidden;
+        twisty.setAttribute("aria-expanded", String(!sub.hidden));
+      });
+      row.append(twisty);
     } else {
-      const details = document.createElement("details");
-      if (here === full || here.startsWith(`${full}.`)) details.open = true;
-      const summary = document.createElement("summary");
-      summary.append(child.page ? link(part) : document.createTextNode(part));
-      details.append(summary, treeHtml(child, full, here));
-      li.append(details);
+      const spacer = document.createElement("span");
+      spacer.className = "twisty-spacer";
+      row.append(spacer);
     }
+
+    if (child.page) {
+      const a = document.createElement("a");
+      a.href = url(child.page.p);
+      a.textContent = part;
+      if (full === here) a.setAttribute("aria-current", "page");
+      row.append(a);
+    } else {
+      // A name that is only a prefix — no module of that name was compiled.
+      const span = document.createElement("span");
+      span.className = "node-name";
+      span.textContent = part;
+      row.append(span);
+    }
+
+    li.append(row);
+    if (sub) li.append(sub);
     ul.append(li);
   }
   return ul;
@@ -273,6 +303,35 @@ function score(name, query) {
   return -1;
 }
 
+/** Every hit for `query`, best first. */
+function search(data, query) {
+  const hits = [];
+  for (const d of data.decls) {
+    const s = score(d[0], query);
+    if (s > 0) hits.push([s, d]);
+  }
+  hits.sort((a, b) => b[0] - a[0] || a[1][0].length - b[1][0].length);
+  return hits.map(([, d]) => d);
+}
+
+/** One result row — the same markup in the dropdown and on `search.html`. */
+function resultItem(data, d) {
+  const li = document.createElement("li");
+  const a = document.createElement("a");
+  a.href = declHref(data, d);
+  const kind = document.createElement("span");
+  kind.className = "kind";
+  kind.textContent = data.kinds[d[1]];
+  const name = document.createElement("span");
+  name.textContent = d[0];
+  const where = document.createElement("span");
+  where.className = "where";
+  where.textContent = data.modules[d[2]].n;
+  a.append(kind, name, where);
+  li.append(a);
+  return li;
+}
+
 function initSearch() {
   const input = document.getElementById("search-input");
   const list = document.getElementById("search-results");
@@ -295,13 +354,7 @@ function initSearch() {
     const data = await decls();
     if (!data) return close();
 
-    const hits = [];
-    for (const d of data.decls) {
-      const s = score(d[0], query);
-      if (s > 0) hits.push([s, d]);
-    }
-    hits.sort((a, b) => b[0] - a[0] || a[1][0].length - b[1][0].length);
-
+    const hits = search(data, query);
     list.textContent = "";
     if (hits.length === 0) {
       const li = document.createElement("li");
@@ -311,20 +364,8 @@ function initSearch() {
       list.hidden = false;
       return;
     }
-    items = hits.slice(0, 30).map(([, d]) => {
-      const li = document.createElement("li");
-      const a = document.createElement("a");
-      a.href = declHref(data, d);
-      const kind = document.createElement("span");
-      kind.className = "kind";
-      kind.textContent = data.kinds[d[1]];
-      const name = document.createElement("span");
-      name.textContent = d[0];
-      const where = document.createElement("span");
-      where.className = "where";
-      where.textContent = data.modules[d[2]].n;
-      a.append(kind, name, where);
-      li.append(a);
+    items = hits.slice(0, 30).map((d) => {
+      const li = resultItem(data, d);
       list.append(li);
       return li;
     });
@@ -370,6 +411,101 @@ function initSearch() {
   });
 }
 
+// ------------------------------------------------- search page / not found
+
+/**
+ * `search.html`: the same index, rendered into the page instead of a dropdown.
+ *
+ * There is no second input — the one in the top bar is the input, seeded from
+ * `?q=` so a submitted form and a typed query land in the same place. Two boxes
+ * on a search page is a question about which one is real.
+ */
+function initSearchPage() {
+  const list = document.getElementById("page-results");
+  const note = document.getElementById("page-note");
+  const input = document.getElementById("search-input");
+  if (!list || !input) return;
+
+  // The dropdown would cover the results it duplicates. Removing it also makes
+  // `initSearch` a no-op, which is why this runs first.
+  document.getElementById("search-results")?.remove();
+
+  const seed = new URLSearchParams(location.search).get("q");
+  if (seed && !input.value) input.value = seed;
+
+  const render = async () => {
+    const query = input.value.trim().toLowerCase();
+    list.textContent = "";
+    if (query.length < 2) {
+      if (note) note.textContent = "Type at least two characters.";
+      return;
+    }
+    const data = await decls();
+    if (!data) {
+      if (note) note.textContent = "The search index could not be loaded.";
+      return;
+    }
+    const hits = search(data, query);
+    for (const d of hits.slice(0, 200)) list.append(resultItem(data, d));
+    if (note) {
+      note.textContent =
+        hits.length === 0
+          ? "No matching declaration."
+          : hits.length > 200
+            ? `${hits.length} matches, showing the first 200.`
+            : `${hits.length} match${hits.length === 1 ? "" : "es"}.`;
+    }
+  };
+
+  let timer = 0;
+  input.addEventListener("input", () => {
+    clearTimeout(timer);
+    timer = setTimeout(render, 90);
+  });
+  input.form?.addEventListener("submit", (e) => {
+    // Staying on the page is the whole point; a reload would refetch the index.
+    e.preventDefault();
+    void render();
+  });
+  input.focus();
+  void render();
+}
+
+/**
+ * `404.html`: says what was asked for and offers the nearest declarations.
+ *
+ * The guess is the fragment when there is one (`…/Foo.html#Bar.baz` — the page
+ * moved but the reader knows the name) and otherwise the file name with its
+ * path separators read back as dots, which is exactly how a module page's URL
+ * is built.
+ */
+async function initNotFound() {
+  const list = document.getElementById("how-about");
+  const shown = document.getElementById("missing-path");
+  if (shown) shown.textContent = location.pathname + location.hash;
+  if (!list) return;
+
+  const fragment = decodeURIComponent(location.hash.slice(1));
+  const guess =
+    fragment ||
+    decodeURIComponent(location.pathname)
+      .replace(/\.html$/, "")
+      .split("/")
+      .filter(Boolean)
+      .join(".");
+  const query = guess.trim().toLowerCase();
+  if (query.length < 2) return;
+
+  const data = await decls();
+  if (!data) return;
+  // A prefix of the *last* component is what a moved declaration matches on, so
+  // the plain scorer is already the right one.
+  const hits = search(data, query).slice(0, 20);
+  if (hits.length === 0) return;
+  for (const d of hits) list.append(resultItem(data, d));
+  document.getElementById("how-about-heading")?.removeAttribute("hidden");
+}
+
 // ------------------------------------------------------------------ sundry
 
 /** `?jump=src#Name` lands on the declaration's source instead of its entry. */
@@ -400,9 +536,11 @@ function openForPrint() {
 
 initTheme();
 initDrawer();
+initSearchPage(); // before `initSearch`: it removes the dropdown on that page
 initSearch();
 initInstances();
 openForPrint();
 jumpToSource();
 void initTree();
 void initImportedBy();
+void initNotFound();

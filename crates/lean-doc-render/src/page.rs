@@ -40,7 +40,10 @@ use crate::autolink::{NameIndex, PageLinks, module_decl_names, page_root};
 use crate::code::CodeRenderer;
 use crate::decl::{DeclRenderer, UnplaceableName};
 use crate::escape::escape_html_into;
-use crate::frame::{head_html, internal_nav_html, module_source_url, page_header_html};
+use crate::frame::{
+    SiteMeta, head_html, module_head_html, module_meta_html, module_source_url, sidebar_html,
+    topbar_html,
+};
 
 /// The names that get no page entry: every name that is some declaration's
 /// member, over the **whole site**.
@@ -128,14 +131,22 @@ pub fn page_items<'a>(module: &'a ModuleFile, suppressed: &Suppressed) -> Vec<Pa
 /// The whole page for one module.
 ///
 /// `source_url` is the repository/revision prefix ([`module_source_url`] turns
-/// it into this module's link), `index` is the run's name index, and
-/// `suppressed` is [`Suppressed::of_site`] over **every** module of the IR —
-/// not just this one.
+/// it into this module's link), `index` is the run's name index, `suppressed` is
+/// [`Suppressed::of_site`] over **every** module of the IR — not just this one —
+/// and `site` is what the page says about the package it belongs to.
+///
+/// # The order the body is assembled in is not the order it is written in
+///
+/// The sidebar's table of contents is the page's declarations *in page order*,
+/// which is only known once they have been laid out. So `main` is built first
+/// and the frame around it second, even though the frame comes first in the
+/// output.
 pub fn page_html(
     module: &ModuleFile,
     index: &NameIndex,
     source_url: &str,
     suppressed: &Suppressed,
+    site: &SiteMeta<'_>,
 ) -> Result<String, UnplaceableName> {
     let root = page_root(&module.module);
     let module_url = module_source_url(source_url, &module.module);
@@ -152,41 +163,37 @@ pub fn page_html(
     for item in items {
         match item {
             PageItem::ModuleDoc(doc) => {
-                main.push_str("<div class=\"mod_doc\">");
+                main.push_str("<div class=\"moddoc\">");
                 main.push_str(&docs.docstring(&doc.text));
                 main.push_str("</div>");
             }
             PageItem::Decl(decl) => {
                 member_names.push(&decl.name);
-                let header = renderer.header(decl);
-                main.push_str(&renderer.decl_html(decl, &header)?);
+                main.push_str(&renderer.decl_html(decl)?);
             }
         }
     }
 
     let mut out = String::with_capacity(main.len() + 4096);
-    out.push_str("<html lang=\"en\">");
-    out.push_str(&head_html(&module.module, &root));
-    out.push_str("<body>");
-    out.push_str("<input id=\"nav_toggle\" type=\"checkbox\"></input>");
-    out.push_str(&page_header_html(&module.module, &root));
-    out.push_str(&internal_nav_html(
-        &module.module,
-        &root,
-        &module_url,
-        &module.imports,
-        &member_names,
-        index.external(),
-    ));
-    out.push_str("<main>\n");
+    // The doctype is not decoration: without it the browser is in quirks mode,
+    // where `box-sizing` and the grid the page is laid out on behave
+    // differently. doc-gen4 omitted it and got away with it because its
+    // stylesheet was written under quirks mode too.
+    out.push_str("<!DOCTYPE html><html lang=\"en\">");
+    out.push_str(&head_html(&module.module, &root, site));
+    out.push_str("<body data-root=\"");
+    escape_html_into(&mut out, &root);
+    out.push_str("\" data-module=\"");
+    escape_html_into(&mut out, &module.module);
+    out.push_str("\"><a class=\"skip\" href=\"#content\">Skip to content</a>");
+    out.push_str(&topbar_html(&root, site, true));
+    out.push_str("<div class=\"shell\">");
+    out.push_str(&sidebar_html(&root, &member_names));
+    out.push_str("<main class=\"content\" id=\"content\">");
+    out.push_str(&module_head_html(&module.module, &module_url));
+    out.push_str(&module_meta_html(&root, &module.imports, index.external()));
     out.push_str(&main);
-    out.push_str("</main>\n");
-    out.push_str("<nav class=\"nav\"><iframe src=\"");
-    let mut navbar = String::with_capacity(root.len() + 11);
-    navbar.push_str(&root);
-    navbar.push_str("navbar.html");
-    escape_html_into(&mut out, &navbar);
-    out.push_str("\" class=\"navframe\" frameBorder=\"0\"></iframe></nav></body></html>");
+    out.push_str("</main></div></body></html>");
     Ok(out)
 }
 
@@ -344,35 +351,51 @@ mod tests {
     }
 
     /// The frame around `main`, which is the only part of the page that is not
-    /// assembled from a byte-checked piece.
+    /// assembled from a piece checked against the prototype.
     #[test]
     fn the_page_wraps_main_in_the_frame() {
         let module = module();
         let mut builder = NameIndex::builder();
         builder.module(&module);
         let index = builder.build(crate::LinkIndex::default(), crate::ExternalLinks::default());
+        let site = SiteMeta::of_modules([module.module.as_str()]);
         let html = page_html(
             &module,
             &index,
             "https://h/o/r/blob/dead",
             &Suppressed::default(),
+            &site,
         )
         .expect("every name in the fixture is placeable");
-        assert!(html.starts_with("<html lang=\"en\"><head>"));
-        assert!(html.contains("</head><body><input id=\"nav_toggle\" type=\"checkbox\"></input>"));
         assert!(
-            html.contains("</nav><main>\n<div class=\"mod_doc\"><p>first</p></div>"),
+            html.starts_with("<!DOCTYPE html><html lang=\"en\"><head>"),
             "{html}"
         );
-        assert!(html.ends_with(
-            "</main>\n<nav class=\"nav\"><iframe src=\".././navbar.html\" \
-             class=\"navframe\" frameBorder=\"0\"></iframe></nav></body></html>"
-        ));
-        // The nav lists the page's entries in page order, so the docstring
-        // ordering reaches two places in the output, not one.
-        let nav = &html[html.find("internal_nav").unwrap()..html.find("<main>").unwrap()];
-        let first = nav.find("#Pkg.Two.a\"").unwrap();
-        let second = nav.find("#Pkg.Two.b\"").unwrap();
-        assert!(first < second, "{nav}");
+        assert!(
+            html.contains("</head><body data-root=\".././\" data-module=\"Pkg.Two\">"),
+            "the page tells `app.js` where it is: {html}"
+        );
+        assert!(
+            html.contains("<main class=\"content\" id=\"content\"><div class=\"modhead\">"),
+            "{html}"
+        );
+        // The module's own heading and its imports come before the first thing
+        // the module itself wrote.
+        let modmeta = html
+            .find("<div class=\"modmeta\">")
+            .expect("the import block");
+        let first_doc = html
+            .find("<div class=\"moddoc\"><p>first</p></div>")
+            .expect("the first module docstring");
+        assert!(modmeta < first_doc, "{html}");
+        assert!(html.ends_with("</main></div></body></html>"), "{html}");
+
+        // The sidebar's table of contents lists the page's entries in page
+        // order, so the docstring ordering reaches two places in the output,
+        // not one.
+        let toc = &html[html.find("class=\"toc\"").unwrap()..html.find("<main").unwrap()];
+        let first = toc.find("#Pkg.Two.a\"").unwrap();
+        let second = toc.find("#Pkg.Two.b\"").unwrap();
+        assert!(first < second, "{toc}");
     }
 }

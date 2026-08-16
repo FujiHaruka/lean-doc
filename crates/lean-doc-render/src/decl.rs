@@ -1,14 +1,18 @@
 //! One declaration's block on a module page.
 //!
-//! Ported from `experiments/stage7d/render.ts` (frozen): `declHeader` 726-777,
-//! `equationsHtml` 1677-1702, `instancesForHtml` 1705-1709,
-//! `classInstancesHtml` 1712-1716, `declNameToLink` 1725-1736,
-//! `containedNames` 1750-1761, `structureHtml` 1774-1831, `declHtml`
-//! 1834-1897. Upstream: `docInfoHeader` / `structureInfoHeader` /
-//! `docInfoToHtml` (`Output/Module.lean`), `argToHtml` (`Output/Arg.lean`),
-//! `equationsToHtml` (`Output/Definition.lean`), `structureToHtml` /
-//! `fieldToHtml` (`Output/Structure.lean`), `instancesForToHtml`
-//! (`Output/Inductive.lean`), `classInstancesToHtml` (`Output/Class.lean`).
+//! **What is emitted here is lean-doc's own markup as of M8-b**; up to M7 it was
+//! a transcription of doc-gen4's, byte for byte, because the acceptance oracle
+//! compared the two. The *decisions* are still doc-gen4's, and they are the part
+//! worth keeping: which kinds get equations, which get an instances block, when
+//! an inherited field may claim an anchor, and what counts as an equation too
+//! long to print. Those came out of `Output/{Module,Arg,Definition,Structure,
+//! Inductive,Class}.lean` by way of `experiments/stage7d/render.ts`, and every
+//! one of them is a fact about Lean rather than about a stylesheet.
+//!
+//! The shape they are poured into is new, and its reference is the hand-written
+//! `design/preview/module.html`. Keep the two in step: the stylesheet is written
+//! against that file, so a class renamed here loses its styling silently rather
+//! than failing.
 //!
 //! # Five things that are easy to get subtly wrong
 //!
@@ -99,29 +103,37 @@ pub fn decl_name_to_link(
     Ok(names.link_to(root, module, Some(name)))
 }
 
-/// `instancesForToHtml` (`Inductive.lean:12-17`): an empty list the browser
-/// fills in from `declaration-data.bmp`.
+/// The instances of a type: empty markup `app.js` fills in on first open.
+///
+/// **Which instances exist is a fact about the whole site**, not about the
+/// module being rendered — an instance of a type declared here can live in any
+/// module — so it cannot be written statically by a renderer that is handed one
+/// module at a time. doc-gen4 had the same problem and solved it the same way.
+///
+/// M8-c changed the contract rather than the shape: doc-gen4 keyed off the
+/// element `id` and read `declaration-data.bmp`; this keys off `data-name` and
+/// reads `search-index.json`, so the name no longer has to survive a round trip
+/// through an HTML identifier. The two blocks below differ only in `data-fill`.
 #[must_use]
 pub fn instances_for_html(name: &str) -> String {
-    let mut out = String::with_capacity(name.len() + 160);
-    out.push_str("<details id=\"");
-    escape_html_into(&mut out, &format!("instances-for-list-{name}"));
-    out.push_str(
-        "\" class=\"instances-for-list\"><summary>Instances For</summary>\
-         <ul class=\"instances-for-enum\"></ul></details>",
-    );
-    out
+    fill_block(name, "instances-for", "Instances For")
 }
 
-/// `classInstancesToHtml` (`Class.lean:11-16`): also a stub, and **not** the
-/// same shape as [`instances_for_html`] — the `id` moves from the `<details>`
-/// to the `<ul>`.
+/// The instances of a class. See [`instances_for_html`] — same shape, other map.
 #[must_use]
 pub fn class_instances_html(name: &str) -> String {
-    let mut out = String::with_capacity(name.len() + 140);
-    out.push_str("<details class=\"instances\"><summary>Instances</summary><ul id=\"");
-    escape_html_into(&mut out, &format!("instances-list-{name}"));
-    out.push_str("\" class=\"instances-list\"></ul></details>");
+    fill_block(name, "instances", "Instances")
+}
+
+fn fill_block(name: &str, fill: &str, summary: &str) -> String {
+    let mut out = String::with_capacity(name.len() + 120);
+    out.push_str("<details class=\"extra\" data-fill=\"");
+    out.push_str(fill);
+    out.push_str("\" data-name=\"");
+    escape_html_into(&mut out, name);
+    out.push_str("\"><summary>");
+    out.push_str(summary);
+    out.push_str("</summary><ul></ul></details>");
     out
 }
 
@@ -173,16 +185,13 @@ pub fn equations_html(decl: &Decl, root: &str, refs: &Refs<'_>, code: &CodeRende
         return String::new();
     }
     let mut out = String::with_capacity(256);
-    out.push_str("<details><summary>Equations</summary><ul class=\"equations\">");
+    out.push_str("<details class=\"extra\"><summary>Equations</summary><ul class=\"equations\">");
     if omitted {
-        out.push_str(
-            "<li class=\"equation\">One or more equations did not get rendered \
-             due to their size.</li>",
-        );
+        out.push_str("<li>One or more equations did not get rendered due to their size.</li>");
     }
     let empty: Vec<Span> = Vec::new();
     for i in keep {
-        out.push_str("<li class=\"equation\">");
+        out.push_str("<li>");
         let body = code.fragment(
             &decl.equations[i],
             decl.equation_code.get(i).unwrap_or(&empty),
@@ -196,21 +205,24 @@ pub fn equations_html(decl: &Decl, root: &str, refs: &Refs<'_>, code: &CodeRende
     out
 }
 
-/// `argToHtml` (`Arg.lean`), which is byte-identical in the two places that
-/// call it — the declaration header and a structure field's own signature.
+/// One binder, in the two places binders appear — a declaration's signature and
+/// a structure field's own.
 ///
-/// `Html.element "span" false` is the non-flattened form, hence the newline
-/// after the open tag and after the close tag.
+/// **The trailing newline is layout, not formatting.** A binder is an
+/// `inline-block`, so the whitespace between two of them is what lets a line
+/// break there; with the binders run together, a signature with eight implicit
+/// arguments has no break point before its first space and overflows the column
+/// on a phone. `.sig` deliberately does *not* set `pre-wrap` for this reason —
+/// see the note in `assets/style.css`.
 fn push_arg(out: &mut String, body: &str, implicit: bool) {
-    if implicit {
-        out.push_str("<span class=\"impl_arg\">");
-    }
-    out.push_str("<span class=\"decl_args\">\n<span class=\"fn\">");
+    out.push_str(if implicit {
+        "<span class=\"binder implicit\">"
+    } else {
+        "<span class=\"binder\">"
+    });
+    out.push_str("<span class=\"fn\">");
     out.push_str(body);
     out.push_str("</span></span>\n");
-    if implicit {
-        out.push_str("</span>");
-    }
 }
 
 /// Every binder of a declaration or of a structure field, in order.
@@ -233,33 +245,51 @@ fn push_args(
     }
 }
 
-/// `docInfoHeader` + `structureInfoHeader` (`Module.lean`) — `div.decl_header`.
+/// The line a reader scans for: what kind of thing this is, what it is called,
+/// and where its source is.
 ///
-/// Takes the module **name** rather than the module file: this is called for
-/// every declaration in the IR, including the ones that get no page entry,
-/// before anything about the page is known (`render.ts:2104-2109`).
+/// `<h2>` because it *is* the heading of the section below it, and because the
+/// sidebar's table of contents is a list of these — a page whose declarations
+/// are `<div>`s has no outline for a screen reader to walk.
+///
+/// Takes the module **name** rather than the module file: it is called for
+/// declarations that get no page entry too, before anything about the page is
+/// known.
 #[must_use]
-pub fn decl_header(decl: &Decl, module: &str, code: &CodeRenderer<'_>) -> String {
+pub fn decl_head_html(decl: &Decl, module: &str, source_url: &str) -> String {
     let root = page_root(module);
-    let refs = decl_refs(decl);
-    let mut out = String::with_capacity(512);
+    let mut out = String::with_capacity(384);
 
-    out.push_str("<div class=\"decl_header\">");
-    // `Html.element "span" false #[text kind]`: a lone text child means no
-    // newline after the open tag, but there is still one after the close.
-    out.push_str("<span class=\"decl_kind\">");
+    out.push_str("<header class=\"decl-head\"><span class=\"kind\">");
     escape_html_into(&mut out, &kind_description(&decl.kind, &decl.modifiers));
-    out.push_str("</span>\n");
-
-    out.push_str("<span class=\"decl_name\"><a class=\"break_within\" href=\"");
+    out.push_str("</span><h2 class=\"decl-name\"><a class=\"break_within\" href=\"");
     let mut self_link = module_link(&root, module);
     self_link.push('#');
     self_link.push_str(&decl.name);
     escape_html_into(&mut out, &self_link);
     out.push_str("\">");
     out.push_str(&break_within(&decl.name));
-    out.push_str("</a></span>");
+    out.push_str("</a></h2><a class=\"src\" href=\"");
+    escape_html_into(
+        &mut out,
+        &format!("{source_url}#L{}-L{}", decl.line, decl.end_line),
+    );
+    out.push_str("\">source</a></header>");
+    out
+}
 
+/// `<div class="sig">` — the binders, the `extends` clause, and the type.
+///
+/// Split from [`decl_head_html`] because they wrap differently: the head is a
+/// flex row that reflows, the signature is code whose whitespace the IR already
+/// decided (see [`push_arg`]).
+#[must_use]
+pub fn decl_signature(decl: &Decl, module: &str, code: &CodeRenderer<'_>) -> String {
+    let root = page_root(module);
+    let refs = decl_refs(decl);
+    let mut out = String::with_capacity(512);
+
+    out.push_str("<div class=\"sig\">");
     push_args(
         &mut out,
         &decl.binders,
@@ -270,8 +300,8 @@ pub fn decl_header(decl: &Decl, module: &str, code: &CodeRenderer<'_>) -> String
         code,
     );
 
-    // `structureInfoHeader`, structures and classes only. A `class_inductive`
-    // has no parents section even when it has parent members.
+    // Structures and classes only. A `class_inductive` has no parents section
+    // even when it has parent members.
     if decl.kind == "structure" || decl.kind == "class" {
         let parents: Vec<&Member> = decl
             .members
@@ -279,7 +309,7 @@ pub fn decl_header(decl: &Decl, module: &str, code: &CodeRenderer<'_>) -> String
             .filter(|m| m.label == "parent")
             .collect();
         if !parents.is_empty() {
-            out.push_str("<span class=\"decl_extends\">extends</span> ");
+            out.push_str("<span class=\"extends\">extends</span> ");
             for (i, parent) in parents.iter().enumerate() {
                 if i > 0 {
                     out.push_str(", ");
@@ -294,9 +324,7 @@ pub fn decl_header(decl: &Decl, module: &str, code: &CodeRenderer<'_>) -> String
         }
     }
 
-    // `Html.element "span" true #[text " :"]` — inline, so no newlines.
-    out.push_str("<span class=\"decl_args\"> :</span>");
-    out.push_str("<div class=\"decl_type\">");
+    out.push_str("<span class=\"colon\"> :</span><div class=\"sig-type\">");
     let ty = code.fragment(&decl.ty, &decl.type_code, &root, &refs);
     out.push_str(&ty.html);
     out.push_str("</div></div>");
@@ -342,12 +370,6 @@ impl<'a> DeclRenderer<'a> {
         }
     }
 
-    /// [`decl_header`] for a declaration of this page.
-    #[must_use]
-    pub fn header(&self, decl: &Decl) -> String {
-        decl_header(decl, &self.module.module, &self.code)
-    }
-
     /// `structureToHtml` + `fieldToHtml` (`Structure.lean`).
     ///
     /// The constructor decides the outer shape: a constructor whose last
@@ -368,22 +390,21 @@ impl<'a> DeclRenderer<'a> {
         };
         let short = last_component(&ctor_name);
         let mut out = String::with_capacity(lis.len() + 128);
-        if short == "mk" {
-            out.push_str("<ul class=\"structure_fields\" id=\"");
-            escape_html_into(&mut out, &ctor_name);
-            out.push_str("\">");
-            out.push_str(&lis);
-            out.push_str("</ul>");
-            return Ok(out);
+        // A constructor called `mk` is the anonymous one and saying so is
+        // noise; anything else is a name the reader has to write, so it gets a
+        // line of its own. doc-gen4 spelled the second case as nested lists
+        // reading `Name :: ( … )`, which put the fields two levels deep for the
+        // sake of a syntax nobody types at that position.
+        if short != "mk" {
+            out.push_str("<p class=\"ctor-note\">constructor <code>");
+            escape_html_into(&mut out, short);
+            out.push_str("</code></p>");
         }
-        out.push_str("<ul class=\"structure_ext\"><li id=\"");
+        out.push_str("<ul class=\"fields\" id=\"");
         escape_html_into(&mut out, &ctor_name);
-        out.push_str("\" class=\"structure_ext_ctor\">");
-        // The space is inside the escape, as it is in the prototype.
-        escape_html_into(&mut out, &format!("{short} "));
-        out.push_str(" :: (</li><ul class=\"structure_ext_fields\">");
+        out.push_str("\">");
         out.push_str(&lis);
-        out.push_str("</ul><li class=\"structure_ext_ctor\">)</li></ul>");
+        out.push_str("</ul>");
         Ok(out)
     }
 
@@ -419,20 +440,23 @@ impl<'a> DeclRenderer<'a> {
             let link = decl_name_to_link(&field.name, self.root, refs, self.code.names())?;
             let contained = contained.get_or_insert_with(|| contained_names(self.module, decl));
             let proj_name = format!("{}.{short}", decl.name);
+            // The `id` only exists when this structure really does declare the
+            // projection: an anchor for a field it merely inherits would take
+            // over a fragment that belongs to the parent's page.
             if contained.contains(proj_name.as_str()) {
                 out.push_str("<li id=\"");
                 escape_html_into(out, &proj_name);
-                out.push_str("\" class=\"structure_field inherited_field\">");
+                out.push_str("\" class=\"field inherited\">");
             } else {
-                out.push_str("<li class=\"structure_field inherited_field\">");
+                out.push_str("<li class=\"field inherited\">");
             }
-            out.push_str("<div class=\"structure_field_info\"><a href=\"");
+            out.push_str("<div class=\"field-sig\"><a class=\"field-name\" href=\"");
             escape_html_into(out, &link);
             out.push_str("\">");
             escape_html_into(out, short);
             out.push_str("</a>");
             out.push_str(&args);
-            out.push_str(" : ");
+            out.push_str("<span class=\"colon\"> : </span>");
             out.push_str(&body.html);
             out.push_str("</div></li>");
             return Ok(());
@@ -440,14 +464,15 @@ impl<'a> DeclRenderer<'a> {
 
         out.push_str("<li id=\"");
         escape_html_into(out, &field.name);
-        out.push_str("\" class=\"structure_field\"><div class=\"structure_field_info\">");
+        out.push_str("\" class=\"field\"><div class=\"field-sig\"><span class=\"field-name\">");
         escape_html_into(out, short);
+        out.push_str("</span>");
         out.push_str(&args);
-        out.push_str(" : ");
+        out.push_str("<span class=\"colon\"> : </span>");
         out.push_str(&body.html);
         out.push_str("</div>");
         if let Some(doc) = nonempty(field.doc.as_deref()) {
-            out.push_str("<div class=\"structure_field_doc\">");
+            out.push_str("<div class=\"field-doc\">");
             out.push_str(&self.docs.docstring(doc));
             out.push_str("</div>");
         }
@@ -455,32 +480,32 @@ impl<'a> DeclRenderer<'a> {
         Ok(())
     }
 
-    /// `docInfoToHtml` (`Module.lean:67-112`) — the whole `div.decl`.
-    ///
-    /// `header` is [`DeclRenderer::header`] of the same declaration, passed in
-    /// because the run computes every header before it lays out any page.
-    pub fn decl_html(&self, decl: &Decl, header: &str) -> Result<String, UnplaceableName> {
+    /// The whole `<section class="decl">`: head, attributes, signature,
+    /// docstring, fields, and whatever the kind adds after them.
+    pub fn decl_html(&self, decl: &Decl) -> Result<String, UnplaceableName> {
         let refs = decl_refs(decl);
+        let head = decl_head_html(decl, &self.module.module, self.source_url);
+        let signature = decl_signature(decl, &self.module.module, &self.code);
 
-        let mut gh = String::with_capacity(self.source_url.len() + 64);
-        gh.push_str("<div class=\"gh_link\"><a href=\"");
-        escape_html_into(
-            &mut gh,
-            &format!("{}#L{}-L{}", self.source_url, decl.line, decl.end_line),
-        );
-        gh.push_str("\">source</a></div>");
-
-        // `Html.element "div" false … #[text s]` is the one non-flattened
-        // element at this level, so the trailing newline belongs to it.
         let mut attrs = String::new();
         if !decl.attrs.is_empty() {
-            attrs.push_str("<div class=\"attributes\">");
+            attrs.push_str("<div class=\"attrs\">");
             escape_html_into(&mut attrs, &format!("@[{}]", decl.attrs.join(", ")));
-            attrs.push_str("</div>\n");
+            attrs.push_str("</div>");
         }
 
+        // Wrapped, unlike doc-gen4, which let the docstring's own `<p>` land
+        // directly in the declaration block. Everything the stylesheet says
+        // about prose — measure, spacing, code, tables — hangs off `.doc`, and
+        // an unwrapped docstring loses all of it without failing.
         let doc = match nonempty(decl.doc.as_deref()) {
-            Some(doc) => self.docs.docstring(doc),
+            Some(doc) => {
+                let mut wrapped = String::with_capacity(doc.len() + 64);
+                wrapped.push_str("<div class=\"doc\">");
+                wrapped.push_str(&self.docs.docstring(doc));
+                wrapped.push_str("</div>");
+                wrapped
+            }
             None => String::new(),
         };
 
@@ -507,20 +532,23 @@ impl<'a> DeclRenderer<'a> {
         }
 
         let mut out = String::with_capacity(
-            gh.len() + attrs.len() + header.len() + doc.len() + body.len() + extra.len() + 64,
+            head.len() + attrs.len() + signature.len() + doc.len() + body.len() + extra.len() + 64,
         );
-        out.push_str("<div class=\"decl\" id=\"");
+        out.push_str("<section class=\"decl\" id=\"");
         escape_html_into(&mut out, &decl.name);
-        out.push_str("\"><div class=\"");
+        // The kind is an attribute rather than a class because it selects a
+        // colour and nothing else; `.decl[data-kind="theorem"]` reads as the
+        // one-way mapping it is, and it cannot collide with a layout class.
+        out.push_str("\" data-kind=\"");
         escape_html_into(&mut out, css_kind(&decl.kind));
         out.push_str("\">");
-        out.push_str(&gh);
+        out.push_str(&head);
         out.push_str(&attrs);
-        out.push_str(header);
+        out.push_str(&signature);
         out.push_str(&doc);
         out.push_str(&body);
         out.push_str(&extra);
-        out.push_str("</div></div>");
+        out.push_str("</section>");
         Ok(out)
     }
 }
@@ -580,8 +608,13 @@ mod tests {
         serde_json::from_str(json).expect("the literal is a schema-4 member")
     }
 
+    /// The head is what a reader scans for; the signature is what they read.
+    /// They are two functions since M8-b because they wrap differently, so both
+    /// halves are pinned here — the kind, the self link, the source link, and
+    /// then the binders with the implicit ones marked and the type in its own
+    /// block.
     #[test]
-    fn a_header_is_kind_name_binders_and_type() {
+    fn a_head_is_kind_name_and_source_and_a_signature_is_binders_and_type() {
         let names = index(&[("Nat", "Init.Prelude")]);
         let mut d = decl("Pkg.M.f", "definition");
         d.modifiers = vec!["abbrev".to_owned()];
@@ -608,17 +641,21 @@ mod tests {
             back: 0,
         }];
         assert_eq!(
-            decl_header(&d, "Pkg.M", &CodeRenderer::new(&names)),
-            "<div class=\"decl_header\"><span class=\"decl_kind\">abbrev</span>\n\
-             <span class=\"decl_name\"><a class=\"break_within\" href=\".././Pkg/M.html#Pkg.M.f\">\
+            decl_head_html(&d, "Pkg.M", "https://x/Pkg/M.lean"),
+            "<header class=\"decl-head\"><span class=\"kind\">abbrev</span>\
+             <h2 class=\"decl-name\"><a class=\"break_within\" href=\".././Pkg/M.html#Pkg.M.f\">\
              <span class=\"name\">Pkg</span>.<span class=\"name\">M</span>.\
-             <span class=\"name\">f</span></a></span>\
-             <span class=\"decl_args\">\n<span class=\"fn\">\
+             <span class=\"name\">f</span></a></h2>\
+             <a class=\"src\" href=\"https://x/Pkg/M.lean#L1-L1\">source</a></header>"
+        );
+        assert_eq!(
+            decl_signature(&d, "Pkg.M", &CodeRenderer::new(&names)),
+            "<div class=\"sig\">\
+             <span class=\"binder\"><span class=\"fn\">\
              (n : <a href=\".././Init/Prelude.html#Nat\">Nat</a>)</span></span>\n\
-             <span class=\"impl_arg\"><span class=\"decl_args\">\n\
-             <span class=\"fn\">{m : Nat}</span></span>\n</span>\
-             <span class=\"decl_args\"> :</span>\
-             <div class=\"decl_type\"><a href=\".././Init/Prelude.html#Nat\">Nat</a></div></div>"
+             <span class=\"binder implicit\"><span class=\"fn\">{m : Nat}</span></span>\n\
+             <span class=\"colon\"> :</span>\
+             <div class=\"sig-type\"><a href=\".././Init/Prelude.html#Nat\">Nat</a></div></div>"
         );
     }
 
@@ -635,12 +672,12 @@ mod tests {
         for kind in ["structure", "class"] {
             let mut d = decl("P", kind);
             d.members.clone_from(&parents);
-            let html = decl_header(&d, "Pkg", &code);
+            let html = decl_signature(&d, "Pkg", &code);
             assert!(
                 html.contains(
-                    "<span class=\"decl_extends\">extends</span> \
+                    "<span class=\"extends\">extends</span> \
                      <span id=\"P.to&lt;A\">A</span>, <span id=\"P.toB\">B</span>\
-                     <span class=\"decl_args\"> :</span>"
+                     <span class=\"colon\"> :</span>"
                 ),
                 "{kind}: {html}"
             );
@@ -648,7 +685,7 @@ mod tests {
         // Same members under a kind that has no parents section.
         let mut d = decl("P", "class_inductive");
         d.members = parents;
-        assert!(!decl_header(&d, "Pkg", &code).contains("decl_extends"));
+        assert!(!decl_signature(&d, "Pkg", &code).contains("class=\"extends\""));
     }
 
     #[test]
@@ -668,8 +705,8 @@ mod tests {
         let html = equations_html(&d, "./", &Refs::default(), &code);
         assert_eq!(
             html,
-            "<details><summary>Equations</summary><ul class=\"equations\">\
-             <li class=\"equation\">One or more equations did not get rendered \
+            "<details class=\"extra\"><summary>Equations</summary><ul class=\"equations\">\
+             <li>One or more equations did not get rendered \
              due to their size.</li></ul></details>",
             "the notice appears and the equation does not"
         );
@@ -680,17 +717,21 @@ mod tests {
         assert_eq!(equations_html(&d, "./", &Refs::default(), &code), "");
     }
 
+    /// The two stubs are the same shape and differ only in the map `app.js`
+    /// fills them from — which is the M8-c contract. Both carry the name in
+    /// `data-name`, escaped: doc-gen4 spelled it into an element `id` and so had
+    /// to survive a round trip through an HTML identifier.
     #[test]
-    fn the_two_instance_stubs_put_the_id_in_different_places() {
+    fn the_two_instance_stubs_differ_only_in_the_map_that_fills_them() {
         assert_eq!(
             instances_for_html("A<B"),
-            "<details id=\"instances-for-list-A&lt;B\" class=\"instances-for-list\">\
-             <summary>Instances For</summary><ul class=\"instances-for-enum\"></ul></details>"
+            "<details class=\"extra\" data-fill=\"instances-for\" data-name=\"A&lt;B\">\
+             <summary>Instances For</summary><ul></ul></details>"
         );
         assert_eq!(
             class_instances_html("A<B"),
-            "<details class=\"instances\"><summary>Instances</summary>\
-             <ul id=\"instances-list-A&lt;B\" class=\"instances-list\"></ul></details>"
+            "<details class=\"extra\" data-fill=\"instances\" data-name=\"A&lt;B\">\
+             <summary>Instances</summary><ul></ul></details>"
         );
     }
 
@@ -783,15 +824,20 @@ mod tests {
             let code = CodeRenderer::new(&self.names);
             let renderer = DeclRenderer::new(&self.module, &root, "https://x/M.lean", code, &docs);
             let decl = &self.module.declarations[at];
-            let header = renderer.header(decl);
-            renderer.decl_html(decl, &header)
+            renderer.decl_html(decl)
         }
     }
 
-    /// The whole `div.decl`, with the attribute block's trailing newline and
-    /// the docstring in their places.
+    /// The whole `section.decl`, with the head, the attributes and the
+    /// docstring in their places.
+    ///
+    /// The order they are assembled in is the assertion: the kind and the name
+    /// lead, the attributes sit between the head and the signature, and the
+    /// docstring follows the signature rather than the head — a docstring that
+    /// drifted above the type would read as belonging to the declaration before
+    /// it.
     #[test]
-    fn a_declaration_is_link_attributes_header_doc_and_extra() {
+    fn a_declaration_is_head_attributes_signature_doc_and_extra() {
         let mut d = decl("Pkg.M.f", "definition");
         d.line = 7;
         d.end_line = 9;
@@ -799,14 +845,28 @@ mod tests {
         d.doc = Some("hello".to_owned());
         let page = Page::new(index(&[]), module_with(vec![d]));
         let html = page.render(0).expect("nothing to place");
-        assert!(html.starts_with(
-            "<div class=\"decl\" id=\"Pkg.M.f\"><div class=\"def\">\
-             <div class=\"gh_link\"><a href=\"https://x/M.lean#L7-L9\">source</a></div>\
-             <div class=\"attributes\">@[simp, reducible]</div>\n\
-             <div class=\"decl_header\">"
-        ));
-        assert!(html.contains("</div><p>hello</p><details id=\"instances-for-list-Pkg.M.f\""));
-        assert!(html.ends_with("</ul></details></div></div>"));
+        assert!(
+            html.starts_with(
+                "<section class=\"decl\" id=\"Pkg.M.f\" data-kind=\"def\">\
+                 <header class=\"decl-head\"><span class=\"kind\">def</span>"
+            ),
+            "{html}"
+        );
+        assert!(
+            html.contains(
+                "<a class=\"src\" href=\"https://x/M.lean#L7-L9\">source</a></header>\
+                 <div class=\"attrs\">@[simp, reducible]</div><div class=\"sig\">"
+            ),
+            "{html}"
+        );
+        assert!(
+            html.contains(
+                "</div></div><div class=\"doc\"><p>hello</p></div>\
+                 <details class=\"extra\" data-fill=\"instances-for\" data-name=\"Pkg.M.f\">"
+            ),
+            "{html}"
+        );
+        assert!(html.ends_with("</ul></details></section>"), "{html}");
     }
 
     /// An empty docstring is falsy in JavaScript, so it renders nothing — not
@@ -817,16 +877,18 @@ mod tests {
         d.doc = Some(String::new());
         let page = Page::new(index(&[]), module_with(vec![d]));
         let html = page.render(0).expect("nothing to place");
-        assert!(html.contains("</div></div></div>"), "{html}");
+        // The signature's two closing `</div>`s, and then straight to the end
+        // of the block: nothing between them.
+        assert!(html.ends_with("</div></div></section>"), "{html}");
         assert!(!html.contains("<p>"), "{html}");
     }
 
     #[test]
     fn each_kind_gets_its_own_extra() {
         for (kind, css, extra) in [
-            ("definition", "def", "instances-for-list-X"),
-            ("inductive", "inductive", "instances-for-list-X"),
-            ("class_inductive", "class", "instances-list-X"),
+            ("definition", "def", "data-fill=\"instances-for\""),
+            ("inductive", "inductive", "data-fill=\"instances-for\""),
+            ("class_inductive", "class", "data-fill=\"instances\""),
             ("instance", "instance", ""),
             ("theorem", "theorem", ""),
             ("constructor", "ctor", ""),
@@ -835,7 +897,7 @@ mod tests {
             let html = page.render(0).expect("nothing to place");
             assert!(
                 html.starts_with(&format!(
-                    "<div class=\"decl\" id=\"X\"><div class=\"{css}\">"
+                    "<section class=\"decl\" id=\"X\" data-kind=\"{css}\">"
                 )),
                 "{kind}: {html}"
             );
@@ -843,12 +905,20 @@ mod tests {
                 assert!(!html.contains("<details"), "{kind}: {html}");
             } else {
                 assert!(html.contains(extra), "{kind}: {html}");
+                assert!(html.contains("data-name=\"X\""), "{kind}: {html}");
             }
         }
     }
 
-    /// The two `<ul>` shapes, and the fact that a missing `ctor` takes the
-    /// first one.
+    /// Whether the constructor is named, and the fact that a missing `ctor`
+    /// takes the anonymous shape.
+    ///
+    /// doc-gen4 spelled the named case as nested lists reading `Name :: ( … )`;
+    /// M8-b replaced that with a note above the same field list, so what is
+    /// asserted is the *distinction* — a `mk` constructor says nothing, any
+    /// other name is printed — rather than doc-gen4's two `<ul>` shapes. The
+    /// constructor's name still lands on the field list as its `id` either way,
+    /// because that is what an inherited field's anchor is resolved against.
     #[test]
     fn the_constructor_name_decides_the_structure_shape() {
         let field = r#"{"label": "field", "name": "S.x", "text": "Nat", "code": [],
@@ -860,11 +930,16 @@ mod tests {
         let html = page.render(0).expect("nothing to place");
         assert!(
             html.contains(
-                "<ul class=\"structure_fields\" id=\"S.mk\">\
-                 <li id=\"S.x\" class=\"structure_field\">\
-                 <div class=\"structure_field_info\">x : Nat</div></li></ul>"
+                "<ul class=\"fields\" id=\"S.mk\">\
+                 <li id=\"S.x\" class=\"field\"><div class=\"field-sig\">\
+                 <span class=\"field-name\">x</span>\
+                 <span class=\"colon\"> : </span>Nat</div></li></ul>"
             ),
             "{html}"
+        );
+        assert!(
+            !html.contains("ctor-note"),
+            "`mk` is the anonymous one: {html}"
         );
 
         // An explicit `mk` constructor is the same shape.
@@ -872,13 +947,11 @@ mod tests {
             r#"{"label": "ctor", "name": "S.mk", "text": "", "code": []}"#,
         ));
         let page = Page::new(index(&[]), module_with(vec![d.clone()]));
-        assert!(
-            page.render(0)
-                .expect("nothing to place")
-                .contains("<ul class=\"structure_fields\" id=\"S.mk\">")
-        );
+        let html = page.render(0).expect("nothing to place");
+        assert!(html.contains("<ul class=\"fields\" id=\"S.mk\">"), "{html}");
+        assert!(!html.contains("ctor-note"), "{html}");
 
-        // Any other constructor name is `structure_ext`.
+        // Any other constructor name is printed, and still owns the list's id.
         d.members.pop();
         d.members.push(member(
             r#"{"label": "ctor", "name": "S.make", "text": "", "code": []}"#,
@@ -887,13 +960,9 @@ mod tests {
         let html = page.render(0).expect("nothing to place");
         assert!(
             html.contains(
-                "<ul class=\"structure_ext\"><li id=\"S.make\" class=\"structure_ext_ctor\">\
-                 make  :: (</li><ul class=\"structure_ext_fields\">"
+                "<p class=\"ctor-note\">constructor <code>make</code></p>\
+                 <ul class=\"fields\" id=\"S.make\">"
             ),
-            "{html}"
-        );
-        assert!(
-            html.contains("</ul><li class=\"structure_ext_ctor\">)</li></ul>"),
             "{html}"
         );
     }
@@ -919,24 +988,25 @@ mod tests {
 
         assert!(
             html.contains(
-                "<li id=\"S.x\" class=\"structure_field\">\
-                 <div class=\"structure_field_info\">x : Nat</div>\
-                 <div class=\"structure_field_doc\"><p>a field</p></div></li>"
+                "<li id=\"S.x\" class=\"field\"><div class=\"field-sig\">\
+                 <span class=\"field-name\">x</span>\
+                 <span class=\"colon\"> : </span>Nat</div>\
+                 <div class=\"field-doc\"><p>a field</p></div></li>"
             ),
             "{html}"
         );
         assert!(
             html.contains(
-                "<li class=\"structure_field inherited_field\">\
-                 <div class=\"structure_field_info\">\
-                 <a href=\".././Pkg/Parent.html#P.y\">y</a> : Nat</div></li>"
+                "<li class=\"field inherited\"><div class=\"field-sig\">\
+                 <a class=\"field-name\" href=\".././Pkg/Parent.html#P.y\">y</a>\
+                 <span class=\"colon\"> : </span>Nat</div></li>"
             ),
             "the inherited field carries no id and no docstring: {html}"
         );
         // The key is missing on `S.z`, so it is direct — the whole point of
         // `Option<bool>`.
         assert!(
-            html.contains("<li id=\"S.z\" class=\"structure_field\">"),
+            html.contains("<li id=\"S.z\" class=\"field\">"),
             "a member without `isDirect` must not be inherited: {html}"
         );
     }
@@ -959,10 +1029,7 @@ mod tests {
         let page = Page::new(names, module_with(vec![s, proj]));
         let html = page.render(0).expect("P.y is in the index");
         assert!(
-            html.contains(
-                "<li id=\"S.y\" class=\"structure_field inherited_field\">\
-                 <div class=\"structure_field_info\">"
-            ),
+            html.contains("<li id=\"S.y\" class=\"field inherited\"><div class=\"field-sig\">"),
             "{html}"
         );
     }

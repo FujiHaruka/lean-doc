@@ -21,16 +21,40 @@
 //! There is no input both implementations could be handed. The prototype is the
 //! other consumer of that IR and it is the one scoring 439/439 (plan §1).
 //!
+//! # M8-b: the comparison is over content, not bytes
+//!
+//! Up to M7 every assertion here was `got == want`. **M8-b rewrote the markup
+//! on purpose** (`docs/plans/ui-redesign.md`), so that comparison can no longer
+//! hold and gate A is finished (plan §1). What survives it is everything the
+//! prototype's bytes *said* rather than how they said it, and that is what is
+//! compared now:
+//!
+//! | | how |
+//! |---|---|
+//! | the anchors a page defines | the `id` attributes, **in order**, with the instance stubs' taken out — M8-c keys those off `data-name` instead |
+//! | where every link goes | the `href` attributes, **in order**, with the two the head swapped |
+//! | what a reader sees | the words with the tags stripped, as a **multiset** |
+//! | what the instance stubs are for | the names the stubs carry |
+//!
+//! Two of the three are ordered, which is what keeps this from degenerating into
+//! "the same pieces, somewhere". The word list is not: the head reordered (the
+//! source link moved into it) and comparing it in order would only be asserting
+//! that reordering, which is the change itself. **This is weaker than the byte
+//! comparison it replaces** — a class name, an element or an attribute can move
+//! without failing here — and it is the strength the oracle actually has now
+//! that the two sides are not trying to be the same document.
+//!
 //! # The two halves
 //!
 //! - The committed fixture is self-contained. Each case carries the three
 //!   sources of its world reduced to the names it looks up, plus the module
 //!   file reduced to what `containedNames` and `moduleDeclNames` read, and the
 //!   generator proves each reduction faithful by re-rendering with it.
-//! - [`the_whole_corpus_matches_the_prototype`] runs **all 4,750 headers, all
-//!   4,560 declaration blocks and all 432 frames** against the real IR. It is
-//!   skipped unless `LEAN_DOC_PAGE_PARTS_FULL` points at the generator's
-//!   `--full` output (77 MB, which does not belong in the repository).
+//! - [`the_whole_corpus_carries_the_prototypes_content`] runs **all 4,750
+//!   headers, all 4,560 declaration blocks and all 432 frames** against the real
+//!   IR. It is skipped unless `LEAN_DOC_PAGE_PARTS_FULL` points at the
+//!   generator's `--full` output (77 MB, which does not belong in the
+//!   repository).
 //!
 //! # What the real corpus does not reach
 //!
@@ -48,9 +72,9 @@ use std::path::PathBuf;
 
 use lean_doc_ir::{Decl, IrTree, ModuleFile};
 use lean_doc_render::{
-    CodeRenderer, DeclRenderer, ExternalLinks, LinkIndex, NameIndex, PageLinks, UnplaceableName,
-    decl_header, head_html, internal_nav_html, module_decl_names, module_source_url,
-    page_header_html, page_root,
+    CodeRenderer, DeclRenderer, ExternalLinks, LinkIndex, NameIndex, PageLinks, SiteMeta,
+    UnplaceableName, decl_head_html, decl_signature, head_html, module_decl_names,
+    module_head_html, module_meta_html, module_source_url, page_root, sidebar_html, topbar_html,
 };
 use serde::Deserialize;
 
@@ -120,14 +144,11 @@ struct Frame {
     imports: Vec<String>,
     member_names: Vec<String>,
     head: String,
+    /// The prototype's `pageHeaderHtml`. Only two things in it survived M8-b:
+    /// the module's name, which moved to the heading in `main`, and the search
+    /// form, which stayed in the top bar.
     header: String,
     nav: String,
-}
-
-/// What one case produced here.
-struct Got {
-    header: String,
-    html: Result<String, UnplaceableName>,
 }
 
 impl Case {
@@ -148,17 +169,27 @@ impl Case {
         builder.build(LinkIndex::parse(&self.lidx), ExternalLinks::default())
     }
 
-    fn render(&self) -> Got {
+    /// The head and the signature, which together are what `declHeader` was:
+    /// M8-b split it in two because they wrap differently, and moved the source
+    /// link out of the block's own `div.gh_link` into the head.
+    fn head_and_signature(&self) -> String {
         let index = self.index();
         let decl = &self.module.declarations[self.at];
         let code = CodeRenderer::new(&index);
-        let header = decl_header(decl, &self.module.module, &code);
+        let mut out = decl_head_html(decl, &self.module.module, &self.source_url);
+        out.push_str(&decl_signature(decl, &self.module.module, &code));
+        out
+    }
+
+    fn render(&self) -> Result<String, UnplaceableName> {
+        let index = self.index();
+        let decl = &self.module.declarations[self.at];
+        let code = CodeRenderer::new(&index);
         let names = module_decl_names(&self.module);
         let links = PageLinks::new(&index, &self.root, &names);
         let docs = links.renderer();
         let renderer = DeclRenderer::new(&self.module, &self.root, &self.source_url, code, &docs);
-        let html = renderer.decl_html(decl, &header);
-        Got { header, html }
+        renderer.decl_html(decl)
     }
 }
 
@@ -328,30 +359,40 @@ fn the_corpus_numbers_are_what_was_measured() {
     );
 }
 
-/// The comparison this file exists for, over the committed sample.
+/// The comparison this file exists for, over the committed sample: every
+/// declaration block says what the prototype's said.
+///
+/// See the file heading for what "says" is reduced to. The header half is
+/// compared separately from the block, because the fixture records it
+/// separately and because it is the one place the *content* really did move —
+/// M8-b put the source link in the head, where the prototype had it in a
+/// `div.gh_link` above the block.
 #[test]
-fn matches_the_prototype_on_every_case() {
+fn carries_the_same_content_as_the_prototype_on_every_case() {
     let e = expected();
     let mut failures = Vec::new();
+    let mut compared = 0usize;
+    let (mut ids, mut hrefs, mut stubs, mut words) = (0usize, 0usize, 0usize, 0usize);
     for case in &e.cases {
-        let got = case.render();
-        if got.header != case.header {
-            failures.push(format!(
-                "{} (header)\n  want: {}\n  got:  {}",
-                case.what,
-                show(&case.header),
-                show(&got.header)
-            ));
-            continue;
+        let want = Content::of(&case.header);
+        let got = Content::of(&case.head_and_signature());
+        // The head gained the source link, which is one href and the word
+        // `source`. Nothing else about it may have moved.
+        if let Err(why) = want.matches_head(&got) {
+            failures.push(format!("{} (head + signature): {why}", case.what));
         }
-        match got.html {
-            Ok(html) if html == case.html => {}
-            Ok(html) => failures.push(format!(
-                "{}\n  want: {}\n  got:  {}",
-                case.what,
-                show(&case.html),
-                show(&html)
-            )),
+        match case.render() {
+            Ok(html) => {
+                let want = Content::of(&case.html);
+                if let Err(why) = want.matches(&Content::of(&html)) {
+                    failures.push(format!("{}: {why}", case.what));
+                }
+                ids += want.ids.len();
+                hrefs += want.hrefs.len();
+                stubs += want.stubs.len();
+                words += want.words.len();
+                compared += 1;
+            }
             Err(e) => failures.push(format!("{}: {e}", case.what)),
         }
     }
@@ -362,49 +403,159 @@ fn matches_the_prototype_on_every_case() {
         e.cases.len(),
         failures.join("\n")
     );
+    assert_eq!(compared, e.cases.len(), "a case did not render at all");
+    // A `Content` that came out empty on both sides would pass every assertion
+    // above, and an extractor that stopped finding attributes is exactly the
+    // way this comparison would rot. 【実測 2026-08-16 over the committed
+    // sample: 220 anchors, 1,011 links, 30 stubs, 4,587 words】
+    eprintln!("compared {ids} anchors, {hrefs} links, {stubs} stubs, {words} words");
+    assert!(
+        ids > 200 && hrefs > 900 && stubs > 25 && words > 4_000,
+        "{ids} anchors, {hrefs} links, {stubs} stubs, {words} words: the sample shrank"
+    );
 }
 
+/// The frame, part by part. The prototype had three pieces and this crate has
+/// five, so they are matched by what they carry rather than one to one:
+///
+/// | the prototype's | here |
+/// |---|---|
+/// | `<title>` | `<title>`, which now also names the site |
+/// | the search form's `action` | the top bar's search form |
+/// | `p.gh_nav_link` | the module heading's `a.src` |
+/// | the import list | the import list |
+/// | the `imported-by` stub | the `imported-by` stub |
+/// | one `div.nav_link` per page entry | the sidebar's table of contents |
+///
+/// `page_root` and `module_source_url` are still compared byte for byte: they
+/// are pure functions of a module name that M8-b did not touch, and they decide
+/// where every other link on the page points.
 #[test]
-fn frames_match_the_prototype() {
+fn frames_carry_the_same_content_as_the_prototype() {
     let e = expected();
+    let site = SiteMeta::default();
     let mut failures = Vec::new();
     for frame in &e.frames {
-        let mut check = |what: &str, got: String, want: &str| {
-            if got != *want {
-                failures.push(format!(
-                    "{} ({what})\n  want: {}\n  got:  {}",
-                    frame.what,
-                    show(want),
-                    show(&got)
-                ));
-            }
+        let mut fail = |what: &str, want: String, got: String| {
+            failures.push(format!(
+                "{} ({what})\n  want: {want}\n  got:  {got}",
+                frame.what
+            ));
         };
-        check("head", head_html(&frame.module, &frame.root), &frame.head);
-        check(
-            "header",
-            page_header_html(&frame.module, &frame.root),
-            &frame.header,
-        );
-        check(
-            "nav",
-            internal_nav_html(
-                &frame.module,
-                &frame.root,
-                &frame.source_url,
-                &frame.imports,
-                &frame.names(),
-                // M7-c: the prototype's import list is every href relative, and
-                // the empty map is what reproduces it (see `Case::index`).
-                &ExternalLinks::default(),
-            ),
-            &frame.nav,
-        );
-        check("root", page_root(&frame.module), &frame.root);
-        check(
-            "sourceUrl",
-            module_source_url(&e.source_url, &frame.module),
-            &frame.source_url,
-        );
+
+        // The title still names the module, and the head still names nothing
+        // outside the page's own root — which the prototype's did not (four
+        // CDN scripts, plan §2.2).
+        let head = head_html(&frame.module, &frame.root, &site);
+        let want_title = between(&frame.head, "<title>", "</title>").unwrap_or_default();
+        let got_title = between(&head, "<title>", "</title>").unwrap_or_default();
+        if !got_title.starts_with(want_title) {
+            fail("title", want_title.to_owned(), got_title.to_owned());
+        }
+        for href in attr_values(&head, "href")
+            .into_iter()
+            .chain(attr_values(&head, "src"))
+        {
+            if !href.starts_with(&frame.root) {
+                fail(
+                    "head asset",
+                    format!("under {}", frame.root),
+                    href.to_owned(),
+                );
+            }
+        }
+
+        // The search form still goes to the site's own search page.
+        let bar = topbar_html(&frame.root, &site, true);
+        let want_action = format!("{}search.html", frame.root);
+        if !bar.contains(&format!("action=\"{want_action}\"")) {
+            fail("search action", want_action, bar.clone());
+        }
+
+        // The module's source link, which the prototype kept in the nav.
+        let want_src = frame
+            .nav
+            .find("gh_nav_link")
+            .and_then(|at| attr_values(&frame.nav[at..], "href").first().copied())
+            .unwrap_or_default()
+            .to_owned();
+        let modhead = module_head_html(&frame.module, &frame.source_url);
+        let got_src = attr_values(&modhead, "href")
+            .first()
+            .copied()
+            .unwrap_or_default()
+            .to_owned();
+        if got_src != want_src {
+            fail("source link", want_src, got_src);
+        }
+
+        // The page still spells out which module it is. The prototype put it in
+        // `h2.header_filename` at the top of the window; it is the `<h1>` of the
+        // content column now, and the spelling — one `span.name` per component
+        // — is [`lean_doc_render::break_within`]'s on both sides.
+        let want_name = between(&frame.header, "header_filename break_within\">", "</h2>")
+            .map(|name| words(name).join(" "))
+            .unwrap_or_default();
+        let got_name = between(&modhead, "<h1>", "</h1>")
+            .map(|name| words(name).join(" "))
+            .unwrap_or_default();
+        if got_name != want_name {
+            fail("module name", want_name, got_name);
+        }
+
+        // The import list: the same modules, in the same order, at the same
+        // hrefs. M7-c: the prototype's are all relative, and the empty map is
+        // what reproduces that (see `Case::index`).
+        let meta = module_meta_html(&frame.root, &frame.imports, &ExternalLinks::default());
+        let want_imports = list_items(&frame.nav, "<summary>Imports</summary><ul>");
+        let got_imports = list_items(&meta, "<ul>");
+        if want_imports != got_imports {
+            fail(
+                "imports",
+                format!("{want_imports:?}"),
+                format!("{got_imports:?}"),
+            );
+        }
+        if !meta.contains("data-fill=\"imported-by\"") {
+            fail(
+                "imported-by stub",
+                "a placeholder the script fills".to_owned(),
+                meta.clone(),
+            );
+        }
+
+        // One entry per page declaration, in page order.
+        let sidebar = sidebar_html(&frame.root, &frame.names());
+        let want_entries: Vec<String> = frame
+            .nav
+            .match_indices("class=\"nav_link\"")
+            .filter_map(|(at, _)| attr_values(&frame.nav[at..], "href").first().copied())
+            .map(str::to_owned)
+            .collect();
+        let got_entries: Vec<String> = between(&sidebar, "<ul class=\"toc\">", "</ul>")
+            .map(|toc| {
+                attr_values(toc, "href")
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect()
+            })
+            .unwrap_or_default();
+        if want_entries != got_entries {
+            fail(
+                "page entries",
+                format!("{want_entries:?}"),
+                format!("{got_entries:?}"),
+            );
+        }
+
+        // Unchanged pure functions, still compared byte for byte.
+        if page_root(&frame.module) != frame.root {
+            fail("root", frame.root.clone(), page_root(&frame.module));
+        }
+        let source_url = module_source_url(&e.source_url, &frame.module);
+        if source_url != frame.source_url {
+            fail("sourceUrl", frame.source_url.clone(), source_url);
+        }
     }
     assert!(
         failures.is_empty(),
@@ -617,8 +768,10 @@ fn the_sample_reaches_every_shape() {
 /// them — the name index from the dependency slices, the modules and the
 /// `.lidx`; `suppressed` from **every** module — so it is what stands behind
 /// the claim that the reduced worlds above are the same thing in miniature.
+///
+/// Compared over content since M8-b, exactly as the committed sample is.
 #[test]
-fn the_whole_corpus_matches_the_prototype() {
+fn the_whole_corpus_carries_the_prototypes_content() {
     let Ok(path) = std::env::var("LEAN_DOC_PAGE_PARTS_FULL") else {
         eprintln!(
             "skipping: set LEAN_DOC_PAGE_PARTS_FULL to the output of \
@@ -658,7 +811,6 @@ fn the_whole_corpus_matches_the_prototype() {
         module: String,
         member_names: Vec<String>,
         head: String,
-        header: String,
         nav: String,
     }
 
@@ -691,16 +843,14 @@ fn the_whole_corpus_matches_the_prototype() {
         .map(|m| m.name.as_str())
         .collect();
 
+    let site = SiteMeta::of_modules(modules.iter().map(|module| module.module.as_str()));
+
     let mut headers = 0usize;
     let mut decls = 0usize;
     let mut failures: Vec<String> = Vec::new();
-    let note = |failures: &mut Vec<String>, what: &str, want: &str, got: &str| {
+    let note = |failures: &mut Vec<String>, what: &str, why: &str| {
         if failures.len() < 10 {
-            failures.push(format!(
-                "{what}\n  want: {}\n  got:  {}",
-                show(want),
-                show(got)
-            ));
+            failures.push(format!("{what}: {why}"));
         }
     };
 
@@ -720,9 +870,10 @@ fn the_whole_corpus_matches_the_prototype() {
                 .unwrap_or_else(|| panic!("the IR has more declarations than the oracle"));
             let what = format!("{} {} header", module.module, decl.name);
             assert_eq!(want.what, what, "the two sides walk the IR differently");
-            let got = decl_header(decl, &module.module, &code);
-            if got != want.html {
-                note(&mut failures, &what, &want.html, &got);
+            let mut got = decl_head_html(decl, &module.module, &source_url);
+            got.push_str(&decl_signature(decl, &module.module, &code));
+            if let Err(why) = Content::of(&want.html).matches_head(&Content::of(&got)) {
+                note(&mut failures, &what, &why);
             }
             headers += 1;
         }
@@ -741,19 +892,18 @@ fn the_whole_corpus_matches_the_prototype() {
                 .unwrap_or_else(|| panic!("the IR has more page entries than the oracle"));
             let what = format!("{} {}", module.module, decl.name);
             assert_eq!(want.what, what, "the two sides order the page differently");
-            let header = decl_header(decl, &module.module, &code);
-            if header != want.header {
-                note(
-                    &mut failures,
-                    &format!("{what} (header)"),
-                    &want.header,
-                    &header,
-                );
+            let mut header = decl_head_html(decl, &module.module, &source_url);
+            header.push_str(&decl_signature(decl, &module.module, &code));
+            if let Err(why) = Content::of(&want.header).matches_head(&Content::of(&header)) {
+                note(&mut failures, &format!("{what} (header)"), &why);
             }
-            match renderer.decl_html(decl, &header) {
-                Ok(html) if html == want.html => {}
-                Ok(html) => note(&mut failures, &what, &want.html, &html),
-                Err(e) => note(&mut failures, &what, &want.html, &e.to_string()),
+            match renderer.decl_html(decl) {
+                Ok(html) => {
+                    if let Err(why) = Content::of(&want.html).matches(&Content::of(&html)) {
+                        note(&mut failures, &what, &why);
+                    }
+                }
+                Err(e) => note(&mut failures, &what, &e.to_string()),
             }
             decls += 1;
         }
@@ -768,38 +918,40 @@ fn the_whole_corpus_matches_the_prototype() {
             "{}: the nav's page order differs",
             module.module
         );
-        let got = head_html(&module.module, &root);
-        if got != frame.head {
+        let head = head_html(&module.module, &root, &site);
+        let want_title = between(&frame.head, "<title>", "</title>").unwrap_or_default();
+        let got_title = between(&head, "<title>", "</title>").unwrap_or_default();
+        if !got_title.starts_with(want_title) {
             note(
                 &mut failures,
-                &format!("{} head", module.module),
-                &frame.head,
-                &got,
+                &format!("{} title", module.module),
+                &format!("want {want_title}, got {got_title}"),
             );
         }
-        let got = page_header_html(&module.module, &root);
-        if got != frame.header {
+        let meta = module_meta_html(&root, &module.imports, &ExternalLinks::default());
+        let want_imports = list_items(&frame.nav, "<summary>Imports</summary><ul>");
+        let got_imports = list_items(&meta, "<ul>");
+        if want_imports != got_imports {
             note(
                 &mut failures,
-                &format!("{} header", module.module),
-                &frame.header,
-                &got,
+                &format!("{} imports", module.module),
+                &format!("want {want_imports:?}, got {got_imports:?}"),
             );
         }
-        let got = internal_nav_html(
-            &module.module,
-            &root,
-            &source_url,
-            &module.imports,
-            &member_names,
-            &ExternalLinks::default(),
-        );
-        if got != frame.nav {
+        let sidebar = sidebar_html(&root, &member_names);
+        let want_entries: Vec<&str> = frame
+            .nav
+            .match_indices("class=\"nav_link\"")
+            .filter_map(|(at, _)| attr_values(&frame.nav[at..], "href").first().copied())
+            .collect();
+        let got_entries: Vec<&str> = between(&sidebar, "<ul class=\"toc\">", "</ul>")
+            .map(|toc| attr_values(toc, "href"))
+            .unwrap_or_default();
+        if want_entries != got_entries {
             note(
                 &mut failures,
-                &format!("{} nav", module.module),
-                &frame.nav,
-                &got,
+                &format!("{} page entries", module.module),
+                &format!("want {want_entries:?}, got {got_entries:?}"),
             );
         }
     }
@@ -823,24 +975,210 @@ fn the_whole_corpus_matches_the_prototype() {
 
 // ------------------------------------------------------------------- helpers
 
-/// Renders a string so a failure names the code points rather than printing
-/// control characters into the terminal, and truncates: a declaration block can
-/// be 28 KB and the first difference is what matters.
-fn show(s: &str) -> String {
-    let mut out = String::new();
-    for c in s.chars().take(600) {
-        if c == '\n' {
-            out.push_str("\\n");
-        } else if c == '\t' {
-            out.push_str("\\t");
-        } else if c.is_ascii_graphic() || c == ' ' || !c.is_control() {
-            out.push(c);
-        } else {
-            out.push_str(&format!("<U+{:04X}>", c as u32));
+/// What a fragment of HTML *says*, as opposed to how it says it.
+///
+/// See the file heading for why the comparison is this and not the bytes. Each
+/// of the four lists is compared the strongest way it can be: the anchors and
+/// the links in document order, the rest as sorted multisets.
+#[derive(Debug)]
+struct Content {
+    /// `id` attributes in document order, **without** the instance stubs' —
+    /// doc-gen4 keyed those off the element `id` and this crate keys them off
+    /// `data-name`, so they are compared as [`Content::stubs`] instead.
+    ids: Vec<String>,
+    /// `href` attributes in document order.
+    hrefs: Vec<String>,
+    /// The names the instance stubs will be filled for, sorted.
+    stubs: Vec<String>,
+    /// Every word outside a tag, sorted.
+    words: Vec<String>,
+}
+
+impl Content {
+    fn of(html: &str) -> Self {
+        let (mut ids, mut stubs) = (Vec::new(), Vec::new());
+        for id in attr_values(html, "id") {
+            match id
+                .strip_prefix("instances-for-list-")
+                .or_else(|| id.strip_prefix("instances-list-"))
+            {
+                Some(name) => stubs.push(name.to_owned()),
+                None => ids.push(id.to_owned()),
+            }
+        }
+        stubs.extend(
+            attr_values(html, "data-name")
+                .into_iter()
+                .map(str::to_owned),
+        );
+        stubs.sort();
+
+        // The one place M8-b changed what a block *says* rather than how: a
+        // named constructor was `Name :: ( … )` wrapped around the field list
+        // and is now `constructor Name` above it. Both spellings come out, and
+        // the constructor's name is still compared — it is the field list's
+        // `id` on either side.
+        let text = drop_element(html, "class=\"structure_ext_ctor\"", "</li>");
+        let text = drop_element(&text, "class=\"ctor-note\"", "</p>");
+        let mut words: Vec<String> = words(&text).into_iter().map(str::to_owned).collect();
+        words.sort();
+
+        Self {
+            ids,
+            hrefs: attr_values(html, "href")
+                .into_iter()
+                .map(str::to_owned)
+                .collect(),
+            stubs,
+            words,
         }
     }
-    if s.chars().count() > 600 {
-        out.push_str(" …");
+
+    /// A whole declaration block against the prototype's.
+    ///
+    /// The head's two hrefs are swapped and nothing else moved: doc-gen4 put
+    /// the source link in a `div.gh_link` **above** the block and this crate
+    /// puts it in the head, after the self link.
+    fn matches(&self, got: &Self) -> Result<(), String> {
+        let mut hrefs = self.hrefs.clone();
+        if hrefs.len() < 2 {
+            return Err(format!(
+                "the prototype's block has {} link(s); it always has its own and its source",
+                hrefs.len()
+            ));
+        }
+        hrefs.swap(0, 1);
+        compare(&self.ids, &hrefs, &self.stubs, &self.words, got)
+    }
+
+    /// The head and the signature against the prototype's `declHeader`, which
+    /// is the same content **plus** the source link M8-b moved into it.
+    fn matches_head(&self, got: &Self) -> Result<(), String> {
+        let mut hrefs = got.hrefs.clone();
+        if hrefs.len() < 2 {
+            return Err(format!(
+                "the head has {} link(s), not the self link and the source",
+                hrefs.len()
+            ));
+        }
+        let source = hrefs.remove(1);
+        if !source.contains("#L") {
+            return Err(format!("{source} is not a source range"));
+        }
+        // `got` with the source link taken back out is what `declHeader` was.
+        let bare = Self {
+            ids: got.ids.clone(),
+            hrefs,
+            stubs: got.stubs.clone(),
+            words: got.words.clone(),
+        };
+        let mut words = self.words.clone();
+        words.push("source".to_owned());
+        words.sort();
+        compare(&self.ids, &self.hrefs, &self.stubs, &words, &bare)
+    }
+}
+
+fn compare(
+    ids: &[String],
+    hrefs: &[String],
+    stubs: &[String],
+    words: &[String],
+    got: &Content,
+) -> Result<(), String> {
+    if ids != got.ids {
+        return Err(differ("anchors", ids, &got.ids));
+    }
+    if hrefs != got.hrefs {
+        return Err(differ("links", hrefs, &got.hrefs));
+    }
+    if stubs != got.stubs {
+        return Err(differ("instance stubs", stubs, &got.stubs));
+    }
+    if words != got.words {
+        return Err(differ("words", words, &got.words));
+    }
+    Ok(())
+}
+
+/// Names what parted company, rather than printing two documents.
+fn differ(what: &str, want: &[String], got: &[String]) -> String {
+    let missing: Vec<&String> = want.iter().filter(|w| !got.contains(w)).take(6).collect();
+    let extra: Vec<&String> = got.iter().filter(|g| !want.contains(g)).take(6).collect();
+    if missing.is_empty() && extra.is_empty() {
+        format!(
+            "the same {what} in a different order\n  want: {:?}\n  got:  {:?}",
+            &want[..want.len().min(12)],
+            &got[..got.len().min(12)]
+        )
+    } else {
+        format!("{what} differ\n  missing: {missing:?}\n  extra:   {extra:?}")
+    }
+}
+
+/// Every ` name="…"` value, in document order. The leading space is what keeps
+/// `id` from matching inside `data-name` and the like.
+fn attr_values<'a>(html: &'a str, name: &str) -> Vec<&'a str> {
+    let needle = format!(" {name}=\"");
+    let mut out = Vec::new();
+    let mut rest = html;
+    while let Some(at) = rest.find(&needle) {
+        let value = &rest[at + needle.len()..];
+        let end = value.find('"').unwrap_or(value.len());
+        out.push(&value[..end]);
+        rest = &value[end..];
     }
     out
+}
+
+/// Every whitespace-separated run of text outside a tag.
+fn words(html: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let mut rest = html;
+    loop {
+        let at = rest.find('<').unwrap_or(rest.len());
+        out.extend(rest[..at].split_whitespace());
+        match rest[at..].find('>') {
+            Some(end) => rest = &rest[at + end + 1..],
+            None => break,
+        }
+    }
+    out
+}
+
+/// Removes every element whose opening tag contains `marker`, from its `<` to
+/// the end of the `close` that follows.
+fn drop_element(html: &str, marker: &str, close: &str) -> String {
+    let mut out = String::with_capacity(html.len());
+    let mut rest = html;
+    while let Some(at) = rest.find(marker) {
+        let open = rest[..at].rfind('<').unwrap_or(at);
+        let end = rest[at..]
+            .find(close)
+            .map_or(rest.len(), |e| at + e + close.len());
+        out.push_str(&rest[..open]);
+        rest = &rest[end..];
+    }
+    out.push_str(rest);
+    out
+}
+
+fn between<'a>(html: &'a str, open: &str, close: &str) -> Option<&'a str> {
+    let at = html.find(open)? + open.len();
+    let end = html[at..].find(close)? + at;
+    Some(&html[at..end])
+}
+
+/// The `(href, text)` of every `<li>` of the list that follows `open`.
+fn list_items(html: &str, open: &str) -> Vec<(String, String)> {
+    let Some(list) = between(html, open, "</ul>") else {
+        return Vec::new();
+    };
+    list.split("<li>")
+        .skip(1)
+        .filter_map(|item| {
+            let href = (*attr_values(item, "href").first()?).to_owned();
+            Some((href, words(item).join(" ")))
+        })
+        .collect()
 }

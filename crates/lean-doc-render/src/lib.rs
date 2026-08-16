@@ -85,7 +85,18 @@
 //! keeps the frozen prototype's fixtures meaningful as the fallback branch's
 //! oracle (`docs/implementation-plan.md` §1: gate A is suspended, and byte
 //! compatibility with doc-gen4 is no longer claimed for dependency links).
+//!
+//! # What is here so far (M8-a)
+//!
+//! [`assets`] — the `style.css` / `app.js` / `favicon.svg` the pages reference,
+//! carried in the binary by `include_str!` and written into the site tree by
+//! [`write_assets`]. Until M8-a the `<head>` named files nothing produced, so
+//! the tree `lean-doc build` wrote could not be opened without hand-copying
+//! doc-gen4's own assets over it (`docs/plans/ui-redesign.md` §2.2 / 決定 6).
+//! **They are deliberately outside the incremental render key** — see the
+//! module's own heading.
 
+pub mod assets;
 pub mod autolink;
 pub mod code;
 pub mod decl;
@@ -98,6 +109,7 @@ pub mod page;
 pub mod site;
 pub mod whitespace;
 
+pub use assets::{ASSETS, write_assets};
 pub use autolink::{
     NameIndex, NameIndexBuilder, PRIVATE_PREFIX, PageLinks, is_letter_like, is_name_lit,
     module_decl_names, module_link, page_root,
@@ -108,12 +120,13 @@ pub use code::{
 };
 pub use decl::{
     DeclRenderer, EQUATION_LIMIT, UnplaceableName, class_instances_html, contained_names,
-    decl_header, decl_name_to_link, equations_html, instances_for_html,
+    decl_head_html, decl_name_to_link, decl_signature, equations_html, instances_for_html,
 };
 pub use escape::{escape_html, escape_html_into, lean_quote, lean_quote_into};
 pub use external::{DIGEST_MARKER, ExternalLinks};
 pub use frame::{
-    head_html, internal_nav_html, module_source_url, page_header_html, sorted_imports,
+    SiteMeta, head_html, module_head_html, module_meta_html, module_source_url, sidebar_html,
+    sorted_imports, topbar_html,
 };
 pub use link_index::LinkIndex;
 pub use order::{cmp_name, cmp_name_components, cmp_string, name_lt, sort_names, string_lt};

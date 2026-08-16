@@ -41,6 +41,7 @@ use lean_doc_ir::IrTree;
 use crate::autolink::NameIndex;
 use crate::decl::UnplaceableName;
 use crate::external::ExternalLinks;
+use crate::frame::SiteMeta;
 use crate::link_index::LinkIndex;
 use crate::page::{Suppressed, page_html, page_path};
 
@@ -166,6 +167,9 @@ pub fn render_site(options: &RenderOptions<'_>) -> Result<RenderSummary, Error> 
 
     // Site-wide, not per module: see [`Suppressed`].
     let suppressed = Suppressed::of_site(&modules);
+    // Over **every** module of the IR, not the subset being rendered: an
+    // incremental round that re-renders one page must not retitle the site.
+    let site = SiteMeta::of_modules(modules.iter().map(|module| module.module.as_str()));
 
     let mut summary = RenderSummary {
         modules_in_ir: modules.len(),
@@ -181,7 +185,7 @@ pub fn render_site(options: &RenderOptions<'_>) -> Result<RenderSummary, Error> 
         if !options.only.contains(&module.module) {
             continue;
         }
-        let html = page_html(module, &index, source_url, &suppressed).map_err(|source| {
+        let html = page_html(module, &index, source_url, &suppressed, &site).map_err(|source| {
             Error::Unplaceable {
                 module: module.module.clone(),
                 source,

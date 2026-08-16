@@ -194,23 +194,31 @@ code, pre, .sig, .tree, .toc a, .decl-name, kbd { font-family: var(--mono); }
 .toc a:hover { background: var(--bg-hover); color: var(--fg); }
 .toc a[aria-current] { background: var(--bg-sel); color: var(--fg); }
 
-.tree ul { list-style: none; padding-left: .7rem; }
+/* A row is [disclosure][name]: the two are separate targets because a module
+   can be both a page and a parent. See the note in `app.js`. */
+.tree ul { list-style: none; padding-left: .75rem; }
 .tree > ul { padding-left: 0; }
 .tree li { line-height: 1.5; }
-.tree summary,
-.tree a {
-  display: block; padding: .2rem .4rem; border-radius: 4px;
+.tree .row { display: flex; align-items: center; border-radius: 4px; }
+.tree .row:hover { background: var(--bg-hover); }
+.tree .row:has(a[aria-current]) { background: var(--bg-sel); }
+.tree .twisty, .tree .twisty-spacer {
+  flex: none; width: 1.1rem; align-self: stretch;
+  color: var(--fg-faint); font-size: .9rem; line-height: 1;
+}
+.tree .twisty::before {
+  content: "›"; display: inline-block; transition: transform .15s ease;
+}
+.tree .twisty[aria-expanded="true"]::before { transform: rotate(90deg); }
+.tree .twisty:hover { color: var(--fg); }
+.tree a, .tree .node-name {
+  flex: 1; min-width: 0; padding: .2rem .3rem .2rem 0;
   font-size: .8rem; text-decoration: none; color: var(--fg-dim);
+  word-break: break-all;
 }
-.tree summary { cursor: pointer; list-style: none; }
-.tree summary::-webkit-details-marker { display: none; }
-.tree summary::before {
-  content: "›"; display: inline-block; width: 1em;
-  color: var(--fg-faint); transition: transform .15s ease;
-}
-.tree details[open] > summary::before { transform: rotate(90deg); }
-.tree summary:hover, .tree a:hover { background: var(--bg-hover); color: var(--fg); }
-.tree a[aria-current] { background: var(--bg-sel); color: var(--fg); font-weight: 600; }
+.tree .row:hover a { color: var(--fg); }
+.tree .node-name { color: var(--fg-faint); }
+.tree a[aria-current] { color: var(--fg); font-weight: 600; }
 
 .scrim { display: none; }
 
@@ -223,12 +231,6 @@ code, pre, .sig, .tree, .toc a, .decl-name, kbd { font-family: var(--mono); }
 }
 
 .modhead { padding-bottom: 1rem; border-bottom: 1px solid var(--line); }
-.crumbs {
-  font-family: var(--mono); font-size: .8rem; color: var(--fg-faint);
-  word-break: break-all;
-}
-.crumbs a { color: var(--fg-dim); text-decoration: none; }
-.crumbs a:hover { color: var(--link); }
 .modhead h1 {
   font-family: var(--mono); font-size: clamp(1.25rem, 1rem + 1.4vw, 1.75rem);
   font-weight: 700; line-height: 1.25; word-break: break-all;
@@ -301,14 +303,14 @@ code, pre, .sig, .tree, .toc a, .decl-name, kbd { font-family: var(--mono); }
 
 /* -- 9. signature -------------------------------------------------------- */
 
-/* The IR's spans carry replayed whitespace, so the text is already laid out:
-   `pre-wrap` is load-bearing, not a preference. Everything else here is about
-   what happens when a line is still too long — which, for mathlib-shaped
-   signatures on a phone, is most of them. */
+/* The IR's spans carry replayed whitespace, so text *inside* a term is already
+   laid out and `pre-wrap` there is load-bearing, not a preference. It must not
+   go on `.sig` itself: the renderer puts a newline between binders for the sake
+   of the source, and under `pre-wrap` those turn into real line breaks. Inside
+   a `.fn` there is no such newline, so the two rules do not fight. */
 .sig {
   margin-top: .5rem;
   font-size: .875rem; line-height: 1.75;
-  white-space: pre-wrap;
   overflow-x: auto;
 }
 
@@ -325,7 +327,10 @@ code, pre, .sig, .tree, .toc a, .decl-name, kbd { font-family: var(--mono); }
 .binder { display: inline-block; vertical-align: top; }
 .binder.implicit { color: var(--fg-dim); }
 .colon { color: var(--fg-faint); }
-.sig-type { display: block; padding-left: 1.5ex; }
+.extends { color: var(--fg-faint); font-weight: 600; }
+/* A top-level term is not always wrapped in a `.fn` — `Type u_1` reaches here
+   as bare text — so the whitespace rule has to be on the container too. */
+.sig-type { display: block; padding-left: 1.5ex; white-space: pre-wrap; }
 
 /* Links in a signature are structure, not decoration: colouring every constant
    turns the type into confetti. Underline only, colour on hover. */

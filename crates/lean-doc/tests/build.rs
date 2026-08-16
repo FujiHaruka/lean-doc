@@ -35,6 +35,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
+use lean_doc_render::ASSETS;
 use serde_json::{Value, json};
 
 const BIN: &str = env!("CARGO_BIN_EXE_lean-doc");
@@ -361,9 +362,9 @@ fn the_first_run_builds_and_the_second_one_does_nothing() {
     assert!(log.contains("plan    full generation"), "{log}");
     assert!(log.contains("lib     Pkg (from"), "{log}");
     let after_first = tree(&live.site());
-    // 3 module pages + the 6 whole-package artifacts: the target's 438 with its
-    // 432 replaced by 3.
-    assert_eq!(after_first.len(), 9, "{:?}", after_first.keys());
+    // 3 module pages + the 6 whole-package artifacts + the 3 static assets
+    // (M8-a): the target's 438 + 3 with its 432 replaced by 3.
+    assert_eq!(after_first.len(), 12, "{:?}", after_first.keys());
     assert_eq!(live.extractions(), vec![3], "the first run extracts all");
 
     let second = live.build(&[]);
@@ -383,7 +384,15 @@ fn the_first_run_builds_and_the_second_one_does_nothing() {
         "the incremental run moved a byte of the site",
     );
 
-    // …and the site is `lean-doc site`'s, from the IR the run left behind.
+    // …and the site is `lean-doc site`'s **plus the static assets**, from the IR
+    // the run left behind.
+    //
+    // The difference is M8-a and it is deliberate (`docs/plans/ui-redesign.md`
+    // 決定 6): `lean-doc site` is the composition of `render` and `global` — the
+    // claim `tests/site.rs` makes and checks file by file — while `build` is the
+    // command that produces something publishable, and a tree whose `<head>`
+    // names a `style.css` nobody wrote is not that. So the gate is stated with
+    // the three named rather than dropped.
     let reference = live.trees.path.join("reference-site");
     let ok = lean_doc(&[
         "site",
@@ -397,7 +406,20 @@ fn the_first_run_builds_and_the_second_one_does_nothing() {
         &live.lidx.display().to_string(),
     ]);
     assert_eq!(code(&ok), 0, "{}", stderr(&ok));
-    assert_eq!(tree(&reference), after_first, "`build` is not `site`");
+    let mut pages_and_artifacts = after_first.clone();
+    for (name, body) in ASSETS {
+        let taken = pages_and_artifacts.remove(Path::new(name));
+        assert_eq!(
+            taken.as_deref(),
+            Some(body.as_bytes()),
+            "{name} is not the asset the binary carries",
+        );
+    }
+    assert_eq!(
+        tree(&reference),
+        pages_and_artifacts,
+        "`build` is not `site` plus the three static assets",
+    );
 }
 
 /// A module whose olean and IR both moved is re-extracted, its page is
@@ -478,7 +500,7 @@ fn a_failed_run_does_not_move_the_ledger() {
     // 3 (the repair, which is a full generation).
     assert_eq!(live.extractions(), vec![3, 1, 3]);
     let after = tree(&live.site());
-    assert_eq!(after.len(), 9);
+    assert_eq!(after.len(), 12);
     assert_ne!(
         live.ledger(),
         ledger_before,
@@ -518,7 +540,7 @@ fn a_first_run_that_fails_leaves_no_ledger() {
     let repair = live.build(&[]);
     assert_eq!(code(&repair), 0, "{}", stderr(&repair));
     assert_eq!(live.extractions(), vec![3, 3]);
-    assert_eq!(tree(&live.site()).len(), 9);
+    assert_eq!(tree(&live.site()).len(), 12);
 }
 
 /// The other half of the ordering: a run whose **renderer** fails leaves no
@@ -541,7 +563,7 @@ fn a_run_that_fails_in_the_renderer_leaves_no_ledger() {
     // The repair is a full one, and it succeeds once the IR is readable again.
     let repair = live.build(&[]);
     assert_eq!(code(&repair), 0, "{}", stderr(&repair));
-    assert_eq!(tree(&live.site()).len(), 9);
+    assert_eq!(tree(&live.site()).len(), 12);
     assert!(live.out.join("ledger.json").is_file());
 }
 
@@ -629,7 +651,62 @@ fn a_deleted_module_leaves_the_site_and_the_ledger() {
         .map(|entry| entry["module"].as_str().expect("a name"))
         .collect();
     assert_eq!(named, ["Pkg", "Pkg.B"]);
-    assert_eq!(tree(&live.site()).len(), 8);
+    // 2 pages + 6 artifacts + 3 static assets.
+    assert_eq!(tree(&live.site()).len(), 11);
+}
+
+/// **The gate of M8-a** (`docs/plans/ui-redesign.md` §5): a build into an empty
+/// directory leaves the assets the pages reference, and no later run loses them
+/// — not the quiet one that renders nothing, and not the one whose incremental
+/// pipeline runs `prune` over the tree.
+///
+/// The clobbered file in the middle is the point of writing them unconditionally
+/// rather than keying on them. They are **not** in `renderKey` (a page's bytes
+/// do not depend on their content), so a run that skipped them because "the file
+/// is already there" would ship whatever is on disk for ever.
+#[test]
+fn every_run_writes_the_static_assets() {
+    let live = Live::new("build-assets");
+    assert_eq!(code(&live.build(&[])), 0);
+    assert_shipped(&live.site());
+    // The `<head>` names all three since M8-b, and before M8-a nothing in the
+    // tree answered it.
+    let page = fs::read_to_string(live.site().join("Pkg.html")).expect("the page is there");
+    for (name, _) in ASSETS {
+        assert!(page.contains(name), "the page stopped naming {name}");
+    }
+
+    // A run that re-extracts and re-renders nothing still puts them back.
+    fs::write(live.site().join("style.css"), "/* clobbered */").expect("the asset is writable");
+    let quiet = live.build(&[]);
+    assert_eq!(code(&quiet), 0, "{}", stderr(&quiet));
+    let log = stdout(&quiet);
+    assert!(log.contains("0 to re-extract"), "{log}");
+    assert!(log.contains("render  nothing to render"), "{log}");
+    assert_shipped(&live.site());
+
+    // …and so does the run whose pipeline prunes: a module vanishes, its page
+    // goes, the assets stay.
+    let world: Vec<ModuleSpec> = base_world().into_iter().take(2).collect();
+    live.set_world(&world);
+    fs::remove_file(live.repo.join("Pkg/C.lean")).expect("the source goes");
+    let pruned = live.build(&[]);
+    assert_eq!(code(&pruned), 0, "{}", stderr(&pruned));
+    assert!(
+        !live.site().join("Pkg/C.html").exists(),
+        "the deleted module kept its page",
+    );
+    assert_shipped(&live.site());
+}
+
+/// Every asset is on disk with the bytes the binary carries.
+fn assert_shipped(site: &Path) {
+    for (name, body) in ASSETS {
+        let path = site.join(name);
+        let on_disk = fs::read_to_string(&path)
+            .unwrap_or_else(|source| panic!("{}: {source}", path.display()));
+        assert_eq!(on_disk, body, "{name} is not what the binary carries");
+    }
 }
 
 /// `--full` regenerates, and the tree it leaves is the tree the incremental path
@@ -1074,7 +1151,9 @@ fn the_timings_record_names_the_path() {
     assert_eq!(record["path"], json!("full"));
     assert_eq!(record["modules"], json!(3));
     assert_eq!(record["extracted"], json!(3));
-    assert_eq!(record["pagesInSite"], json!(9));
+    // 3 pages + 6 artifacts + 3 static assets: counted **after** the assets are
+    // written, so the number is the tree that shipped and not a stage of it.
+    assert_eq!(record["pagesInSite"], json!(12));
     assert_eq!(record["pagesRendered"], json!(3));
 
     assert_eq!(code(&live.build(&["--timings", &path])), 0);
@@ -1083,7 +1162,7 @@ fn the_timings_record_names_the_path() {
     assert_eq!(record["path"], json!("incremental"));
     assert_eq!(record["extracted"], json!(0));
     assert_eq!(record["pagesRendered"], json!(0));
-    assert_eq!(record["pagesInSite"], json!(9));
+    assert_eq!(record["pagesInSite"], json!(12));
     for phase in [
         "extractSeconds",
         "renderSeconds",

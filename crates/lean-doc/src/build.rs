@@ -38,7 +38,8 @@
 //!
 //! ```text
 //!   <out>/site/                the site — 432 module pages + 6 whole-package
-//!                              artifacts on the target. This is what ships.
+//!                              artifacts + 3 static assets (M8-a) on the
+//!                              target. This is what ships.
 //!   <out>/ir/                  the IR tree (16 MB), carried between runs
 //!   <out>/state/               global-state.json, the contentHash cache
 //!   <out>/ledger.json          which oleans the IR was built from
@@ -560,7 +561,31 @@ fn run(request: &Request) -> Result<(), Failure> {
     extractor.release();
     let done = outcome?;
 
-    // 5 -- the ledger, last ---------------------------------------------------
+    // 5 -- the static assets, unconditionally ---------------------------------
+    // Both paths, every run, whether or not a page was re-rendered — see
+    // [`lean_doc_render::assets`] and `docs/plans/ui-redesign.md` 決定 6. They
+    // are **not** in `renderKey` (a page's bytes do not depend on them, so
+    // keying on them would re-render 432 pages for a moved CSS rule and change
+    // nothing), and the price of leaving them out of the key is exactly this
+    // line: the tree is rewritten from the binary every time rather than
+    // trusted to be current. Three files.
+    //
+    // Before the ledger for the same reason everything else is: the ledger's
+    // claim is about a *finished* tree, and an asset write that fails must not
+    // leave one behind saying the site is up to date.
+    lean_doc_render::write_assets(&layout.site)
+        .map_err(|source| Failure::Failed(source.to_string()))?;
+    println!(
+        "assets  {} file(s) -> {}",
+        lean_doc_render::ASSETS.len(),
+        layout.site.display(),
+    );
+    // Counted here rather than in the two paths: this is the first point at
+    // which the site holds everything a run puts in it, and `pagesInSite` is a
+    // denominator quoted elsewhere (438 on the target before M8-a added three).
+    let pages_in_site = count_files(&layout.site);
+
+    // 6 -- the ledger, last ---------------------------------------------------
     // See this module's heading: everything that could have failed has now
     // succeeded, so the claim "the IR was built from these oleans and the pages
     // from that IR" is true when it is written and not before.
@@ -593,7 +618,7 @@ fn run(request: &Request) -> Result<(), Failure> {
             "extracted": done.extracted,
             "rounds": done.rounds,
             "pagesRendered": done.pages_rendered,
-            "pagesInSite": done.pages_in_site,
+            "pagesInSite": pages_in_site,
             "ledgerModules": done.ledger_modules,
             "ledgerBytes": bytes,
             "extractSeconds": done.extract_seconds,
@@ -615,7 +640,6 @@ struct Done {
     extracted: usize,
     rounds: usize,
     pages_rendered: usize,
-    pages_in_site: usize,
     ledger_modules: usize,
     extract_seconds: f64,
     render_seconds: f64,
@@ -713,7 +737,6 @@ fn full_generation(
         extracted: modules.len(),
         rounds: 1,
         pages_rendered: site.rendered.pages_written,
-        pages_in_site: count_files(&layout.site),
         ledger_modules: detected.modules.len(),
         extract_seconds,
         render_seconds: site.render_seconds,
@@ -751,7 +774,6 @@ fn incremental_generation(
         extracted: run.summary.changed + run.summary.stale_found,
         rounds: run.summary.rounds,
         pages_rendered: run.summary.pages_rendered,
-        pages_in_site: count_files(&layout.site),
         ledger_modules: run.detected.modules.len(),
         extract_seconds: run.timings.extract,
         render_seconds: run.timings.render,
