@@ -975,16 +975,39 @@ fn corpus() -> Option<(PathBuf, PathBuf, PathBuf)> {
         PathBuf::from(std::env::var("LEAN_DOC_PAGES").unwrap_or_else(|_| DEFAULT_PAGES.into()));
     let site =
         PathBuf::from(std::env::var("LEAN_DOC_SITE").unwrap_or_else(|_| DEFAULT_SITE.into()));
-    if !base.is_dir() || !pages.is_dir() || !site.is_dir() {
-        eprintln!(
-            "skipping: no corpus at {} / {} / {}",
-            base.display(),
-            pages.display(),
-            site.display()
-        );
-        return None;
+    // Presence is counted in files, not directories. These trees live under
+    // `/private/tmp`, which is swept: an emptied `ref-pages` left its directory
+    // behind, `is_dir()` said yes, and the run reported the corpus's own pages
+    // as "already absent" — a green-looking scenario failing for an
+    // environmental reason.
+    for dir in [&base, &pages, &site] {
+        if file_count(dir) == 0 {
+            eprintln!(
+                "skipping: no corpus at {} / {} / {} (empty or missing: {})",
+                base.display(),
+                pages.display(),
+                site.display(),
+                dir.display()
+            );
+            return None;
+        }
     }
     Some((base, pages, site))
+}
+
+/// Regular files under `dir`, recursively. Zero for a missing directory.
+fn file_count(dir: &Path) -> usize {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return 0;
+    };
+    entries
+        .flatten()
+        .map(|entry| match entry.file_type() {
+            Ok(kind) if kind.is_dir() => file_count(&entry.path()),
+            Ok(kind) if kind.is_file() => 1,
+            _ => 0,
+        })
+        .sum()
 }
 
 // ------------------------------------------------------- the corpus test

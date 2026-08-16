@@ -51,6 +51,12 @@ use lean_doc_render::{ModuleSet, RenderOptions, RenderSummary, render_site};
 mod build;
 mod extract;
 mod lakefile;
+// **M7-b lands the resolver; M7-c is what calls it.** The dependency link map
+// has to exist and be checked against doc-gen4's own tree before the renderer is
+// switched over to it, so for one milestone it is product code with no caller —
+// which is what the `allow` is for, and what removing it will mark as done.
+#[allow(dead_code)]
+mod packages;
 mod pipeline;
 mod resident;
 
@@ -265,6 +271,21 @@ enum Failure {
 
 fn usage<T>(message: impl Into<String>) -> Result<T, Failure> {
     Err(Failure::Usage(message.into()))
+}
+
+/// `renderKey.externalLinks` — the identity of the map that says where each
+/// **dependency's** source lives (M7-b).
+///
+/// **TODO(M7-c): resolve it instead of defaulting it.** [`packages`] already
+/// builds the real map out of the target's `lake-manifest.json` and its
+/// toolchain, and it is checked against doc-gen4's own tree; what is missing is
+/// the renderer using it, and until then no page's bytes depend on it. Feeding
+/// the empty map's digest — rather than `None` — is what puts the key in every
+/// ledger this command writes now, so that M7-c *moves* a key that is already
+/// there instead of introducing one. It is one function so that the switch is
+/// one edit and every subcommand turns over together.
+fn external_links_digest() -> String {
+    lean_doc_render::ExternalLinks::default().digest()
 }
 
 fn run(args: &[String]) -> Result<(), Failure> {
@@ -703,6 +724,7 @@ fn ledger(args: &[String]) -> Result<(), Failure> {
                 ir: ir.as_deref(),
                 source_url: &source_url,
                 link_index: link_index.as_deref(),
+                external_links: Some(&external_links_digest()),
                 algorithm: &algorithm,
                 concurrency,
                 timings: timings.as_deref(),
@@ -733,6 +755,7 @@ fn ledger(args: &[String]) -> Result<(), Failure> {
                 ir: ir.as_deref(),
                 source_url: &source_url,
                 link_index: link_index.as_deref(),
+                external_links: Some(&external_links_digest()),
                 concurrency,
                 changed_out: changed_out.as_deref(),
                 removed_out: removed_out.as_deref(),

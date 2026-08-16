@@ -1,0 +1,757 @@
+//! Which GitHub blob prefix each **dependency's** module root belongs to.
+//!
+//! Milestone **M7-b**, and the whole of it is offline. The plan's table
+//! (`docs/implementation-plan.md` §M7) names three inputs and this file reads all
+//! three without a socket, because "no network in the product" is the reason案
+//! (c) was rejected and is not a thing to give back:
+//!
+//! | value | where it comes from |
+//! |---|---|
+//! | a dependency's `url` + 40-hex `rev` | the target's `lake-manifest.json` |
+//! | which module roots that dependency provides | a scan of `<packagesDir>/<name>/` |
+//! | **Lean core's revision** | **`lake env lean --githash`** — core is not in the manifest |
+//!
+//! The result is a [`lean_doc_render::ExternalLinks`], which is the value type
+//! and says what a lookup does with it.
+//!
+//! # Four things the scan found that a reading of Lake would not have 【実測】
+//!
+//! 1. **A manifest name is not always the directory name.** doc-gen4 is
+//!    `«doc-gen4»` in the manifest — Lake writes a name that needs quoting with
+//!    its guillemets — and `doc-gen4` on disk. The quotes are stripped here.
+//! 2. **A module root is not always a `Foo.lean` *and* a `Foo/`.** MD4Lean ships
+//!    `MD4Lean.lean` with no `MD4Lean/` next to it, so a scan that wanted both
+//!    would silently lose a real root. The file is the rule; the directory is not
+//!    consulted. The other direction — `Foo/Bar.lean` with no `Foo.lean` — exists
+//!    on disk only as test and script trees (`MathlibTest/`, `scripts/`,
+//!    `AesopTest/`), none of which is imported, so a directory alone is not a
+//!    root here either.
+//! 3. **Core's four roots do not share one prefix.** `Init`, `Lean` and `Std` are
+//!    under `src/`, but **`Lake` is under `src/lake/`** — the reference tree links
+//!    `Lake.Build` at `…/blob/<hash>/src/lake/Lake/Build.lean`. One base per root,
+//!    not one base for core.
+//! 4. **Two packages can claim one root.** doc-gen4 and MD4Lean both ship a
+//!    `Main.lean`. Nothing imports either, so this costs no link — but it is not
+//!    nothing, and it is reported separately from a failure ([`Packages`]) rather
+//!    than resolved in silence.
+//!
+//! # Everything degrades; nothing throws
+//!
+//! A missing manifest, a package with no directory, a `lake` that will not run —
+//! each costs the roots it would have contributed and adds a line to
+//! [`Packages::problems`]. The caller decides whether a partial map is worth
+//! rendering with, because the answer differs: a site with no external links is
+//! the site v0.1 already ships, while a site missing *mathlib's* links is a
+//! regression worth stopping for. Nothing here can panic on a shape of the
+//! world.
+
+use std::fs;
+use std::path::Path;
+use std::process::Command;
+
+use lean_doc_render::ExternalLinks;
+
+/// Lean core's repository. Core has no manifest entry — it is the toolchain —
+/// so this is the one URL in the product that is written down rather than read.
+pub const CORE_URL: &str = "https://github.com/leanprover/lean4";
+
+/// Core's module roots and the directory each lives in inside that checkout.
+///
+/// **`Lake` is not under `src/` with the other three**, and the reference tree is
+/// what says so 【実測】: `Lake.Build` links at `…/src/lake/Lake/Build.lean` while
+/// `Std.Time` links at `…/src/Std/Time.lean`. Sharing one base would 404 every
+/// Lake link.
+pub const CORE_ROOTS: [(&str, &str); 4] = [
+    ("Init", "src"),
+    ("Lean", "src"),
+    ("Std", "src"),
+    ("Lake", "src/lake"),
+];
+
+/// Lake's default for `packagesDir`, used when the manifest does not say.
+const DEFAULT_PACKAGES_DIR: &str = ".lake/packages";
+
+/// What a resolution produced.
+pub struct Packages {
+    /// The map, core first (see [`ExternalLinks::new`]: first wins).
+    pub links: ExternalLinks,
+    /// Manifest entries that contributed at least one root.
+    pub resolved: usize,
+    /// Manifest entries in total, whether or not they contributed.
+    pub declared: usize,
+    /// One line per thing that could not be resolved, in the order it was met.
+    /// Empty means every package and core came out.
+    pub problems: Vec<String>,
+    /// One line per module root more than one package claims.
+    ///
+    /// Kept apart from [`Packages::problems`] because it is a different answer:
+    /// nothing failed to resolve, and the map holds the root — it just holds one
+    /// of the two candidates. On the measurement target there is exactly one, and
+    /// it is `Main` (see the heading).
+    pub collisions: Vec<String>,
+}
+
+impl Packages {
+    /// The problems as one message, or `None` when there were none — the shape a
+    /// caller wants for a refusal or a log line.
+    #[must_use]
+    pub fn problem_report(&self) -> Option<String> {
+        if self.problems.is_empty() {
+            None
+        } else {
+            Some(self.problems.join("\n"))
+        }
+    }
+}
+
+/// The dependency link map for the package at `root`.
+///
+/// `lake` is the program `lean --githash` is run through — a name looked up on
+/// `PATH` (`lake`) rather than a path, for the reason
+/// [`crate::extract::extract`] gives: elan's shim is what picks the toolchain the
+/// target pins.
+#[must_use]
+pub fn external_links(root: &Path, lake: &Path) -> Packages {
+    let mut problems: Vec<String> = Vec::new();
+    let mut collisions: Vec<String> = Vec::new();
+    // Core first: its four roots are the toolchain's and are not a package's to
+    // redefine, and `ExternalLinks::new` keeps the first of a repeated root.
+    let mut entries: Vec<(String, String)> = match core_githash(root, lake) {
+        Ok(hash) => CORE_ROOTS
+            .iter()
+            .map(|(name, dir)| ((*name).to_owned(), format!("{CORE_URL}/blob/{hash}/{dir}")))
+            .collect(),
+        Err(problem) => {
+            problems.push(problem);
+            Vec::new()
+        }
+    };
+
+    let manifest_path = root.join("lake-manifest.json");
+    let mut declared = 0;
+    let mut resolved = 0;
+    match read_manifest(&manifest_path) {
+        Err(problem) => problems.push(problem),
+        Ok(manifest) => {
+            let packages_dir = root.join(&manifest.packages_dir);
+            declared = manifest.listed;
+            problems.extend(manifest.problems.iter().cloned());
+            for package in &manifest.packages {
+                let dir = packages_dir.join(&package.name);
+                match module_roots(&dir) {
+                    Err(problem) => problems.push(problem),
+                    Ok(roots) if roots.is_empty() => problems.push(format!(
+                        "{}: no top-level .lean file, so no module root could be resolved for \
+                         package `{}`",
+                        dir.display(),
+                        package.name,
+                    )),
+                    Ok(roots) => {
+                        resolved += 1;
+                        for name in roots {
+                            // A root two packages both claim is reported rather
+                            // than resolved silently: on the measurement target
+                            // it is `Main`, which doc-gen4 and MD4Lean both ship
+                            // and nothing imports, but a real collision would be
+                            // links pointing into the wrong repository.
+                            if let Some((_, base)) = entries.iter().find(|(seen, _)| *seen == name)
+                            {
+                                collisions.push(format!(
+                                    "module root `{name}` is claimed by package `{}` and by \
+                                     {base} — keeping the first",
+                                    package.name,
+                                ));
+                                continue;
+                            }
+                            entries.push((name, package.blob_base.clone()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Packages {
+        links: ExternalLinks::new(entries),
+        resolved,
+        declared,
+        problems,
+        collisions,
+    }
+}
+
+// --------------------------------------------------------------- the manifest
+
+/// One `packages` entry, reduced to what a blob URL needs.
+#[derive(Debug)]
+struct Package {
+    /// Unquoted, so it is also the directory name under `packagesDir`.
+    name: String,
+    /// `<url>/blob/<rev>`.
+    blob_base: String,
+}
+
+#[derive(Debug)]
+struct Manifest {
+    packages_dir: String,
+    /// How many entries the `packages` array had, dropped ones included.
+    listed: usize,
+    packages: Vec<Package>,
+    /// One line per `packages` entry that was dropped. The manifest still
+    /// resolved; that one entry did not.
+    problems: Vec<String>,
+}
+
+/// `<root>/lake-manifest.json`, reduced to the git packages it declares.
+///
+/// **Parsed with `serde_json`, which this crate already depends on** — the
+/// manifest is JSON and writing a second parser for it would be a new thing to
+/// get wrong.
+///
+/// `Err` is only for the file: unreadable, not JSON, no `packages` array. **A
+/// bad *entry* costs that entry and nothing else** — one dependency pinned to a
+/// branch must not take the other fourteen's links with it. Dropped rather than
+/// guessed at, though: `/blob/<a-branch-name>` is a URL that rots on the next
+/// push to that branch, which is the whole failure M7 exists to fix, and
+/// [`crate::build`]'s `--source-url` derivation refuses the same shape for the
+/// same reason.
+fn read_manifest(path: &Path) -> Result<Manifest, String> {
+    let text = fs::read_to_string(path).map_err(|source| {
+        format!(
+            "{}: {source}. Without it no dependency's revision is known and the pages carry no \
+             external links",
+            path.display(),
+        )
+    })?;
+    let value: serde_json::Value =
+        serde_json::from_str(&text).map_err(|source| format!("{}: {source}", path.display()))?;
+    let packages_dir = value
+        .get("packagesDir")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or(DEFAULT_PACKAGES_DIR)
+        .to_owned();
+    let listed = value
+        .get("packages")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| format!("{}: no `packages` array", path.display()))?;
+
+    let mut packages = Vec::with_capacity(listed.len());
+    let mut problems = Vec::new();
+    for (index, entry) in listed.iter().enumerate() {
+        let field = |name: &str| entry.get(name).and_then(serde_json::Value::as_str);
+        // The index, not just the name: an entry with no `name` has nothing else
+        // to be called in a message.
+        let Some(name) = field("name") else {
+            problems.push(format!(
+                "{}: packages[{index}] has no `name`",
+                path.display()
+            ));
+            continue;
+        };
+        let name = unquote(name);
+        let kind = field("type").unwrap_or_default();
+        if kind != "git" {
+            problems.push(format!(
+                "{}: package `{name}` is type `{kind}`, not `git` — only a git package has a \
+                 /blob/<rev> to link into",
+                path.display(),
+            ));
+            continue;
+        }
+        let (Some(url), Some(rev)) = (field("url"), field("rev")) else {
+            problems.push(format!(
+                "{}: package `{name}` has no `url` or no `rev`",
+                path.display(),
+            ));
+            continue;
+        };
+        if !is_revision(rev) {
+            problems.push(format!(
+                "{}: package `{name}` is pinned at `{rev}`, which is not 40 hex digits — a tag or \
+                 a branch is not a version-pinned link",
+                path.display(),
+            ));
+            continue;
+        }
+        // `.git` and a trailing slash are spellings git accepts in a remote and
+        // GitHub does not accept in a blob path. The target's manifest has
+        // neither; another package's might.
+        let url = url.trim_end_matches('/');
+        let url = url.strip_suffix(".git").unwrap_or(url);
+        packages.push(Package {
+            name,
+            blob_base: format!("{url}/blob/{rev}"),
+        });
+    }
+    Ok(Manifest {
+        packages_dir,
+        listed: listed.len(),
+        packages,
+        problems,
+    })
+}
+
+/// A Lake name with its guillemets removed: `«doc-gen4»` is `doc-gen4` on disk.
+fn unquote(name: &str) -> String {
+    name.strip_prefix('«')
+        .and_then(|rest| rest.strip_suffix('»'))
+        .unwrap_or(name)
+        .to_owned()
+}
+
+/// 40 lower-case hex digits, which is what plan 決定 1 requires of every
+/// revision that reaches a URL.
+fn is_revision(rev: &str) -> bool {
+    rev.len() == 40 && rev.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
+// ------------------------------------------------------------------ the scan
+
+/// The module roots a package directory provides: the stem of every top-level
+/// `*.lean` file, sorted.
+///
+/// Sorted rather than in `read_dir` order so that two machines resolve the same
+/// map — the order is not a page's to see, but it is the map's, and the map is
+/// logged.
+///
+/// `lakefile.lean` is dropped by name: it is Lake's configuration, never a
+/// module anything imports, and six of the target's fifteen packages have one —
+/// so keeping it would report five root collisions that mean nothing.
+fn module_roots(dir: &Path) -> Result<Vec<String>, String> {
+    let entries = fs::read_dir(dir).map_err(|source| {
+        format!(
+            "{}: {source}. The package is in the manifest but not on disk, so which module roots \
+             it provides cannot be known",
+            dir.display(),
+        )
+    })?;
+    let mut roots = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().is_none_or(|ext| ext != "lean") {
+            continue;
+        }
+        // `is_file` rather than `!is_dir`: a broken symlink is neither, and a
+        // root that cannot be read is not a root.
+        if !path.is_file() {
+            continue;
+        }
+        let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) else {
+            continue;
+        };
+        if stem == "lakefile" {
+            continue;
+        }
+        roots.push(stem.to_owned());
+    }
+    roots.sort();
+    Ok(roots)
+}
+
+// ------------------------------------------------------------------ the core
+
+/// `lake env lean --githash` inside the target.
+///
+/// The same mechanism [`crate::extract::extract`] starts the extractor with, and
+/// for the same reason: the toolchain belongs to the package being documented,
+/// so the question "which lean4 commit is this" can only be asked from inside it.
+///
+/// **Only stdout is read.** `lake env` writes warnings to stderr — the target
+/// prints one about a dependency with local changes on every invocation 【実測】
+/// — and folding those into the answer would produce a revision that is not one.
+fn core_githash(root: &Path, lake: &Path) -> Result<String, String> {
+    let output = Command::new(lake)
+        .current_dir(root)
+        .arg("env")
+        .arg("lean")
+        .arg("--githash")
+        .output()
+        .map_err(|source| {
+            format!(
+                "{} env lean --githash in {}: {source}. Lean core's revision is unknown, so \
+                 Init/Lean/Std/Lake carry no external links",
+                lake.display(),
+                root.display(),
+            )
+        })?;
+    if !output.status.success() {
+        return Err(format!(
+            "{} env lean --githash in {} failed: {}",
+            lake.display(),
+            root.display(),
+            String::from_utf8_lossy(&output.stderr).trim(),
+        ));
+    }
+    let hash = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+    if !is_revision(&hash) {
+        return Err(format!(
+            "{} env lean --githash printed `{hash}`, which is not 40 hex digits — a toolchain \
+             built without a git revision cannot be linked to",
+            lake.display(),
+        ));
+    }
+    Ok(hash)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+    use std::path::PathBuf;
+
+    use super::*;
+
+    /// The measurement target, as `lean-doc-incr`'s corpus tests spell it.
+    const DEFAULT_TARGET: &str = "/Users/haruka/dev/lean-projects";
+
+    // ------------------------------------------------------ without the target
+
+    #[test]
+    fn a_lake_name_loses_its_guillemets() {
+        assert_eq!(unquote("«doc-gen4»"), "doc-gen4");
+        assert_eq!(unquote("mathlib"), "mathlib");
+        assert_eq!(unquote("«lean4-cli»"), "lean4-cli");
+        // Only a matched pair, and only the outer one: Lake quotes the whole
+        // name or none of it.
+        assert_eq!(unquote("«half"), "«half");
+        assert_eq!(unquote("half»"), "half»");
+    }
+
+    #[test]
+    fn only_forty_hex_digits_are_a_revision() {
+        assert!(is_revision("fabf563a7c95a166b8d7b6efca11c8b4dc9d911f"));
+        assert!(!is_revision("v4.31.0"));
+        assert!(!is_revision("main"));
+        assert!(!is_revision("fabf563"));
+    }
+
+    #[test]
+    fn a_git_package_becomes_a_blob_base() {
+        let dir = TempDir::new("manifest");
+        let path = dir.path.join("lake-manifest.json");
+        fs::write(
+            &path,
+            r#"{"version": "1.2.0", "packagesDir": ".lake/packages", "packages":
+               [{"url": "https://github.com/leanprover-community/mathlib4.git", "type": "git",
+                 "rev": "fabf563a7c95a166b8d7b6efca11c8b4dc9d911f", "name": "mathlib"},
+                {"url": "https://github.com/leanprover/doc-gen4/", "type": "git",
+                 "rev": "0bc516c1b9db83658d6475c40d9b1ed71219b921", "name": "«doc-gen4»"}]}"#,
+        )
+        .expect("the temporary tree is writable");
+        let manifest = read_manifest(&path).expect("it parses");
+        assert_eq!(manifest.packages_dir, ".lake/packages");
+        assert_eq!(
+            manifest
+                .packages
+                .iter()
+                .map(|p| (p.name.as_str(), p.blob_base.as_str()))
+                .collect::<Vec<_>>(),
+            [
+                (
+                    "mathlib",
+                    "https://github.com/leanprover-community/mathlib4/blob/\
+                     fabf563a7c95a166b8d7b6efca11c8b4dc9d911f"
+                ),
+                (
+                    "doc-gen4",
+                    "https://github.com/leanprover/doc-gen4/blob/\
+                     0bc516c1b9db83658d6475c40d9b1ed71219b921"
+                ),
+            ],
+            "the `.git` suffix and the trailing slash are not part of a blob path"
+        );
+    }
+
+    /// A bad entry costs that entry, and the fourteen beside it still resolve.
+    #[test]
+    fn a_revision_that_is_not_forty_hex_drops_only_its_own_package() {
+        let dir = TempDir::new("tag");
+        let path = dir.path.join("lake-manifest.json");
+        fs::write(
+            &path,
+            r#"{"packages":
+               [{"url": "https://github.com/o/tagged", "type": "git",
+                 "rev": "v4.31.0", "name": "tagged"},
+                {"url": "/somewhere/local", "type": "path", "name": "local"},
+                {"type": "git", "rev": "0000000000000000000000000000000000000000"},
+                {"url": "https://github.com/o/pinned", "type": "git",
+                 "rev": "fabf563a7c95a166b8d7b6efca11c8b4dc9d911f", "name": "pinned"}]}"#,
+        )
+        .expect("the temporary tree is writable");
+        let manifest = read_manifest(&path).expect("the file itself is fine");
+        assert_eq!(manifest.listed, 4);
+        assert_eq!(
+            manifest
+                .packages
+                .iter()
+                .map(|p| &p.name)
+                .collect::<Vec<_>>(),
+            ["pinned"]
+        );
+        assert_eq!(manifest.problems.len(), 3);
+        assert!(manifest.problems[0].contains("not 40 hex digits"));
+        assert!(manifest.problems[1].contains("not `git`"));
+        assert!(manifest.problems[2].contains("packages[2] has no `name`"));
+    }
+
+    #[test]
+    fn a_manifest_that_is_not_a_manifest_stops_before_any_package() {
+        let dir = TempDir::new("broken");
+        let path = dir.path.join("lake-manifest.json");
+        fs::write(&path, "{\"version\": \"1.2.0\"}").expect("the temporary tree is writable");
+        let problem = read_manifest(&path).expect_err("no `packages` array");
+        assert!(problem.contains("no `packages` array"), "{problem}");
+    }
+
+    /// The scan's rule, on the two shapes the target actually has: a root with a
+    /// directory next to it and a root without one.
+    #[test]
+    fn a_root_is_a_top_level_lean_file_with_or_without_a_directory() {
+        let dir = TempDir::new("scan");
+        let pkg = dir.path.join("pkg");
+        fs::create_dir_all(pkg.join("Mathlib/Order")).expect("writable");
+        fs::create_dir_all(pkg.join("MathlibTest")).expect("writable");
+        for name in [
+            "Mathlib.lean",
+            "Archive.lean",
+            "MD4Lean.lean",
+            "lakefile.lean",
+        ] {
+            fs::write(pkg.join(name), "").expect("writable");
+        }
+        fs::write(pkg.join("Mathlib/Order/Basic.lean"), "").expect("writable");
+        fs::write(pkg.join("MathlibTest/Case.lean"), "").expect("writable");
+        fs::create_dir_all(pkg.join("Archive")).expect("writable");
+        assert_eq!(
+            module_roots(&pkg).expect("the directory reads"),
+            ["Archive", "MD4Lean", "Mathlib"],
+            "the file is the rule: a directory with no `.lean` beside it (MathlibTest) is not a \
+             root, and a file with no directory (MD4Lean) is"
+        );
+    }
+
+    #[test]
+    fn a_package_that_is_not_on_disk_is_a_problem_and_not_a_panic() {
+        let dir = TempDir::new("absent");
+        let problem = module_roots(&dir.path.join("nowhere")).expect_err("it is not there");
+        assert!(problem.contains("not on disk"), "{problem}");
+    }
+
+    /// The whole resolution against a package that has neither a manifest nor a
+    /// `lake`: an empty map, and a line for each.
+    #[test]
+    fn a_root_with_nothing_in_it_degrades_to_an_empty_map() {
+        let dir = TempDir::new("empty");
+        let resolved = external_links(&dir.path, Path::new("lake-that-does-not-exist"));
+        assert!(resolved.links.is_empty());
+        assert_eq!(resolved.declared, 0);
+        assert_eq!(resolved.resolved, 0);
+        assert_eq!(resolved.problems.len(), 2, "{:?}", resolved.problems);
+        assert!(resolved.collisions.is_empty());
+        let report = resolved.problem_report().expect("there were problems");
+        assert!(report.contains("lake-manifest.json"), "{report}");
+        assert!(report.contains("--githash"), "{report}");
+    }
+
+    // --------------------------------------------------------- with the target
+
+    /// doc-gen4's own output tree, which already holds the URLs this resolver is
+    /// supposed to produce.
+    fn reference_tree() -> Option<(PathBuf, PathBuf)> {
+        let target = PathBuf::from(
+            std::env::var("LEAN_DOC_TARGET").unwrap_or_else(|_| DEFAULT_TARGET.to_owned()),
+        );
+        let tree = std::env::var("LEAN_DOC_DOCGEN4_TREE")
+            .map_or_else(|_| target.join(".lake/build/doc"), PathBuf::from);
+        if target.is_dir() && tree.is_dir() {
+            Some((target, tree))
+        } else {
+            eprintln!(
+                "skipping: no doc-gen4 reference tree at {} (set LEAN_DOC_TARGET or \
+                 LEAN_DOC_DOCGEN4_TREE)",
+                tree.display(),
+            );
+            None
+        }
+    }
+
+    /// **The gate of M7-b**: every root this resolver knows produces the same URL
+    /// doc-gen4 itself put on that root's pages.
+    ///
+    /// The oracle is exact and offline — the reference tree carries a
+    /// version-pinned blob URL on every module page's `gh_nav_link`
+    /// (`benchmarks/tools/extract-decl-source-urls.sh` mines the per-declaration
+    /// ones the same way). A root the tree has no page for cannot be checked and
+    /// is counted rather than passed over in silence: the target's site documents
+    /// its own import closure, not every package in its manifest.
+    #[test]
+    fn every_root_matches_doc_gen4s_own_blob_urls() {
+        let Some((target, tree)) = reference_tree() else {
+            return;
+        };
+        let resolved = external_links(&target, Path::new("lake"));
+        assert_eq!(
+            resolved.problems,
+            Vec::<String>::new(),
+            "the resolution reported problems"
+        );
+        assert_eq!(
+            resolved.resolved, resolved.declared,
+            "a manifest package contributed no module root"
+        );
+        assert_eq!(resolved.declared, 15, "the target's manifest declares 15");
+        // 実測: the target's one root collision, and what it is. A second one
+        // appearing is a fact about the dependency set worth failing on.
+        assert_eq!(resolved.collisions.len(), 1, "{:?}", resolved.collisions);
+        assert!(
+            resolved.collisions[0].starts_with("module root `Main` is claimed"),
+            "{:?}",
+            resolved.collisions,
+        );
+
+        let mut checked: BTreeMap<&str, String> = BTreeMap::new();
+        let mut unpaged: Vec<&str> = Vec::new();
+        let mut failures: Vec<String> = Vec::new();
+        for (root, _) in resolved.links.iter() {
+            let Some((module, want)) = sample_page(&tree, root) else {
+                unpaged.push(root);
+                continue;
+            };
+            let got = resolved
+                .links
+                .url_for(&module, None)
+                .unwrap_or_else(|| panic!("{module} is under a root this map holds"));
+            if got == want {
+                checked.insert(root, module);
+            } else {
+                failures.push(format!("  {module}\n    want: {want}\n    got:  {got}"));
+            }
+        }
+        assert!(
+            failures.is_empty(),
+            "{} of {} roots disagree with the reference tree:\n{}",
+            failures.len(),
+            checked.len() + failures.len(),
+            failures.join("\n"),
+        );
+        eprintln!(
+            "{} root(s) checked against {}: {:?}\n{} root(s) the tree has no page for: {unpaged:?}",
+            checked.len(),
+            tree.display(),
+            checked,
+            unpaged.len(),
+        );
+        assert!(
+            checked.len() >= 12,
+            "only {} roots were checked; the tree used to have pages for 12",
+            checked.len(),
+        );
+        // The two the plan quotes, by name, so that a shrinking sample cannot
+        // hide either of the two prefix shapes (a package, and core's `/src`).
+        assert!(checked.contains_key("Mathlib") && checked.contains_key("Init"));
+        // …and the third shape, which is core's and is *not* `/src` (see
+        // [`CORE_ROOTS`]).
+        assert!(checked.contains_key("Lake"));
+    }
+
+    /// The declaration-level anchor, against the one the plan quotes off the
+    /// reference tree.
+    #[test]
+    fn a_line_range_is_the_anchor_doc_gen4_writes() {
+        let Some((target, tree)) = reference_tree() else {
+            return;
+        };
+        let page = tree.join("Mathlib/Order/Basic.html");
+        let Ok(html) = fs::read_to_string(&page) else {
+            eprintln!("skipping: no {}", page.display());
+            return;
+        };
+        let want = html
+            .split_once("<div class=\"decl\" id=\"LE.ext\">")
+            .and_then(|(_, rest)| first_blob_url(rest))
+            .expect("LE.ext carries a source link");
+        let resolved = external_links(&target, Path::new("lake"));
+        let (from, to) = line_range(&want).expect("the plan quotes it with an anchor");
+        assert_eq!(
+            resolved
+                .links
+                .url_for("Mathlib.Order.Basic", Some((from, to)))
+                .expect("Mathlib resolves"),
+            want
+        );
+    }
+
+    /// One module under `root` that the reference tree has a page and a source
+    /// link for, as `(module name, the URL doc-gen4 wrote)`.
+    fn sample_page(tree: &Path, root: &str) -> Option<(String, String)> {
+        let mut pages = Vec::new();
+        collect_pages(&tree.join(root), root, &mut pages);
+        pages.sort();
+        pages.into_iter().find_map(|module| {
+            let path = tree.join(format!("{}.html", module.replace('.', "/")));
+            let html = fs::read_to_string(path).ok()?;
+            // The first one on the page is the nav's `gh_nav_link`, which is the
+            // *module's* source file and therefore has no line anchor — exactly
+            // what `url_for(module, None)` builds.
+            Some((module, first_blob_url(&html)?))
+        })
+    }
+
+    fn collect_pages(at: &Path, prefix: &str, out: &mut Vec<String>) {
+        let Ok(entries) = fs::read_dir(at) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let path = entry.path();
+            if path.is_dir() {
+                collect_pages(&path, &format!("{prefix}.{name}"), out);
+            } else if let Some(stem) = name.strip_suffix(".html") {
+                out.push(format!("{prefix}.{stem}"));
+            }
+        }
+    }
+
+    /// The first `https://github.com/…/blob/…` href in `html`, with any line
+    /// anchor kept.
+    fn first_blob_url(html: &str) -> Option<String> {
+        let at = html.find("https://github.com/")?;
+        let rest = &html[at..];
+        let end = rest.find('"')?;
+        let url = &rest[..end];
+        url.contains("/blob/").then(|| url.to_owned())
+    }
+
+    fn line_range(url: &str) -> Option<(u32, u32)> {
+        let (_, anchor) = url.rsplit_once("#L")?;
+        let (from, to) = anchor.split_once("-L")?;
+        Some((from.parse().ok()?, to.parse().ok()?))
+    }
+
+    /// A directory that removes itself. Hand-rolled for the same reason
+    /// `lean-doc-render/tests/pages.rs` hand-rolls one: ten lines against a
+    /// dependency the workspace has no other use for.
+    struct TempDir {
+        path: PathBuf,
+    }
+
+    impl TempDir {
+        fn new(what: &str) -> Self {
+            use std::sync::atomic::{AtomicU32, Ordering};
+            static NEXT: AtomicU32 = AtomicU32::new(0);
+            let path = std::env::temp_dir().join(format!(
+                "lean-doc-packages-{}-{}-{what}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed),
+            ));
+            let _ = fs::remove_dir_all(&path);
+            fs::create_dir_all(&path).expect("the temporary directory is creatable");
+            Self { path }
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+}

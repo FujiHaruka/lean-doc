@@ -62,11 +62,20 @@
 //! [`site::render_site`] is the whole of M1 as one call. Its output is
 //! compared to the frozen prototype's, byte for byte, by
 //! `tools/render-compare.sh`.
+//!
+//! # What is here so far (M7-b)
+//!
+//! [`external`] — the map from a **dependency's** module root to the
+//! version-pinned GitHub blob prefix its sources live under, and the lookup that
+//! turns a module name into a URL. It is the value type only: `lean-doc`'s
+//! `packages` module resolves it out of the target's `lake-manifest.json`, and
+//! the page's link-building call sites start using it in M7-c.
 
 pub mod autolink;
 pub mod code;
 pub mod decl;
 pub mod escape;
+pub mod external;
 pub mod frame;
 pub mod link_index;
 pub mod order;
@@ -87,6 +96,7 @@ pub use decl::{
     decl_header, decl_name_to_link, equations_html, instances_for_html,
 };
 pub use escape::{escape_html, escape_html_into, lean_quote, lean_quote_into};
+pub use external::{DIGEST_MARKER, ExternalLinks};
 pub use frame::{
     head_html, internal_nav_html, module_source_url, page_header_html, sorted_imports,
 };

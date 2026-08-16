@@ -332,7 +332,7 @@ fn observe(run: &Run<'_>) -> BTreeSet<&'static str> {
                 // The key sets are the *inputs*; the comparison of them is made
                 // here with a plain map union rather than with KeySet::diff.
                 let want_extract = extract_key(&ledger.target, options.ir).ok();
-                let want_render = render_key(options.source_url, None);
+                let want_render = render_key(options.source_url, None, options.external_links);
                 if let Some(want) = &want_extract {
                     observe_key_diff(&ledger.extract_key, want, &mut fire);
                 }
@@ -747,6 +747,7 @@ fn the_corpus_matches_the_prototype() {
         let timings = work.path.join(format!("ledger-{name}.timings.json"));
         let options = BuildOptions {
             link_index: None,
+            external_links: None,
             modules,
             target,
             out: &out,
@@ -837,6 +838,7 @@ fn the_corpus_matches_the_prototype() {
         let timings = work.path.join(format!("{name}-timings.json"));
         let options = CheckOptions {
             link_index: None,
+            external_links: None,
             ledger,
             algorithm: None,
             modules,
@@ -1009,6 +1011,49 @@ fn the_identity_strings_are_not_the_prototypes() {
     );
 }
 
+/// `renderKey.externalLinks` — M7-b's key.
+///
+/// Where each **dependency's** source lives reaches every page that links into
+/// one, and it moves on exactly the occasion an incremental build runs (a bumped
+/// dependency is a new `rev`). So it is a render key, it sits after the two the
+/// renderer already had — the ledger's bytes are the insertion order — and all
+/// three of appearing, vanishing and moving count as a change.
+#[test]
+fn the_dependency_link_maps_digest_is_a_render_key_of_its_own() {
+    let without = render_key(URL, None, None);
+    let with = render_key(URL, None, Some("d1"));
+    let moved = render_key(URL, None, Some("d2"));
+
+    assert_eq!(without.get("externalLinks"), None);
+    assert_eq!(with.get("externalLinks"), Some("d1"));
+    assert_eq!(
+        with.iter().map(|(name, _)| name).collect::<Vec<_>>(),
+        ["renderer", "sourceUrl", "externalLinks"],
+    );
+
+    assert_eq!(without.diff(&with), ["externalLinks"], "it appeared");
+    assert_eq!(with.diff(&without), ["externalLinks"], "it vanished");
+    assert_eq!(with.diff(&moved), ["externalLinks"], "a dependency moved");
+    assert!(with.diff(&with).is_empty());
+
+    // The key does not disturb the other two, and it is not the `.lidx`'s: the
+    // two maps are different things and either can move without the other.
+    let both = render_key(URL, Some("lidx"), Some("d1"));
+    assert_eq!(
+        both.iter().collect::<Vec<_>>(),
+        [
+            ("renderer", lean_doc_incr::RENDERER_ID),
+            ("sourceUrl", URL),
+            ("linkIndex", "lidx"),
+            ("externalLinks", "d1"),
+        ],
+    );
+    assert_eq!(
+        both.diff(&render_key(URL, Some("lidx"), None)),
+        ["externalLinks"]
+    );
+}
+
 // ------------------------------------------------------------ the dependency
 
 /// The dependency this milestone's coverage rests on, stated so that it fails
@@ -1037,6 +1082,7 @@ fn the_curated_cases_cover_what_the_package_does_not() {
     let ir = repo.ir();
     let (result, fired) = run_build(&BuildOptions {
         link_index: None,
+        external_links: None,
         modules: &modules,
         target: &repo.target(),
         out: &out,
@@ -1322,6 +1368,7 @@ fn curated_module_branches() -> BTreeSet<&'static str> {
     let removed = repo.dir.path.join("empty-removed.txt");
     let (result, fired) = run_check(&CheckOptions {
         link_index: None,
+        external_links: None,
         ledger: &ledger_path,
         algorithm: None,
         modules: Some(&[]),
@@ -1380,6 +1427,7 @@ fn curated_module_branches() -> BTreeSet<&'static str> {
     // computed, and nothing is written.
     let (result, fired) = run_check(&CheckOptions {
         link_index: None,
+        external_links: None,
         ledger: &ledger_path,
         algorithm: None,
         modules: None,
@@ -1409,6 +1457,7 @@ fn curated_module_branches() -> BTreeSet<&'static str> {
     let out = repo.dir.path.join("refused.json");
     let (result, fired) = run_build(&BuildOptions {
         link_index: None,
+        external_links: None,
         modules: &names,
         target: &repo.target(),
         out: &out,
@@ -1446,6 +1495,7 @@ fn curated_module_branches() -> BTreeSet<&'static str> {
     let modules = repo.module_names();
     let (result, fired) = run_check(&CheckOptions {
         link_index: None,
+        external_links: None,
         ledger: &path,
         algorithm: None,
         modules: Some(&modules),
@@ -1581,6 +1631,7 @@ impl FakeRepo {
         let out = self.dir.path.join("built.json");
         build_ledger(&BuildOptions {
             link_index: None,
+            external_links: None,
             modules: &modules,
             target: &self.target(),
             out: &out,
@@ -1603,6 +1654,7 @@ impl FakeRepo {
         let out = self.dir.path.join("run.json");
         run_build(&BuildOptions {
             link_index: None,
+            external_links: None,
             modules: &modules,
             target: &self.target(),
             out: &out,
@@ -1631,6 +1683,7 @@ impl FakeRepo {
         let out = self.dir.path.join("moved-out.txt");
         let (result, fired) = run_check(&CheckOptions {
             link_index: None,
+            external_links: None,
             ledger: &path,
             algorithm: None,
             modules: Some(&[]),
@@ -1649,6 +1702,7 @@ impl FakeRepo {
     fn check_options<'a>(&'a self, ledger: &'a Path, render_all: &'a Path) -> CheckOptions<'a> {
         CheckOptions {
             link_index: None,
+            external_links: None,
             ledger,
             algorithm: None,
             modules: None,

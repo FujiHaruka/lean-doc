@@ -634,6 +634,10 @@ fn full_generation(
         // ledger is computed **before** the extraction that writes it, and the
         // key is filled in from the finished file by [`write_ledger`].
         link_index: Some(&request.link_index),
+        // M7-b. See [`crate::external_links_digest`]: the key is in the ledger
+        // from now on, and M7-c is what makes its value depend on the package's
+        // dependencies rather than on nothing.
+        external_links: Some(&crate::external_links_digest()),
         algorithm: &Algorithm::sha256(),
         // The ledger's bytes do not depend on this (M3-a 【実測】); its speed
         // does. One is the pipeline's own choice too.
@@ -959,6 +963,10 @@ fn write_ledger(
         link_index_digest(Some(link_index))
             .map_err(refused)?
             .as_deref(),
+        // Not recomputed after the run, unlike the two above: the dependency
+        // link map is resolved from the manifest and the toolchain, and this
+        // command writes into neither.
+        Some(&crate::external_links_digest()),
     ));
     let body = ledger.to_json();
     write_file(path, &body)?;

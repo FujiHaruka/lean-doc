@@ -68,6 +68,12 @@ pub struct BuildOptions<'a> {
     /// exist, both leave the key absent — on a first `build` the ledger is
     /// computed *before* the extraction that writes the map.
     pub link_index: Option<&'a Path>,
+    /// The digest of the dependency **link** map — where each dependency's
+    /// source lives (M7-b, `lean_doc_render::ExternalLinks::digest`). A path
+    /// would be wrong here: the map is resolved from the target's manifest and
+    /// its toolchain rather than read from a file, so what the ledger can record
+    /// is its identity and nothing else. `None` leaves the key absent.
+    pub external_links: Option<&'a str>,
     pub algorithm: &'a Algorithm,
     pub concurrency: usize,
     pub timings: Option<&'a Path>,
@@ -102,6 +108,7 @@ pub fn build_ledger(options: &BuildOptions<'_>) -> Result<BuildSummary, Error> {
     let render = render_key(
         options.source_url,
         link_index_digest(options.link_index)?.as_deref(),
+        options.external_links,
     );
     let key_done = started.elapsed();
 
@@ -190,6 +197,9 @@ pub struct CheckOptions<'a> {
     /// different map". The half that cannot is the map this run's own extraction
     /// rewrites, and it is checked after the rounds by `crate::pipeline`.
     pub link_index: Option<&'a Path>,
+    /// The dependency **link** map's digest (M7-b). See
+    /// [`BuildOptions::external_links`].
+    pub external_links: Option<&'a str>,
     pub concurrency: usize,
     /// The re-extract set, one module per line. Empty file, not a blank line.
     pub changed_out: Option<&'a Path>,
@@ -281,6 +291,7 @@ pub fn check_ledger(options: &CheckOptions<'_>) -> Result<CheckSummary, Error> {
     let render = render_key(
         options.source_url,
         link_index_digest(options.link_index)?.as_deref(),
+        options.external_links,
     );
     let key_done = started.elapsed();
 

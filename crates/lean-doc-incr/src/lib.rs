@@ -43,6 +43,7 @@
 //!     ir: None,
 //!     source_url: "",
 //!     link_index: None,
+//!     external_links: None,
 //!     algorithm: &Algorithm::sha256(),
 //!     concurrency: 1,
 //!     timings: None,

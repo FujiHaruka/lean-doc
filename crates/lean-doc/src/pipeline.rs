@@ -407,6 +407,9 @@ pub fn run_incremental(
         // the ledger records. The other half — the map this run's own extractor
         // is about to rewrite — is [`map_before`] / the check after the rounds.
         link_index: Some(options.link_index),
+        // M7-b. See [`crate::external_links_digest`] — the same value `build`
+        // records, so the two commands' ledgers stay comparable.
+        external_links: Some(&crate::external_links_digest()),
         // The ledger's bytes do not depend on this (M3-a 【実測】); its speed
         // does, and a flag for it belongs with the rest of M4's tuning.
         concurrency: 1,

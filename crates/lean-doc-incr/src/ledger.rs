@@ -82,7 +82,12 @@ pub const EXTRACTOR_ID: &str = "lean-doc extractor v1";
 ///
 /// Bump the version when the renderer's output bytes can change with the IR
 /// held fixed.
-pub const RENDERER_ID: &str = "lean-doc renderer v1";
+///
+/// **v1 -> v2 (M7-b)**: the render key gained `externalLinks`, so a v1 ledger and
+/// a v2 one are not comparable — a ledger written before the key existed has no
+/// value for it, and "the key is absent" would otherwise be read as "the map did
+/// not move" for every page rendered without one.
+pub const RENDERER_ID: &str = "lean-doc renderer v2";
 
 /// The olean files a module can have, in the order they are hashed.
 pub const OLEAN_SUFFIXES: [&str; 3] = [".olean", ".olean.server", ".olean.private"];
@@ -379,8 +384,31 @@ pub fn extract_key(target: &str, ir: Option<&Path>) -> Result<KeySet, Error> {
 ///
 /// The cost is one hash of 8.5 MB per `detect`, ~11 ms with the `asm` feature
 /// this crate already needs for the olean hashes.
+///
+/// # `externalLinks` — the same hole one level out (M7-b)
+///
+/// The fourth input is where a **dependency's** source lives: `Mathlib` ->
+/// `…/mathlib4/blob/<rev>`, and eighteen more
+/// (`lean_doc_render::ExternalLinks`). It is an input to every page for the same
+/// reason the dependency map is — a bumped dependency moves a `rev`, which moves
+/// the href of every link into it — and it changes on exactly the occasion an
+/// incremental build runs, so a run whose only changed input was that map has to
+/// re-render rather than report success.
+///
+/// The identity is [`lean_doc_render::ExternalLinks::digest`], which is a
+/// function of what the map *resolves* rather than of how it was built: a
+/// resolver that reorders its scan must not re-render 432 pages for nothing.
+/// `None` leaves the key absent, and an appearing key is a change — the loud
+/// direction, as above.
+///
+/// [`lean_doc_render::ExternalLinks`]: ../lean_doc_render/struct.ExternalLinks.html
+/// [`lean_doc_render::ExternalLinks::digest`]: ../lean_doc_render/struct.ExternalLinks.html#method.digest
 #[must_use]
-pub fn render_key(source_url: &str, link_index: Option<&str>) -> KeySet {
+pub fn render_key(
+    source_url: &str,
+    link_index: Option<&str>,
+    external_links: Option<&str>,
+) -> KeySet {
     let mut key = KeySet::new();
     key.insert("renderer", RENDERER_ID);
     if !source_url.is_empty() {
@@ -388,6 +416,9 @@ pub fn render_key(source_url: &str, link_index: Option<&str>) -> KeySet {
     }
     if let Some(digest) = link_index {
         key.insert("linkIndex", digest);
+    }
+    if let Some(digest) = external_links {
+        key.insert("externalLinks", digest);
     }
     key
 }

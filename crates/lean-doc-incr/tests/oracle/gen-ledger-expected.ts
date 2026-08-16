@@ -32,7 +32,10 @@ const OUT = opt(
   new URL("../data/ledger-expected.json", import.meta.url).pathname,
 );
 const EXTRACTOR = opt("--extractor", "lean-doc extractor v1");
-const RENDERER = opt("--renderer", "lean-doc renderer v1");
+// Keep in step with `lean_doc_incr::RENDERER_ID`; `the_fixture_names_the_tree_it_
+// came_from` fails when they drift. Bumped to v2 in M7-b (the render key gained
+// `externalLinks`).
+const RENDERER = opt("--renderer", "lean-doc renderer v2");
 
 /** FNV-1a 64, the same digest the M1/M2 fixtures use. */
 function fnv1a64(bytes: Uint8Array): string {
