@@ -110,7 +110,12 @@ say "2/7 build the extractor inside the fixture's environment"
 # through the Lean interpreter (extractor/build.sh says the same thing).
 if [ -z "$EXTRACTOR" ]; then
   EXTRACTOR="$FIXTURE/.lake/e2e-extract/extract"
-  if [ ! -x "$EXTRACTOR" ]; then
+  # Rebuilt when the source is newer, not only when the binary is missing. The
+  # first version of this reused whatever was in `.lake/e2e-extract`, which means
+  # every gate below could pass against an extractor built before the change
+  # under test — "the contract between the extractor and Rust" is the one thing
+  # this script exists to check, and a stale binary makes it check nothing.
+  if [ ! -x "$EXTRACTOR" ] || [ "$ROOT/extractor/Extract.lean" -nt "$EXTRACTOR" ]; then
     mkdir -p "$FIXTURE/.lake/e2e-extract"
     (cd "$FIXTURE" && "$LAKE" env lean --root="$ROOT/extractor" \
       -o "$FIXTURE/.lake/e2e-extract/Extract.olean" \
@@ -299,7 +304,105 @@ if problems:
     sys.exit(1)
 PY
 
-say "8/8 summary"
+say "8/9 GATE 6 — one edited module does not re-render the package"
+# The question the other five cannot ask. GATE 2 asks what an *unchanged* world
+# costs; this asks what a one-declaration edit costs, which is the shape a user
+# actually produces and the one where the dependency map used to force every page
+# to be written again (`docs/plans/reextract-count.md` §6, 段 C).
+#
+# Three assertions, and the first is the sharp one:
+#
+#   the map does not move       `link-index.lidx` is byte-identical across the
+#                               edit. It is the *cause*: its SHA-256 is a
+#                               `renderKey` input (`lean-doc-incr/src/ledger.rs`
+#                               `render_key`), and a moved `renderKey` overrides
+#                               --mode to `all` (`lean-doc-incr/src/impact.rs`).
+#                               This fails on any extractor that writes the
+#                               package's own declarations into the map.
+#   fewer pages than modules    the *effect*. An inequality rather than a number:
+#                               the fixture's import graph is allowed to grow,
+#                               and pinning "1" would make this script the place
+#                               that argument has to happen.
+#   the tree is a whole render  the *oracle*. Under-rendering is silent, so a
+#                               page count on its own is not evidence. What the
+#                               incremental run left on disk has to be what a
+#                               whole render of its own IR writes.
+PROBE="$FIXTURE/Micro/Basic.lean"
+cp "$PROBE" "$OUT/probe.orig"
+# `set -e` must not leave the fixture edited: everything below this line runs
+# under a trap that puts the file back, including the failure paths.
+restore_probe () { [ -f "$OUT/probe.orig" ] && cp "$OUT/probe.orig" "$PROBE"; }
+trap restore_probe EXIT
+
+cp "$OUT/first/link-index.lidx" "$OUT/lidx-before"
+printf '\n/-- A probe appended by GATE 6; removed before this script exits. -/\ndef e2eGate6Probe_ : Nat := 13\n' >> "$PROBE"
+(cd "$FIXTURE" && "$LAKE" build)
+
+"$LEAN_DOC" build --root "$FIXTURE" --lib Micro --out "$OUT/first" \
+  --extractor-bin "$EXTRACTOR" | tee "$OUT/edited.log"
+
+restore_probe
+(cd "$FIXTURE" && "$LAKE" build)
+
+if ! cmp -s "$OUT/lidx-before" "$OUT/first/link-index.lidx"; then
+  echo "GATE 6: link-index.lidx moved for a one-declaration edit" >&2
+  /usr/bin/diff "$OUT/lidx-before" "$OUT/first/link-index.lidx" | head -6 >&2
+  exit 1
+fi
+
+# `site` writes the pages and the global artefacts; the static assets `build`
+# copies are not its business, so a name present on one side only is not a
+# difference here — a *shared* name whose bytes differ is.
+EDITED_URL="$(python3 - "$OUT/edited.log" <<'PY'
+import re
+import sys
+
+text = open(sys.argv[1], encoding="utf-8").read()
+found = re.search(r"^source  (\S+://\S+)$", text, re.M)
+print(found.group(1) if found else "")
+PY
+)"
+[ -n "$EDITED_URL" ] || { echo "GATE 6: no source URL in the edited run's log" >&2; exit 1; }
+rm -rf "$OUT/gate6-oracle" "$OUT/gate6-state"
+"$LEAN_DOC" site --ir "$OUT/first/ir" --out "$OUT/gate6-oracle" \
+  --source-url "$EDITED_URL" --link-index "$OUT/first/link-index.lidx" \
+  --state "$OUT/gate6-state" --root "$FIXTURE" >"$OUT/gate6-oracle.log"
+gate6_diff="$(/usr/bin/diff -r -q "$OUT/gate6-oracle" "$OUT/first/site" | grep -v '^Only in' || true)"
+if [ -n "$gate6_diff" ]; then
+  echo "GATE 6: the incremental tree is not what a whole render of its IR writes" >&2
+  printf '%s\n' "$gate6_diff" | head -10 >&2
+  exit 1
+fi
+
+python3 - "$OUT/first/lean-doc-build.json" <<'PY'
+import json
+import sys
+
+record = json.load(open(sys.argv[1], encoding="utf-8"))
+modules = record["modules"]
+rendered = record["work"]["pagesRendered"]
+extracted = record["work"]["modulesExtracted"]
+# Both bounds matter. Zero pages would mean the edit was not noticed at all,
+# which the oracle above would also catch but which deserves its own sentence;
+# `modules` pages would mean 段 C did not take.
+if not 1 <= rendered < modules:
+    print(
+        f"GATE 6 FAIL  work.pagesRendered is {rendered} for {modules} module(s) — "
+        "expected at least one and fewer than all",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+if extracted < 1:
+    print(
+        f"GATE 6 FAIL  work.modulesExtracted is {extracted} — the edited module "
+        "was not re-extracted",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+print(f"{'edited':12} {json.dumps(record['work'], sort_keys=True)}")
+PY
+
+say "9/9 summary"
 printf 'site files : %s\n' "$(find "$OUT/first/site" -type f | wc -l | tr -d ' ')"
 printf 'ir files   : %s\n' "$(find "$OUT/first/ir" -type f | wc -l | tr -d ' ')"
 printf 'out        : %s\n' "$OUT"

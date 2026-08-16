@@ -1,0 +1,47 @@
+# 段 C の after — 依存写像から自パッケージの宣言群を外した後 (2026-08-17)
+
+機材 M1 / Darwin 25.6.0 / 対象 lean-projects c4f6af29 / lean-doc 54239be
+before は g3-baseline-onemod-2026-08-17.txt (同一機材・同一手順・同一セッション)
+
+## オラクル (verc1/report.txt)
+```
+増分ツリー vs 同じ IR の全描画   差分 0 ファイル
+陽性対照 (編集前 IR vs 増分ツリー) 差分 4 ファイル   ← 比較器は差を見ている
+link-index.lidx                   1 モジュール変更を跨いで BYTE 不動
+                                  sha256 a259847bd2b7a2bf / 10,098,730 B
+```
+
+10,098,730 B は切り分け実験の deps 変種と**同一バイト数**
+(lidx-own-half-2026-08-17.txt)。別経路で同じ地図に着いている。
+
+## 決定的な整数 — before / after
+```
+                     before   after
+再抽出モジュール数        1       1
+再描画ページ数          422       1     ← 段 C の取り分
+IR 全読み回数       4.00 pass 4.00 pass  ← 動かない (予測が外れた)
+抽出器プロセス            1       1
+linkIndex の宣言数  255,809  251,225   (自パッケージ 4,584 を除いた)
+```
+
+## 壁時計 — warm 9 回 (add1 を除く)
+```
+add1 incremental in 8.1290 s linkIndex 1.964s ready 3401152959
+del1 incremental in 6.4264 s linkIndex 1.238s ready 3259259542
+add2 incremental in 6.0810 s linkIndex 1.410s ready 2728252375
+del2 incremental in 6.3694 s linkIndex 1.286s ready 3172427209
+add3 incremental in 6.2282 s linkIndex 1.224s ready 3051851958
+del3 incremental in 5.8491 s linkIndex 1.409s ready 2526551083
+add4 incremental in 5.8804 s linkIndex 1.465s ready 2482825250
+del4 incremental in 7.0730 s linkIndex 1.810s ready 3273443167
+add5 incremental in 5.8046 s linkIndex 1.326s ready 2517602541
+del5 incremental in 7.4979 s linkIndex 1.534s ready 3995390958
+```
+
+after  5.804 〜 7.498 s、中央値 約 6.23 s
+before 5.897 〜 6.662 s、中央値 約 6.24 s
+
+**壁時計では区別できない。** 422 ページの描画がこの対象では約 0.3〜0.5 s しかなく、
+総時間 6.2 s は環境ロード (2.7〜3.4 s) と依存写像の書き出し (1.2〜1.8 s) が占めている。
+段 C の取り分は決定的な整数 (422 → 1) と、地図が動かなくなったことそのもの。
+壁時計を動かすのは次の段 D (linkIndex 位相の除去)。
