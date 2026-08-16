@@ -2,14 +2,13 @@
 # in the SAME job as `lake build`, and in a SEPARATE job, on a real runner.
 #
 # WHAT IS ALREADY MEASURED, AND WHAT IS NOT
-#   `docs/approach.md` §3 and §8 say the first move against a cold environment
-#   load is placement, and cite a Linux measurement: the same import took
-#   **2.61 s with `lake build` in the same job and 20-89 s without it**. That
-#   number is `importModules` **alone**, taken by `ci-import-modules.yml`. What
-#   has never been measured on a runner is the thing a user actually pays: the
-#   whole `lean-doc build` — extract, render, global index — under the two
-#   placements. Every end-to-end number in README and in the milestone log is
-#   from an Apple M1 laptop with a warm page cache, and says so.
+#   `docs/approach.md` §3 and §8 used to say a split job costs **8-34x**, citing
+#   `importModules` **alone** on a 2-core / 7.75 GiB runner (`ci-import-modules.yml`).
+#   This workflow measured the thing a user actually pays — the whole
+#   `lean-doc build` — under both placements, and **that ratio did not reproduce**:
+#   **1.08-1.58x** on the 4-core / 15.6 GiB runner, n=5
+#   【run 31956756819, 2026-08-16 → docs/verification-log.md】. The mechanism
+#   survived; the premise that a split job starts cold did not.
 #
 # THE THREE ARMS
 #   same   cache get -> lake build -> lean-doc build, one runner, one page cache.

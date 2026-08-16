@@ -19,16 +19,25 @@
 # WHY `lake build` AND THE DOCS ARE IN THE SAME JOB  【実測 → approach.md §3, §8】
 # ============================================================================
 #   The extractor's floor is loading the Lean environment, and that cost is I/O,
-#   not Lean: on a Linux runner the same import took **2.61 s when `lake build`
-#   had run in the same job and 20-89 s when it had not** — 8-34x, decided by
-#   whether the oleans were still in the page cache. A separate "docs" job
-#   starts on a fresh runner with a cold cache and pays the high side even
-#   though `actions/cache` restored the same bytes.
+#   not Lean: what decides it is whether the oleans are in the page cache. How
+#   much a split job costs depends on the runner's memory, and the answer has
+#   changed once already:
 #
-#   So the placement is the point of this script: `lake build` first, then
-#   `lean-doc build`, in one job, one runner, one page cache. Splitting them is
-#   the single change that can make documentation generation an order of
-#   magnitude slower without anything looking broken.
+#     2 cores / 7.75 GiB (2026-08-10)  same job 2.61 s, split 20-89 s = 8-34x
+#     4 cores / 15.6 GiB (2026-08-16)  same job 2.4-2.6 s, split 2.5-2.9 s
+#                                      = **1.08-1.58x**, n=5, product end to end
+#     same runner, cache dropped       13.5-22.3 s = **5.2-11.9x** (the control)
+#
+#   A separate "docs" job does NOT reliably start cold: it writes the oleans
+#   itself, with `lake exe cache get` and whatever restores the package's build,
+#   and on a runner with room they stay resident. The 8-34x was a consequence of
+#   7.75 GiB, not of the split.
+#
+#   The placement is still the point of this script — `lake build` first, then
+#   `lean-doc build`, one job, one runner, one page cache — but for the reason
+#   the control gives, not the one the first measurement suggested: **the cold
+#   penalty is 5-12x, and whether a split job is cold depends on the runner's
+#   RAM against the package's working set.** One job does not have to ask.
 #
 # ============================================================================
 # HOW MATHLIB'S OLEANS ARE OBTAINED  — `lake exe cache get`, and why it is a flag
@@ -63,8 +72,8 @@
 #   Cost, measured: **14.90 s wall / 10.07 s user, peak RSS 1.52 GB** on an
 #   Apple M1 with a warm page cache 【実測 2026-08-15】. It is cached because it
 #   does not change between commits, not because it is enormous — on a cold
-#   runner the environment import inside it is the 2.61-89 s spread above, and
-#   that is the part that is not measured here.
+#   runner the environment import inside it is the spread above, and that is the
+#   part that is not measured here.
 #
 #   Same measurement, one thing worth knowing: built against a *different*
 #   package (the same toolchain and the same `.lake/packages`), the binary came
@@ -210,8 +219,9 @@ fi
 
 # ------------------------------------------------------------------ 2 lake build
 #
-# The placement this whole script exists for. It is also the step that decides
-# whether the extractor's imports are a 2.61 s read or a 20-89 s one.
+# The placement this whole script exists for. It is also the step that puts the
+# oleans in the page cache, which is what the import's cost turns on — 2.4-2.6 s
+# resident against 13.5-22.3 s with the cache dropped 【実測 n=5】.
 step "2/5  lake build"
 t="$(now)"
 if [ "$LAKE_BUILD" = 1 ]; then

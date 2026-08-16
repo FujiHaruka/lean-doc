@@ -173,11 +173,19 @@ toolchain が変わったらビルドし直す (だから配布もできない�
 
 ## CI に置く
 
-**`lake build` と同じジョブに置くこと。** これが第一の打ち手で、理由は Lean の速度ではなく
-I/O — 同じ import が **同じジョブなら 2.61 s、別ジョブなら 20〜89 s (8〜34 倍)**
-【実測、Linux ランナー → [`docs/approach.md`](docs/approach.md) §3】。決めているのは
-olean が page cache に残っているかどうかで、`actions/cache` では代わりにならない
-(復元されるのはディスク上のバイトで、新しいランナーの page cache は空)。
+**`lake build` と同じジョブに置くこと。** 理由は Lean の速度ではなく I/O で、決めているのは
+olean が page cache に残っているかどうか。**罰則の大きさはランナーの RAM で決まる**
+【実測、Linux ランナー n=5 → [`docs/approach.md`](docs/approach.md) §3】:
+
+| | 環境ロード |
+|---|---|
+| 同じジョブ / 別ジョブ (4 コア / 15.6 GiB、2026-08-16) | 2.4〜2.6 s / 2.5〜2.9 s = **1.08〜1.58 倍** |
+| 同じランナーで page cache を落とす (陽性対照) | **13.5〜22.3 s = 5.2〜11.9 倍** |
+| 別ジョブ (2 コア / 7.75 GiB、2026-08-10) | 20〜89 s = 8〜34 倍 |
+
+**別ジョブが cold になるとは限らない** — 別ジョブも `lake exe cache get` と
+キャッシュ復元で olean を**自分で書く**ので、RAM が足りればそのまま page cache に残る。
+同じジョブに置くのは、**その比を問わなくて済ませる**ため。
 
 - **[`tools/ci-build.sh`](tools/ci-build.sh)** — コマンドの実体。
   `lake exe cache get` (任意) → `lake build` → 抽出器 → cargo → `lean-doc build` を
@@ -207,8 +215,10 @@ olean が page cache に残っているかどうかで、`actions/cache` では�
 せず `--out` だけ新規) では `lean-doc build` が 3.875 s も出ている。
 
 出たサイト 19 ファイルは、同じ IR からの `lean-doc site` と `/usr/bin/diff -r` で
-**差分 0**【実測】。**CI ランナーは page cache が cold 側なので、この数字は下限**
-(cold がどれだけ効くかは §3 の 2.61 s / 20〜89 s が示す範囲)。
+**差分 0**【実測】。**CI ランナーでの同じコマンドの実測は `docs/verification-log.md`
+「CI 軸 (2026-08-16)」にある** — 4 コア / 15.6 GiB で `lean-doc build` は **11.5〜20.7 s**
+(422 モジュール、n=5)。**「ランナーは cold 側だからこれは下限」は成り立たなかった**
+(page cache に載るため)。
 抽出器のビルドは別測定で **14.90 s wall / 10.07 s user / peak RSS 1.52 GB**【実測、warm】
 — キャッシュする理由は大きさではなく、**パッケージのコミットでは変わらない**こと。
 
@@ -272,8 +282,12 @@ doc-gen4 が読んでいた CDN 4 本 (Lato / JuliaMono / polyfill / MathJax) �
    解決が外れうる。**それを名指しする docstring を持つ対象で測っていない。**
 5. **「同名宣言を複数モジュールが持つ形」** — 対象 1 には 25 件あるが、第 2 の対象で
    **再現できなかった** (equation lemma を強制しても blacklist で IR に出ない)。**測れていない。**
-6. **CI ランナーが cold 側かどうか** — 「同じジョブ 2.61 s / 別ジョブ 20〜89 s」は
-   Linux ランナーでの実測だが、**この製品構成での CI 実走はない**。
+6. **CI ランナーが cold 側かどうか** — **測った。cold 側ではなかった**【実測 2026-08-16、
+   n=5、[run 31956756819](https://github.com/FujiHaruka/lean-doc/actions/runs/31956756819)】。
+   別ジョブでも major fault は 3 桁以下で、環境ロードは同じジョブの 1.08〜1.58 倍にしかならない。
+   **未検証として残るのはこの先**: 測ったのは **1 ワークロード** (422 モジュール /
+   peak RSS 約 4.0 GB / 15.6 GiB のランナー) だけで、**より大きいパッケージや RAM の
+   小さいランナーでは cold 側に戻りうる** (同じランナーで page cache を落とすと 5.2〜11.9 倍)。
 7. **Lean のバージョン差** — 動作を確認したのは **v4.31.0 のみ**
    (Mathlib `fabf563a7c95`)。あらゆるバージョンへの後方互換は**意図的にやらない**。
 8. **fenced code block 中の NUL** — MD4Lean が SIGSEGV する入力なので**合わせる相手が

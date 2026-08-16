@@ -31,13 +31,22 @@
 # THE ONE THING NOT TO CHANGE: ONE JOB  【実測 → docs/approach.md §3, §8】
 # ============================================================================
 #   `lake build` and the documentation build must stay in the SAME job. The
-#   extractor's floor is importing the environment, and that is I/O: on a Linux
-#   runner the same import measured **2.61 s with `lake build` in the same job
-#   and 20-89 s without it** — 8 to 34 times, decided by whether the oleans were
-#   still in the page cache. `actions/cache` does not help; a restored cache is
-#   bytes on disk, and a fresh runner's page cache is empty. Splitting the docs
-#   into their own job is the change that costs an order of magnitude while
-#   everything still looks green.
+#   extractor's floor is importing the environment, and that is I/O: what decides
+#   it is whether the oleans are in the page cache.
+#
+#   **How much a split costs depends on the runner's memory**, and that has
+#   already changed once 【実測】:
+#
+#     2 cores / 7.75 GiB (2026-08-10)  same job 2.61 s / split 20-89 s = 8-34x
+#     4 cores / 15.6 GiB (2026-08-16)  same job 2.4-2.6 s / split 2.5-2.9 s
+#                                      = 1.08-1.58x  (n=5, end to end)
+#     same runner, cache dropped       13.5-22.3 s = 5.2-11.9x  (the control)
+#
+#   So a separate docs job is NOT reliably cold — it writes the oleans itself
+#   (`lake exe cache get`, and whatever restores the build), and on a runner with
+#   room they stay resident. Keep one job anyway: the **cold** penalty is 5-12x,
+#   and whether your runner is cold depends on its RAM against your package's
+#   working set. One job does not have to ask that question.
 #
 # ============================================================================
 # THE THREE CACHES, AND WHAT EACH IS KEYED ON
