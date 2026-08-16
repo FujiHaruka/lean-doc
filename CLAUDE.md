@@ -24,6 +24,8 @@ GitHub Actions を無料枠で回すこと)。計測対象の `lean-projects` �
 | `docs/provenance.md` | doc-gen4 / 第三者コードの由来判定とライセンス上の義務。**由来判定の SoT** |
 | `benchmarks/` | 実測レポート・計装パッチ・ツール・生ログ。**数字の出所** |
 | `crates/` | **製品コード (Rust)**。マイルストーン M1〜M6 で埋まる |
+| `e2e/micro/` | **e2e フィクスチャ** — Mathlib に依存しない Lean パッケージ。**対象が持たない宣言の形**を構成として持つ (→ `e2e/README.md`) |
+| `tools/*-gate.sh` | **ゲート** = 機材・対象・toolchain を要する判定。`cargo test` は機材ゼロ依存のものだけ |
 | `.claude/handoff.md` | セッション間の引き継ぎ (tracked、コミットする) |
 
 Lean 側のビルドは `lake env` で計測対象リポジトリの環境を借りる — lean-doc 側に toolchain も

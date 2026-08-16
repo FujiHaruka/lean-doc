@@ -1,0 +1,11 @@
+# The e2e fixture package: Lean core only, no Mathlib, no dependencies at all.
+#
+# `lean-doc modules --root --lib` reads this file, so the shape matters: a
+# `[[lean_lib]]` block with a `name` key is the one shape `crates/lean-doc/src/
+# lakefile.rs` recognises, and this fixture is also what proves it recognises it.
+name = "micro"
+version = "0.1.0"
+defaultTargets = ["Micro"]
+
+[[lean_lib]]
+name = "Micro"

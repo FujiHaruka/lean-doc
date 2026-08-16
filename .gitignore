@@ -8,6 +8,11 @@ node_modules/
 # regenerable with extractor/build.sh; Extract.lean is the source and is committed)
 /extractor/build/
 
+# Lake's build output for the e2e fixture package. The sources are committed and
+# `lake build` over them takes about a second — the whole reason the fixture
+# depends on Lean core and nothing else.
+/e2e/*/.lake/
+
 # session-local scratch
 .claude/.resume-pending
 .claude/worktrees/
