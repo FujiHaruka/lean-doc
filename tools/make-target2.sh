@@ -20,10 +20,11 @@
 #   `lake update` needs the network and would pick today's Mathlib; this package
 #   has to be built against **the same Mathlib the measurement target uses**
 #   (`fabf563a7c95`, Lean v4.31.0) or its numbers are not comparable with any
-#   other number in this repository. So `lake-manifest.json`, `lean-toolchain`
-#   and the `[[require]]` blocks are copied verbatim from the measurement target
-#   in **both** modes below, and the revisions are pinned by that manifest rather
-#   than by anything this script decides.
+#   other number in this repository. So `lake-manifest.json` and `lean-toolchain`
+#   are copied verbatim from the measurement target in **both** modes below, the
+#   `[[require]]` block is derived from that manifest (see the lakefile section),
+#   and the revisions are pinned by the manifest rather than by anything this
+#   script decides.
 #
 # HOW THE DEPENDENCIES GET THERE — TWO MODES  (`--deps`)
 #   clone   an **APFS clonefile copy** (`cp -Rc`) of the measurement target's
@@ -156,28 +157,42 @@ cp "$SRC/lake-manifest.json" "$OUT/lake-manifest.json"
 # block would document half the package and report success — the silent
 # under-read that file is written against. Here it has two to find.
 #
-# The `[[require]]` blocks are the target's, verbatim: they have to agree with
-# the copied `lake-manifest.json` or Lake re-resolves them, which needs the
-# network and would move Mathlib.
+# THE `[[require]]` BLOCK IS DERIVED FROM THE MANIFEST, NOT WRITTEN HERE
+#   Lake refuses a `[[require]]` the manifest does not pin, and the measurement
+#   target's manifest is not this script's to keep still. It used to be copied
+#   verbatim — loogle, mathlib and doc-gen4 — and on 2026-08-16 the target moved
+#   its development tools behind a condition (`c4f6af29`), so `doc-gen4` left the
+#   manifest and the copy became a lakefile Lake will not resolve:
+#   **`error: dependency '«doc-gen4»' not in manifest`**【実測 2026-08-16, CI】.
+#   The clone path never saw it, because it never asks Lake to resolve anything.
+#
+#   Only mathlib is required: it is the only dependency these sources import.
+#   The other eight entries in the manifest are mathlib's own transitive set,
+#   which Lake reads from the same file.
+command -v jq > /dev/null || { echo "jq is required to read the copied manifest" >&2; exit 1; }
+MATHLIB_SCOPE="$(jq -r '.packages[] | select(.name == "mathlib") | .scope // ""' "$OUT/lake-manifest.json")"
+MATHLIB_REV="$(jq -r '.packages[] | select(.name == "mathlib") | .inputRev // .rev // ""' "$OUT/lake-manifest.json")"
+[ -n "$MATHLIB_REV" ] || {
+  echo "the copied manifest pins no mathlib: $OUT/lake-manifest.json" >&2
+  exit 1
+}
+echo "### mathlib from the target's manifest: scope='$MATHLIB_SCOPE' rev='$MATHLIB_REV'"
+
 cat > "$OUT/lakefile.toml" <<'TOML'
 name = "target2"
 version = "0.1.0"
 defaultTargets = ["Alpha", "Beta"]
+TOML
 
-[[require]]
-name = "loogle"
-git = "https://github.com/nomeata/loogle"
-rev = "3a988dbfa601ddbbfd9330d90c45e7a68263b9c7"
+cat >> "$OUT/lakefile.toml" <<TOML
 
 [[require]]
 name = "mathlib"
-scope = "leanprover-community"
-rev = "v4.31.0"
+scope = "$MATHLIB_SCOPE"
+rev = "$MATHLIB_REV"
+TOML
 
-[[require]]
-name = "doc-gen4"
-git = "https://github.com/leanprover/doc-gen4"
-rev = "v4.31.0"
+cat >> "$OUT/lakefile.toml" <<'TOML'
 
 [[lean_lib]]
 name = "Alpha"

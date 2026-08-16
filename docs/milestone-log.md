@@ -1075,12 +1075,24 @@ UnicodeBasic ⊆ V8 なので「和」と「V8 のみ」は等価なプログラ
 `tools/target2-gate.sh all` を実走 (Apple M1 / 16 GB / Lean v4.31.0 / Mathlib `fabf563a` /
 target2 HEAD `18a02d58`、`--jobs 4`)。**判定は全段 PASS**:
 
-**この target2 HEAD は現在の HEAD からは再現しない**【実測 2026-08-17】 — 計測対象が
-2026-08-16 に `lake-manifest.json` / `lakefile.lean` を変えており (`c4f6af29`「v1 配布準備:
-ビルド済み olean のリリース配布 + 開発ツールを条件付き依存へ」)、`make-target2.sh` はそれを
-写すので、いま生成すると target2 の HEAD は **`525bbdb4`** になる。**下の数字は当時の入力に
-対する実測として有効**だが、同じバイトを作り直すには計測対象を `c4f6af29` より前に戻す必要が
-ある。**`--source-url` は revision を運びページのバイトに届く**ので、これは表示上の差ではない。
+**この target2 HEAD は現在の HEAD からは再現しない**【実測 2026-08-17】。理由は 2 つあり、
+2 つ目は 1 つ目が壊れて初めて見えた:
+
+1. 計測対象が 2026-08-16 に `lake-manifest.json` / `lakefile.lean` を変えた
+   (`c4f6af29`「v1 配布準備: ビルド済み olean のリリース配布 + **開発ツールを条件付き依存へ**」)。
+   `make-target2.sh` は toolchain と manifest を写すので、写した内容が変わった。
+2. その manifest から **doc-gen4 と loogle が消えた**のに、`make-target2.sh` の
+   `[[require]]` は 3 本ハードコードされたままだった。**clone 経路は Lake に解決を
+   一度も頼まないので気づけない** — CI で `--deps fetch` を初めて通した瞬間に
+   **`error: dependency '«doc-gen4»' not in manifest`** で落ちた【実測 2026-08-16、
+   run 31955697828】。**要件は「manifest と一致すること」だったのに、一致は願望で
+   ハードコードは事実**だった。いまは `[[require]]` を manifest から導出し、mathlib
+   1 本だけにしてある (これらのソースが import する唯一の依存)。
+
+いま生成すると target2 の HEAD は **`0a072ea2`**、`lake build` は 132 ジョブで成功【実測】。
+**下の数字は当時の入力に対する実測として有効**だが、同じバイトを作り直すには計測対象を
+`c4f6af29` より前に戻し、`[[require]]` を当時の 3 本に戻す必要がある。**`--source-url` は
+revision を運びページのバイトに届く**ので、これは表示上の差ではない。
 
 | | 結果 |
 |---|---|
