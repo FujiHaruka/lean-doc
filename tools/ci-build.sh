@@ -236,7 +236,14 @@ fi
 # ------------------------------------------------------------------ 3 extractor
 step "3/5  the extractor (Lean)"
 t="$(now)"
-if [ -x "$EXTRACTOR_BIN" ]; then
+# "It exists" is not "it is the one this checkout describes". The workflow's
+# cache key for this binary does hash `extractor/Extract.lean`, so a stale one
+# cannot normally be restored under a matching key — but this script is also run
+# by hand, where nothing enforces that, and the failure is silent: every number
+# below would describe an extractor nobody is looking at. So the source decides,
+# not the presence of a file. `-nt` and not a rebuild every time because
+# `extractor/build.sh` is ~16 s.
+if [ -x "$EXTRACTOR_BIN" ] && [ ! "$REPO/extractor/Extract.lean" -nt "$EXTRACTOR_BIN" ]; then
   echo "cached: $EXTRACTOR_BIN"
   record extractor "$(elapsed "$t" "$(now)")" "cached"
 elif [ "$EXTRACTOR_BIN" = "$REPO/extractor/build/extract" ]; then
@@ -252,12 +259,25 @@ fi
 # ------------------------------------------------------------------ 4 lean-doc
 step "4/5  the lean-doc binary (Rust)"
 t="$(now)"
-if [ -x "$LEAN_DOC_BIN" ]; then
-  echo "cached: $LEAN_DOC_BIN"
-  record cargo "$(elapsed "$t" "$(now)")" "cached"
-elif [ "$LEAN_DOC_BIN" = "$REPO/target/release/lean-doc" ]; then
+# **Always ask cargo**, rather than skipping it because the file is there.
+#
+# The workflow's cache key for `target/` is `hashFiles('lean-doc/Cargo.lock')`,
+# which does not move when lean-doc's *sources* do — so "the binary exists" was
+# true of a binary built from a different commit, and the run measured code
+# nobody had written yet【実測 2026-08-17, runs 31963079828 / 31963305864: both
+# built the current extractor and ran a `lean-doc` from before 段 C, and the
+# one-module gate is what noticed】. Cargo is the tool that knows whether the
+# binary matches the sources; a shell `-x` test is not. A fresh tree costs ~0.2 s
+# here, which is the whole price of never asking that question wrong again.
+#
+# An explicit --lean-doc-bin is taken as given: the caller named a file outside
+# this checkout and this script has no standing to rebuild it.
+if [ "$LEAN_DOC_BIN" = "$REPO/target/release/lean-doc" ]; then
   (cd "$REPO" && cargo build --release -p lean-doc)
   record cargo "$(elapsed "$t" "$(now)")" "built"
+elif [ -x "$LEAN_DOC_BIN" ]; then
+  echo "given: $LEAN_DOC_BIN (--lean-doc-bin, taken as it is)"
+  record cargo "$(elapsed "$t" "$(now)")" "given"
 else
   echo "no lean-doc binary at $LEAN_DOC_BIN" >&2
   exit 1
