@@ -516,10 +516,11 @@ fn a_dependency_map_moves_exactly_the_links_into_the_dependency() {
 /// All 432 pages, against the tree the prototype wrote — by content since
 /// M8-b, exactly as the curated cases above.
 ///
-/// Skipped unless the reference tree is present. This is the same comparison
-/// `tools/render-compare.sh` makes; it is here so that `cargo test` on a
-/// machine that has the corpus does not need the shell script.
+/// `#[ignore]`d: the reference tree is not in this repository. This is the same
+/// comparison `tools/render-compare.sh` makes; it is here so that a machine
+/// that has the corpus does not need the shell script.
 #[test]
+#[ignore = "corpus: needs LEAN_DOC_REFERENCE_PAGES + LEAN_DOC_IR + LEAN_DOC_LINK_INDEX (tools/corpus-gate.sh)"]
 fn pages_carry_the_reference_trees_content() {
     let reference = PathBuf::from(
         std::env::var("LEAN_DOC_REFERENCE_PAGES").unwrap_or_else(|_| DEFAULT_REFERENCE.into()),
@@ -532,15 +533,15 @@ fn pages_carry_the_reference_trees_content() {
     // swept, and an emptied `ref-pages` leaves its directory behind. `is_dir()`
     // said yes to that and the comparison then failed for an environmental
     // reason — the same trap `lean-doc-incr/tests/impact.rs` documents.
-    if file_count(&reference) == 0 || file_count(&ir) == 0 || !lidx.is_file() {
-        eprintln!(
-            "skipping: no corpus (empty or missing: {} / {} / {})",
-            reference.display(),
-            ir.display(),
-            lidx.display(),
-        );
-        return;
-    }
+    assert!(
+        file_count(&reference) != 0 && file_count(&ir) != 0 && lidx.is_file(),
+        "no corpus (empty or missing: {} / {} / {}): set LEAN_DOC_REFERENCE_PAGES, LEAN_DOC_IR \
+         and LEAN_DOC_LINK_INDEX, or run this test through tools/corpus-gate.sh, which is the \
+         only thing that should be asking for it",
+        reference.display(),
+        ir.display(),
+        lidx.display(),
+    );
     let e = expected();
     let work = TempDir::new("reference");
     let summary = render_site(&RenderOptions {
@@ -586,7 +587,7 @@ fn pages_carry_the_reference_trees_content() {
     let got = collapse(got, &mut ours);
     // The prototype linked every source path it saw; this run links the ones
     // whose path names exactly one known module and leaves the rest as text. The
-    // two counts are **not pinned** here: this test is skipped without a
+    // two counts are **not pinned** here: this test does not run without a
     // reference tree, so a number written into it could not be re-measured on
     // the machine that changes the rule. Where the exact counts live: the
     // sample in `tests/autolink.rs`, and the site scan in
@@ -661,19 +662,20 @@ fn pages_carry_the_reference_trees_content() {
 /// `ext` / `ext_iff` and a `_def`), and the assertion below is the precise one:
 /// the two orders visit the same *positions* in the same order.
 #[test]
+#[ignore = "corpus: needs LEAN_DOC_DOCGEN4_TREE + LEAN_DOC_IR (tools/corpus-gate.sh)"]
 fn pages_carry_the_doc_gen4_trees_declarations() {
     let tree = PathBuf::from(
         std::env::var("LEAN_DOC_DOCGEN4_TREE").unwrap_or_else(|_| DEFAULT_DOCGEN4_TREE.into()),
     );
     let ir = PathBuf::from(std::env::var("LEAN_DOC_IR").unwrap_or_else(|_| DEFAULT_IR.into()));
-    if file_count(&tree) == 0 || file_count(&ir) == 0 {
-        eprintln!(
-            "skipping: no doc-gen4 tree or IR (empty or missing: {} / {})",
-            tree.display(),
-            ir.display(),
-        );
-        return;
-    }
+    assert!(
+        file_count(&tree) != 0 && file_count(&ir) != 0,
+        "no doc-gen4 tree or IR (empty or missing: {} / {}): set LEAN_DOC_DOCGEN4_TREE and \
+         LEAN_DOC_IR, or run this test through tools/corpus-gate.sh, which is the only thing \
+         that should be asking for it",
+        tree.display(),
+        ir.display(),
+    );
 
     // Where each declaration sits, so a disagreement about order can be told
     // apart from a disagreement about content.

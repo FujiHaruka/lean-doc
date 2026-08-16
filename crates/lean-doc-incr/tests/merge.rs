@@ -1159,22 +1159,31 @@ fn dep_mapping_of(tree: &Tree) -> BTreeMap<String, BTreeMap<String, String>> {
 
 // --------------------------------------------------------------- the corpus
 
-fn corpus() -> Option<(PathBuf, PathBuf)> {
+/// The base IR and the harness's own fixtures, or a panic naming what to set.
+///
+/// Every caller is `#[ignore]`d, so reaching this function at all means the
+/// corpus gate asked for the test by name. Returning "not here, never mind"
+/// there would be a green result for a comparison that never ran.
+fn corpus() -> (PathBuf, PathBuf) {
     let base =
         PathBuf::from(std::env::var("LEAN_DOC_BASE_IR").unwrap_or_else(|_| DEFAULT_BASE_IR.into()));
     let fixtures = PathBuf::from(
         std::env::var("LEAN_DOC_MERGE_FIXTURES")
             .unwrap_or_else(|_| format!("{DEFAULT_REFERENCE}/fixtures")),
     );
-    if !base.is_dir() || !fixtures.is_dir() {
-        eprintln!(
-            "skipping: no base IR at {} or no fixtures at {} — run tools/merge-reference.sh --impl ts",
-            base.display(),
-            fixtures.display()
-        );
-        return None;
-    }
-    Some((base, fixtures))
+    assert!(
+        base.is_dir(),
+        "no base IR at {}: set LEAN_DOC_BASE_IR, or run this test through tools/corpus-gate.sh, \
+         which is the only thing that should be asking for it",
+        base.display()
+    );
+    assert!(
+        fixtures.is_dir(),
+        "no fixtures at {}: set LEAN_DOC_MERGE_FIXTURES, or run this test through \
+         tools/corpus-gate.sh, which builds them with tools/merge-reference.sh --impl ts",
+        fixtures.display()
+    );
+    (base, fixtures)
 }
 
 /// One round of the pipeline: `ownership`, then `merge`, over one edit.
@@ -1189,26 +1198,40 @@ struct Round<'a> {
     exclude: Option<PathBuf>,
 }
 
+/// The shape of the prototype's answers, pinned **whether or not the corpus is
+/// on this machine**, so the numbers in the report have a home.
+///
+/// Split out of [`the_corpus_matches_the_prototype`], which needs the base IR
+/// and the harness's fixtures and is therefore `#[ignore]`d: a fixture that
+/// quietly lost a round, or was taken against a different package, has to be
+/// caught on a machine that has never seen that package.
+///
+/// [`the_corpus_matches_the_prototype`]: the_corpus_matches_the_prototype
+#[test]
+fn the_recorded_corpus_counts_are_pinned_without_the_corpus() {
+    let e = expected();
+    assert_eq!(e.value["baseModules"], 432);
+    assert_eq!(e.value["baseDeclarations"], 4750);
+    assert_eq!(e.value["files"].as_object().expect("a map").len(), 80);
+    assert_eq!(e.value["trees"].as_object().expect("a map").len(), 9);
+}
+
 /// The whole harness, in process: nine rounds and three verifications, each file
 /// compared with the size and digest the prototype produced.
 ///
 /// This is `tools/merge-compare.sh` without the shell, and it is where
 /// [`HARNESS_SCENARIOS`] is measured rather than assumed. The partial
 /// extractions come from the harness's own `fixtures/` directory, so the
-/// scenarios have exactly one definition.
+/// scenarios have exactly one definition. The fixture's own counts are pinned
+/// without the corpus by
+/// [`the_recorded_corpus_counts_are_pinned_without_the_corpus`].
+///
+/// [`the_recorded_corpus_counts_are_pinned_without_the_corpus`]: the_recorded_corpus_counts_are_pinned_without_the_corpus
 #[test]
+#[ignore = "corpus: needs LEAN_DOC_BASE_IR + LEAN_DOC_MERGE_FIXTURES (tools/corpus-gate.sh)"]
 fn the_corpus_matches_the_prototype() {
     let e = expected();
-    // Pinned whether or not the corpus is on this machine, so the numbers in the
-    // report have a home.
-    assert_eq!(e.value["baseModules"], 432);
-    assert_eq!(e.value["baseDeclarations"], 4750);
-    assert_eq!(e.value["files"].as_object().expect("a map").len(), 80);
-    assert_eq!(e.value["trees"].as_object().expect("a map").len(), 9);
-
-    let Some((base_ir, fixtures)) = corpus() else {
-        return;
-    };
+    let (base_ir, fixtures) = corpus();
     let work = TempDir::new("corpus");
     let mut covered: BTreeSet<&'static str> = BTreeSet::new();
 
@@ -1529,10 +1552,9 @@ fn check_normalised(e: &Expected, section: &str, round: &str, path: &Path, drop:
 /// dependency name legitimately produces different bytes, and those are the ones
 /// [`the_corpus_matches_the_prototype`] holds against the second writer instead.
 #[test]
+#[ignore = "corpus: needs LEAN_DOC_BASE_IR + LEAN_DOC_MERGE_FIXTURES (tools/corpus-gate.sh)"]
 fn the_dependency_slices_are_the_from_scratch_bytes() {
-    let Some((base_ir, fixtures)) = corpus() else {
-        return;
-    };
+    let (base_ir, fixtures) = corpus();
     let work = TempDir::new("from-scratch");
     let mut checked = 0usize;
     for (what, inc) in [

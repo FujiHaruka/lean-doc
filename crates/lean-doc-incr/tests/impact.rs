@@ -972,7 +972,13 @@ fn fnv1a64(bytes: &[u8]) -> String {
     format!("{hash:016x}")
 }
 
-fn corpus() -> Option<(PathBuf, PathBuf, PathBuf)> {
+/// The base IR, the reference pages and the reference site, or a panic naming
+/// what to set.
+///
+/// The only caller is `#[ignore]`d, so reaching this function at all means the
+/// corpus gate asked for the test by name. Returning "not here, never mind"
+/// there would be a green result for a comparison that never ran.
+fn corpus() -> (PathBuf, PathBuf, PathBuf) {
     let base =
         PathBuf::from(std::env::var("LEAN_DOC_BASE_IR").unwrap_or_else(|_| DEFAULT_BASE_IR.into()));
     let pages =
@@ -984,19 +990,19 @@ fn corpus() -> Option<(PathBuf, PathBuf, PathBuf)> {
     // behind, `is_dir()` said yes, and the run reported the corpus's own pages
     // as "already absent" — a green-looking scenario failing for an
     // environmental reason.
-    for dir in [&base, &pages, &site] {
-        if file_count(dir) == 0 {
-            eprintln!(
-                "skipping: no corpus at {} / {} / {} (empty or missing: {})",
-                base.display(),
-                pages.display(),
-                site.display(),
-                dir.display()
-            );
-            return None;
-        }
+    for (var, dir) in [
+        ("LEAN_DOC_BASE_IR", &base),
+        ("LEAN_DOC_PAGES", &pages),
+        ("LEAN_DOC_SITE", &site),
+    ] {
+        assert!(
+            file_count(dir) != 0,
+            "{} is empty or missing: set {var}, or run this test through tools/corpus-gate.sh, \
+             which is the only thing that should be asking for it",
+            dir.display()
+        );
     }
-    Some((base, pages, site))
+    (base, pages, site)
 }
 
 /// Regular files under `dir`, recursively. Zero for a missing directory.
@@ -1019,10 +1025,9 @@ fn file_count(dir: &Path) -> usize {
 /// Every scenario `tools/impact-reference.sh` defines, replayed in process and
 /// compared with the frozen prototype's answers.
 #[test]
+#[ignore = "corpus: needs LEAN_DOC_BASE_IR + LEAN_DOC_PAGES + LEAN_DOC_SITE (tools/corpus-gate.sh)"]
 fn the_corpus_matches_the_prototype() {
-    let Some((base_ir, pages_src, site_src)) = corpus() else {
-        return;
-    };
+    let (base_ir, pages_src, site_src) = corpus();
     let e = expected();
     assert_eq!(
         e.value["corpus"]["modules"].as_u64(),

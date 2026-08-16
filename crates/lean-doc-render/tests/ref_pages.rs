@@ -9,7 +9,7 @@
 //! **Neither the script nor the prototype is in this tree any more.** Both went
 //! with `experiments/` on 2026-08-16 and exist only at tag `experiments-frozen`;
 //! the pages themselves only ever lived under /private/tmp, so this test is
-//! env-gated and skips when they are absent.
+//! env-gated and `#[ignore]`d.
 //!
 //! # Why this exists next to `tests/autolink.rs`
 //!
@@ -37,10 +37,11 @@
 //! | declaration docs | after the `decl_header`'s `</div>` | byte for byte, plus the byte that follows |
 //! | structure field docs | `<div class="structure_field_doc">` … `</div>` | each must be some member's docstring |
 //!
-//! # Skipping
+//! # Why it is `#[ignore]`d
 //!
 //! The IR, the `.lidx` and the reference tree all live outside the repository,
-//! so this test **skips** when they are absent rather than failing. Point
+//! so this test does not run under a plain `cargo test` — and, being ignored
+//! rather than silently returning, it says so in the result line. Point
 //! `LEAN_DOC_IR`, `LEAN_DOC_LINK_INDEX` and `LEAN_DOC_REF_PAGES` elsewhere to
 //! run it against another corpus.
 
@@ -76,7 +77,12 @@ fn env_path(var: &str, default: &str) -> PathBuf {
     PathBuf::from(std::env::var(var).unwrap_or_else(|_| default.to_owned()))
 }
 
-fn inputs() -> Option<(PathBuf, PathBuf, PathBuf)> {
+/// The IR, the `.lidx` and the reference pages, or a panic naming what to set.
+///
+/// The only caller is `#[ignore]`d, so reaching this function at all means the
+/// corpus gate asked for the test by name. Returning "not here, never mind"
+/// there would be a green result for a comparison that never ran.
+fn inputs() -> (PathBuf, PathBuf, PathBuf) {
     let ir = env_path("LEAN_DOC_IR", DEFAULT_IR);
     let lidx = env_path("LEAN_DOC_LINK_INDEX", DEFAULT_LINK_INDEX);
     let pages = env_path("LEAN_DOC_REF_PAGES", DEFAULT_REF_PAGES);
@@ -84,16 +90,19 @@ fn inputs() -> Option<(PathBuf, PathBuf, PathBuf)> {
     // leaves its directory behind — `exists()` said yes to that and every page
     // then failed to read, which is an environmental failure wearing a
     // regression's clothes (`lean-doc-incr/tests/impact.rs` documents it).
-    for (what, path) in [("IR", &ir), (".lidx", &lidx), ("reference pages", &pages)] {
-        if file_count(path) == 0 {
-            eprintln!(
-                "skipping: no {what} at {} (empty or missing)",
-                path.display()
-            );
-            return None;
-        }
+    for (what, var, path) in [
+        ("IR", "LEAN_DOC_IR", &ir),
+        (".lidx", "LEAN_DOC_LINK_INDEX", &lidx),
+        ("reference pages", "LEAN_DOC_REF_PAGES", &pages),
+    ] {
+        assert!(
+            file_count(path) != 0,
+            "no {what} at {} (empty or missing): set {var}, or run this test through \
+             tools/corpus-gate.sh, which is the only thing that should be asking for it",
+            path.display()
+        );
     }
-    Some((ir, lidx, pages))
+    (ir, lidx, pages)
 }
 
 /// Regular files at or under `path`; 1 for a file, 0 for a missing path.
@@ -150,10 +159,9 @@ fn after_matching_div(page: &str, start: usize) -> Option<usize> {
 /// Every docstring of every reference page, compared with what this crate
 /// renders for it.
 #[test]
+#[ignore = "corpus: needs LEAN_DOC_IR + LEAN_DOC_LINK_INDEX + LEAN_DOC_REF_PAGES (tools/corpus-gate.sh)"]
 fn every_docstring_in_the_reference_pages_is_reproduced() {
-    let Some((ir, lidx, pages)) = inputs() else {
-        return;
-    };
+    let (ir, lidx, pages) = inputs();
 
     let tree = IrTree::open(&ir).expect("the IR opens");
     let modules = tree.load_modules().expect("every module reads");

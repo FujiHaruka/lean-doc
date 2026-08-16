@@ -37,9 +37,9 @@
 //! # What this file does **not** stand on
 //!
 //! The real corpus. That is [`artifacts_match_the_reference`] and
-//! [`corpus_facts_match_the_prototype`], both env-gated, and
-//! `tools/global-compare.sh`. The curated cases exist to reach the corners the
-//! corpus has none of.
+//! [`corpus_facts_match_the_prototype`], both `#[ignore]`d because the corpus
+//! is not in this repository, and `tools/global-compare.sh`. The curated cases
+//! exist to reach the corners the corpus has none of.
 //!
 //! # Fourteen of the thirty-seven branches never fire on the real corpus
 //!
@@ -797,24 +797,24 @@ fn page_paths_agree_with_the_renderers() {
     }
 }
 
-/// The artifacts of the target package that the prototype also writes —
-/// `declarations/name-map.json`, and since M8-d only that — against the files
-/// it wrote. Skipped unless the reference tree is present.
+/// The sizes the committed fixture records for the reference tree's six files,
+/// pinned **whether or not the corpus is on this machine**, so the numbers in
+/// the report have a home.
 ///
-/// The same comparison `tools/global-compare.sh` makes, over what is left of
-/// it. The recorded sizes of the other five stay: they are what the reference
-/// tree holds, they are the numbers `docs/plans/ui-redesign.md` §8 quotes when
-/// it says what M8-d deleted, and asserting them is what says the reference tree
-/// on this machine is still the one the fixture came from.
+/// Split out of [`artifacts_match_the_reference`], which needs the reference
+/// tree and is therefore `#[ignore]`d: these numbers are what
+/// `docs/plans/ui-redesign.md` §8 quotes when it says what M8-d deleted, and
+/// they have to keep being checked on a machine that has never seen the target
+/// package.
+///
+/// [`artifacts_match_the_reference`]: artifacts_match_the_reference
 #[test]
-fn artifacts_match_the_reference() {
+fn the_recorded_reference_sizes_are_pinned_without_the_corpus() {
     let e = expected();
     let recorded = e
         .reference
         .as_ref()
         .expect("the committed fixture pins the real artifacts");
-    // Pinned whether or not the corpus is on this machine, so the numbers in
-    // the report have a home.
     assert_eq!(
         recorded["declarations/declaration-data.bmp"].bytes,
         1_216_017
@@ -824,15 +824,29 @@ fn artifacts_match_the_reference() {
     assert_eq!(recorded["tactics.html"].bytes, 243);
     assert_eq!(recorded["references.bib"].bytes, 0);
     assert_eq!(recorded["references.html"].bytes, 186);
+}
 
-    let reference = PathBuf::from(
-        std::env::var("LEAN_DOC_REFERENCE_GLOBAL").unwrap_or_else(|_| DEFAULT_REFERENCE.into()),
-    );
-    let ir = PathBuf::from(std::env::var("LEAN_DOC_IR").unwrap_or_else(|_| DEFAULT_IR.into()));
-    if !reference.is_dir() || !ir.is_dir() {
-        eprintln!("skipping: no corpus at {}", ir.display());
-        return;
-    }
+/// The artifacts of the target package that the prototype also writes —
+/// `declarations/name-map.json`, and since M8-d only that — against the files
+/// it wrote.
+///
+/// The same comparison `tools/global-compare.sh` makes, over what is left of
+/// it. Asserting the recorded size of each file first is what says the
+/// reference tree on this machine is still the one the fixture came from; the
+/// same numbers are pinned without the corpus by
+/// [`the_recorded_reference_sizes_are_pinned_without_the_corpus`].
+///
+/// [`the_recorded_reference_sizes_are_pinned_without_the_corpus`]: the_recorded_reference_sizes_are_pinned_without_the_corpus
+#[test]
+#[ignore = "corpus: needs LEAN_DOC_REFERENCE_GLOBAL + LEAN_DOC_IR (tools/corpus-gate.sh)"]
+fn artifacts_match_the_reference() {
+    let e = expected();
+    let recorded = e
+        .reference
+        .as_ref()
+        .expect("the committed fixture pins the real artifacts");
+    let reference = corpus_reference();
+    let ir = corpus_ir();
 
     let work = TempDir::new("reference");
     let summary = build_global(&GlobalOptions::new(&ir, &work.path)).expect("the corpus builds");
@@ -886,20 +900,17 @@ fn artifacts_match_the_reference() {
 }
 
 /// The per-module facts over the whole corpus, against the prototype's own
-/// `factsOf`. Skipped unless the IR is present.
+/// `factsOf`.
 ///
 /// This is what checks [`ModuleFacts::tokens`] on 3,394 real docstrings rather
 /// than on four curated ones. The digest is FNV-1a 64 over the same canonical
 /// JSON both sides emit; the two counts beside it are what a digest cannot say
 /// when it disagrees.
 #[test]
+#[ignore = "corpus: needs LEAN_DOC_IR (tools/corpus-gate.sh)"]
 fn corpus_facts_match_the_prototype() {
     let e = expected();
-    let ir = PathBuf::from(std::env::var("LEAN_DOC_IR").unwrap_or_else(|_| DEFAULT_IR.into()));
-    if !ir.is_dir() {
-        eprintln!("skipping: no corpus at {}", ir.display());
-        return;
-    }
+    let ir = corpus_ir();
     let tree = IrTree::open(&ir).expect("the corpus opens");
     // No cache: this is the from-scratch read, so every module is a miss.
     let run = facts_for(&tree, &State::empty()).expect("the corpus reads");
@@ -929,6 +940,36 @@ fn corpus_facts_match_the_prototype() {
 }
 
 // ------------------------------------------------------------------- helpers
+
+/// The generated IR of the target package, or a panic naming what to set.
+///
+/// Every caller is `#[ignore]`d, so reaching this function at all means the
+/// corpus gate asked for the test by name. Returning "not here, never mind"
+/// there would be a green result for a comparison that never ran.
+fn corpus_ir() -> PathBuf {
+    let ir = PathBuf::from(std::env::var("LEAN_DOC_IR").unwrap_or_else(|_| DEFAULT_IR.into()));
+    assert!(
+        ir.is_dir(),
+        "no IR tree at {}: set LEAN_DOC_IR, or run this test through tools/corpus-gate.sh, \
+         which is the only thing that should be asking for it",
+        ir.display()
+    );
+    ir
+}
+
+/// The reference tree the frozen prototype wrote, or a panic naming what to set.
+fn corpus_reference() -> PathBuf {
+    let reference = PathBuf::from(
+        std::env::var("LEAN_DOC_REFERENCE_GLOBAL").unwrap_or_else(|_| DEFAULT_REFERENCE.into()),
+    );
+    assert!(
+        reference.is_dir(),
+        "no reference tree at {}: set LEAN_DOC_REFERENCE_GLOBAL, or run this test through \
+         tools/corpus-gate.sh, which is the only thing that should be asking for it",
+        reference.display()
+    );
+    reference
+}
 
 /// At least one case's copy of `path` satisfies `predicate`.
 fn any_artifact(cases: &[Case], path: &str, what: &str, predicate: &dyn Fn(&str) -> bool) {

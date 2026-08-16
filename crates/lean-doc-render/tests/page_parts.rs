@@ -48,8 +48,8 @@
 //!   generator proves each reduction faithful by re-rendering with it.
 //! - [`the_whole_corpus_carries_the_prototypes_content`] runs **all 4,750
 //!   headers, all 4,560 declaration blocks and all 432 frames** against the real
-//!   IR. It is skipped unless `LEAN_DOC_PAGE_PARTS_FULL` points at the
-//!   generator's `--full` output (77 MB, which does not belong in the
+//!   IR. It is `#[ignore]`d and needs `LEAN_DOC_PAGE_PARTS_FULL` to point at
+//!   the generator's `--full` output (77 MB, which does not belong in the
 //!   repository).
 //!
 //! # What the real corpus does not reach
@@ -757,8 +757,9 @@ fn the_sample_reaches_every_shape() {
 /// Every header, every declaration block and every frame of the target package,
 /// against the real IR and the real `.lidx`.
 ///
-/// Skipped unless `LEAN_DOC_PAGE_PARTS_FULL` names the generator's `--full`
-/// output; that file is 77 MB and does not belong in the repository.
+/// `#[ignore]`d: it needs `LEAN_DOC_PAGE_PARTS_FULL` to name the generator's
+/// `--full` output, and that file is 77 MB and does not belong in the
+/// repository.
 ///
 /// This is the only place the whole-run inputs are built the way a run builds
 /// them — the name index from the dependency slices, the modules and the
@@ -767,14 +768,15 @@ fn the_sample_reaches_every_shape() {
 ///
 /// Compared over content since M8-b, exactly as the committed sample is.
 #[test]
+#[ignore = "corpus: needs LEAN_DOC_PAGE_PARTS_FULL + LEAN_DOC_IR + LEAN_DOC_LINK_INDEX (tools/corpus-gate.sh)"]
 fn the_whole_corpus_carries_the_prototypes_content() {
-    let Ok(path) = std::env::var("LEAN_DOC_PAGE_PARTS_FULL") else {
-        eprintln!(
-            "skipping: set LEAN_DOC_PAGE_PARTS_FULL to a `--full` recording made \
-             by the generator at tag experiments-frozen; HEAD cannot make one"
-        );
-        return;
-    };
+    let path = std::env::var("LEAN_DOC_PAGE_PARTS_FULL").unwrap_or_else(|_| {
+        panic!(
+            "set LEAN_DOC_PAGE_PARTS_FULL to a `--full` recording made by the generator at tag \
+             experiments-frozen (HEAD cannot make one), or run this test through \
+             tools/corpus-gate.sh, which is the only thing that should be asking for it"
+        )
+    });
     let ir_dir = PathBuf::from(std::env::var("LEAN_DOC_IR").unwrap_or_else(|_| DEFAULT_IR.into()));
     let lidx_path = PathBuf::from(
         std::env::var("LEAN_DOC_LINK_INDEX").unwrap_or_else(|_| DEFAULT_LINK_INDEX.into()),

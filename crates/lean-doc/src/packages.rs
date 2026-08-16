@@ -545,23 +545,31 @@ mod tests {
     // --------------------------------------------------------- with the target
 
     /// doc-gen4's own output tree, which already holds the URLs this resolver is
-    /// supposed to produce.
-    fn reference_tree() -> Option<(PathBuf, PathBuf)> {
+    /// supposed to produce — or a panic naming what to set.
+    ///
+    /// Every caller is `#[ignore]`d, so reaching this function at all means the
+    /// corpus gate asked for the test by name. Returning "not here, never mind"
+    /// there would be a green result for a comparison that never ran.
+    fn reference_tree() -> (PathBuf, PathBuf) {
         let target = PathBuf::from(
             std::env::var("LEAN_DOC_TARGET").unwrap_or_else(|_| DEFAULT_TARGET.to_owned()),
         );
         let tree = std::env::var("LEAN_DOC_DOCGEN4_TREE")
             .map_or_else(|_| target.join(".lake/build/doc"), PathBuf::from);
-        if target.is_dir() && tree.is_dir() {
-            Some((target, tree))
-        } else {
-            eprintln!(
-                "skipping: no doc-gen4 reference tree at {} (set LEAN_DOC_TARGET or \
-                 LEAN_DOC_DOCGEN4_TREE)",
-                tree.display(),
-            );
-            None
-        }
+        assert!(
+            target.is_dir(),
+            "no target package at {}: set LEAN_DOC_TARGET, or run this test through \
+             tools/corpus-gate.sh, which is the only thing that should be asking for it",
+            target.display(),
+        );
+        assert!(
+            tree.is_dir(),
+            "no doc-gen4 reference tree at {}: set LEAN_DOC_DOCGEN4_TREE (or LEAN_DOC_TARGET), \
+             or run this test through tools/corpus-gate.sh, which is the only thing that should \
+             be asking for it",
+            tree.display(),
+        );
+        (target, tree)
     }
 
     /// **The gate of M7-b**: every root this resolver knows produces the same URL
@@ -574,10 +582,9 @@ mod tests {
     /// is counted rather than passed over in silence: the target's site documents
     /// its own import closure, not every package in its manifest.
     #[test]
+    #[ignore = "corpus: needs LEAN_DOC_TARGET + LEAN_DOC_DOCGEN4_TREE (tools/corpus-gate.sh)"]
     fn every_root_matches_doc_gen4s_own_blob_urls() {
-        let Some((target, tree)) = reference_tree() else {
-            return;
-        };
+        let (target, tree) = reference_tree();
         let resolved = external_links(&target, Path::new("lake"));
         assert_eq!(
             resolved.problems,
@@ -646,15 +653,19 @@ mod tests {
     /// The declaration-level anchor, against the one the plan quotes off the
     /// reference tree.
     #[test]
+    #[ignore = "corpus: needs LEAN_DOC_TARGET + LEAN_DOC_DOCGEN4_TREE (tools/corpus-gate.sh)"]
     fn a_line_range_is_the_anchor_doc_gen4_writes() {
-        let Some((target, tree)) = reference_tree() else {
-            return;
-        };
+        let (target, tree) = reference_tree();
         let page = tree.join("Mathlib/Order/Basic.html");
-        let Ok(html) = fs::read_to_string(&page) else {
-            eprintln!("skipping: no {}", page.display());
-            return;
-        };
+        let html = fs::read_to_string(&page).unwrap_or_else(|source| {
+            panic!(
+                "{}: {source} — the reference tree named by LEAN_DOC_DOCGEN4_TREE has no page \
+                 for Mathlib.Order.Basic, so it is not the tree this oracle reads; run this \
+                 test through tools/corpus-gate.sh, which is the only thing that should be \
+                 asking for it",
+                page.display()
+            )
+        });
         let want = html
             .split_once("<div class=\"decl\" id=\"LE.ext\">")
             .and_then(|(_, rest)| first_blob_url(rest))
@@ -678,7 +689,7 @@ mod tests {
     /// declaration's page.
     ///
     /// Both inputs live outside the repository and are ~10 MB and ~41 MB, so
-    /// the test **skips** unless both are named:
+    /// the test is `#[ignore]`d and needs both to be named:
     ///
     /// ```text
     /// LEAN_DOC_LINK_INDEX=<lean-doc extract --link-index …>
@@ -694,16 +705,17 @@ mod tests {
     /// happened to write — so every bucket is printed with its 母数 and only a
     /// name the two *both* have and disagree about fails.
     #[test]
+    #[ignore = "corpus: needs LEAN_DOC_LINK_INDEX + LEAN_DOC_DECL_URLS (tools/corpus-gate.sh)"]
     fn every_lidx_entry_matches_doc_gen4s_declaration_urls() {
         let (Ok(lidx), Ok(oracle)) = (
             std::env::var("LEAN_DOC_LINK_INDEX"),
             std::env::var("LEAN_DOC_DECL_URLS"),
         ) else {
-            eprintln!(
-                "skipping: set LEAN_DOC_LINK_INDEX and LEAN_DOC_DECL_URLS (see \
-                 benchmarks/tools/check-lidx-urls.sh)"
+            panic!(
+                "set LEAN_DOC_LINK_INDEX and LEAN_DOC_DECL_URLS (see \
+                 benchmarks/tools/check-lidx-urls.sh), or run this test through \
+                 tools/corpus-gate.sh, which is the only thing that should be asking for it"
             );
-            return;
         };
         let target = PathBuf::from(
             std::env::var("LEAN_DOC_TARGET").unwrap_or_else(|_| DEFAULT_TARGET.to_owned()),

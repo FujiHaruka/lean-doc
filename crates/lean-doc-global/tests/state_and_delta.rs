@@ -1077,13 +1077,13 @@ fn the_seven_states_agree_with_a_from_scratch_build() {
     assert_eq!(sequence.steps, 7);
 }
 
-/// The same seven states over the real 432-module IR. Skipped unless it is on
-/// this machine — the convention `tests/global.rs` uses for the corpus.
+/// The same seven states over the real 432-module IR — `#[ignore]`d because
+/// that IR is not in this repository, the convention `tests/global.rs` uses for
+/// the corpus.
 #[test]
+#[ignore = "corpus: needs LEAN_DOC_IR (tools/corpus-gate.sh)"]
 fn the_seven_states_agree_over_the_real_corpus() {
-    let Some(ir) = corpus_ir() else {
-        return;
-    };
+    let ir = corpus_ir();
     let trees = TempDir::new("corpus-states");
     let base = trees.path.join("ir");
     copy_ir(&ir, &base);
@@ -1115,18 +1115,20 @@ fn the_seven_states_agree_over_the_real_corpus() {
 /// read the other's cache; the prototype's is substituted before the comparison
 /// and that is the only other edit.
 #[test]
+#[ignore = "corpus: needs LEAN_DOC_IR + LEAN_DOC_PROTOTYPE_STATE (tools/corpus-gate.sh)"]
 fn the_state_file_is_the_prototypes_bytes() {
-    let Some(ir) = corpus_ir() else {
-        return;
-    };
+    let ir = corpus_ir();
     let prototype = PathBuf::from(
         std::env::var("LEAN_DOC_PROTOTYPE_STATE")
             .unwrap_or_else(|_| DEFAULT_PROTOTYPE_STATE.into()),
     );
-    let Ok(want) = fs::read(&prototype) else {
-        eprintln!("skipping: no prototype state at {}", prototype.display());
-        return;
-    };
+    let want = fs::read(&prototype).unwrap_or_else(|e| {
+        panic!(
+            "no prototype state at {} ({e}): set LEAN_DOC_PROTOTYPE_STATE, or run this test \
+             through tools/corpus-gate.sh, which is the only thing that should be asking for it",
+            prototype.display()
+        )
+    });
     // Pinned so that the numbers in the report have a home: 26 bytes of
     // `stage7h/global.ts facts v1` against 24 of `lean-doc-global facts v2`.
     assert_eq!(want.len(), 841_949);
@@ -1267,11 +1269,10 @@ impl serde::Serialize for PrototypeModules<'_> {
 /// incremental pipeline consumes; the counts beside it are what a digest cannot
 /// say when it disagrees.
 #[test]
+#[ignore = "corpus: needs LEAN_DOC_IR + LEAN_DOC_REFERENCE_GLOBAL (tools/corpus-gate.sh)"]
 fn the_delta_is_the_prototypes_delta() {
     let expected = delta_fixture();
-    let (Some(ir), Some(reference)) = (corpus_ir(), corpus_reference()) else {
-        return;
-    };
+    let (ir, reference) = (corpus_ir(), corpus_reference());
 
     // `before` is the reference `name-map.json` with the three edits the
     // generator chose, rebuilt here from the recorded choice rather than
@@ -1414,14 +1415,29 @@ fn the_curated_deltas_reach_what_the_corpus_does_not() {
     }
 }
 
-/// V6 end to end: which separator set the affected set is decided by, and the
-/// measured fact that makes the curated case the only thing testing it.
+/// V6 end to end: the curated IR reaches `tokenSeparatorV8Only`, which is the
+/// branch that decides which separator set the affected set is computed with.
+///
+/// Asserted **whether or not the corpus is on this machine**: the whole point
+/// of the curated case is that no real data reaches this branch
+/// ([`NO_REAL_DATA_REACHES`]), so the one exercise it has must not travel with
+/// the corpus. Split out of
+/// [`the_curated_tokens_reach_what_the_corpus_does_not`], which is `#[ignore]`d
+/// because its other half reads the corpus.
+///
+/// [`the_curated_tokens_reach_what_the_corpus_does_not`]: the_curated_tokens_reach_what_the_corpus_does_not
 #[test]
-fn the_curated_tokens_reach_what_the_corpus_does_not() {
+fn the_curated_tokens_reach_the_disputed_separator() {
     assert!(curated_token_branches().contains("tokenSeparatorV8Only"));
-    let Some(ir) = corpus_ir() else {
-        return;
-    };
+}
+
+/// The other half of V6: the measured fact that makes the curated case above
+/// the only thing testing the separator set — the target package contains none
+/// of the 4,803 code points the two tables disagree about.
+#[test]
+#[ignore = "corpus: needs LEAN_DOC_IR (tools/corpus-gate.sh)"]
+fn the_curated_tokens_reach_what_the_corpus_does_not() {
+    let ir = corpus_ir();
     assert!(
         !meets_a_v8_only_separator(&ir),
         "the target package now contains a code point the two separator sets disagree about: the \
@@ -1978,26 +1994,34 @@ fn the_delta_fixture_is_a_real_delta() {
 
 // ------------------------------------------------------------------- helpers
 
-fn corpus_ir() -> Option<PathBuf> {
+/// The generated IR of the target package, or a panic naming what to set.
+///
+/// Every caller is `#[ignore]`d, so reaching this function at all means the
+/// corpus gate asked for the test by name. Returning "not here, never mind"
+/// there would be a green result for a comparison that never ran.
+fn corpus_ir() -> PathBuf {
     let ir = PathBuf::from(std::env::var("LEAN_DOC_IR").unwrap_or_else(|_| DEFAULT_IR.into()));
-    if ir.is_dir() {
-        Some(ir)
-    } else {
-        eprintln!("skipping: no corpus at {}", ir.display());
-        None
-    }
+    assert!(
+        ir.is_dir(),
+        "no IR tree at {}: set LEAN_DOC_IR, or run this test through tools/corpus-gate.sh, \
+         which is the only thing that should be asking for it",
+        ir.display()
+    );
+    ir
 }
 
-fn corpus_reference() -> Option<PathBuf> {
+/// The reference tree the frozen prototype wrote, or a panic naming what to set.
+fn corpus_reference() -> PathBuf {
     let reference = PathBuf::from(
         std::env::var("LEAN_DOC_REFERENCE_GLOBAL").unwrap_or_else(|_| DEFAULT_REFERENCE.into()),
     );
-    if reference.is_dir() {
-        Some(reference)
-    } else {
-        eprintln!("skipping: no reference at {}", reference.display());
-        None
-    }
+    assert!(
+        reference.is_dir(),
+        "no reference tree at {}: set LEAN_DOC_REFERENCE_GLOBAL, or run this test through \
+         tools/corpus-gate.sh, which is the only thing that should be asking for it",
+        reference.display()
+    );
+    reference
 }
 
 /// FNV-1a 64, the same ten lines the generator has.

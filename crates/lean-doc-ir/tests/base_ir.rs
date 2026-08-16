@@ -2,9 +2,10 @@
 //!
 //! The fixture is the 432-module IR of `lean-projects` (the `InformationTheory`
 //! package on Mathlib), which is what every number in `docs/` is measured on.
-//! It lives outside the repository — 16 MB of generated JSON — so this test
-//! **skips** when it is absent rather than failing: `cargo test` has to pass on
-//! a machine that has never run the extractor.
+//! It lives outside the repository — 16 MB of generated JSON — so these tests
+//! are `#[ignore]`d rather than silently skipped: `cargo test` has to pass on a
+//! machine that has never run the extractor, and a run that reports them as
+//! ignored says out loud that they did not run. A `return` did not.
 //!
 //! Point the environment variable `LEAN_DOC_BASE_IR` at another tree to run the
 //! structural half against it; the exact counts below are specific to this
@@ -21,19 +22,21 @@ use lean_doc_ir::{Decl, IrTree, Member, ModuleFile, Span, SpanKind, Utf16Text};
 
 const DEFAULT_IR: &str = "/private/tmp/lean-doc-relay/w7h/base-ir";
 
-/// The fixture, or `None` if it is not on this machine.
-fn fixture() -> Option<PathBuf> {
+/// The fixture, or a panic naming what to set.
+///
+/// Every caller is `#[ignore]`d, so reaching this function at all means the
+/// corpus gate asked for the test by name. Returning "not here, never mind"
+/// there would be a green result for a comparison that never ran.
+fn fixture() -> PathBuf {
     let path =
         PathBuf::from(std::env::var("LEAN_DOC_BASE_IR").unwrap_or_else(|_| DEFAULT_IR.to_owned()));
-    if path.join("index.json").is_file() {
-        Some(path)
-    } else {
-        eprintln!(
-            "skipping: no IR tree at {} (set LEAN_DOC_BASE_IR to point at one)",
-            path.display()
-        );
-        None
-    }
+    assert!(
+        path.join("index.json").is_file(),
+        "no IR tree at {}: set LEAN_DOC_BASE_IR, or run this test through \
+         tools/corpus-gate.sh, which is the only thing that should be asking for it",
+        path.display()
+    );
+    path
 }
 
 /// True when the fixture is the one the exact counts were measured on.
@@ -247,8 +250,9 @@ impl Counts {
 }
 
 #[test]
+#[ignore = "corpus: needs LEAN_DOC_BASE_IR (tools/corpus-gate.sh)"]
 fn reads_every_module_of_the_target_package() {
-    let Some(root) = fixture() else { return };
+    let root = fixture();
     let tree = IrTree::open(&root).expect("the fixture is a schema-4 IR");
     let index = tree.index();
 
@@ -342,8 +346,9 @@ fn reads_every_module_of_the_target_package() {
 /// UTF-16 offset is two units for one scalar. `𝓧` (U+1D4E7) really occurs in
 /// this package's binders.
 #[test]
+#[ignore = "corpus: needs LEAN_DOC_BASE_IR (tools/corpus-gate.sh)"]
 fn astral_binders_slice_correctly() {
-    let Some(root) = fixture() else { return };
+    let root = fixture();
     let tree = IrTree::open(&root).expect("the fixture is a schema-4 IR");
     let mut checked = 0;
     for module in tree.modules() {

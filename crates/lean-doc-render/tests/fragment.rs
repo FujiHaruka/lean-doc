@@ -24,9 +24,9 @@
 //!   resolves against, reduced to the names it looks up, and the generator
 //!   proves the reduction faithful by re-rendering with it.
 //! - [`the_whole_corpus_matches_the_prototype`] runs **all 55,514 fragments** of
-//!   the target package against the real IR. It is skipped unless
-//!   `LEAN_DOC_FRAGMENT_FULL` points at the generator's `--full` output (29 MB,
-//!   which does not belong in the repository).
+//!   the target package against the real IR. It is `#[ignore]`d and needs
+//!   `LEAN_DOC_FRAGMENT_FULL` to point at the generator's `--full` output
+//!   (29 MB, which does not belong in the repository).
 //!
 //! # What the real corpus does not reach
 //!
@@ -523,8 +523,9 @@ fn private_names_match_the_prototype() {
 
 /// Every span-carrying fragment of the target package, against the real IR.
 ///
-/// Skipped unless `LEAN_DOC_FRAGMENT_FULL` names the generator's `--full`
-/// output; that file is 29 MB and does not belong in the repository.
+/// `#[ignore]`d: it needs `LEAN_DOC_FRAGMENT_FULL` to name the generator's
+/// `--full` output, and that file is 29 MB and does not belong in the
+/// repository.
 ///
 /// This is the only place [`NameIndex`] is built the way a run builds it —
 /// dependency slices, then declarations, then references — and the only place
@@ -532,14 +533,15 @@ fn private_names_match_the_prototype() {
 /// it is what stands behind the claim that the reduced worlds above are the
 /// same thing in miniature.
 #[test]
+#[ignore = "corpus: needs LEAN_DOC_FRAGMENT_FULL + LEAN_DOC_IR (tools/corpus-gate.sh)"]
 fn the_whole_corpus_matches_the_prototype() {
-    let Ok(path) = std::env::var("LEAN_DOC_FRAGMENT_FULL") else {
-        eprintln!(
-            "skipping: set LEAN_DOC_FRAGMENT_FULL to a `--full` recording made \
-             by the generator at tag experiments-frozen; HEAD cannot make one"
-        );
-        return;
-    };
+    let path = std::env::var("LEAN_DOC_FRAGMENT_FULL").unwrap_or_else(|_| {
+        panic!(
+            "set LEAN_DOC_FRAGMENT_FULL to a `--full` recording made by the generator at tag \
+             experiments-frozen (HEAD cannot make one), or run this test through \
+             tools/corpus-gate.sh, which is the only thing that should be asking for it"
+        )
+    });
     let ir_dir = PathBuf::from(std::env::var("LEAN_DOC_IR").unwrap_or_else(|_| DEFAULT_IR.into()));
 
     #[derive(Deserialize)]

@@ -2,8 +2,9 @@
 //!
 //! 8.5 MB derived from Mathlib's `declaration-data.bmp`
 //! (`experiments/stage7d/build-link-index.ts`). It lives outside the repository,
-//! so this test **skips** when it is absent rather than failing: `cargo test`
-//! has to pass on a machine that has never run the pipeline. Point
+//! so this test is `#[ignore]`d rather than silently skipped: `cargo test` has
+//! to pass on a machine that has never run the pipeline, and a run that reports
+//! it as ignored says out loud that it did not run. Point
 //! `LEAN_DOC_LINK_INDEX` at another file to run the structural half against it.
 //!
 //! The expected counts come from the TypeScript side, not from this reader:
@@ -30,24 +31,28 @@ const TS_CODE_UNITS: usize = 8_494_819;
 const TS_MODULES: usize = 5_775;
 const TS_KNOWN_MODULES: usize = 6_115;
 
-fn fixture() -> Option<PathBuf> {
+/// The fixture, or a panic naming what to set.
+///
+/// The only caller is `#[ignore]`d, so reaching this function at all means the
+/// corpus gate asked for the test by name. Returning "not here, never mind"
+/// there would be a green result for a comparison that never ran.
+fn fixture() -> PathBuf {
     let path = PathBuf::from(
         std::env::var("LEAN_DOC_LINK_INDEX").unwrap_or_else(|_| DEFAULT_LINK_INDEX.to_owned()),
     );
-    if path.is_file() {
-        Some(path)
-    } else {
-        eprintln!(
-            "skipping: no link index at {} (set LEAN_DOC_LINK_INDEX to point at one)",
-            path.display()
-        );
-        None
-    }
+    assert!(
+        path.is_file(),
+        "no link index at {}: set LEAN_DOC_LINK_INDEX, or run this test through \
+         tools/corpus-gate.sh, which is the only thing that should be asking for it",
+        path.display()
+    );
+    path
 }
 
 #[test]
+#[ignore = "corpus: needs LEAN_DOC_LINK_INDEX (tools/corpus-gate.sh)"]
 fn reads_the_dependency_closure_of_the_target_package() {
-    let Some(path) = fixture() else { return };
+    let path = fixture();
     // The two halves are timed apart because they scale differently: the read
     // is the file's bytes and the parse is its entries, and M7-a moved the
     // first by 23.6% while adding a field to every one of the second.

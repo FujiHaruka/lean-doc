@@ -33,8 +33,9 @@
 //!   generator proves the reduction is faithful by re-rendering with it.
 //! - [`the_whole_corpus_matches_the_prototype`] runs all 4,858 docstrings
 //!   against the real IR and the real `.lidx`, which is the only place the
-//!   *building* of the name index is exercised on real data. It is skipped
-//!   unless `LEAN_DOC_AUTOLINK_FULL` points at the generator's `--full` output.
+//!   *building* of the name index is exercised on real data. It is `#[ignore]`d
+//!   and needs `LEAN_DOC_AUTOLINK_FULL` to point at the generator's `--full`
+//!   output.
 //!
 //! # The one branch this port answers differently on purpose (M8, gate UI-2)
 //!
@@ -419,22 +420,24 @@ fn the_sample_reaches_every_branch() {
 /// Every docstring of the target package, against the real IR and the real
 /// dependency map.
 ///
-/// Skipped unless `LEAN_DOC_AUTOLINK_FULL` names the generator's `--full`
-/// output; that file is 5.6 MB and does not belong in the repository.
+/// `#[ignore]`d: it needs `LEAN_DOC_AUTOLINK_FULL` to name the generator's
+/// `--full` output, and that file is 5.6 MB and does not belong in the
+/// repository.
 ///
 /// This is the only place [`NameIndex`] is built the way a run builds it —
 /// dependency slices, then declarations, then references, then the `.lidx` —
 /// so it is what stands behind the claim that the reduced worlds above are the
 /// same thing in miniature.
 #[test]
+#[ignore = "corpus: needs LEAN_DOC_AUTOLINK_FULL + LEAN_DOC_IR + LEAN_DOC_LINK_INDEX (tools/corpus-gate.sh)"]
 fn the_whole_corpus_matches_the_prototype() {
-    let Ok(path) = std::env::var("LEAN_DOC_AUTOLINK_FULL") else {
-        eprintln!(
-            "skipping: set LEAN_DOC_AUTOLINK_FULL to a `--full` recording made \
-             by the generator at tag experiments-frozen; HEAD cannot make one"
-        );
-        return;
-    };
+    let path = std::env::var("LEAN_DOC_AUTOLINK_FULL").unwrap_or_else(|_| {
+        panic!(
+            "set LEAN_DOC_AUTOLINK_FULL to a `--full` recording made by the generator at tag \
+             experiments-frozen (HEAD cannot make one), or run this test through \
+             tools/corpus-gate.sh, which is the only thing that should be asking for it"
+        )
+    });
     let ir_dir = env_path("LEAN_DOC_IR", DEFAULT_IR);
     let lidx_path = env_path("LEAN_DOC_LINK_INDEX", DEFAULT_LINK_INDEX);
 

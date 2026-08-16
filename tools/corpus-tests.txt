@@ -1,0 +1,51 @@
+# The corpus gate's inventory: every #[ignore]d test in the workspace.
+#
+# `tools/corpus-gate.sh --verify-list` (which CI runs) fails when this file and
+# cargo disagree in either direction — a test that quietly stops being in the
+# gate, and a gate that names a test nobody wrote, are the same bug seen from
+# two ends. Adding an ignored test means adding a line here, on purpose.
+#
+# A test belongs here when it reads something outside the repository: the
+# measurement target, its doc-gen4 tree, a generated IR tree, or one of the
+# `--full` recordings. See docs/plans/quality-gates.md 決定 1.
+#
+# The name is `<cargo test target>::<test>`, because three different tests are
+# called `the_corpus_matches_the_prototype` and two are called `the_whole_corpus`.
+# A trailing `# …` says what the test needs.
+
+## corpus — runs when the target and its derivatives are on this machine
+
+base_ir::reads_every_module_of_the_target_package     # LEAN_DOC_BASE_IR
+base_ir::astral_binders_slice_correctly               # LEAN_DOC_BASE_IR
+docgen4::the_whole_corpus                             # LEAN_DOC_DOCGEN4_FULL; generator: crates/lean-doc-md/tests/oracle/gen-docgen4-expected.ts
+md4lean::the_whole_corpus                             # LEAN_DOC_MD4LEAN_FULL; generator: crates/lean-doc-md/tests/oracle/gen-md4lean-expected.ts
+link_index_fixture::reads_the_dependency_closure_of_the_target_package  # LEAN_DOC_LINK_INDEX; `lean-doc extract --link-index`
+ref_pages::every_docstring_in_the_reference_pages_is_reproduced         # LEAN_DOC_IR + LEAN_DOC_LINK_INDEX + LEAN_DOC_REF_PAGES
+pages::pages_carry_the_reference_trees_content        # LEAN_DOC_REFERENCE_PAGES + LEAN_DOC_IR + LEAN_DOC_LINK_INDEX
+pages::pages_carry_the_doc_gen4_trees_declarations    # LEAN_DOC_DOCGEN4_TREE + LEAN_DOC_IR
+global::artifacts_match_the_reference                 # LEAN_DOC_REFERENCE_GLOBAL + LEAN_DOC_IR
+global::corpus_facts_match_the_prototype              # LEAN_DOC_IR
+state_and_delta::the_seven_states_agree_over_the_real_corpus  # LEAN_DOC_IR
+state_and_delta::the_state_file_is_the_prototypes_bytes       # LEAN_DOC_IR + LEAN_DOC_PROTOTYPE_STATE
+state_and_delta::the_delta_is_the_prototypes_delta            # LEAN_DOC_IR + LEAN_DOC_REFERENCE_GLOBAL
+state_and_delta::the_curated_tokens_reach_what_the_corpus_does_not  # LEAN_DOC_IR
+ledger::the_corpus_matches_the_prototype              # LEAN_DOC_TARGET + LEAN_DOC_IR
+impact::the_corpus_matches_the_prototype              # LEAN_DOC_BASE_IR + LEAN_DOC_PAGES + LEAN_DOC_SITE
+merge::the_corpus_matches_the_prototype               # LEAN_DOC_BASE_IR + LEAN_DOC_MERGE_FIXTURES
+merge::the_dependency_slices_are_the_from_scratch_bytes        # same
+lean_doc::packages::tests::every_root_matches_doc_gen4s_own_blob_urls   # LEAN_DOC_TARGET + LEAN_DOC_DOCGEN4_TREE
+lean_doc::packages::tests::a_line_range_is_the_anchor_doc_gen4_writes   # same
+lean_doc::packages::tests::every_lidx_entry_matches_doc_gen4s_declaration_urls  # LEAN_DOC_LINK_INDEX + LEAN_DOC_DECL_URLS; the latter from benchmarks/tools/extract-decl-source-urls.sh
+
+## frozen — no regenerator in HEAD; the generator is at tag `experiments-frozen`
+#
+# `crates/lean-doc-render/tests/data/PROVENANCE.md` states it plainly: "There is
+# no regenerator in this tree any more." These three consume `--full` recordings
+# (5.6 MB / 29 MB / 77 MB) that only the removed prototype could produce, so
+# running them can only ever panic. They stay in the inventory — they are real
+# tests and they will run again if somebody restores the generator — but the
+# gate does not attempt them, because a permanently red gate is one nobody reads.
+
+autolink::the_whole_corpus_matches_the_prototype      # LEAN_DOC_AUTOLINK_FULL (5.6 MB)
+fragment::the_whole_corpus_matches_the_prototype      # LEAN_DOC_FRAGMENT_FULL (29 MB)
+page_parts::the_whole_corpus_carries_the_prototypes_content  # LEAN_DOC_PAGE_PARTS_FULL (77 MB)

@@ -679,14 +679,26 @@ fn expected() -> Expected {
     }
 }
 
-fn corpus() -> Option<(String, PathBuf)> {
+/// The target package and its generated IR, or a panic naming what to set.
+///
+/// The only caller is `#[ignore]`d, so reaching this function at all means the
+/// corpus gate asked for the test by name. Returning "not here, never mind"
+/// there would be a green result for a comparison that never ran.
+fn corpus() -> (String, PathBuf) {
     let target = std::env::var("LEAN_DOC_TARGET").unwrap_or_else(|_| DEFAULT_TARGET.into());
     let ir = PathBuf::from(std::env::var("LEAN_DOC_IR").unwrap_or_else(|_| DEFAULT_IR.into()));
-    if !Path::new(&target).is_dir() || !ir.is_dir() {
-        eprintln!("skipping: no corpus at {target}");
-        return None;
-    }
-    Some((target, ir))
+    assert!(
+        Path::new(&target).is_dir(),
+        "no target package at {target}: set LEAN_DOC_TARGET, or run this test through \
+         tools/corpus-gate.sh, which is the only thing that should be asking for it"
+    );
+    assert!(
+        ir.is_dir(),
+        "no IR tree at {}: set LEAN_DOC_IR, or run this test through tools/corpus-gate.sh, \
+         which is the only thing that should be asking for it",
+        ir.display()
+    );
+    (target, ir)
 }
 
 fn module_list() -> Vec<String> {
@@ -695,16 +707,18 @@ fn module_list() -> Vec<String> {
     read_module_list(&path).expect("the committed module list reads")
 }
 
-/// The whole harness, in process: seven ledgers, two touches, twelve checks —
-/// each file compared with the size and digest the prototype produced.
+/// What the prototype counted over the target package, pinned **whether or not
+/// the corpus is on this machine**, so the numbers in the report have a home.
 ///
-/// This is `tools/ledger-compare.sh` without the shell. It is also where
-/// [`HARNESS_SCENARIOS`] is measured rather than assumed.
+/// Split out of [`the_corpus_matches_the_prototype`], which needs the target
+/// package and its IR and is therefore `#[ignore]`d: a fixture that quietly
+/// changed which package it was taken against has to be caught on a machine
+/// that has never seen that package.
+///
+/// [`the_corpus_matches_the_prototype`]: the_corpus_matches_the_prototype
 #[test]
-fn the_corpus_matches_the_prototype() {
+fn the_recorded_corpus_counts_are_pinned_without_the_corpus() {
     let e = expected();
-    // Pinned whether or not the corpus is on this machine, so the numbers in
-    // the report have a home.
     assert_eq!(e.package.modules, 432);
     assert_eq!(e.package.olean_files, 432);
     assert_eq!(e.package.olean_bytes, 237_909_832);
@@ -713,10 +727,22 @@ fn the_corpus_matches_the_prototype() {
     assert_eq!(e.dependency.olean_bytes, 10_323_184);
     assert_eq!(e.files["ledger-sha256.json"].bytes, 142_557);
     assert_eq!(e.files["ledger-lake.json"].bytes, 120_103);
+}
 
-    let Some((target, ir)) = corpus() else {
-        return;
-    };
+/// The whole harness, in process: seven ledgers, two touches, twelve checks —
+/// each file compared with the size and digest the prototype produced.
+///
+/// This is `tools/ledger-compare.sh` without the shell. It is also where
+/// [`HARNESS_SCENARIOS`] is measured rather than assumed. The fixture's own
+/// counts are pinned without the corpus by
+/// [`the_recorded_corpus_counts_are_pinned_without_the_corpus`].
+///
+/// [`the_recorded_corpus_counts_are_pinned_without_the_corpus`]: the_recorded_corpus_counts_are_pinned_without_the_corpus
+#[test]
+#[ignore = "corpus: needs LEAN_DOC_TARGET + LEAN_DOC_IR (tools/corpus-gate.sh)"]
+fn the_corpus_matches_the_prototype() {
+    let e = expected();
+    let (target, ir) = corpus();
     let work = TempDir::new("corpus");
     let modules = module_list();
     assert_eq!(modules.len(), e.package.modules);

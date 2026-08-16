@@ -172,19 +172,22 @@ fn every_case_matches_doc_gen4() {
 /// repository like the parser's does.
 const DEFAULT_FULL: &str = "/private/tmp/lean-doc-relay/m1c/docgen4-full.json";
 
-/// The whole corpus, when the generator's `--full` file is on this machine.
-/// Skips otherwise: `cargo test` has to pass where the target package does not
-/// exist.
+/// The whole corpus, from the generator's `--full` file.
+///
+/// `#[ignore]`d rather than silently skipped: that file is not in this
+/// repository, `cargo test` has to pass where the target package does not
+/// exist, and a run that reports this as ignored says out loud that the other
+/// 4,414 cases were not checked.
 #[test]
+#[ignore = "corpus: needs LEAN_DOC_DOCGEN4_FULL (tools/corpus-gate.sh)"]
 fn the_whole_corpus() {
     let path = std::env::var("LEAN_DOC_DOCGEN4_FULL").unwrap_or_else(|_| DEFAULT_FULL.to_owned());
-    if !std::path::Path::new(&path).is_file() {
-        eprintln!(
-            "skipping: no --full file at {path} (set LEAN_DOC_DOCGEN4_FULL, or regenerate with \
-             tests/oracle/gen-docgen4-expected.ts --full)"
-        );
-        return;
-    }
+    assert!(
+        std::path::Path::new(&path).is_file(),
+        "no --full file at {path}: set LEAN_DOC_DOCGEN4_FULL, or regenerate with \
+         tests/oracle/gen-docgen4-expected.ts --full, or run this test through \
+         tools/corpus-gate.sh, which is the only thing that should be asking for it"
+    );
     let text = std::fs::read_to_string(&path).expect("the --full file");
     let full: Expected = serde_json::from_str(&text).expect("a --full file");
     assert!(
