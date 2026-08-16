@@ -2,12 +2,18 @@
 # M4-d — the gate of M4: **one command**, run against a clone of the measurement
 # target, with a real edit and a real `lake build` in the middle.
 #
-# **M7-c moved dependency links, and the reference side here predates it.**
-# `build` always resolves a package root and so writes version-pinned GitHub blob
-# URLs into every link into a dependency; the `lean-doc site` reference below is
-# invoked **without `--root`** and still writes relative ones. A site diff is
-# therefore **expected**, and is not a failure of the port. Gate A is suspended,
-# not redefined — see `docs/implementation-plan.md` §1.
+# **Gate 1's site comparison is no longer run.** M7-c moved dependency links to
+# version-pinned GitHub blob URLs and the reference side here predates it, so the
+# two differ by design. It used to run anyway and report a difference the reader
+# was told to ignore — which is the worst state for a gate to be in, because
+# after that nobody reads its output at all. The property it stood for (one
+# command produces the site the staged pipeline does) is now checked by
+# `tools/e2e-micro.sh`, against a Mathlib-free fixture and a reference that is
+# not stale. Gate A itself ended at M8 — see `docs/implementation-plan.md` §1 and
+# `docs/plans/quality-gates.md`.
+#
+# The rest of this script still judges: the IR comparison, the module list, the
+# second run, the real move and the real deletion.
 #
 # usage: tools/build-gate.sh <phase> [--clone DIR] [--out DIR] [--lidx FILE]
 #                            [--jobs N] [--move-module <Module>]
@@ -244,14 +250,21 @@ phase_gate1 () {
   counts "$OUT/base.log"
   manifest "$OUT/base/site" "$OUT/base.sha256"
 
-  # The reference: `lean-doc site` over the IR M3-d4 extracted with the frozen
-  # prototype's extract-once.sh, at the same revision, with the same map.
-  local url
-  url="$(sed -n 's/^source  //p' "$OUT/base.log" | head -1)"
-  echo "  reference site from $REF_IR (source url $url)"
-  "$RUST_BIN" site --ir "$REF_IR" --out "$OUT/ref-site" --source-url "$url" \
-    --link-index "$LIDX" --state "$OUT/ref-state" > "$OUT/ref-site.log" 2>&1
-  compare gate1-site "$OUT/base/site" "$OUT/ref-site" "$EXPECT_BASE"
+  # **The site half of gate 1 cannot be judged any more, and pretending
+  # otherwise is worse than not running it.** The reference below is
+  # `lean-doc site` invoked *without* `--root`, so it writes relative links into
+  # dependencies; `build` always resolves a package root and writes M7-c's
+  # version-pinned blob URLs. The two therefore differ **by design**, and this
+  # comparison was left in place reporting a difference nobody was allowed to
+  # act on — a gate whose expected result is "FAIL" teaches its reader to skip
+  # the output.
+  #
+  # The property it used to check — one command produces the same site as the
+  # pipeline run stage by stage — is checked by `tools/e2e-micro.sh` GATE 1-3,
+  # against a fixture, with no Mathlib and no stale reference.
+  # (docs/plans/quality-gates.md)
+  echo "  gate1-site: NOT RUN — the reference predates M7-c and differs by design."
+  echo "              The same property is checked by tools/e2e-micro.sh."
   compare gate1-ir "$OUT/base/ir" "$REF_IR" "$(files_in "$REF_IR")"
   # The module list is the other half of "it derived the same question": the
   # order makes the ledger's and the merged index.json's bytes (M3-d2b).

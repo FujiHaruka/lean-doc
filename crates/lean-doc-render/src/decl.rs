@@ -678,6 +678,29 @@ mod tests {
         serde_json::from_str(json).expect("the literal is a schema-4 member")
     }
 
+    /// **The one mutant that survived.** `cargo mutants` over this file reports
+    /// 74 mutants, 73 of them caught; the survivor replaced this type's
+    /// `Display` with the empty string 【実測 2026-08-16】.
+    ///
+    /// That is a real hole rather than noise. This error exists *only* to be
+    /// read: doc-gen4 panics at the same point (`name2ModIdx[name]!`) and this
+    /// crate returns instead, on the grounds — stated at the top of this file —
+    /// that a wrong `href` is a wrong byte either way and a silent one costs a
+    /// debugging round to locate. An error that does not name the declaration it
+    /// could not place spends that round anyway.
+    #[test]
+    fn an_unplaceable_name_says_which_name() {
+        let text = UnplaceableName {
+            name: "Pkg.M.f".to_owned(),
+        }
+        .to_string();
+        assert!(text.contains("Pkg.M.f"), "the name is missing: {text:?}");
+        assert!(
+            text.contains("declNameToLink"),
+            "the operation is missing: {text:?}"
+        );
+    }
+
     /// The head is what a reader scans for; the signature is what they read.
     /// They are two functions since M8-b because they wrap differently, so both
     /// halves are pinned here — the kind, the self link, the source link, and
