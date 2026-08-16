@@ -1,41 +1,13 @@
-# Handoff — 2026-08-16 (experiments/ 撤去 完了、push だけ残)
+# Handoff — 2026-08-16 (experiments/ 撤去 完了・push 済み)
 
 ## State
 
-- Branch: main / **clean** / **push できていない** (下記 Blocker)
-- ローカル commit 5 本が未 push: `a15addc` → `c179373` → `c013122` → `0dcb3a7` → `34a8861`
-- **tag `experiments-frozen` は push 済み** (`a15addc` を指す)
+- Branch: main / **clean** / **push 済み** (`6592bb9`、remote と一致を確認)
+- **tag `experiments-frozen` も push 済み** — remote 上で `a15addc` を指す (逆参照まで確認)
 - 品質: `cargo test --workspace --no-fail-fast` **355 passed / 2 failed**、clippy 0、fmt 緑【実測】
   **赤 2 件は環境要因で直してはいけない** — 計測対象の依存が 15 → 9 に変わったため
   (`packages::tests::every_root_matches_doc_gen4s_own_blob_urls` と `ledger::the_corpus_matches_the_prototype`)
 - 計測環境: doc-gen4 の計装は当たったまま (`apply-instrumentation.sh --check` → `APPLIED (v4.31.0)`)【実測】
-
-## Blocker — push に `workflow` scope が要る
-
-```
-! [remote rejected] main -> main (refusing to allow an OAuth App to create or update
-  workflow `.github/workflows/ci-import-modules.yml` without `workflow` scope)
-```
-
-`gh auth status` → scopes は `admin:public_key, gist, read:org, repo`。**`workflow` が無い。**
-撤去コミットが `.github/workflows/ci-import-*.yml` 3 本を触っているため弾かれる。
-
-**ユーザーに実行してもらう** (ブラウザが開く対話フロー):
-
-```
-gh auth refresh -h github.com -s workflow
-```
-
-そのあと:
-
-```
-GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.helper \
-  GIT_CONFIG_VALUE_0='!gh auth git-credential' \
-  git push https://github.com/FujiHaruka/lean-doc.git main:main
-```
-
-**ssh (port 22) はこの機材から通らない**【実測】ので上記の 1 コマンド限定の credential helper を使う。
-git の設定を汚さないこと。
 
 ## Where we are
 
@@ -55,8 +27,11 @@ git の設定を汚さないこと。
 
 ## Next step
 
-1. **上の Blocker を解消して push** (これだけが残作業)
-2. push 後、`docs/plans/experiments-removal.md` は役目を終える。残すなら「完了」と状態を書く
+**このスコープの残作業は無い。** 次に着手するなら:
+
+1. `docs/plans/experiments-removal.md` に「完了」と状態を書く (計画としての役目は終わった)
+2. **CI 3 本の付け替えは未検証のまま** — 走らせて確かめるか、捨てるかを決める (下記)
+3. 赤 2 件は計測対象側の作業が落ち着いてから母数を取り直す (`milestone-log.md` の M8 節)
 
 ## 決着した論点
 
@@ -91,3 +66,19 @@ git の設定を汚さないこと。
 - **履歴の書き換えはしない。** public にすれば tag 経由で `experiments/` は見える。
   「見せない」を満たすのは private に保つことであって削除ではない (ユーザーに提示済みの前提)
 - **subagent には「コミットするな」と指示する。同時に走らせるのは 1 体まで**
+- **ssh (port 22) はこの機材から通らない**【実測】。push は HTTPS + `gh` の credential helper。
+  **`GIT_CONFIG_COUNT=1` で helper を「足す」だけでは通らない**【実測 2026-08-16】 —
+  git config に `credential.helper=osxkeychain` が**2 回**入っていて、そちらが先に
+  古いトークンを返す (scope を refresh しても弾かれ続けた)。
+  **リストを空でリセットしてから `gh` を指す**こと:
+
+  ```
+  GIT_CONFIG_COUNT=2 \
+  GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0='' \
+  GIT_CONFIG_KEY_1=credential.helper GIT_CONFIG_VALUE_1='!gh auth git-credential' \
+  git push https://github.com/FujiHaruka/lean-doc.git main:main
+  ```
+
+  **その 1 コマンドの間だけ**効く。git の設定を汚さないこと。
+  なお `.github/workflows/` を触るコミットの push には **`workflow` scope** が要る
+  (2026-08-16 に `gh auth refresh -h github.com -s workflow` で付与済み)
