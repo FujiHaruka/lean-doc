@@ -325,6 +325,28 @@ baseline のログで exit 1 / 段 C のみのログでも exit 1 / 段 D のロ
   **別バージョンの olean を import して IR が静かにずれる**。減らすなら
   「run を跨いでキャッシュする」ではなく**「同一 run 内で 1 回にまとめる」**側に倒す。
 
+#### 段 E — 2 回のうち 1 回は消せた【実測 2026-08-17 → `benchmarks/results/g3-stage-e-2026-08-17.txt`】
+
+`resolve_external_links` の `lake env lean --githash` は **Lake が用意するものを 1 つも
+使っていない** (`LEAN_PATH` もビルド木も依存も)。使うのは toolchain の選択だけで、
+**それは Lake ではなく elan の仕事** — elan の `lean` shim は `lake env lean` が最終的に
+呼ぶのと同じ shim で、同じ `lean-toolchain` を作業ディレクトリから解決する。
+
+| | 対象 | 第 2 の対象 |
+|---|---|---|
+| `lake env lean --githash` | `68218e87…` 0.84 s | `68218e87…` 0.98 s |
+| `lean --githash` | `68218e87…` **0.03 s** | `68218e87…` **0.03 s** |
+
+**陽性対照**: `lean-toolchain` の無いディレクトリでは shim が失敗する
+(`no default toolchain configured`) — 一致は「たまたま同じ既定」ではない。
+
+第 2 の対象で end-to-end **wall 2.87 → 1.94 s (−0.94 s)**、site も `.lidx` もバイト一致。
+**`build full in` は動かない** — この呼び出しが `build` の clock の外にある証拠。
+
+**残る `lake env` は `Server::start` の 1 回 (約 1.14 s)。** こちらは `LEAN_PATH` を
+本当に要るので同じ手は使えない。自前で組み立てるのは**Lake のレイアウト知識の再実装**で、
+Lake が変えた瞬間に静かに壊れる。**やらない。**
+
 - **CI の全体像での取り分**: 対象パッケージ自身の `lake build` が CI では毎 run 走る。
   end-to-end で見ると doc 生成は 98.2% 対 1.8% の側でありうる (→ approach.md §6.5 の
   「`lake build` を足した端から端まで」)。**extract を 0 にしても CI 全体が何割減るかは未測定。**
