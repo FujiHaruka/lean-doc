@@ -13,6 +13,12 @@ node_modules/
 # depends on Lean core and nothing else.
 /e2e/*/.lake/
 
+# cargo-mutants working output. Mutation is an exploration, not a gate
+# (docs/plans/quality-gates.md Q10) — what it finds becomes a test, and the run
+# directory itself is disposable.
+/mutants.out/
+/mutants.out.old/
+
 # session-local scratch
 .claude/.resume-pending
 .claude/worktrees/

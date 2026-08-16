@@ -1,84 +1,85 @@
-# Handoff — 2026-08-16 (experiments/ 撤去 完了・push 済み)
+# Handoff — 2026-08-16 (品質ゲート整備 完了・public 化済み)
+
+## Relay control
+- Mode: DONE
+- Goal: 品質ゲート整備 (P0〜P2 + e2e 3 階層) を完遂 + リポジトリを public 化して GitHub Actions を有効にする
+- Leg: 1 / cap 8
+- Predecessor: none
+- Stop-on: completion
+- Progress ledger:
+  - r1: public 化 + ゲート 9 本 + CI 3 ジョブ + 実欠陥 1 件の修正。**24 commit** (`25731f2..215f5a6`)、全部 push 済み
 
 ## State
 
-- Branch: main / **clean** / **push 済み** (`6592bb9`、remote と一致を確認)
-- **tag `experiments-frozen` も push 済み** — remote 上で `a15addc` を指す (逆参照まで確認)
-- 品質: `cargo test --workspace --no-fail-fast` **355 passed / 2 failed**、clippy 0、fmt 緑【実測】
-  **赤 2 件は環境要因で直してはいけない** — 計測対象の依存が 15 → 9 に変わったため
-  (`packages::tests::every_root_matches_doc_gen4s_own_blob_urls` と `ledger::the_corpus_matches_the_prototype`)
-- 計測環境: doc-gen4 の計装は当たったまま (`apply-instrumentation.sh --check` → `APPLIED (v4.31.0)`)【実測】
+- Branch: main / **clean** / **push 済み**
+- **リポジトリは public** (2026-08-16 に変更【決定、ユーザー判断】 — Actions を無料枠で回すため)
+- 品質: `cargo test --workspace` **346 passed / 0 failed / 24 ignored**、clippy 0、fmt 緑【実測】
+- **CI が push ごとに 3 ジョブを回して success** (test / supply-chain / e2e、**1m26〜29s**)
 
-## Where we are
+## What was done
 
-`experiments/` の撤去は**完了**。ユーザー判断は「案 C: 全部消す」(棚卸しで出た 3 案のうち最大)。
-計画は `docs/plans/experiments-removal.md`。tracked **160 ファイルを HEAD から削除**し、
-**4 本を移設**した (`tools/{setup-clone,rebuild-own}.sh`、`benchmarks/tools/{merge-timing,summarize}.py`)。
+計画は [`docs/plans/quality-gates.md`](../docs/plans/quality-gates.md)、結果は
+[`docs/milestone-log.md`](../docs/milestone-log.md)「品質ゲート整備の結果」。
 
-処分は 3 通り:
-- **付け替え** — CI 3 本 → `extractor/`、`incremental-reference.sh`/`clone-gate.sh` → 製品側 (`lean-doc extract`)
-- **削除** — `render/global-reference.sh`、`--impl ts` 経路、`gen-*.ts` 12 本、`clone-gate.sh` のゲート 2
-- **移設** — 採点ロジックを持たない道具 4 本
+**doc-gen4 互換 (byte 再現) の代わりに置いたのは、外部オラクルを要らない 3 種**:
+自己整合性 / 不変量 / Lean 自身。ゲートは 9 本:
 
-**この撤去が撤回した既存の決定 2 つ** (計画 §1 に明記):
-1. `implementation-plan.md:44`「`coverage.ts` と `tools/*-gate.sh` は消さない」→ `coverage.ts` は消した
-2. `implementation-plan.md:40`「ゲート A の再定義はユーザーが後日行う」→ **再定義しない**で確定
-   (根拠: M8 で doc-gen4 参照木は「バイトのオラクル」から「内容のオラクル」へ格下げ済み)
+| | |
+|---|---|
+| `cargo test --workspace` | 機材ゼロ依存。**緑の定義** |
+| `tools/e2e-micro.sh` | **本物の Lean → 抽出器 → site**。5 ゲート (1 コマンド / 冪等 / 決定性 / `--jobs` 不変 / 仕事量) |
+| `tools/site-gate.sh` | 404 = 0 / 外部リソース = 0 / 索引 ⟷ ページ双方向 |
+| `tools/browser-gate.sh` | 実ブラウザ 9 検査。**UI-3 (375 px) が「未判定」から決着** |
+| `tools/provenance-gate.sh` | 帰属表示 27 claims |
+| `tools/corpus-gate.sh` | 対象を要する 24 本 (手動)。`--verify-list` は CI |
+| `cargo-deny` | licenses / advisories / sources |
+| fuzz corpus | `lean-doc-md`。MD4Lean が死ぬ 2 入力で落ちない |
+| サイズ予算 | 静的資産 3 本 (`assets.rs` のテスト) |
+
+**見つかったもの 5 件** (すべて milestone-log に記録):
+1. **レンダラの実欠陥** — inductive / class_inductive の constructor がページに 1 つも描かれていなかった (修正済み + 回帰テスト)
+2. **corpus 依存 24 本のうち 7 本が「フィクスチャが消えているのに緑」**
+3. **ゲート自身のバグ 2 件** (自己比較・出力順依存)
+4. **docs の主張 3 つが誤り** (IR 全読み「5 回」/ 集約の主張 / `pages_rendered`) → 直した
+5. mutation: 今回の diff 9/9、`decl.rs` 74 中 1 missed → 塞いで 74/74
 
 ## Next step
 
 **このスコープの残作業は無い。** 次に着手するなら:
 
-1. `docs/plans/experiments-removal.md` に「完了」と状態を書く (計画としての役目は終わった)
-2. **CI 3 本の付け替えは未検証のまま** — 走らせて確かめるか、捨てるかを決める (下記)
-3. 赤 2 件は計測対象側の作業が落ち着いてから母数を取り直す (`milestone-log.md` の M8 節)
-
-## 決着した論点
-
-- **`experiments/*/build/` の 1.7 GB も消した**【決定 2026-08-16、ユーザー判断】。
-  untracked / gitignored だったので `git rm` では残っていた分。`rm -rf experiments/` で全消し。
-  **帰結**: `experiments/stage7d/build/extract` (171 MB) が消えたので、
-  `milestone-log.md` の **M4-a ゲート「凍結バイナリとの 436/436 バイト一致」は
-  もう実行では再現できない**。tag にもバイナリは無い (`.gitignore` 対象だった) ので、
-  回すには tag から `stage7d/Extract.lean` を取り出してビルドし直すところから要る。
-  **数字は書き換えていない** — 「再現手段が無い実測」として milestone-log と
-  `extractor/README.md` の両方に明記した。
-
-## Files to read first
-
-- `docs/plans/experiments-removal.md` — 今回の計画。§4 のゲートと §「G1 が 0 にならない理由」
-- `CLAUDE.md`「撤去したプロトタイプ — tag `experiments-frozen`」 — 規則の新しい形
-- `README.md`「撤去したプロトタイプ」 — 公開面の説明
-- `crates/lean-doc-{md,render}/tests/data/PROVENANCE.md` — フィクスチャが「再生成手段の無い凍結値」になった旨
+1. **V2 (`contentHash` キャッシュ)** — **測る道具はできた** (`work.irReads`)。
+   ただし **`ownership` は N+1 読みで差分側はキャッシュで消せない**ので、
+   「5 回 → 1 回」の見積もりは楽観 (→ approach.md §5.6)
+2. **ワークスペース全体の mutation** — **1,602 mutant / 約 80 分**。ゲートにはしない
+3. **E2 (合成の第 2 の対象、`tools/target2-gate.sh`)** — Mathlib が要るので CI には載せない。
+   **いま動くかは未確認** (`build-gate.sh` は gate1-site が判定不能だったので止めた)
+4. 赤 2 件 (`packages::every_root_...` / `ledger::the_corpus_...`) は**対象が動いた事実の報告**。
+   `cargo test` からは ignored なので緑に影響しない。母数を取り直すのは対象側が落ち着いてから
 
 ## Load-bearing context
 
-- **`benchmarks/tools/measure-ledger.sh` は起動時に `benchmarks/results/m3a-ledger-*.jsonl` を
-  切り詰める**【実測。今セッションで踏んで `git checkout` で復元した】。
-  tracked な生ログなので、**動作確認のつもりで実走してはいけない。**
-- **残ってよい `experiments/` の文字列は 4 種**: 生ログ / IR の `generator` 値 / 由来コメント /
-  過去形の説明。**0 件にしてはいけない** (計画 §4 の「G1 が 0 にならない理由」)。
-  特に `extractor/Extract.lean:2313` の `"lean-doc/experiments/stage4b"` は**値**で、
-  書き換えるとフィクスチャ 8 本が全部落ちる
-- **CI 3 本は付け替えたが未検証**。stage4b (schema 3) → `extractor/` (schema 4) で
-  **測る対象が変わっている**。各ワークフロー冒頭にその警告を書いた。
-  **記録済みの数字と新しい数字を並べないこと。**
-- **履歴の書き換えはしない。** public にすれば tag 経由で `experiments/` は見える。
-  「見せない」を満たすのは private に保つことであって削除ではない (ユーザーに提示済みの前提)
-- **subagent には「コミットするな」と指示する。同時に走らせるのは 1 体まで**
-- **ssh (port 22) はこの機材から通らない**【実測】。push は HTTPS + `gh` の credential helper。
-  **`GIT_CONFIG_COUNT=1` で helper を「足す」だけでは通らない**【実測 2026-08-16】 —
-  git config に `credential.helper=osxkeychain` が**2 回**入っていて、そちらが先に
-  古いトークンを返す (scope を refresh しても弾かれ続けた)。
-  **リストを空でリセットしてから `gh` を指す**こと:
-
+- **`e2e/micro` の宣言を消さない。** 1 つ 1 つが「対象が持たない形」を担当している
+  (`class` / `inductive` / `class inductive` / 非 `mk` ctor / 継承 field / implicit binder /
+  astral 識別子 / scoped notation)。**Mathlib を足さない** — 足した瞬間 CI で回らなくなる
+- **`tools/corpus-tests.txt` の `## frozen` 3 本は走らせても永久に panic する**
+  (`--full` 録画の生成器が tag `experiments-frozen` の中)。ゲートは実行対象から外し、
+  **外したことを毎回出力する**
+- **新しいゲートは必ず一度落としてから通す。** 作った当日に「何をしても通るゲート」を 2 件作った
+- **`benchmarks/tools/measure-ledger.sh` は起動時に tracked な生ログを切り詰める**【実測】。
+  動作確認のつもりで実走しない
+- **ssh (port 22) はこの機材から通らない。** push は HTTPS + `gh`:
   ```
   GIT_CONFIG_COUNT=2 \
   GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0='' \
   GIT_CONFIG_KEY_1=credential.helper GIT_CONFIG_VALUE_1='!gh auth git-credential' \
   git push https://github.com/FujiHaruka/lean-doc.git main:main
   ```
+  **その 1 コマンドの間だけ**効く。git の設定を汚さない
+- **subagent には「コミットするな」と指示する。同時に走らせるのは 1 体まで**
 
-  **その 1 コマンドの間だけ**効く。git の設定を汚さないこと。
-  なお `.github/workflows/` を触るコミットの push には **`workflow` scope** が要る
-  (2026-08-16 に `gh auth refresh -h github.com -s workflow` で付与済み)
+## Files to read first
+
+- `docs/plans/quality-gates.md` — §3 Approach (なぜこの 3 種か) と §5 の結果表
+- `CLAUDE.md`「品質ゲート」 — 運用の規律 (テストとゲートの境界 / skip で緑を返さない / 壁時計を使わない)
+- `e2e/README.md` — フィクスチャが何を担当しているか
+- `docs/milestone-log.md`「品質ゲート整備の結果」 — 数字と見つかった 5 件
