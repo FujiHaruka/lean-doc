@@ -1,14 +1,16 @@
 # Handoff — 2026-08-16 (20)
 
 ## Relay control
-- Mode: **DONE**
-- Goal: **外部リンクの版ズレ対策を案 (b) で実装** — 依存へのリンクを版固定 GitHub blob URL にする
-- Leg: 1 / cap 8   # 1 leg で完遂。context が尽きる前に終わったので継投なし
+- Mode: **ON**
+- Goal: **UI 完全刷新 (M8)** — doc-gen4 模倣をやめ、**IR はそのまま**で HTML / CSS / JS を自前にし、
+  **information-theory の GitHub Pages を新 UI で再ホストする**まで。計画は `docs/plans/ui-redesign.md`
+- Leg: 1 / cap 8
 - Predecessor: none
 - Stop-on: **completion**
 - Progress ledger:
-  - r1: **M7 完遂** — 計画 `fb05282` / オラクル `5d5dbbc` / M7-b `0db2e19` / M7-a `d339d6f` /
-    M7-d 第 1 段 `72d682d` / M7-c `992ad35` / docs `b110245`〜`b058628`
+  - r1: (進行中) 計画 `docs/plans/ui-redesign.md` を起こした
+- 前ゴール (完了): **M7** — 計画 `fb05282` / オラクル `5d5dbbc` / M7-b `0db2e19` / M7-a `d339d6f` /
+  M7-d 第 1 段 `72d682d` / M7-c `992ad35` / docs `b110245`〜`b058628`
 
 ## 到達点 — M7 は 4 段とも通っている【すべて実測 2026-08-16】
 
