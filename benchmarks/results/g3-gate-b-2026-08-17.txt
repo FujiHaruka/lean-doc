@@ -1,0 +1,46 @@
+# v0.1 のゲート B を段 C / 段 D の後に実走 (2026-08-17)
+
+`tools/target2-gate.sh all`。第 2 の対象 (合成、13 モジュール / 2 ライブラリ /
+Mathlib 依存、doc-gen4 の出力を一度も見ていない)。lean-doc `dc677f8`、
+Lean v4.31.0 / mathlib `fabf563a`、M1 / 16 GB、`--jobs 4`。
+生ログ: scratchpad の `target2-gate.log` (コミットしない)。
+
+## 結果 — **all checks passed**
+
+```
+gate 1  一発、地図を渡さない        PASS  site 20 ファイルが `lean-doc site` の出力と byte 一致
+gate 2  決定性 (別 --out へ)        PASS  site も IR も byte 一致
+gate 3  無変更                      PASS  23 ファイル、1 バイトも動かない
+gate 4  実変更 (モジュール移動)     PASS  site / IR / 台帳 / 地図がフル生成と byte 一致
+boundary  6 個の境界値              記録済
+```
+
+## gate 4 の中身 — 段 C の**保守的な側**が出ている
+
+`Alpha.Basic` の本体を新モジュール `Alpha.BasicCore` に移し、実際に `lake build` してから増分:
+
+```
+detect  14 module(s): 3 to re-extract, 0 removed
+global  delta: 3 name(s) moved in or out of the map (23 -> 23) -> 6 page(s) to re-render
+impact  mode all -> 14 page(s) (14 from the changed set, 6 from the global map)
+build   incremental in 1.9450 s
+```
+
+**`mode all` になっているのは正しい。** モジュールが 1 本増えたので
+`env.header.moduleNames` が伸び、`.lidx` の `@` 節が変わり、地図のバイトが動き、
+`renderKey` が動く。段 C は `@` 節を**全部残す**選択をしているので、
+**モジュールの増減は全ページ再描画になる** — 安いのは「既存モジュールの中身を編集した」
+場合だけ。これは設計どおりで、`docs/plans/reextract-count.md` §6 に書いてある。
+
+段 D の再利用判定もここでは正しく**不一致**になる (`@` 節が変わったため) → 書き直す。
+
+続けてもう一度回すと `0 to re-extract / 0 page(s) / nothing to render / 0.0524 s`。
+
+## 何を主張して、何を主張しないか
+
+- **主張する**: 対象リポジトリ以外の Mathlib 依存パッケージで `lean-doc build` 一発が通り、
+  増分が効き (無変更・実変更の両方)、CI に置ける (→ `g3-ci-2026-08-17.txt` の run 31963581512)。
+  **これは実装計画 §1 のゲート B の完了条件そのもの。**
+- **主張しない**: **実在の公開パッケージでの実走**。第 2 の対象は合成なので、
+  境界値は狙って入れられる代わりに**こちらが知らない形では驚かせてくれない**
+  (実装計画 §1 の決定 2026-08-15)。**未検証項目として残す。**
