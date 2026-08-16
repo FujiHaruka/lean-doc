@@ -807,8 +807,9 @@ fn full_generation(
         external_links: Some(&request.external_links.digest()),
         algorithm: &Algorithm::sha256(),
         // The ledger's bytes do not depend on this (M3-a 【実測】); its speed
-        // does. One is the pipeline's own choice too.
-        concurrency: 1,
+        // does — the same default the incremental path uses, from the same
+        // measurement (段 F, [`crate::pipeline::hash_concurrency`]).
+        concurrency: crate::pipeline::hash_concurrency(),
         timings: Some(&layout.work.join("ledger-timings.json")),
     })
     .map_err(refused)?

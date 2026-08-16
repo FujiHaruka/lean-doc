@@ -5344,6 +5344,32 @@ inside が before で 3.97〜6.25 s と散っており (page cache)、その散�
 (3,769 jobs)、ソースツリー clean を確認してから測り直した。
 規則は CLAUDE.md「ベンチマーク」に追加。
 
+### 段 F — 台帳の olean ハッシュが 1 本ずつだった【実測 2026-08-17】
+
+生ログ `benchmarks/results/g3-stage-f-2026-08-17.txt`。
+`detect` は 422 モジュールの olean **228,448,584 B** を読んでハッシュするのに
+`concurrency: 1` が直書きされていた。**理由は無く、測られてもいなかった**
+(コメントは「台帳のバイトはこれに依存しない (M3-a 実測)、速度は依存する、フラグは後で」)。
+
+| concurrency | hashSeconds |
+|---:|---:|
+| 1 | **0.500** |
+| 2 | **0.068** |
+| 4 | 0.037 |
+| 8 | 0.029 |
+
+**1 → 2 で 7.4 倍**は 2 スレッドの CPU では説明がつかない — 仕事は mmap した olean を
+読むことなので、2 本目は**演算ではなく page fault の待ちを隠している**。
+
+**バイト同一性を主張そのもので検査した**: `ledger build --concurrency 1` と `8` の出力は
+**IDENTICAL (139,190 B)**、hashSeconds は 0.436 → 0.027 s (16 倍)。
+
+end-to-end (`incremental --timings` の `detectSeconds`): **0.463 → 0.042 s (−0.42 s)**、
+1 モジュール変更 約 4.6 s の **9%**。既定は `available_parallelism()` を [1, 8] に丸める。
+
+**ゲート**: `cargo test` 346/0/21、clippy 無警告、e2e 緑、`target2-gate.sh all` =
+all checks passed。
+
 ---
 
 ## 書き方

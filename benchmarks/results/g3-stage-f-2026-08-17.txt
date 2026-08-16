@@ -1,0 +1,55 @@
+# 段 F — 台帳の olean ハッシュを並列に (2026-08-17)
+
+`detect` は 422 モジュールの olean **228,448,584 B** を読んでハッシュする。
+これを **1 本ずつ**やっていた — `pipeline.rs` と `build.rs` の両方で `concurrency: 1`。
+理由は無く、コメントに「台帳のバイトはこれに依存しない (M3-a 実測)、速度は依存する。
+フラグは M4 のチューニングと一緒に」とあった。**その 1 は測られていなかった。**
+
+対象 lean-projects `c4f6af29` / 422 モジュール / M1 (8 コア) / lean-doc `c4ec935`。
+
+## 実装前に読み取り専用で測った — `lean-doc ledger check --concurrency N --timings`
+
+```
+concurrency  1   hashSeconds 0.500   total 0.509
+concurrency  2   hashSeconds 0.068   total 0.075
+concurrency  4   hashSeconds 0.037   total 0.043
+concurrency  8   hashSeconds 0.029   total 0.036
+```
+
+**1 → 2 で 7.4 倍**、2 スレッドの CPU では説明がつかない。仕事は mmap した olean を
+読むことなので、2 本目は**演算を足しているのではなく page fault の待ちを隠している**。
+天井も低く、4 で既に 8 の 30% 以内。
+
+## バイト同一性 — 主張そのものを切り分けて検査
+
+`lean-doc ledger build --concurrency 1` と `--concurrency 8` を同じ入力で:
+
+```
+c=1  hashSeconds 0.436
+c=8  hashSeconds 0.027
+台帳: IDENTICAL (139,190 B)
+```
+
+**16 倍で、出力は 1 バイトも動かない。**
+
+## end-to-end — `lean-doc incremental --timings` の `detectSeconds`
+
+```
+before (concurrency 1)  0.463 s   → g3-attribution-2026-08-17.txt
+after  (段 F)            0.042 / 0.042 / 0.040 s  (n=3)
+```
+
+**−0.42 s。** 1 モジュール変更 約 4.6 s のうち **9%**。
+
+## 既定値の選び方
+
+`std::thread::available_parallelism()` を **[1, 8] に丸める**。全コアを取らないのは、
+run の本当の並列度は抽出器のもの (`--jobs`) で、ハッシュ pass が機械を占めても
+上の表のとおり 4 以上でほとんど増えないため。`available_parallelism` が答えない機械では
+4 (`--jobs` の既定と同じ)。**1 でも間違いではない、遅いだけ。**
+
+## ゲート
+
+`cargo test --workspace` 346 passed / 0 failed / 21 ignored、`cargo clippy` 無警告、
+`tools/e2e-micro.sh` 緑、`tools/target2-gate.sh all` = **all checks passed**
+(gate 1〜4 + boundary。第 2 の対象は `make-target2.sh` で作り直してから)。

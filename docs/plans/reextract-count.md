@@ -347,6 +347,23 @@ baseline のログで exit 1 / 段 C のみのログでも exit 1 / 段 D のロ
 本当に要るので同じ手は使えない。自前で組み立てるのは**Lake のレイアウト知識の再実装**で、
 Lake が変えた瞬間に静かに壊れる。**やらない。**
 
+#### 段 F — 台帳の olean ハッシュが 1 本ずつだった【実測 2026-08-17 → `benchmarks/results/g3-stage-f-2026-08-17.txt`】
+
+`detect` は 422 モジュールの olean 228 MB を読んでハッシュするが、
+`concurrency: 1` が両方の呼び出しに直書きされていた。**理由は無く、測られてもいなかった**
+(コメントは「バイトは依存しない、速度は依存する、フラグは後で」)。
+
+```
+concurrency 1  hashSeconds 0.500    ledger build c=1 vs c=8: 台帳 IDENTICAL (139,190 B)
+concurrency 2  hashSeconds 0.068                             0.436 s -> 0.027 s (16 倍)
+concurrency 4  hashSeconds 0.037
+concurrency 8  hashSeconds 0.029    end-to-end detectSeconds 0.463 -> 0.042 s (-0.42 s)
+```
+
+**1 → 2 で 7.4 倍**は 2 スレッドの CPU では説明がつかない — mmap した olean の
+**page fault の待ちを隠している**。既定は `available_parallelism()` を [1, 8] に丸める
+(全コアを取らないのは、run の本当の並列度が抽出器のものだから)。
+
 - **CI の全体像での取り分**: 対象パッケージ自身の `lake build` が CI では毎 run 走る。
   end-to-end で見ると doc 生成は 98.2% 対 1.8% の側でありうる (→ approach.md §6.5 の
   「`lake build` を足した端から端まで」)。**extract を 0 にしても CI 全体が何割減るかは未測定。**

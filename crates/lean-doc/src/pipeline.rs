@@ -461,8 +461,8 @@ pub fn run_incremental(
         // against this" is one value rather than two derivations of one.
         external_links: Some(&options.external_links.digest()),
         // The ledger's bytes do not depend on this (M3-a 【実測】); its speed
-        // does, and a flag for it belongs with the rest of M4's tuning.
-        concurrency: 1,
+        // does — see [`hash_concurrency`].
+        concurrency: hash_concurrency(),
         changed_out: Some(&work.changed),
         removed_out: Some(&work.removed),
         render_all_out: Some(&work.render_all),
@@ -1260,6 +1260,39 @@ pub fn serve_options(request: ServeRequest<'_>) -> Result<Serve, Failure> {
         link_index,
         link_index_key,
     })
+}
+
+/// How many modules' oleans are hashed at once when the ledger is built or
+/// checked (段 F).
+///
+/// **The ledger's bytes do not depend on this and its speed does** (M3-a 【実測】),
+/// which is why this can be a default rather than a decision: `detect` reads and
+/// hashes every module's oleans — **228,448,584 B over 422 modules** on the
+/// measurement target — and until 段 F it did so one at a time because the
+/// pipeline had no opinion and 1 was the value that needed no argument.
+///
+/// It needed one. Measured with `lean-doc ledger check --concurrency N
+/// --timings`, read-only, on that target【実測 2026-08-17】:
+///
+/// ```text
+/// concurrency  1   hashSeconds 0.500
+/// concurrency  2   hashSeconds 0.068
+/// concurrency  4   hashSeconds 0.037
+/// concurrency  8   hashSeconds 0.029
+/// ```
+///
+/// **7.4x from one to two**, which is more than two threads of CPU can explain:
+/// the work is reading mmap'd oleans, so the second thread is hiding page-fault
+/// latency rather than adding arithmetic. That also says the ceiling is low — 4
+/// is already within 30% of 8 — so this clamps rather than taking every core:
+/// the run's real parallelism belongs to the extractor (`--jobs`), and a hashing
+/// pass that took the whole machine would be competing with it for nothing.
+///
+/// `available_parallelism` fails on a machine that will not say; 4 is the same
+/// default `--jobs` uses, and one thread is never wrong, only slow.
+#[must_use]
+pub fn hash_concurrency() -> usize {
+    std::thread::available_parallelism().map_or(4, |cores| cores.get().clamp(1, 8))
 }
 
 /// 段 D: the token the extractor checks the dependency map's sidecar against.
