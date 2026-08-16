@@ -167,20 +167,21 @@ doc-gen4 のライセンスは **Apache License 2.0**
 各 `.lean` の先頭に `Copyright (c) 2021 Henrik Böving. All rights reserved. /
 Released under Apache 2.0 license as described in the file LICENSE. / Authors: Henrik Böving`。
 
-§4 は**配布したとき**に発動する。4 条件:
+§4 は**配布したとき**に発動する。**2026-08-16 の public 化で発動した** — 4 条件はいずれも
+発動前 (§6、同日) に払ってあるので、public 化そのものが要求した作業は無い:
 
 | | 条件 | 本件での状況 |
 |---|---|---|
-| **(a)** | 派生物の受領者にライセンス本文の複製を渡す | **未履行**。lean-doc に `LICENSE` が無い |
-| **(b)** | 変更したファイルに「変更した」旨の目立つ告知を付ける | **半分**。`Extract.lean` 等に "transcribed" とは書いてあるが、「変更した」の告知としては弱い |
-| **(c)** | Source 形式の派生物に、原著作物の著作権・帰属表示を保持する | **未履行**。`Böving` の名も Apache への言及も lean-doc のツリーに 1 件も無い |
+| **(a)** | 派生物の受領者にライセンス本文の複製を渡す | **履行済**。`LICENSE` (canonical Apache-2.0 201 行) がツリーにある |
+| **(b)** | 変更したファイルに「変更した」旨の目立つ告知を付ける | **履行済**。逐字コピー 6 箇所それぞれ + README / NOTICE 冒頭 (→ §6) |
+| **(c)** | Source 形式の派生物に、原著作物の著作権・帰属表示を保持する | **履行済**。`Extract.lean` / `style.css` / md クレート各ファイル (→ §6 の表) |
 | **(d)** | 原著作物が NOTICE ファイルを含むなら、その内容を派生物にも入れる | **発動しない** — **doc-gen4 に NOTICE ファイルが無い**【実測: 直下は `LICENSE` のみ】 |
 
 **いま何を配布しているか**が結論を分ける:
 
 | 配布物 | 状態 | doc-gen4 由来物 |
 |---|---|---|
-| **lean-doc リポジトリ** | **private = 未配布** | A の 20 箇所すべて。§4 は**まだ発動していない**が、v0.1 を出す時点で発動する |
+| **lean-doc リポジトリ** | **public = 配布中** (2026-08-16 に private から変更) | A の 20 箇所すべて。**§4 は発動した。義務は発動前に払ってあるので、新たな履行は無い** — (a) `LICENSE`・(b)(c) 各ファイルの帰属表示と README / NOTICE 冒頭の告知はすべて §6 で置いた (2026-08-16)、(d) は不発動 |
 | **生成サイト** (<https://fujiharuka.github.io/information-theory/>) | **public = 配布中** | **`style.css` の 8 行のみ**。HTML の class 名と URL 形は C (インタフェース)。ホスト先の `FujiHaruka/information-theory` は**既に Apache-2.0**【実測: `gh api`】 |
 
 **非対称が要点**: UI-4 ゲート (`docs/plans/ui-redesign.md:21`) が「doc-gen4 の資産が 1 本も残って
@@ -261,9 +262,9 @@ Released under Apache 2.0 license as described in the file LICENSE. / Authors: H
   結論は変わらない (どちらでも §4(b)(c) を払う) が、**ファイル冒頭に帰属表示が要る**度合いが上がる
 - **~~`experiments/` を配布物に含めた場合~~ → 決着した (2026-08-16)。** `experiments/` は
   **HEAD から撤去した**ので、v0.1 の配布物にも作業ツリーにも入らない。棚卸しの対象外で確定。
-  ただし**履歴には残っている** (tag `experiments-frozen`) — リポジトリを public にすれば
-  そこから読める。**その場合に何が起きるか**: 中身は doc-gen4 を読んで書いた TS で、
-  リポジトリ全体が Apache-2.0 + `NOTICE` 済なので**追加の義務は発生しない** (§4 が既に覆っている)。
+  ただし**履歴には残っている** (tag `experiments-frozen`) — **2026-08-16 の public 化で
+  実際に読める状態になった**。中身は doc-gen4 を読んで書いた TS で、リポジトリ全体が
+  Apache-2.0 + `NOTICE` 済なので**追加の義務は発生しない** (§4 が既に覆っている)。
   **撤去の理由は方針であって法務ではない。**
 - **`benchmarks/doc-gen4-instrumentation.patch` を配布した場合。** context 187 行が
   doc-gen4 のソース逐語なので、patch 単体で §4(a)(c) が発動する

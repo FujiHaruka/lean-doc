@@ -8,8 +8,10 @@ Mathlib に依存する Lean パッケージのための、高速ドキュメン
 アプローチの SoT は `docs/approach.md`、**実装の SoT は `docs/implementation-plan.md`**、
 数字の SoT は `docs/verification-log.md`。実装の**結果**は `docs/milestone-log.md`。
 
-このリポジトリは private。対して計測対象の `lean-projects` は public なので、
-そちらに何かを書き戻すときは公開物として扱う。
+**このリポジトリは public** (2026-08-16 に private から変更【決定、ユーザー判断】 — 理由は
+GitHub Actions を無料枠で回すこと)。計測対象の `lean-projects` も public。
+**書くものはすべて公開物として扱う** — docs・コミットメッセージ・handoff を含む。
+**履歴も tag も公開されている** (→ 下の「撤去したプロトタイプ」)。
 
 ## リポジトリの構成
 
@@ -44,8 +46,10 @@ git log experiments-frozen -- experiments/
 - **消えたのは採点器であって数字ではない。** commit 済フィクスチャ
   (`crates/*/tests/data/*-expected.json`) は凍結値として残り、`cargo test` は無傷。
   ただし **再生成手段は HEAD に無い** — 作り直すには tag から生成器を復元する
-- **履歴の書き換えはしない。** public にしたら tag 経由で見えるが、それは承知の上の判断。
-  「見せない」を満たすのはリポジトリを private に保つことであって、削除ではない
+- **履歴の書き換えはしない。** リポジトリが public になった (2026-08-16) ので、
+  **tag 経由で `experiments/` 164 ファイルは実際に読める**。これは承知の上の判断で、
+  撤去の理由は方針であって法務ではない — 追加のライセンス義務は発生しない
+  (`docs/provenance.md` §8)。**「見せない」は満たされていない**、という事実で運用する
 
 **抽出器は Lean、その外側 (IR 消費・レンダリング・増分・検索索引) は Rust** (2026-08-11 決定
 → 計画 §5.6)。**選定理由は速度ではない** — 外側の速度差は言語ではなく **IR 全読みの回数**で
