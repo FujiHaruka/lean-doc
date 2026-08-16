@@ -122,12 +122,28 @@ README / 実装計画の原則: **「同じ言語・同じ設計で書き直す�
 
 | | 条件 |
 |---|---|
-| G1 | `rg -n 'experiments/' --glob '!*.md' .` が **0 件** |
+| G1 | **`experiments/` を実行時に読む / 起動するコードが 0 件**。文字列としての `experiments/` は残ってよい — 内訳は下の「G1 が 0 にならない理由」 |
 | G2 | `cargo test --workspace --no-fail-fast` が **355 passed / 2 failed** (赤 2 件は既知の環境要因。**増えていない**こと) |
 | G3 | `cargo clippy --workspace --all-targets` 0 warning、`cargo fmt --check` 緑 |
 | G4 | md 中の `experiments/` 参照が**すべて** tag `experiments-frozen` を伴う |
 | G5 | `git tag -l experiments-frozen` が削除直前の commit を指す |
 | G6 | `tools/` の残ったハーネスが `--help` / 引数検証まで到達する (実走は不要) |
+
+### G1 が 0 にならない理由 — 残ってよい `experiments/` の 4 種【実測 2026-08-16】
+
+当初 G1 を「`rg -n 'experiments/' --glob '!*.md'` が 0 件」と書いたが、**これは達成不能で、
+達成すべきでもない**。0 にするには数字の出所と由来の記録を壊すことになる。残す 4 種:
+
+| 種類 | 例 | 残す理由 |
+|---|---|---|
+| **生ログ** | `benchmarks/results/` 256 ファイル | 数字の出所そのもの。書き換えたら過去の実測が再現できない |
+| **フィクスチャ / IR の「値」** | `"lean-doc/experiments/stage4b"` (`extractor/Extract.lean:2313`、`tests/data/*.json` 8 本、`ledger.rs` の `assert_ne!`) | **パスではなく `irGenerator` の値**。書き換えるとフィクスチャ 8 本が全部落ちる |
+| **由来コメント** | `//! Ported from experiments/stage7d/render.ts (frozen)` (46 ファイル) | 「実行時に何を読むか」ではなく「どこから移植したか」。消すと移設元が辿れなくなる |
+| **過去形の説明** | ハーネス冒頭の「以前は TS 実装と比較していた」 | **何を失ったかの記録**。これが消えると「元々そんな比較は無かった」ように読める |
+
+**書き換えたのは「人間に、もう無いスクリプトの実行を指示している箇所」だけ** —
+`measure-{residency,prefetch,warmstart}.sh` の既定値 (必須の環境変数へ)、
+`read-ir.ts` のエラーメッセージ、`{merge,impact,ledger,incremental}-compare.sh` の usage 例。
 
 ## 5. やらないこと
 

@@ -86,9 +86,9 @@ page cache の状態で 2 倍以上動く (環境ロード単体では warm 2.5 
 
 ### byte 再現率 — これは**受け入れオラクル**であって製品目標ではない
 
-同じ IR から作ったページを doc-gen4 の出力と領域単位で突き合わせた値
-(`experiments/stage4c/coverage.ts`、Deno、製品外)。**再測定 2026-08-15、`lean-doc build`
-の出力に対して**【すべて実測】:
+同じ IR から作ったページを doc-gen4 の出力と領域単位で突き合わせた値。採点器は Deno の
+`experiments/stage4c/coverage.ts` で、**tag `experiments-frozen` にある** (HEAD には無い →
+[構成](#リポジトリの構成))。**再測定 2026-08-15、`lean-doc build` の出力に対して**【すべて実測】:
 
 | | |
 |---:|---|
@@ -105,6 +105,8 @@ page cache の状態で 2 倍以上動く (環境ロード単体では warm 2.5 
 - **この数字は M6 時点の到達点であって、いまの出力に対する主張ではない。** M8 で UI を
   自前にしたので、**doc-gen4 とはもうバイトで一致しない (意図的に)**。書き換えずに残してあるのは、
   M1〜M6 の結果ログと食い違わせないため → [`docs/milestone-log.md`](docs/milestone-log.md) の M8。
+- **この採点はもう回していない。** doc-gen4 互換を追うのをやめた時点で役割が終わったので、
+  採点器ごと HEAD から撤去した (2026-08-16)。**再開するなら tag から復元する。**
 
 ---
 
@@ -328,16 +330,30 @@ doc-gen4 が読んでいた CDN 4 本 (Lato / JuliaMono / polyfill / MathJax) �
 crates/          製品コード (Rust)。ir / md / render / global / incr / CLI
 extractor/       抽出器 (Lean)。build.sh が対象の lake env を借りてビルドする
 tools/           ハーネスとゲート。ci-build.sh もここ
-experiments/     検証段階ごとの使い捨てプロトタイプ。2026-08-11 に凍結 (読むだけ)
 benchmarks/      計測レポート・計装パッチ・生ログ
 docs/            上の 5 文書
 NOTICE           第三者コードの帰属。doc-gen4 / md4c / MD4Lean / UnicodeBasic / V8
 ```
 
-`experiments/` を凍結しているのは、**verification-log がそこを数字の出所として
-指している**ため — 書き換えると過去の実測が再現できなくなる。
-受け入れオラクル `experiments/stage4c/coverage.ts` だけは今も回す (**Deno のまま製品外**。
-Rust 版を採点する側なので、同じ言語で書き直すと「両方同じ間違いをする」経路ができる)。
+### 撤去したプロトタイプ — tag `experiments-frozen`
+
+検証段階 1〜8 の使い捨てプロトタイプ (`experiments/`、TS + シェル、27 ディレクトリ / 164 ファイル)
+は Rust への移設が M1〜M8 で終わった時点で **HEAD から撤去した (2026-08-16)**。
+**履歴には残っている** — `experiments/` が完全な状態の最後の commit (`a15addc`) に
+tag **`experiments-frozen`** が打ってある:
+
+```
+git show experiments-frozen:experiments/stage7d/render.ts   # レンダラのプロトタイプ
+git show experiments-frozen:experiments/stage4c/coverage.ts # 受け入れオラクル
+git log  experiments-frozen -- experiments/
+```
+
+- **docs が数字の出所として指す `experiments/...` は、すべてこの tag を伴う。**
+- **消えたのは採点器であって数字ではない。** commit 済フィクスチャ
+  (`crates/*/tests/data/*-expected.json`) は凍結値として残っていて `cargo test` は無傷。
+  ただし**再生成手段は HEAD に無い** — 作り直すには tag から生成器を復元する。
+- 採点器を Rust に書き直さなかったのは、**同じ言語・同じ設計で書き直すと「両方同じ間違いを
+  する」経路ができる**ため。採点器は作り直すのではなく、役割が終わった時点で畳んだ。
 
 ## 計測条件
 

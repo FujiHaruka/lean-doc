@@ -253,7 +253,8 @@ manifest / 抽出器 id とその構成 (`--open`) / IR schema / 生成器 id) �
 ソースの glob で作る** — **`.lake/build` を走査してはいけない**。Lake は孤児 olean を消さないので
 432 モジュールに対し olean は 1,090 個、**659 個が幽霊**【実測】。**削除経路は実装済み** (台帳・IR・
 ページの 3 箇所、増分 6) — 台帳は作り直しで足り (`build` は `check` と同コスト)、**ページは消す係が
-要る** (レンダラは書くだけ。複製上の落とし穴は `experiments/stage5e/README.md`)。
+要る** (レンダラは書くだけ。複製上の落とし穴は `experiments/stage5e/README.md`、
+tag `experiments-frozen`)。
 
 **L3 が §5.5 に無かった穴で、3 つある** (いずれも実装済み):
 

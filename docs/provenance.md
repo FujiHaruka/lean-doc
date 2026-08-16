@@ -259,8 +259,11 @@ Released under Apache 2.0 license as described in the file LICENSE. / Authors: H
 
 - **`html.rs` の 680 行を「移設」ではなく「コピー」と見るべきだった場合。**
   結論は変わらない (どちらでも §4(b)(c) を払う) が、**ファイル冒頭に帰属表示が要る**度合いが上がる
-- **`experiments/` を配布物に含めた場合。** ここは凍結された使い捨てプロトタイプで、
-  doc-gen4 を読んで書いた TS が入っている。**現状は棚卸しの対象外**にしている
-  (private のまま、v0.1 の配布物にも入らない前提)。この前提が変わったら §2 をやり直す
+- **~~`experiments/` を配布物に含めた場合~~ → 決着した (2026-08-16)。** `experiments/` は
+  **HEAD から撤去した**ので、v0.1 の配布物にも作業ツリーにも入らない。棚卸しの対象外で確定。
+  ただし**履歴には残っている** (tag `experiments-frozen`) — リポジトリを public にすれば
+  そこから読める。**その場合に何が起きるか**: 中身は doc-gen4 を読んで書いた TS で、
+  リポジトリ全体が Apache-2.0 + `NOTICE` 済なので**追加の義務は発生しない** (§4 が既に覆っている)。
+  **撤去の理由は方針であって法務ではない。**
 - **`benchmarks/doc-gen4-instrumentation.patch` を配布した場合。** context 187 行が
   doc-gen4 のソース逐語なので、patch 単体で §4(a)(c) が発動する

@@ -24,32 +24,8 @@ benchmarks/tools/olean-residency
 benchmarks/tools/olean-evict
 benchmarks/tools/olean-prefetch
 
-# stage-1 experiment build output (native binary + generated C)
-experiments/stage1/build/
-
-# stage-2 experiment build output (native binary + generated C)
-experiments/stage2/build/
-
-# stage-3 experiment build output (native binary + generated C)
-experiments/stage3/build/
-
-# stage-4 experiment build output (native binary + generated C)
-experiments/stage4/build/
-
-# stage-4b experiment build output (native binary + generated C)
-experiments/stage4b/build/
-
-# stage-7a experiment build output (native binary + generated C)
-experiments/stage7a/build/
-
-# stage-7b experiment build output (native binary + generated C)
-experiments/stage7b/build/
-
-# stage-7c experiment build output (native binary + generated C)
-experiments/stage7c/build/
-
-# stage-7d experiment build output (native binary + generated C)
-experiments/stage7d/build/
-
-# stage-7e experiment build output (native binary + generated C)
-experiments/stage7e/build/
+# experiment build output (native binaries + generated C). `experiments/` itself was
+# removed on 2026-08-16 (tag `experiments-frozen`), but these build directories were
+# never tracked, so a working copy from before the removal still has them on disk.
+# Keep ignoring them so an old tree does not suddenly show 1.7 GB of untracked files.
+experiments/*/build/

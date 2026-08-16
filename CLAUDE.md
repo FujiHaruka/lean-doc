@@ -1,8 +1,9 @@
 # lean-doc プロジェクト規則
 
 Mathlib に依存する Lean パッケージのための、高速ドキュメント生成基盤。
-**検証段階は全部完了** (`approach.md` §7 の 1〜8 + CI 軸)。**いまは実装フェーズ** — `experiments/` の
-使い捨てプロトタイプ (TS + シェル) から Rust の製品ツリー `crates/` への移設で、
+**検証段階は全部完了** (`approach.md` §7 の 1〜8 + CI 軸)。**移設も完了** — 使い捨てプロトタイプ
+(TS + シェル) から Rust の製品ツリー `crates/` への移設は M1〜M8 で終わり、
+プロトタイプは **2026-08-16 に HEAD から撤去した** (→ 下の「撤去したプロトタイプ」)。
 遠いゴールは **v0.1 = 使える CLI**。
 アプローチの SoT は `docs/approach.md`、**実装の SoT は `docs/implementation-plan.md`**、
 数字の SoT は `docs/verification-log.md`。実装の**結果**は `docs/milestone-log.md`。
@@ -21,14 +22,30 @@ Mathlib に依存する Lean パッケージのための、高速ドキュメン
 | `docs/provenance.md` | doc-gen4 / 第三者コードの由来判定とライセンス上の義務。**由来判定の SoT** |
 | `benchmarks/` | 実測レポート・計装パッチ・ツール・生ログ。**数字の出所** |
 | `crates/` | **製品コード (Rust)**。マイルストーン M1〜M6 で埋まる |
-| `experiments/` | 検証段階ごとの使い捨てプロトタイプ。**2026-08-11 に凍結** (→ `experiments/README.md`) |
 | `.claude/handoff.md` | セッション間の引き継ぎ (tracked、コミットする) |
 
-**`experiments/` はもう変更しない** — 数字の出所として verification-log が指しているので、
-書き換えると過去の実測が再現できなくなる。移設元として読むだけ。
-新しい検証段階が要るなら従来どおり新ディレクトリを足す。
 Lean 側のビルドは `lake env` で計測対象リポジトリの環境を借りる — lean-doc 側に toolchain も
 lakefile も Mathlib も置かない。**Rust 側は `cargo build` で完結する** (Rust 1.97.1 / rustup)。
+
+### 撤去したプロトタイプ — tag `experiments-frozen`
+
+検証段階 1〜8 の使い捨てプロトタイプ (`experiments/`、27 ディレクトリ / 164 ファイル) は
+**2026-08-16 に HEAD から消した**【決定、ユーザー判断】。**履歴には残っている** —
+`experiments/` が完全な状態の最後の commit (`a15addc`) に tag **`experiments-frozen`**
+が打ってあり、そこから読める:
+
+```
+git show experiments-frozen:experiments/stage7d/render.ts
+git log experiments-frozen -- experiments/
+```
+
+- **docs が `experiments/...` を数字の出所として指している箇所は、すべてこの tag を伴う。**
+  タグ無しで `experiments/` を書かない (HEAD に無いパスを指すことになる)
+- **消えたのは採点器であって数字ではない。** commit 済フィクスチャ
+  (`crates/*/tests/data/*-expected.json`) は凍結値として残り、`cargo test` は無傷。
+  ただし **再生成手段は HEAD に無い** — 作り直すには tag から生成器を復元する
+- **履歴の書き換えはしない。** public にしたら tag 経由で見えるが、それは承知の上の判断。
+  「見せない」を満たすのはリポジトリを private に保つことであって、削除ではない
 
 **抽出器は Lean、その外側 (IR 消費・レンダリング・増分・検索索引) は Rust** (2026-08-11 決定
 → 計画 §5.6)。**選定理由は速度ではない** — 外側の速度差は言語ではなく **IR 全読みの回数**で
