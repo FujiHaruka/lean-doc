@@ -1,69 +1,70 @@
-# Handoff — 2026-08-15 (19)
+# Handoff — 2026-08-16 (20)
 
 ## Relay control
 - Mode: **DONE**
-- Goal: **lean-doc v0.1 = 使える CLI**。`docs/implementation-plan.md` の M1→M6 を順に完遂する
-- Leg: 7 / cap 16   # cap は 2026-08-15 にユーザーが 8 → 16 へ引き上げ。leg 7 で完遂した
+- Goal: **外部リンクの版ズレ対策を案 (b) で実装** — 依存へのリンクを版固定 GitHub blob URL にする
+- Leg: 1 / cap 8   # 1 leg で完遂。context が尽きる前に終わったので継投なし
 - Predecessor: none
 - Stop-on: **completion**
 - Progress ledger:
-  - r1〜r5: M0 / M1 / M2 / M3-a / M3-b / M3-c + docs 圧縮 (`26df736` → `5086353`)
-  - r6: M3-d1 `ad9bad9` / M3-d2 `255b413` / M3-d2b `8ab4335` / plan 圧縮 `c879f69`
-  - r7: **M3-d3 `7567e1e` / M3 完遂 `b4e7250` / M4 `9fd8ba1`+`ee9293c`+`f73ded5` /
-    M5 `224842d`+`ce2d1d3` / M6 `5a2b8a9`** — **v0.1 到達**
+  - r1: **M7 完遂** — 計画 `fb05282` / オラクル `5d5dbbc` / M7-b `0db2e19` / M7-a `d339d6f` /
+    M7-d 第 1 段 `72d682d` / M7-c `992ad35` / docs `b110245`〜`b058628`
 
-## 到達点 — v0.1 のゲートは 2 つとも通っている【すべて実測 2026-08-15】
+## 到達点 — M7 は 4 段とも通っている【すべて実測 2026-08-16】
 
-| ゲート | 結果 |
+| 段 | 結果 |
 |---|---|
-| **A: 移設** | `coverage.ts` で **99.5062% (21,919,956 / 22,028,728 B)**、byte 完全一致 304/348、不足 108,772 B は**全部 rev**、rev 以外の食い違い **0 文字**。**M1-d3 (2026-08-11) をバイト単位で再現** |
-| **B: v0.1** | 第 2 の対象で **doc-gen4 の木ゼロで `lean-doc build` 一発** (19/19)、増分も from-scratch と 20/20 |
-| 本物の移動 / 削除 (クローン) | **439/439** / **437/437** バイト一致 |
-| 品質 | `cargo test --workspace --no-fail-fast` **295 passed / 0 failed**、clippy 警告 0、fmt 緑 |
+| **M7-a** `.lidx` に行範囲 | **255,975 / 255,975 (100%)** に範囲。doc-gen4 の URL と一致 **235,185 / 食い違い 0** |
+| **M7-b** パッケージ解決 | 15/15 + core。参照木にページのある **12 root すべてで一致**。**全部オフライン** |
+| **M7-c** レンダラ切り替え | 依存リンク **96,331 本**が移り**食い違い 0**。**空マップは M7 前とバイト一致**、自パッケージの href は **0 本**動かず |
+| **M7-d** 生存の実測 | 自サイトが emit した URL の**全数**で **484/484 が 200**、**アンカー 738/738 が有効** |
 
-**`experiments/` からの未移設はゼロ。** 抽出器は `extractor/` に移動済み。
+**この変更でゲート A (doc-gen4 との byte 再現) は保留に入った**【ユーザー判断 2026-08-15】 —
+**doc-gen4 互換はもう追わない** (最終的にスタイルも変える方針)。**ゲートの再定義は未了で、
+ユーザーが後日行う。** 99.5062% は **M6 時点の到達点**として書き換えずに残してある。
 
 ## State
 
-- Branch: main / **clean** / **push 済み** (`5a2b8a9` = `origin/main`)
-- 計測対象 `/Users/haruka/dev/lean-projects` は**無傷** (`git status -uall` 0 行 / doc 参照木 **6,095 ファイル**健在)
-- 常駐抽出器の残骸なし
-- **クローン `/private/tmp/lean-doc-relay/clone`**: ベースライン復帰済み (HEAD `ca4fd931` / clean /
-  `All targets up-to-date (3779 jobs)`)。**olean はクローンのパスで焼き直してある** (`rebuild-own.sh`、677 s)
-- **第 2 の対象**: `tools/make-target2.sh` が再生成する (木は残さない方針)
+- Branch: main / **clean** / **push 済み** (`origin/main`)
+- 品質: `cargo test --workspace` **328 passed / 0 failed**、clippy 0、fmt 緑
+- 計測対象 `/Users/haruka/dev/lean-projects` は**無傷** (`git status -uall` 0 行 / doc 参照木 **6,080 ページ**健在)
+- `experiments/` は 1 バイトも動いていない (`git diff fb05282^ HEAD -- experiments/` が空)
+- 最終バイナリでサイトを作り直して **438 ファイルが `diff -r` 0 行**で再現する
 
-## 次にやるなら — v0.1 の外側
+## 次にやるなら
 
-1. **README の未検証項目 10 件**が次の作業リスト。特に **実在の公開パッケージでの実走**
-   (ユーザー判断で v0.1 の範囲外にした)、**GitHub Actions 実走**、**静的資産を生成しない穴**
-2. ~~`docs/implementation-plan.md` が 927 行~~ **済み (2026-08-15、ユーザー判断で切り出し)** —
-   §7 の M1〜M6 の結果を `docs/milestone-log.md` (590) に分離し、計画は **372 行**。
-   §7 に残したのは crate 表 / md4c / **U1・U2** (`Cargo.toml`・`model.rs`・`target2-boundary.ts`・
-   `verification-log.md` がここを指しているので、外部参照の付け替えは 2 件で済んだ)
-3. **`.lidx` のモジュール名は非エスケープ** (IR / `name-map.json` はエスケープ形)。
-   href は同じパスに解決するので出力バイトには出ないが**ルックアップ鍵としては別物**
+1. **ゲート A の再定義** (ユーザーが持っている宿題)。材料は消していない —
+   `coverage.ts` と `tools/*-gate.sh` は残してあり、各シェルゲートの冒頭に
+   「M7 が依存リンクを動かしたので差分は想定内」と注記済み
+2. **README 未検証 11〜13** が M7 が新しく開けた穴 — GitHub 以外 / rev が 40 桁で取れない依存の
+   フォールバック (実物で踏んでいない)、オラクルの届かない 27 root、`--root` 無しの `ledger check`
+3. **静的資産を生成しない穴** (README 未検証)。v0.1 から残っている一番大きい穴
 
 ## Load-bearing context (次に触る人が踏む罠)
 
-- **`/private/tmp` は揮発する** — このセッションでクローンの git 管理下ファイルが全消失した
-  (`.lake` だけ残存)。**fixture の存在確認は「ディレクトリがあるか」ではなくファイル数で取る**
-- **ゲート A は `--source-url` を参照木の rev `573793b243fb1343636088eb62d1789ab2b14cec` に固定して回す** —
-  40 桁 hex なら何でもよいのではなく**参照木と同じ 40 桁**でないと 99.5 → 96.4% になる (差は rev だけ)
-- **壁時計を実装差として読まない**。`--jobs 4` では「壁時計 ≒ CPU 時間なら warm」が使えない
-  (user > wall が正常)。暖機は **user 時間の収束**で見る
-- **「作る前に検査する」は 2 回破られた** (M4-b の相対パス / M6 の `mkdir -p`)。どちらも**計測対象に
-  実際に書き込んだ**。新しい呼び手を書くたびに再発するので、パスは渡す前に絶対化し検査を mkdir の前に置く
+- **`/private/tmp` は揮発する。** 今回 `m1/ref-pages` が**ディレクトリだけ残って中身 0** になっていて、
+  `is_dir()` で存在判定していた `impact.rs` が**環境要因で赤くなっていた**。
+  **fixture の存在確認はファイル数で取る** (`file_count`、`impact.rs` に実装済み)
+- **`.lidx` は `#lidx2`** — 宣言行が `\t<name>\t<line>\t<endLine>`。`#lidx1` も読める
+- **依存/自パッケージの判定は述語ではなく写像の中身**。`ExternalLinks` に自パッケージの root を
+  入れないので `url_for` が `None` を返す。**2 つ目の判定を足さないこと**
+- **`--root` 無しの `site`/`render`/`ledger` は空マップ**=M7 前のバイトを出す。
+  `ledger check` を手で回すときは `--root` を渡さないと `build` と違う key になる
+- **オラクル (`benchmarks/tools/extract-decl-source-urls.sh`) はカバレッジを主張しない** —
+  親の div の中に描かれた宣言 (16,038) とページに載らなかった宣言 (2) には沈黙する
+- **壁時計を実装差として読まない**。`--jobs 4` では「壁時計 ≒ CPU 時間なら warm」は使えない
 - **統合前に必ず自分で回す**: fmt/clippy/test + `experiments/` と対象の無傷確認 +
-  **成果物を自分で作り直してバイト比較** + 母数の独立再計算。この leg では報告のテスト本数 (160) を
-  247 に訂正し、NUL の「欠陥」判定を**オラクルに否定されて取り消した**
+  **成果物を自分で作り直してバイト比較** + 母数の独立再計算。この leg では
+  「オラクルの全件に行アンカーがある」という自分の要約を**カバレッジではない**と訂正した
 - **subagent には「コミットするな」と指示する**。**同時に走らせるのは 1 体まで**
 - **npm/node は壊れている**。JS は **deno**。`diff` はスクリプトでは `/usr/bin/diff`
+  (対話シェルでは `colordiff` に alias されていて存在しない)
 - **`experiments/` は 1 バイトも変更しない**。**`git add -f` を使わない**
 
 ## Files to read first
 
-- `README.md` (288) — v0.1 の顔。未検証項目 10 件はここ
-- `docs/implementation-plan.md` (372) — §1 のゲート A/B と決定 1、§7 の U1・U2
-- `docs/milestone-log.md` (590) — M1〜M6 の結果。M3-d4 / M4-d / M5-a / M5-b / M6
-- `crates/lean-doc/src/build.rs` (985) — 1 コマンドの実体。台帳の書き戻しの規則
-- `tools/{build-gate,clone-gate,target2-gate,ci-build}.sh` — ゲートの実行形
+- `docs/implementation-plan.md` (433) — §1 のゲート A 保留の枠、§5 の M7 節 (Approach と 4 段のゲート)
+- `docs/milestone-log.md` (683) — M7-a/b/c/d の結果と母数
+- `crates/lean-doc-render/src/external.rs` — `ExternalLinks`。M7 の判断が 1 箇所に閉じている
+- `crates/lean-doc/src/packages.rs` — オフラインの解決器 (manifest + `lean --githash`)
+- `benchmarks/tools/{extract-decl-source-urls,check-site-links,measure-blob-url-liveness}.sh|py` — 再現手順
