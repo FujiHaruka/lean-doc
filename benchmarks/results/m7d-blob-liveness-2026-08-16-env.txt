@@ -1,0 +1,8 @@
+date (UTC)   : 2026-08-16 01:01:46
+url list     : /private/tmp/claude-502/-Users-haruka-dev-lean-doc/bf8993ac-8e88-4241-b524-6317d35595b6/scratchpad/oracle-urls.txt
+urls in list : 241553
+distinct files: 5736
+sampled      : 287 (every 20th)
+parallelism  : 4
+note         : the fragment (#L..) is never sent to the server; file
+               existence is what a status code can prove.
