@@ -56,11 +56,23 @@ have () { command -v "$1" > /dev/null 2>&1; }
   echo
   echo "## storage"
   if have lsblk; then lsblk -o NAME,SIZE,MODEL,ROTA,MOUNTPOINT 2> /dev/null || true; fi
-  if have findmnt && have blockdev; then
+  # Through sysfs, not `blockdev --getra`: the latter opens the device and needs
+  # root, so on a runner it answers `?` — and readahead is the one setting the
+  # two `ubuntu-latest` I/O realities are suspected to differ by 【実測: 5.3 ms
+  # vs 0.67 ms per major fault at nearly equal sequential bandwidth】. A field
+  # that is always `?` would leave that suspicion untestable for a fourth time.
+  if have findmnt; then
     for mp in / /mnt; do
       src="$(findmnt -no SOURCE --target "$mp" 2> /dev/null || true)"
       [ -n "$src" ] || continue
-      echo "readahead $mp ($src): $(blockdev --getra "$src" 2> /dev/null || echo '?') sectors"
+      base="$( (lsblk -no PKNAME "$src" 2> /dev/null || true) | head -1 | tr -d ' ')"
+      [ -n "$base" ] || base="$(basename "$src")"
+      q="/sys/block/$base/queue"
+      printf 'readahead %s (%s -> %s): %s kB, rotational %s, scheduler %s\n' \
+        "$mp" "$src" "$base" \
+        "$(cat "$q/read_ahead_kb" 2> /dev/null || echo '?')" \
+        "$(cat "$q/rotational" 2> /dev/null || echo '?')" \
+        "$( (cat "$q/scheduler" 2> /dev/null || echo '?') | tr -d '\n')"
     done
   fi
 

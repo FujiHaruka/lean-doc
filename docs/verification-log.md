@@ -4777,6 +4777,67 @@ mathlib `971f540b`**、対象は **Lean v4.31.0 / mathlib `fabf563a`** で **3 �
 
 ---
 
+### CI 軸 — テンプレートを実走させた / **ランナーの実体が変わっていた** (2026-08-16)
+
+**この節の数字は、過去 4 本の CI 実測と同じ機材で取られていない。** 先にそれを書く。
+
+#### ランナーが 2 コア / 7.75 GiB → **4 コア / 16 GiB** になっている【実測】
+
+| | 過去 4 run (2026-08-10〜11) | 今回 (2026-08-16) |
+|---|---|---|
+| image | `ubuntu24 20260720.247.2` | **`ubuntu24 20260810.271.1`** |
+| kernel | `6.17.0-1020-azure` | `6.17.0-1022-azure` |
+| `nproc` | **2** | **4** |
+| `MemTotal` | 8,128,884 kB (7.75 GiB) | **16,373,448 kB (15.6 GiB)** |
+| CPU | 記録なし | **AMD EPYC 7763** (2 コア / 2 スレッド、`sha_ni` + `avx2`) |
+| ディスク | 記録なし | Virtual Disk 150G、`/dev/sda1`、`ROTA 1` |
+
+生ログ `benchmarks/results/ci-template-env.txt`。**したがって
+「同じジョブ 2.610 秒 / 別ジョブ 20.4〜89.2 秒」を今回以降の数字と直接並べてはいけない** —
+メモリが 2 倍になったので page cache に入る olean の量が変わり、これは**まさに
+あの倍率を決めていた変数**。approach.md §3 の数字は 2 コア / 7.75 GiB のものとして読む。
+
+**副作用が 1 つある**: approach.md §8 (c)「完全版の抽出器でも同じ差が出るか (作業集合が
+16 GiB に収まらず macOS では測れなかった)」の**前提が変わった** — ランナーの RAM が
+macOS 機と同じ 15.6 GiB になったので、この問いは**ランナー上で測れる**。
+
+#### テンプレートは実走して緑になった【実測】
+
+`.github/workflow-templates/lean-doc-docs.yml` は 2026-08-16 まで冒頭に
+`THIS FILE HAS NEVER BEEN RUN` と書いてあった。`.github/workflows/ci-template.yml` が
+**その手順を逐語で写して**実走し、[run 31955883894](https://github.com/FujiHaruka/lean-doc/actions/runs/31955883894)
+で全ステップ success。**対象パッケージはジョブ内で `tools/make-target2.sh` が生成する**
+(lean-doc に Lean パッケージが無く、外部への新規リポジトリ作成はしないため)。
+
+| phase | 秒 |
+|---|---:|
+| `lake exe cache get` | 5.312 (生成側で既に取っているので実質 no-op) |
+| `lake build` (13 モジュール) | 4.945 |
+| 抽出器のビルド | 15.882 |
+| `cargo build --release` | 23.932 |
+| **`lean-doc build`** | **2.510** (extract 1.730 / render 0.021 / global 0.002) |
+| 合計 | 52.647、site 23 ファイル |
+
+**未検証として残るのは 2 つだけ**: `push:` トリガと、利用者リポジトリ自身の checkout。
+
+#### 落ちたことのほうが収穫だった — `--deps fetch` が暴いた欠陥【実測】
+
+1 回目の実走 ([run 31955697828](https://github.com/FujiHaruka/lean-doc/actions/runs/31955697828))
+は `error: dependency '«doc-gen4»' not in manifest` で落ちた。`tools/make-target2.sh` の
+`[[require]]` が **loogle / mathlib / doc-gen4 の 3 本ハードコード**で、計測対象が
+2026-08-16 (`c4f6af29`) に開発ツールを条件付き依存へ移して manifest から外した時点で
+無効になっていた。
+
+**構造として気づけなかった**: macOS 側の `--deps clone` は `.lake/packages` を APFS
+clonefile で借りるだけで、**Lake に解決を一度も頼まない**。lakefile が manifest と
+食い違っていても、`cp -Rc` は成功する。**「manifest と一致すること」は要件だったのに、
+一致は願望でハードコードは事実だった** — いまは manifest から導出し、mathlib 1 本だけ
+require する (これらのソースが import する唯一の依存)。`lake build` 132 ジョブ成功。
+
+**target2 の HEAD は `18a02d58` → `0a072ea2` に動いた** (原因 2 つ、→ 結果ログ「E2」)。
+
+---
+
 ## 書き方
 
 段階ごとに 1 節を足す。各節に必ず入れるもの:

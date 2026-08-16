@@ -1,0 +1,62 @@
+## ci-build.sh timings
+{"root":"/home/runner/work/lean-doc/lean-doc/package","out":"/home/runner/work/_temp/docs","totalSeconds":52.647,"phases":{"cache-get":{"seconds":5.312,"note":"ran"},"lake-build":{"seconds":4.945,"note":"ran"},"extractor":{"seconds":15.882,"note":"built"},"cargo":{"seconds":23.932,"note":"built"},"docs":{"seconds":2.510,"note":"ran"}},"siteFiles":23}
+
+## lean-doc build timings
+{"command":"build","path":"full","modules":13,"extracted":13,"rounds":1,"work":{"modulesExtracted":13,"pagesRendered":13,"extractorRequests":1,"globalCacheHits":0,"globalCacheMisses":13,"irReads":{"index":3,"module":26,"depMap":2,"total":31}},"pagesRendered":13,"pagesInSite":23,"ledgerModules":13,"ledgerBytes":3973,"extractSeconds":1.729874332,"renderSeconds":0.021212517,"globalSeconds":0.001923797,"totalSeconds":1.861674174}
+
+## site
+23
+5225fb0755825d58728fd391bbc8a7ac915cd04c72d2827f279f564998b96cca  -
+
+## conditions
+## runner
+date        2026-08-16T15:31:09Z
+kernel      Linux 6.17.0-1022-azure x86_64
+nproc       4
+pagesize    4096
+runner      Linux / X64 / image ubuntu24 20260810.271.1
+
+## cpu
+model name	: AMD EPYC 7763 64-Core Processor
+cpu MHz		: 3243.102
+accel flags matched: 2
+Vendor ID:                               AuthenticAMD
+Model name:                              AMD EPYC 7763 64-Core Processor
+Thread(s) per core:                      2
+Core(s) per socket:                      2
+Socket(s):                               1
+Flags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good nopl tsc_reliable nonstop_tsc cpuid extd_apicid aperfmperf tsc_known_freq pni pclmulqdq ssse3 fma cx16 pcid sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand hypervisor lahf_lm cmp_legacy svm cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw topoext vmmcall fsgsbase bmi1 avx2 smep bmi2 erms invpcid rdseed adx smap clflushopt clwb sha_ni xsaveopt xsavec xgetbv1 xsaves user_shstk clzero xsaveerptr rdpru arat npt nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold v_vmsave_vmload umip vaes vpclmulqdq rdpid fsrm
+Hypervisor vendor:                       Microsoft
+
+## storage
+NAME     SIZE MODEL        ROTA MOUNTPOINT
+sda      150G Virtual Disk    1 
+├─sda1   149G                 1 /
+├─sda14    4M                 1 
+├─sda15  106M                 1 /boot/efi
+└─sda16  913M                 1 /boot
+readahead / (/dev/sda1): ? sectors
+readahead /mnt (/dev/sda1): ? sectors
+
+## memory
+MemTotal:       16373448 kB
+MemFree:        12813048 kB
+MemAvailable:   15061320 kB
+Buffers:           78160 kB
+Cached:          2426288 kB
+SwapTotal:       3145724 kB
+
+## df
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root       145G   58G   87G  40% /
+/dev/root       145G   58G   87G  40% /
+
+## cpu calibrator (1 GiB sha256, 3 runs, seconds)
+0.886
+0.921
+0.883
+
+## target
+path        target-src
+HEAD        c4f6af29704029b3c62eaa0842c3225ad0e689a0
+toolchain   leanprover/lean4:v4.31.0

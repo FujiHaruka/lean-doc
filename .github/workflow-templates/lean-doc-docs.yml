@@ -6,16 +6,25 @@
 # GitHub runs workflows from, and this repository has no Lean package to build.
 #
 # ============================================================================
-# THIS FILE HAS NEVER BEEN RUN  【未検証】
+# WHAT HAS RUN, AND WHAT HAS NOT  【実測 2026-08-16】
 # ============================================================================
-#   No GitHub Actions run exists for it. What HAS been run, on a real
-#   Mathlib-dependent package, is the one line it calls — `tools/ci-build.sh` —
-#   and that is why the commands live there and this file is a wrapper. The
-#   parts below that remain unverified are exactly the parts a wrapper is made
-#   of: the actions' versions and inputs, the cache keys, the elan install, and
-#   `lake exe cache get` (which needs the network).
+#   These steps have run green on a real `ubuntu-latest` runner:
+#   https://github.com/FujiHaruka/lean-doc/actions/runs/31955883894
+#   `.github/workflows/ci-template.yml` is that run — it copies the steps below
+#   verbatim and points them at a package generated in the job, because lean-doc
+#   has no Lean package of its own and creating one elsewhere was ruled out.
 #
-#   Treat the timings in README.md the same way: they were measured on an Apple
+#   Covered there, which is exactly the list this note used to call unverified:
+#   the actions' versions and inputs, all three cache keys, the elan install,
+#   `lake exe cache get`, and the single `ci-build.sh` call — 13 modules, 23
+#   files, `docs` 2.510 s inside a 52.647 s job (`cache-get` 5.312, `lake build`
+#   4.945, extractor built 15.882, cargo built 23.932).
+#
+#   Still not run **in this shape**: the `push:` trigger, and the first checkout
+#   — in a user's repository that is the caller's own repo, while the validation
+#   generates the package instead. Both are ordinary GitHub mechanics.
+#
+#   Treat the timings in README.md separately: they were measured on an Apple
 #   M1 laptop with a warm page cache, not on a runner.
 #
 # ============================================================================
