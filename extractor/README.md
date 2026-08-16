@@ -126,10 +126,13 @@ IR 木を全ファイル `cmp` する。
 | 候補 | `extractor/build/extract` |
 | 結果 | **436/436 バイト一致** (432 モジュール + `index.json` + `deps/*.json` 3)【実測 2026-08-15】 |
 
-**このゲートは今は回せない。** 参照側のバイナリは `.gitignore` 対象で、
-tag `experiments-frozen` にも入っていない (ソースの `Extract.lean` は入っている)。
-撤去とは無関係に、**M4-a の時点からローカルファイル依存だった** — 回すには
-tag から `stage7d/Extract.lean` を取り出してビルドし直すところから要る。
+**このゲートはもう回せない。** 参照側のバイナリは `.gitignore` 対象で
+tag `experiments-frozen` にも入っておらず (ソースの `Extract.lean` は入っている)、
+撤去とは無関係に **M4-a の時点からローカルファイル 1 個に依存していた**。
+**その 171 MB は 2026-08-16 に消した。** 回すには tag から
+`experiments/stage7d/Extract.lean` を取り出し、当時と同じ toolchain で
+ビルドし直すところから要る。**上の 436/436 は書き換えない** — 2026-08-15 に
+実際に出た結果であることは変わらない。**再現手段が無い実測**として読むこと。
 
 `diff -r` も `IDENTICAL`。差分 0 / 欠落 0 / 余分 0。
 再実行は `extractor/build.sh` してから両側を上のフラグで回すだけ。

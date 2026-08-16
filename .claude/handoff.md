@@ -58,14 +58,16 @@ git の設定を汚さないこと。
 1. **上の Blocker を解消して push** (これだけが残作業)
 2. push 後、`docs/plans/experiments-removal.md` は役目を終える。残すなら「完了」と状態を書く
 
-## 未決 — ユーザーに判断を仰ぐこと
+## 決着した論点
 
-- **`experiments/*/build/` が on-disk に 1.7 GB 残っている** (untracked / gitignored、10 ディレクトリ)。
-  `git rm` は tracked ファイルしか消さないので残った。**あえて消していない** — この中の
-  `experiments/stage7d/build/extract` は `milestone-log.md:308` の M4-a ゲート
-  (「凍結バイナリとの 436/436 バイト一致」) が参照する唯一の実体で、**tag にも入っていない**
-  (`.gitignore` 対象だったため)。消すと、そのゲートは tag から `Extract.lean` を取り出して
-  ビルドし直さないと回せなくなる。**消してよいか要確認。**
+- **`experiments/*/build/` の 1.7 GB も消した**【決定 2026-08-16、ユーザー判断】。
+  untracked / gitignored だったので `git rm` では残っていた分。`rm -rf experiments/` で全消し。
+  **帰結**: `experiments/stage7d/build/extract` (171 MB) が消えたので、
+  `milestone-log.md` の **M4-a ゲート「凍結バイナリとの 436/436 バイト一致」は
+  もう実行では再現できない**。tag にもバイナリは無い (`.gitignore` 対象だった) ので、
+  回すには tag から `stage7d/Extract.lean` を取り出してビルドし直すところから要る。
+  **数字は書き換えていない** — 「再現手段が無い実測」として milestone-log と
+  `extractor/README.md` の両方に明記した。
 
 ## Files to read first
 
