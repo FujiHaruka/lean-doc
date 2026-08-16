@@ -228,7 +228,9 @@ olean が page cache に残っているかどうかで、`actions/cache` では�
 | `style.css` / `app.js` / `favicon.svg` | **バイナリに埋め込んであり、毎ビルド無条件に書き出す** |
 
 **この木は自己完結している** — 空のディレクトリに置いて開けば、**外部ホストへのリクエスト 0 本**で
-描画される【実測 2026-08-16。442 ファイルに外部の `<script src>` / `<link href>` が 0 本】。
+描画される【実測 2026-08-16。生成した木に外部の `<script src>` / `<link href>` が 0 本】。
+実際に置いたもの: **<https://fujiharuka.github.io/information-theory/>**
+(422 モジュール、`lean-doc build` 1 コマンド **24.51 s**【実測、warm】)。
 doc-gen4 が読んでいた CDN 4 本 (Lato / JuliaMono / polyfill / MathJax) は無い。
 **外部を指すのは `<a href>` だけ**で、それは依存パッケージのソースへの版固定リンク (M7)。
 
