@@ -1,0 +1,528 @@
+/* ==========================================================================
+   lean-doc — the whole stylesheet.
+
+   No framework, no webfont, no CDN: a site built by `lean-doc build` has to
+   render from a bare directory with no network at all (plan 決定 1 / 2).
+
+   Three layers, in this order:
+     1. reset     — the handful of browser defaults that get in the way
+     2. tokens    — every colour and metric, once, via `light-dark()`
+     3. component — topbar, sidebar, page, declaration, docstring, search
+
+   The colour pairs are written `light-dark(light, dark)` so both themes sit
+   on one line and cannot drift apart. `color-scheme` on :root decides which
+   half wins; the theme toggle sets `data-theme` and overrides it.
+   ========================================================================== */
+
+/* -- 1. reset ------------------------------------------------------------ */
+
+*, *::before, *::after { box-sizing: border-box; }
+* { margin: 0; }
+
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  * { transition-duration: 0ms !important; animation-duration: 0ms !important; }
+}
+
+img, svg { display: block; max-width: 100%; }
+button, input, select { font: inherit; color: inherit; }
+button { background: none; border: 0; cursor: pointer; }
+ul, ol { padding: 0; }
+a { color: inherit; }
+
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 3px; }
+
+/* -- 2. tokens ----------------------------------------------------------- */
+
+:root {
+  color-scheme: light dark;
+
+  --bg:        light-dark(#ffffff, #15181c);
+  --bg-sub:    light-dark(#f7f8fa, #1b1f24);
+  --bg-code:   light-dark(#f2f5f8, #21262d);
+  --bg-hover:  light-dark(#eaeef3, #262c33);
+  --bg-sel:    light-dark(#e4edfb, #23324a);
+
+  --fg:        light-dark(#15191e, #dfe4ea);
+  --fg-dim:    light-dark(#57616e, #a3adb9);
+  /* Not lighter than this: `--fg-faint` carries the `source` links, the
+     breadcrumbs and the sidebar headings, and it has to clear 4.5:1 against
+     both `--bg` and `--bg-sub`. */
+  --fg-faint:  light-dark(#69737f, #8d97a3);
+
+  --line:      light-dark(#e2e7ed, #2b3138);
+  --line-soft: light-dark(#eef1f5, #23282e);
+
+  --link:      light-dark(#1a5fbd, #77b0f5);
+  --link-hov:  light-dark(#10448f, #a6ccfb);
+  --focus:     light-dark(#2f80ed, #74a9f0);
+
+  /* Declaration kinds. Five families, not one per keyword: a reader is
+     looking for "is this a proposition, a definition or a type", and ten
+     colours would answer a question nobody asked. */
+  --k-prop:    light-dark(#7250c9, #b39cf0);  /* theorem, axiom          */
+  --k-def:     light-dark(#1f7a52, #63c79b);  /* def, abbrev, opaque     */
+  --k-type:    light-dark(#a35410, #e0a061);  /* structure, class, ind.  */
+  --k-inst:    light-dark(#1a6a91, #6cb6d9);  /* instance                */
+  --k-other:   light-dark(#6b7684, #949eaa);  /* ctor, everything else   */
+
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+          Arial, "Noto Sans", sans-serif;
+  /* No webfont, so the mathematics has to come out of what is installed.
+     `DejaVu Sans Mono` carries most of Lean's operators on Linux, `Menlo`
+     on macOS, `Consolas` on Windows; the last three are the fallbacks that
+     actually have ℝ ℕ ∑ ∈ ₁ (plan 決定 2, UI-V1). */
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
+          "DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono", monospace;
+
+  --topbar-h: 3rem;
+  --side-w: 17.5rem;
+  --radius: 6px;
+}
+
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"]  { color-scheme: dark; }
+
+/* -- 3. base ------------------------------------------------------------- */
+
+body {
+  font-family: var(--font);
+  line-height: 1.6;
+  color: var(--fg);
+  background: var(--bg);
+  overflow-wrap: break-word;
+}
+
+a { color: var(--link); text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); }
+a:hover { color: var(--link-hov); text-decoration-color: currentColor; }
+
+code, pre, .sig, .tree, .toc a, .decl-name, kbd { font-family: var(--mono); }
+
+.skip {
+  position: absolute; left: .5rem; top: -3rem; z-index: 100;
+  padding: .5rem .75rem; background: var(--bg); border: 1px solid var(--line);
+  border-radius: var(--radius); transition: top .15s ease;
+}
+.skip:focus { top: .5rem; }
+
+/* -- 4. topbar ----------------------------------------------------------- */
+
+.topbar {
+  position: sticky; top: 0; z-index: 30;
+  display: flex; align-items: center; gap: .5rem;
+  height: var(--topbar-h);
+  padding-inline: .75rem;
+  background: color-mix(in srgb, var(--bg-sub) 92%, transparent);
+  -webkit-backdrop-filter: saturate(1.6) blur(8px);
+  backdrop-filter: saturate(1.6) blur(8px);
+  border-bottom: 1px solid var(--line);
+}
+
+.iconbtn {
+  display: grid; place-items: center;
+  width: 2.25rem; height: 2.25rem; flex: none;
+  border-radius: var(--radius); color: var(--fg-dim);
+}
+.iconbtn:hover { background: var(--bg-hover); color: var(--fg); }
+.iconbtn svg { width: 1.25rem; height: 1.25rem; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+.iconbtn[aria-pressed="true"] { color: var(--fg); }
+
+.home {
+  font-weight: 600; color: var(--fg); text-decoration: none;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.home:hover { color: var(--link); }
+
+/* -- 5. search ----------------------------------------------------------- */
+
+.search { position: relative; margin-left: auto; flex: 1 1 12rem; max-width: 26rem; }
+.search input {
+  width: 100%; height: 2.25rem;
+  padding: 0 .7rem; border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--bg); color: var(--fg);
+}
+.search input::placeholder { color: var(--fg-faint); }
+.search input:focus { border-color: var(--focus); outline: none; }
+
+.search-results {
+  position: absolute; top: calc(100% + .35rem); right: 0; left: 0; z-index: 40;
+  max-height: min(28rem, 70dvh); overflow-y: auto;
+  list-style: none;
+  background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: 0 8px 28px light-dark(rgb(0 0 0 / .12), rgb(0 0 0 / .5));
+}
+.search-results:empty, .search-results[hidden] { display: none; }
+.search-results li > a {
+  display: flex; align-items: baseline; gap: .5rem;
+  padding: .4rem .6rem; text-decoration: none; color: var(--fg);
+  font-family: var(--mono); font-size: .85rem;
+}
+.search-results li > a:hover,
+.search-results li[aria-selected="true"] > a { background: var(--bg-sel); }
+.search-results .kind { font-size: .68rem; }
+.search-results .where { margin-left: auto; color: var(--fg-faint); font-size: .72rem; }
+.search-empty { padding: .6rem; color: var(--fg-faint); font-size: .85rem; }
+
+/* -- 6. shell and sidebar ------------------------------------------------ */
+
+.shell { display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); }
+
+.sidebar {
+  position: sticky; top: var(--topbar-h);
+  height: calc(100dvh - var(--topbar-h));
+  overflow-y: auto; overscroll-behavior: contain;
+  padding: 1rem .6rem 4rem;
+  border-right: 1px solid var(--line);
+  background: var(--bg-sub);
+  font-size: .875rem;
+}
+
+.side + .side { margin-top: 1.5rem; }
+.side-title {
+  font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--fg-faint); padding: 0 .4rem .4rem;
+}
+
+.toc { list-style: none; }
+.toc a {
+  display: block; padding: .2rem .4rem; border-radius: 4px;
+  font-size: .8rem; text-decoration: none; color: var(--fg-dim);
+  word-break: break-all;
+}
+.toc .name { word-break: normal; }
+.toc a:hover { background: var(--bg-hover); color: var(--fg); }
+.toc a[aria-current] { background: var(--bg-sel); color: var(--fg); }
+
+.tree ul { list-style: none; padding-left: .7rem; }
+.tree > ul { padding-left: 0; }
+.tree li { line-height: 1.5; }
+.tree summary,
+.tree a {
+  display: block; padding: .2rem .4rem; border-radius: 4px;
+  font-size: .8rem; text-decoration: none; color: var(--fg-dim);
+}
+.tree summary { cursor: pointer; list-style: none; }
+.tree summary::-webkit-details-marker { display: none; }
+.tree summary::before {
+  content: "›"; display: inline-block; width: 1em;
+  color: var(--fg-faint); transition: transform .15s ease;
+}
+.tree details[open] > summary::before { transform: rotate(90deg); }
+.tree summary:hover, .tree a:hover { background: var(--bg-hover); color: var(--fg); }
+.tree a[aria-current] { background: var(--bg-sel); color: var(--fg); font-weight: 600; }
+
+.scrim { display: none; }
+
+/* -- 7. page ------------------------------------------------------------- */
+
+.content {
+  min-width: 0;
+  max-width: 72rem;
+  padding: 1.75rem clamp(1rem, 4vw, 2.5rem) 8rem;
+}
+
+.modhead { padding-bottom: 1rem; border-bottom: 1px solid var(--line); }
+.crumbs {
+  font-family: var(--mono); font-size: .8rem; color: var(--fg-faint);
+  word-break: break-all;
+}
+.crumbs a { color: var(--fg-dim); text-decoration: none; }
+.crumbs a:hover { color: var(--link); }
+.modhead h1 {
+  font-family: var(--mono); font-size: clamp(1.25rem, 1rem + 1.4vw, 1.75rem);
+  font-weight: 700; line-height: 1.25; word-break: break-all;
+}
+.modhead h1 .name { word-break: normal; }
+.modactions { margin-top: .4rem; }
+
+.src {
+  font-family: var(--font); font-size: .78rem; color: var(--fg-faint);
+  text-decoration: none;
+}
+.src:hover { color: var(--link); text-decoration: underline; }
+
+.modmeta { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; padding: .75rem 0; }
+.imports { font-size: .85rem; }
+.imports > summary {
+  cursor: pointer; color: var(--fg-dim); width: fit-content;
+  padding: .15rem .35rem; border-radius: 4px;
+}
+.imports > summary:hover { background: var(--bg-hover); color: var(--fg); }
+.imports .count { color: var(--fg-faint); }
+.imports ul { list-style: none; padding: .35rem 0 0 1.2rem; }
+.imports li { font-family: var(--mono); font-size: .8rem; line-height: 1.7; word-break: break-all; }
+.imports a { text-decoration: none; }
+.imports a:hover { text-decoration: underline; }
+
+/* -- 8. declaration ------------------------------------------------------ */
+
+.decl {
+  padding-block: 1.5rem;
+  border-top: 1px solid var(--line-soft);
+  scroll-margin-top: calc(var(--topbar-h) + 1rem);
+}
+.decl:first-of-type { border-top: 0; }
+/* Landing on an anchor should say "here", then get out of the way. A left
+   marker does that without repainting the block the reader came to read. */
+.decl:target { box-shadow: inset 3px 0 0 var(--link); padding-left: .85rem; }
+
+.decl-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem .6rem; }
+.decl-name {
+  font-size: 1.0625rem; font-weight: 700; line-height: 1.35;
+  min-width: 0; word-break: break-all;
+}
+.decl-name .name { word-break: normal; }
+.decl-name a { color: var(--fg); text-decoration: none; }
+.decl-name a:hover { color: var(--link); text-decoration: underline; }
+.decl-head .src { margin-left: auto; align-self: center; }
+
+.kind {
+  flex: none; align-self: center;
+  font-family: var(--font); font-size: .7rem; font-weight: 600; line-height: 1.5;
+  letter-spacing: .015em; white-space: nowrap;
+  padding: .05rem .4rem; border-radius: 4px;
+  color: var(--k-other);
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+.decl[data-kind="theorem"] .kind,
+.decl[data-kind="axiom"] .kind    { color: var(--k-prop); }
+.decl[data-kind="def"] .kind,
+.decl[data-kind="opaque"] .kind   { color: var(--k-def); }
+.decl[data-kind="structure"] .kind,
+.decl[data-kind="class"] .kind,
+.decl[data-kind="inductive"] .kind { color: var(--k-type); }
+.decl[data-kind="instance"] .kind { color: var(--k-inst); }
+
+.attrs {
+  font-family: var(--mono); font-size: .78rem; color: var(--fg-faint);
+  margin-top: .35rem;
+}
+
+/* -- 9. signature -------------------------------------------------------- */
+
+/* The IR's spans carry replayed whitespace, so the text is already laid out:
+   `pre-wrap` is load-bearing, not a preference. Everything else here is about
+   what happens when a line is still too long — which, for mathlib-shaped
+   signatures on a phone, is most of them. */
+.sig {
+  margin-top: .5rem;
+  font-size: .875rem; line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
+/* Hanging indent per term, so a wrapped subterm sits under its opener instead
+   of at the left margin. Same trick doc-gen4 uses, and the reason a signature
+   stays readable at 375 px. */
+.fn {
+  display: inline-block;
+  text-indent: -1ex; padding-left: 1ex;
+  white-space: pre-wrap;
+  vertical-align: top;
+}
+/* A binder is the unit a line breaks at first. */
+.binder { display: inline-block; vertical-align: top; }
+.binder.implicit { color: var(--fg-dim); }
+.colon { color: var(--fg-faint); }
+.sig-type { display: block; padding-left: 1.5ex; }
+
+/* Links in a signature are structure, not decoration: colouring every constant
+   turns the type into confetti. Underline only, colour on hover. */
+.sig a, .field-sig a, .equations a {
+  color: inherit; text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 25%, transparent);
+  text-underline-offset: .16em;
+}
+.sig a:hover, .field-sig a:hover, .equations a:hover {
+  color: var(--link); text-decoration-color: currentColor;
+}
+
+.break_within { word-break: break-all; }
+.break_within .name { word-break: normal; }
+
+/* -- 10. structure fields ------------------------------------------------ */
+
+.fields { list-style: none; margin-top: .75rem; }
+.field {
+  padding: .4rem 0 .4rem .85rem;
+  border-left: 2px solid var(--line);
+  scroll-margin-top: calc(var(--topbar-h) + 1rem);
+}
+.field + .field { margin-top: .15rem; }
+.field-sig { font-family: var(--mono); font-size: .84rem; white-space: pre-wrap; }
+.field-name { font-weight: 600; }
+.field.inherited { border-left-style: dashed; }
+.field.inherited .field-name { font-weight: 500; color: var(--fg-dim); }
+.field-doc { margin-top: .2rem; font-size: .9rem; color: var(--fg-dim); }
+.ctor-note { margin-top: .6rem; font-size: .8rem; color: var(--fg-faint); }
+.ctor-note code { font-family: var(--mono); }
+
+/* -- 11. equations / instances ------------------------------------------- */
+
+.extra { margin-top: .75rem; font-size: .85rem; }
+.extra > summary {
+  cursor: pointer; width: fit-content; color: var(--fg-dim);
+  padding: .15rem .35rem; border-radius: 4px;
+}
+.extra > summary:hover { background: var(--bg-hover); color: var(--fg); }
+.extra > ul { list-style: none; padding: .4rem 0 0 1rem; }
+.extra li { font-family: var(--mono); font-size: .82rem; line-height: 1.7; }
+.equations li { white-space: pre-wrap; padding-block: .15rem; }
+
+/* -- 12. docstrings ------------------------------------------------------ */
+
+.moddoc, .doc { max-width: 74ch; }
+.moddoc { padding-block: 1.25rem; }
+.doc { margin-top: .75rem; }
+
+.doc > * + *, .moddoc > * + * { margin-top: .75rem; }
+.moddoc :is(h1, h2, h3, h4, h5, h6),
+.doc :is(h1, h2, h3, h4, h5, h6) {
+  line-height: 1.3; font-weight: 650; margin-top: 1.75rem;
+  scroll-margin-top: calc(var(--topbar-h) + 1rem);
+}
+.moddoc h1, .doc h1 { font-size: 1.4rem; }
+.moddoc h2, .doc h2 { font-size: 1.15rem; }
+.moddoc h3, .doc h3 { font-size: 1rem; }
+.moddoc :is(h4, h5, h6), .doc :is(h4, h5, h6) { font-size: .95rem; }
+.moddoc > :first-child, .doc > :first-child { margin-top: 0; }
+
+.hover-link {
+  margin-left: .3em; color: var(--fg-faint); text-decoration: none;
+  opacity: 0; transition: opacity .12s ease;
+}
+:is(h1, h2, h3, h4, h5, h6):hover > .hover-link,
+.hover-link:focus-visible { opacity: 1; }
+
+.doc :is(ul, ol), .moddoc :is(ul, ol) { padding-left: 1.4rem; }
+.doc li + li, .moddoc li + li { margin-top: .2rem; }
+
+.doc code, .moddoc code, .field-doc code {
+  font-size: .875em;
+  background: var(--bg-code);
+  padding: .12em .32em; border-radius: 4px;
+  overflow-wrap: anywhere;
+}
+.doc pre, .moddoc pre {
+  background: var(--bg-code); border: 1px solid var(--line-soft);
+  padding: .75rem 1rem; border-radius: var(--radius);
+  overflow-x: auto; font-size: .84rem; line-height: 1.6;
+}
+.doc pre code, .moddoc pre code { background: none; padding: 0; font-size: 1em; }
+
+.doc blockquote, .moddoc blockquote {
+  padding-left: .9rem; border-left: 3px solid var(--line);
+  color: var(--fg-dim);
+}
+.doc table, .moddoc table {
+  display: block; overflow-x: auto;
+  border-collapse: collapse; font-size: .88rem;
+}
+.doc :is(th, td), .moddoc :is(th, td) {
+  border: 1px solid var(--line); padding: .3rem .6rem; text-align: left;
+}
+.doc th, .moddoc th { background: var(--bg-sub); }
+.doc hr, .moddoc hr { border: 0; border-top: 1px solid var(--line); }
+
+/* -- 13. index, search and not-found pages ------------------------------- */
+
+/* These three have no sidebar: the index *is* the module list, and the other
+   two are one column of results. */
+body.plain .shell { grid-template-columns: minmax(0, 1fr); }
+body.plain .content { max-width: 60rem; }
+
+.lede { margin-top: .6rem; max-width: 66ch; color: var(--fg-dim); }
+
+.stats { display: flex; flex-wrap: wrap; gap: 1.25rem 2.5rem; margin-top: 1.5rem; }
+.stats dt {
+  font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--fg-faint);
+}
+.stats dd { font-family: var(--mono); font-size: 1.4rem; font-weight: 700; line-height: 1.2; }
+
+.section-title { margin-top: 2.5rem; font-size: 1.1rem; }
+
+.modlist { list-style: none; margin-top: .75rem; columns: 20rem; column-gap: 2rem; }
+.modlist li { break-inside: avoid; }
+.modlist a {
+  display: block; padding: .18rem .35rem; border-radius: 4px;
+  font-family: var(--mono); font-size: .85rem;
+  text-decoration: none; color: var(--fg-dim); word-break: break-all;
+}
+.modlist .name { word-break: normal; }
+.modlist a:hover { background: var(--bg-hover); color: var(--fg); }
+
+.bigsearch { margin-top: 1.25rem; }
+.bigsearch input {
+  width: 100%; height: 2.9rem; padding: 0 .9rem; font-size: 1rem;
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--bg); color: var(--fg);
+}
+.bigsearch input:focus { border-color: var(--focus); outline: none; }
+
+.results { list-style: none; margin-top: 1rem; }
+.results a {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem;
+  padding: .45rem .5rem; border-radius: var(--radius);
+  font-family: var(--mono); font-size: .875rem;
+  text-decoration: none; color: var(--fg); word-break: break-all;
+}
+.results a:hover { background: var(--bg-hover); }
+.results .where {
+  margin-left: auto; font-family: var(--font); font-size: .78rem; color: var(--fg-faint);
+  word-break: normal;
+}
+.results-note { margin-top: .75rem; color: var(--fg-faint); font-size: .85rem; }
+
+.missing-path {
+  font-family: var(--mono); font-size: .9em;
+  background: var(--bg-code); padding: .15em .4em; border-radius: 4px;
+  overflow-wrap: anywhere;
+}
+
+/* -- 14. narrow screens -------------------------------------------------- */
+
+@media (min-width: 60.001rem) {
+  #nav-toggle { display: none; }
+}
+
+@media (max-width: 60rem) {
+  .shell { grid-template-columns: minmax(0, 1fr); }
+
+  .sidebar {
+    position: fixed; z-index: 35;
+    top: var(--topbar-h); bottom: 0; left: 0;
+    width: min(21rem, 84vw); height: auto;
+    transform: translateX(-101%);
+    transition: transform .18s ease;
+    box-shadow: 0 0 32px light-dark(rgb(0 0 0 / .16), rgb(0 0 0 / .5));
+  }
+  body[data-nav="open"] .sidebar { transform: none; }
+
+  .scrim {
+    display: block; position: fixed; inset: var(--topbar-h) 0 0; z-index: 34;
+    background: rgb(0 0 0 / .35);
+  }
+  .scrim[hidden] { display: none; }
+
+  .content { padding-top: 1.25rem; }
+  .search { flex-basis: 7rem; }
+  /* Keep the way home reachable — shorten it instead of dropping it. */
+  .home { max-width: 7rem; font-size: .9rem; }
+}
+
+@media (max-width: 26rem) {
+  .decl-head .src { margin-left: 0; }
+}
+
+/* -- 15. print ----------------------------------------------------------- */
+
+@media print {
+  .topbar, .sidebar, .scrim, .skip { display: none; }
+  .shell { grid-template-columns: 1fr; }
+  .content { max-width: none; padding: 0; }
+  /* CSS cannot open a `<details>`; `app.js` opens them for `beforeprint`. */
+  .extra > summary, .imports > summary { color: var(--fg); }
+  a { text-decoration: none; }
+}

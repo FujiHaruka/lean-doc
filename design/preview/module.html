@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<!--
+  Hand-written preview of the module page the renderer is being rewritten to
+  emit (M8-b). The declaration bodies are real output of the frozen doc-gen4
+  tree — `span.fn`, `span.name` and the `<a>` links inside a signature are
+  produced by `code.rs`, which M8 does not touch — so only the frame around
+  them is new. Links point nowhere useful here; this file exists to style
+  against, not to browse.
+
+  Keep this in step with `crates/lean-doc-render/src/{frame,page,decl}.rs`.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InformationTheory.Polymatroid.Basic — InformationTheory</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="favicon.svg">
+<script>
+  // Theme boot: runs before first paint so the page never flashes the wrong
+  // palette. The same three lines are inlined into every page by `frame.rs`.
+  try {
+    var t = localStorage.getItem("lean-doc-theme");
+    if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+  } catch (e) {}
+</script>
+<script type="module" src="app.js"></script>
+</head>
+
+<body data-root="../.././" data-module="InformationTheory.Polymatroid.Basic">
+<a class="skip" href="#content">Skip to content</a>
+
+<header class="topbar">
+  <button class="iconbtn" id="nav-toggle" aria-label="Modules" aria-expanded="false" aria-controls="sidebar">
+    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14"/></svg>
+  </button>
+  <a class="home" href="#">InformationTheory</a>
+  <form class="search" role="search" action="#">
+    <input type="search" id="search-input" name="q" autocomplete="off" spellcheck="false"
+           placeholder="Search declarations" aria-label="Search declarations">
+    <ul class="search-results" id="search-results" hidden></ul>
+  </form>
+  <button class="iconbtn" id="theme-toggle" aria-label="Theme">
+    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3a7 7 0 1 0 7 7 5.5 5.5 0 0 1-7-7z"/></svg>
+  </button>
+</header>
+
+<div class="shell">
+  <div class="scrim" id="scrim" hidden></div>
+
+  <nav class="sidebar" id="sidebar" aria-label="Navigation">
+    <section class="side">
+      <h2 class="side-title">On this page</h2>
+      <ul class="toc">
+        <li><a href="#Combinatorics.Polymatroid"><span class="name">Combinatorics</span>.<span class="name">Polymatroid</span></a></li>
+        <li><a href="#InformationTheory.FiniteJointPMF.errIndicator"><span class="name">InformationTheory</span>.<span class="name">FiniteJointPMF</span>.<span class="name">errIndicator</span></a></li>
+        <li><a href="#InformationTheory.sum_measureReal_singleton_univ_eq_one"><span class="name">InformationTheory</span>.<span class="name">sum_measureReal_singleton_univ_eq_one</span></a></li>
+      </ul>
+    </section>
+    <section class="side">
+      <h2 class="side-title">Modules</h2>
+      <div class="tree" id="module-tree">
+        <ul>
+          <li><details open><summary>InformationTheory</summary>
+            <ul>
+              <li><a href="#">Asymptotic</a></li>
+              <li><details open><summary>Polymatroid</summary>
+                <ul><li><a class="here" href="#" aria-current="page">Basic</a></li></ul>
+              </details></li>
+              <li><details><summary>Probability</summary>
+                <ul>
+                  <li><a href="#">SingletonMass</a></li>
+                  <li><a href="#">TwoSidedExtension</a></li>
+                </ul>
+              </details></li>
+              <li><a href="#">Fano</a></li>
+            </ul>
+          </details></li>
+        </ul>
+        <noscript><a href="#">Module index</a></noscript>
+      </div>
+    </section>
+  </nav>
+
+  <main class="content" id="content">
+    <div class="modhead">
+      <p class="crumbs"><a href="#">InformationTheory</a><span class="sep">.</span><a href="#">Polymatroid</a><span class="sep">.</span></p>
+      <h1><span class="name">InformationTheory</span>.<span class="name">Polymatroid</span>.<span class="name">Basic</span></h1>
+      <p class="modactions"><a class="src" href="#">source</a></p>
+    </div>
+
+    <div class="modmeta">
+      <details class="imports">
+        <summary>Imports <span class="count">4</span></summary>
+        <ul>
+          <li><a href="#">Init</a></li>
+          <li><a href="#">Mathlib.Data.Finset.Defs</a></li>
+          <li><a href="#">Mathlib.Data.Real.Basic</a></li>
+          <li><a href="#">Mathlib.Order.Monotone.Defs</a></li>
+        </ul>
+      </details>
+      <details class="imports" data-fill="imported-by" hidden>
+        <summary>Imported by</summary>
+        <ul></ul>
+      </details>
+    </div>
+
+    <div class="moddoc">
+      <h1 id="Polymatroids" class="markdown-heading">Polymatroids <a class="hover-link" href="#Polymatroids">#</a></h1>
+      <p>This module defines <code>Polymatroid</code> over a ground set <code>ι</code>, together with the
+      two identities used throughout the library.</p>
+      <h2 id="Main-statements" class="markdown-heading">Main statements <a class="hover-link" href="#Main-statements">#</a></h2>
+      <ul>
+        <li><code><a href="#">rank_empty</a></code> — the empty set has rank 0.</li>
+        <li><code><a href="#">submodular</a></code> — the defining inequality.</li>
+      </ul>
+      <blockquote><p>The ground set type only needs <code>[DecidableEq ι]</code>.</p></blockquote>
+      <pre><code>example : (1 : ℕ) + 1 = 2 := rfl</code></pre>
+    </div>
+
+    <section class="decl" id="Combinatorics.Polymatroid" data-kind="structure">
+      <header class="decl-head">
+        <span class="kind">structure</span>
+        <h2 class="decl-name"><a class="break_within" href="#Combinatorics.Polymatroid"><span class="name">Combinatorics</span>.<span class="name">Polymatroid</span></a></h2>
+        <a class="src" href="#">source</a>
+      </header>
+      <div class="sig"><span class="binder">
+<span class="fn">(<span class="fn">ι</span> : <a href="#">Type</a> u_1)</span></span>
+<span class="binder implicit">
+<span class="fn">[<span class="fn"><a href="#">DecidableEq</a> <span class="fn">ι</span></span>]</span></span>
+<span class="colon"> :</span><div class="sig-type"><a href="#">Type</a> u_1</div></div>
+      <div class="doc"><p>A polymatroid is a finite ground set <code>ι</code> together with a real-valued
+rank function on <code><a href="#">Finset</a> ι</code> satisfying:</p><ul><li><code><a href="#">rank</a> ∅ = 0</code>               — the empty set has rank 0,</li><li><code><a href="#">Monotone</a> <a href="#">rank</a></code>             — rank is monotone in the subset relation,</li><li>submodularity               — <code><a href="#">rank</a> (S ∪ T) + <a href="#">rank</a> (S ∩ T) ≤ <a href="#">rank</a> S + <a href="#">rank</a> T</code>.</li></ul><p>The ground set type <code>ι</code> only needs <code>[DecidableEq ι]</code> (for <code><a href="#">Finset</a></code> union /
+intersection); finiteness of <code>ι</code> itself is not required.</p></div>
+      <ul class="fields" id="Combinatorics.Polymatroid.mk">
+        <li class="field" id="Combinatorics.Polymatroid.rank">
+          <div class="field-sig"><span class="field-name">rank</span><span class="colon"> : </span><span class="fn"><span class="fn"><a href="#">Finset</a> <span class="fn">ι</span></span> → <a href="#">ℝ</a></span></div>
+          <div class="field-doc"><p>The real-valued rank function on subsets of the ground set.</p></div>
+        </li>
+        <li class="field inherited" id="Combinatorics.Polymatroid.rank_empty">
+          <div class="field-sig"><a class="field-name" href="#">rank_empty</a><span class="colon"> : </span><span class="fn"><span class="fn"><span class="fn"><a href="#">Finset</a> <span class="fn">ι</span></span> → <a href="#">ℝ</a></span> <a href="#">=</a> <span class="fn">0</span></span></div>
+        </li>
+      </ul>
+      <details class="extra" data-fill="instances-for" data-name="Combinatorics.Polymatroid">
+        <summary>Instances For</summary>
+        <ul></ul>
+      </details>
+    </section>
+
+    <section class="decl" id="InformationTheory.FiniteJointPMF.errIndicator" data-kind="def">
+      <header class="decl-head">
+        <span class="kind">def</span>
+        <h2 class="decl-name"><a class="break_within" href="#InformationTheory.FiniteJointPMF.errIndicator"><span class="name">InformationTheory</span>.<span class="name">FiniteJointPMF</span>.<span class="name">errIndicator</span></a></h2>
+        <a class="src" href="#">source</a>
+      </header>
+      <div class="attrs">@[simp, reducible]</div>
+      <div class="sig"><span class="binder implicit">
+<span class="fn">{<span class="fn">X</span> : <a href="#">Type</a> u_1}</span></span>
+<span class="binder implicit">
+<span class="fn">[<span class="fn"><a href="#">DecidableEq</a> <span class="fn">X</span></span>]</span></span>
+<span class="colon"> :</span><div class="sig-type"><span class="fn"><span class="fn">X</span> → <span class="fn">X</span> → <a href="#">Bool</a></span></div></div>
+      <div class="doc"><p>Decoding-error indicator (Markov form): <code><a href="#">errIndicator</a> x xh = true</code>
+iff the estimator <code>xh</code> differs from the source <code>x</code>.</p></div>
+      <details class="extra"><summary>Equations</summary>
+        <ul class="equations"><li><span class="fn"><a href="#">InformationTheory.FiniteJointPMF.errIndicator</a> <span class="fn">x</span> <span class="fn">xh</span></span> <a href="#">=</a> <span class="fn"><a href="#">decide</a> (<span class="fn">x</span> <a href="#">≠</a> <span class="fn">xh</span>)</span></li></ul>
+      </details>
+      <details class="extra" data-fill="instances-for" data-name="InformationTheory.FiniteJointPMF.errIndicator">
+        <summary>Instances For</summary>
+        <ul></ul>
+      </details>
+    </section>
+
+    <section class="decl" id="InformationTheory.sum_measureReal_singleton_univ_eq_one" data-kind="theorem">
+      <header class="decl-head">
+        <span class="kind">theorem</span>
+        <h2 class="decl-name"><a class="break_within" href="#InformationTheory.sum_measureReal_singleton_univ_eq_one"><span class="name">InformationTheory</span>.<span class="name">sum_measureReal_singleton_univ_eq_one</span></a></h2>
+        <a class="src" href="#">source</a>
+      </header>
+      <div class="sig"><span class="binder implicit">
+<span class="fn">{<span class="fn">γ</span> : <a href="#">Type</a> u_1}</span></span>
+<span class="binder implicit">
+<span class="fn">[<span class="fn"><a href="#">Fintype</a> <span class="fn">γ</span></span>]</span></span>
+<span class="binder implicit">
+<span class="fn">[<span class="fn"><a href="#">MeasurableSpace</a> <span class="fn">γ</span></span>]</span></span>
+<span class="binder implicit">
+<span class="fn">[<span class="fn"><a href="#">MeasurableSingletonClass</a> <span class="fn">γ</span></span>]</span></span>
+<span class="binder">
+<span class="fn">(<span class="fn">μ</span> : <span class="fn"><a href="#">MeasureTheory.Measure</a> <span class="fn">γ</span></span>)</span></span>
+<span class="binder implicit">
+<span class="fn">[<span class="fn"><a href="#">MeasureTheory.IsProbabilityMeasure</a> <span class="fn">μ</span></span>]</span></span>
+<span class="colon"> :</span><div class="sig-type"><span class="fn">∑ <span class="fn">z</span> : <span class="fn">γ</span>, <span class="fn"><span class="fn"><span class="fn">μ</span>.<a href="#">real</a></span> <a href="#">{</a><span class="fn">z</span><a href="#">}</a></span></span> <a href="#">=</a> <span class="fn">1</span></div></div>
+    </section>
+  </main>
+</div>
+</body>
+</html>

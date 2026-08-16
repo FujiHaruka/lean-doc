@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<!--
+  Hand-written preview of the site index (M8-d). No sidebar: this page *is*
+  the module list, and it doubles as the `<noscript>` fallback the module
+  pages link to when the tree cannot be drawn.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InformationTheory</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="favicon.svg">
+<script>
+  try {
+    var t = localStorage.getItem("lean-doc-theme");
+    if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+  } catch (e) {}
+</script>
+<script type="module" src="app.js"></script>
+</head>
+
+<body class="plain" data-root="./" data-module="">
+<a class="skip" href="#content">Skip to content</a>
+
+<header class="topbar">
+  <a class="home" href="./index.html">InformationTheory</a>
+  <form class="search" role="search" action="./search.html">
+    <input type="search" id="search-input" name="q" autocomplete="off" spellcheck="false"
+           placeholder="Search declarations" aria-label="Search declarations">
+    <ul class="search-results" id="search-results" hidden></ul>
+  </form>
+  <button class="iconbtn" id="theme-toggle" aria-label="Theme">
+    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3a7 7 0 1 0 7 7 5.5 5.5 0 0 1-7-7z"/></svg>
+  </button>
+</header>
+
+<div class="shell">
+  <main class="content" id="content">
+    <div class="modhead">
+      <h1>InformationTheory</h1>
+      <p class="lede">API documentation for every module of this package, generated from the
+      compiled environment. Declarations link to their pinned source; imports of a dependency
+      link to that dependency's source at the revision this package is built against.</p>
+      <p class="modactions"><a class="src" href="#">repository</a></p>
+    </div>
+
+    <dl class="stats">
+      <div><dt>Modules</dt><dd>432</dd></div>
+      <div><dt>Declarations</dt><dd>4,750</dd></div>
+      <div><dt>Lean</dt><dd>v4.31.0</dd></div>
+    </dl>
+
+    <h2 class="section-title">Modules</h2>
+    <ul class="modlist">
+      <li><a href="#"><span class="name">InformationTheory</span>.<span class="name">Asymptotic</span></a></li>
+      <li><a href="#"><span class="name">InformationTheory</span>.<span class="name">Fano</span></a></li>
+      <li><a href="#"><span class="name">InformationTheory</span>.<span class="name">Fano</span>.<span class="name">CondEntropy</span></a></li>
+      <li><a href="#"><span class="name">InformationTheory</span>.<span class="name">Fano</span>.<span class="name">Core</span></a></li>
+      <li><a href="#"><span class="name">InformationTheory</span>.<span class="name">Fano</span>.<span class="name">DPI</span></a></li>
+      <li><a href="#"><span class="name">InformationTheory</span>.<span class="name">Fano</span>.<span class="name">Entropy</span></a></li>
+      <li><a href="#"><span class="name">InformationTheory</span>.<span class="name">Fano</span>.<span class="name">Measure</span></a></li>
+      <li><a href="#"><span class="name">InformationTheory</span>.<span class="name">Polymatroid</span>.<span class="name">Basic</span></a></li>
+      <li><a href="#"><span class="name">InformationTheory</span>.<span class="name">Probability</span>.<span class="name">SingletonMass</span></a></li>
+      <li><a href="#"><span class="name">InformationTheory</span>.<span class="name">Probability</span>.<span class="name">TwoSidedExtension</span></a></li>
+      <li><a href="#"><span class="name">InformationTheory</span>.<span class="name">Shannon</span>.<span class="name">BrascampLieb</span></a></li>
+      <li><a href="#"><span class="name">InformationTheory</span>.<span class="name">Shannon</span>.<span class="name">LZ78</span>.<span class="name">ZivEntropyBridge</span></a></li>
+      <li><a href="#"><span class="name">InformationTheory</span>.<span class="name">Shannon</span>.<span class="name">Stationary</span>.<span class="name">Basic</span></a></li>
+      <li><a href="#"><span class="name">InformationTheory</span>.<span class="name">Shannon</span>.<span class="name">TimeBandLimiting</span>.<span class="name">Count</span></a></li>
+      <li><a href="#"><span class="name">InformationTheory</span>.<span class="name">Shannon</span>.<span class="name">TypeClassLowerBound</span></a></li>
+    </ul>
+  </main>
+</div>
+</body>
+</html>
