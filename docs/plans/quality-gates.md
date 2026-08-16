@@ -106,19 +106,37 @@ doc-gen4 を失って消えたのは**外部オラクル** — 「正しい出�
 
 各段は**独立にコミットでき、判定でき、次の段の前提になる**。
 
-| | やること | ゲート |
-|---|---|---|
-| **Q0** | corpus 依存 4 本を `#[ignore]` + `tools/corpus-gate.sh` へ (決定 1) | **corpus が無い機材で `cargo test --workspace` が 0 failed**。ignored の本数が名前付きで出る |
-| **Q1** | CI ジョブ `test` (cargo test + clippy -D warnings + fmt --check) | push で緑。**Q0 が前提** |
-| **Q2** | 不変量ゲート `crates/lean-doc/tests/invariants.rs` (決定性 / 冪等 / 順序不変 / `--jobs` 不変) | 4 本すべて緑。fake extractor で書けるので CI に乗る |
-| **Q3** | 自己整合性ゲート `tools/site-gate.sh` (決定 3) | 生成木に対し **404 = 0 / 外部リソース = 0 / 索引 ⊆ 実ページ / ページ ⊆ 索引** |
-| **Q4** | **E1 — マイクロパッケージ e2e**。Mathlib に依存しない Lean パッケージを fixture にし、**本物の抽出器**で site まで通す | CI で緑。**Q3 のゲートを E1 の出力に対して回す** |
-| **Q5** | 仕事量カウンタ (決定 4) + それに対する assert | 増分 1 モジュールで **IR 全読み 5 回 / 再抽出 1 / 描画 1** が数で出る |
-| **Q6** | md4c FFI の fuzz + sanitizer (決定 5) | seed corpus 全通し + ASan/UBSan で 0 crash |
-| **Q7** | サイズ予算 (`.lidx` / site 木 / 静的資産 3 本) | 上限超過で**落ちるのではなく差分を要求**する |
-| **Q8** | **E3 — ブラウザ e2e** (検索 / ツリー / instances / テーマ / 375 px / JS 無効) | コンソールエラー 0、**UI-3 が「未判定」でなくなる** |
-| **Q9** | `cargo-deny` + provenance ゲート (NOTICE と `provenance.md` の一致) | advisory / license 違反 0 |
-| **Q10** | mutation 探索 (`cargo-mutants`) — **ゲートにしない** | 拾えた穴だけテストに落とす |
+| | やること | ゲート | 結果【実測 2026-08-16】 |
+|---|---|---|---|
+| **Q0** | corpus 依存を `#[ignore]` + `tools/corpus-gate.sh` へ (決定 1) | corpus が無い機材で `cargo test --workspace` が 0 failed | **通過。対象は 4 本ではなく 24 本だった** (全体 skip 20 / 部分 skip 4)。**338 passed / 0 failed / 24 ignored** |
+| **Q1** | CI ジョブ `test` (cargo test + clippy -D warnings + fmt --check) | push で緑 | **通過** — `.github/workflows/ci.yml`、**1m29s** |
+| **Q2** | 不変量 (決定性 / 冪等 / 順序不変 / `--jobs` 不変) | すべて緑 | **3/4 通過** — 決定性・冪等・`--jobs` 不変は **Q4 の GATE 2〜4 が本物の抽出器で見ている**ので、fake extractor で二重に持たない【判断】。**順序不変は未** |
+| **Q3** | 自己整合性ゲート `tools/site-gate.sh` (決定 3) | 404 = 0 / 外部リソース = 0 / 索引 ⟷ ページが双方向 | **通過** — `check-site-closure.py` を新設。**初回に本物の不整合を検出** (下記) |
+| **Q4** | **E1 — マイクロパッケージ e2e** (`e2e/micro` + `tools/e2e-micro.sh`) | CI で緑。Q3 を E1 の出力に回す | **通過** — CI で **success**。4 ゲート (1 コマンド / 冪等 / 決定性 / `--jobs` 不変) |
+| **Q5** | 仕事量カウンタ (決定 4) | 増分で再抽出 0 / 描画 0 が**数で**出る | 進行中 |
+| **Q6** | md4c FFI の fuzz (決定 5) | seed corpus 全通しで 0 crash | 未 |
+| **Q7** | サイズ予算 | 上限超過で理由付きで落ちる | **通過** — 静的資産に絞った【判断、下記】。`assets.rs` のテスト |
+| **Q8** | **E3 — ブラウザゲート** (`tools/browser-gate.sh`) | コンソールエラー 0、**UI-3 が「未判定」でなくなる** | **通過** — 9 検査すべて緑。**375 px の overflow 0 px【実測】= UI-3 決着** |
+| **Q9** | provenance ゲート | 帰属表示の実在 | **通過** — `tools/provenance-gate.sh`、**27 claims**。`cargo-deny` は未 |
+| **Q10** | mutation 探索 — **ゲートにしない** | 拾えた穴だけテストに落とす | 未 |
+
+**Q0 で分かったこと — 「静かな skip」は既に腐っていた【実測】。**
+24 本のうち **7 本は、フィクスチャが機材から消えているのに緑を返していた**
+(`.lidx` / `--full` 3 本 / prototype state / ref-pages ほか)。skip を `#[ignore]` に変えて
+初めて分かった。**「緑」が何も検査していなかった期間があり、それを知る手段が無かった**というのが
+この段の最大の収穫で、Q1 (CI) 単体では絶対に出なかった。
+
+**うち 3 本は「走らせても永久に panic する」** — `--full` 録画の生成器が HEAD に無い
+(tag `experiments-frozen`)。`tools/corpus-tests.txt` に **`## frozen` 区分**を設けて
+ゲートの実行対象から外し、**外したことを毎回出力する**形にした
+(**永久に赤いゲートは誰も読まない**。黙って外すのはもっと悪い)。
+
+**Q7 の判断 — サイズ予算は静的資産だけに置く。**
+site 木も `.lidx` もモジュール数に比例するので、上限は対象が変われば意味を失う。
+**`style.css` / `app.js` / `favicon.svg` だけが対象に依存しない製品の一部**で、
+ui-redesign.md 決定 1 (「大きくなったら削る。フレームワークには戻らない」) が直接効く。
+**上限は現在値ではなく丸い上の値に置く** — 現在値に貼り付けた予算は毎回落ちるので、
+「中身を読まずに上限を上げる」習慣を教えてしまう。
 
 **E2 (合成の第 2 の対象) は既存 `tools/target2-gate.sh` のまま**。Mathlib が要るので CI に載せない
 (決定 2)。**`tools/build-gate.sh` は Q4 の後に畳むか作り直す** — 期待値が「差分が出ること」に
