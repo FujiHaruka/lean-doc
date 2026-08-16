@@ -1,23 +1,22 @@
-# CI 実走 — 段 C / 段 D の後 (2026-08-17)
+# CI 実走 — 段 C / 段 D を Linux ランナーで (2026-08-17)
 
 ワークフロー .github/workflows/ci-template.yml (workflow_dispatch)。
 対象は tools/make-target2.sh が生成する 13 モジュールの package (Alpha / Beta)、
-ランナーは GitHub Actions ubuntu-latest。lean-doc は c8c0fae。
+ランナーは GitHub Actions ubuntu-latest。
 
-## run 31962696064 / 31962863538 — どちらも無変更
+## 1. 無変更だけを見ていた 2 run (lean-doc c8c0fae)
 
 ```
-run 1  cache-hit false (restore-keys で前 run の docs-out を復元)
-       work    extract 0 / render 0 / requests 0 / ir 1.00 full pass
-       build   incremental in 0.0164 s
-       ci-build 全体 27.186 s (cache-get 5.182 / lake-build 5.411 /
-                extractor build 15.801 / docs 0.725)
+run 31962696064  cache-hit false (restore-keys で前 run の docs-out を復元)
+                 work    extract 0 / render 0 / requests 0 / ir 1.00 full pass
+                 build   incremental in 0.0164 s
+                 ci-build 全体 27.186 s (cache-get 5.182 / lake-build 5.411 /
+                          extractor build 15.801 / docs 0.725)
 
-run 2  cache-hit true
-       work    extract 0 / render 0 / requests 0 / ir 1.00 full pass
-       build   incremental in 0.0184 s
-       ci-build 全体 11.491 s (cache-get 5.494 / lake-build 5.082 /
-                extractor cached / docs 0.833)
+run 31962863538  cache-hit true
+                 work    extract 0 / render 0 / requests 0 / ir 1.00 full pass
+                 build   incremental in 0.0184 s
+                 ci-build 全体 11.491 s
 ```
 
 **段 C / 段 D はこの 2 run では 1 度も走っていない。** package は run ごとに
@@ -25,8 +24,68 @@ run 2  cache-hit true
 (requests 0)。地図を書く経路に入らないので、取り分は測れない。
 **測れたのは「回帰が無い」ことだけ。**
 
-→ この穴を塞ぐため、計測用ワークフローに「1 モジュール編集してもう一度回す」段を
-  足した (commit e13897e)。判定は tools/onemod-gate.sh で、e2e と CI が同じ 1 本を呼ぶ。
-  **利用者に配る雛形 (.github/workflow-templates/lean-doc-docs.yml) は変えていない。**
-  編集は docs-out の**コピー**に対して行う — docs-out はキャッシュに保存されるので、
-  そこに探り針の IR を残すと次 run の無変更計測が静かに別物になる。
+## 2. 1 モジュール変更の段を足した (commit e13897e)。**2 回続けて落ちた**
+
+判定は tools/onemod-gate.sh の 1 本で、e2e と CI が同じものを呼ぶ。
+利用者に配る雛形 (.github/workflow-templates/lean-doc-docs.yml) は変えていない。
+
+### run 31963079828 — **段 C を跨ぐアップグレードは 1 回だけ全再描画する**
+
+```
+render-all linkIndex: the dependency map moved during this run (5b607769821c6e58 -> c03219d3c5f163be)
+impact  mode all -> 13 page(s)
+work    extract 1 / render 13 / requests 1
+```
+
+キャッシュから復元した地図が段 C 以前の形式 (自パッケージの宣言群を持ち、
+`.key` sidecar が無い) だったため、最初の抽出でいまの形に書き直され、
+ダイジェストが動き、全ページが再描画された。**一度きりの移行コストで、
+利用者も段 C を含む版に上げた後の最初の増分ビルドで同じものを払う。**
+
+→ ゲートは定常状態を問うているので正しい。**直したのはハーネス**:
+2 回編集して 2 回目を測り、1 回目のログも残す (commit 611c4f3)。
+
+### run 31963305864 — **CI は段 C/D 以前の `lean-doc` を走らせていた**
+
+2 回目の編集でも地図が動いた。抽出器はその run で新しく建てられている
+(`extractor 15.815 built`) のに、serve.out に `omitted` も `reused` も出ない。
+**渡す側の Rust が古かった。**
+
+```
+ワークフローの Rust キャッシュキー  cargo-<os>-<hashFiles('lean-doc/Cargo.lock')>
+                                  → ソースが動いても Cargo.lock は動かない
+tools/ci-build.sh                 if [ -x "$LEAN_DOC_BIN" ] で cargo を呼ばなかった
+```
+
+→ `cargo` を必ず呼ぶように直した (commit 7859e5c)。新鮮なツリーなら約 0.2 s。
+抽出器側も `-nt` でソースが新しければ建て直す。
+
+**leg 3 の CI 数字は影響を受けていない** — `d5af924`〜`4590030` は
+`crates/` も `Cargo.lock` も触っていない【確認済】。
+
+## 3. run 31963581512 — **緑。Linux 上で段 C / 段 D が効いた**
+
+```
+round 1 (形式移行、復元された地図が段 C 以前)
+  render-all linkIndex: the dependency map moved during this run
+  impact  mode all -> 13 page(s)
+  work    extract 1 / render 13 / requests 1 / ir 4.15 full pass
+  build   incremental in 1.1925 s
+
+round 2 (定常状態) — ゲートが読むのはこちら
+  impact  mode self -> 1 page(s) (1 from the changed set, 0 from the global map)
+  work    extract 1 / render 1  / requests 1 / ir 4.15 full pass
+  build   incremental in 0.9290 s
+  抽出器: linkIndex  0.001s  reused <out>/link-index.lidx
+```
+
+**13 ページ → 1 ページ、地図の書き出しは 0.001 s。**
+壁時計は 1.1925 → 0.9290 s (−22%) で、M1 実測の −21.8% と一致する。
+ただしこの package は 13 モジュールなので、**倍率は対象の規模に依存しない主張ではない。**
+
+## 読み方
+
+- **ゲートが 2 回落ちた 2 回とも本物だった。** どちらも出力は正常に見えていて、
+  捕まえたのは「1 モジュール変更」という別の質問を投げたことだけ。
+- **「あるものを使う」は「今のソースのものを使う」ではない。** 同じ形が今日 3 件
+  (e2e の抽出器再利用 / ci-build.sh の抽出器と lean-doc)。
