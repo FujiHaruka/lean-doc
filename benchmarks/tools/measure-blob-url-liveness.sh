@@ -29,7 +29,10 @@ trap 'rm -rf "$TMP"' EXIT
 # One URL per distinct file is enough for existence: the line anchor is a
 # fragment, which the server never sees. Anchors are checked separately, below.
 sed -E 's/#L[0-9]+(-L[0-9]+)?$//' "$URLS" | sort -u > "$TMP/files.txt"
-awk -v s="$STRIDE" 'NR % s == 1' "$TMP/files.txt" > "$TMP/sample.txt"
+awk -v s="$STRIDE" '(NR - 1) % s == 0' "$TMP/files.txt" > "$TMP/sample.txt"
+# An empty sample reads exactly like a clean run — no non-200 lines, no SHORT
+# lines — so it has to stop here rather than be reported as a pass.
+[ -s "$TMP/sample.txt" ] || { echo "empty sample: $(wc -l < "$TMP/files.txt") file(s), stride $STRIDE" >&2; exit 1; }
 
 {
   echo "date (UTC)   : $(date -u +'%Y-%m-%d %H:%M:%S')"
@@ -59,19 +62,27 @@ grep -v '^200' "$PREFIX-files.txt" | head -40
 # the rev is pinned the file cannot move under the anchor — but "cannot" is a
 # claim about construction, so check it: fetch the raw file at that same rev and
 # assert it has at least as many lines as the anchor asks for.
-ANCHOR_STRIDE=${ANCHOR_STRIDE:-2000}
-awk -v s="$ANCHOR_STRIDE" 'NR % s == 1' "$URLS" | grep -E '#L[0-9]+-L[0-9]+$' > "$TMP/anchors.txt"
-echo "=== anchors: $(wc -l < "$TMP/anchors.txt" | tr -d ' ') sampled (every ${ANCHOR_STRIDE}th url) ==="
+#
+# Fetched per *file*, not per URL: 738 anchors over 484 files is 484 requests,
+# and every anchor into a file is then checked, not a sample of them.
+ANCHOR_FILE_STRIDE=${ANCHOR_FILE_STRIDE:-1}
+grep -E '#L[0-9]+-L[0-9]+$' "$URLS" | sort -u > "$TMP/anchored.txt"
+sed -E 's/#L[0-9]+(-L[0-9]+)?$//' "$TMP/anchored.txt" | sort -u \
+  | awk -v s="$ANCHOR_FILE_STRIDE" '(NR - 1) % s == 0' > "$TMP/anchor-files.txt"
+echo "=== anchors: $(wc -l < "$TMP/anchored.txt" | tr -d ' ') over $(wc -l < "$TMP/anchor-files.txt" | tr -d ' ') file(s) ==="
 
-check_anchor() {
-  url="$1"
-  end=$(printf '%s' "$url" | sed -E 's/.*-L([0-9]+)$/\1/')
-  raw=$(printf '%s' "$url" | sed -E 's|^https://github.com/|https://raw.githubusercontent.com/|; s|/blob/|/|; s/#L[0-9]+-L[0-9]+$//')
+export ANCHORED="$TMP/anchored.txt"
+check_file_anchors() {
+  file="$1"
+  raw=$(printf '%s' "$file" | sed -E 's|^https://github.com/|https://raw.githubusercontent.com/|; s|/blob/|/|')
   lines=$(curl -sS --max-time 30 -L "$raw" | wc -l | tr -d ' ')
-  if [ "$lines" -ge "$end" ]; then echo "OK $end/$lines $url"; else echo "SHORT $end/$lines $url"; fi
+  grep -F "$file#L" "$ANCHORED" | while IFS= read -r url; do
+    end=${url##*-L}
+    if [ "$lines" -ge "$end" ]; then echo "OK $end/$lines $url"; else echo "SHORT $end/$lines $url"; fi
+  done
 }
-export -f check_anchor
-xargs -P "$JOBS" -I{} bash -c 'check_anchor "$@"' _ {} < "$TMP/anchors.txt" | sort > "$PREFIX-anchors.txt"
+export -f check_file_anchors
+xargs -P "$JOBS" -I{} bash -c 'check_file_anchors "$@"' _ {} < "$TMP/anchor-files.txt" | sort > "$PREFIX-anchors.txt"
 awk '{print $1}' "$PREFIX-anchors.txt" | sort | uniq -c
 grep '^SHORT' "$PREFIX-anchors.txt" | head -20
 

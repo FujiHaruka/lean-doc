@@ -2,7 +2,8 @@
 
 **Mathlib に依存する Lean パッケージのための、高速ドキュメント生成基盤。**
 自パッケージのモジュールだけを短時間でドキュメント化し、依存ライブラリ (Mathlib) は
-**再生成せず外部参照にする**。出力は doc-gen4 と同じ形の静的 HTML。
+**再生成せず外部参照にする** — 飛び先は**そのパッケージの版固定 GitHub ソース**
+(`…/mathlib4/blob/<rev>/Mathlib/Order/Basic.lean#L67-L67`)。出力は静的 HTML。
 
 抽出器は **Lean** (`extractor/`)、その外側 — IR の消費・HTML レンダリング・増分・
 全域成果物・依存写像 — は **Rust** (`crates/`)。
@@ -11,9 +12,11 @@
 lean-doc build --root <あなたのパッケージ> --out <出力先> --extractor-bin <抽出器>
 ```
 
-**現在: v0.1。** ゲート A (doc-gen4 出力との byte 再現) とゲート B
-(第 2 の対象で 1 コマンドが通る) は通っている。**通っていないもの・測っていないものは
-[未検証項目](#未検証項目) に全部書く。**
+**現在: v0.1 + M7。** ゲート B (第 2 の対象で 1 コマンドが通る) は通っている。
+**ゲート A (doc-gen4 出力との byte 再現) は M6 時点で 99.5062% を出したあと、M7 で保留に入った** —
+依存リンクを版固定ソースに切り替えたので doc-gen4 とはバイトで一致しない。**doc-gen4 互換は
+もう追わない**【決定 2026-08-15】。ゲートの再定義は未了 → [`docs/implementation-plan.md`](docs/implementation-plan.md) §1。
+**通っていないもの・測っていないものは [未検証項目](#未検証項目) に全部書く。**
 
 ---
 
@@ -31,7 +34,7 @@ doc-gen4 (v4.31.0) を計装して 432 モジュールのドキュメント生�
 | **0%** | HTML 生成フェーズの増分性 (無変更でも毎回全再生成) |
 
 やめたのは 4 つ — ①**1 プロセスでまとめて抽出する**、②**走査をやめて索引を引く**、
-③**依存ライブラリを再生成せず、名前 → モジュールの写像だけ持って上流サイトへリンクする**、
+③**依存ライブラリを再生成せず、名前 → モジュール → 版固定ソースの写像だけ持ってリンクする**、
 ④**HTML 生成に Lean を要らなくする** (IR から生成し、変更が無ければ再生成もしない)。
 
 外側を Rust で書いたのは速度のためではない — **外側の速度差は言語ではなく
@@ -141,7 +144,8 @@ toolchain が変わったらビルドし直す (だから配布もできない�
 | `--lib` | `lakefile.toml` の `[[lean_lib]]`。読めない形 (`lakefile.lean` など) は**推測せず exit 3** |
 | モジュール一覧 | ソースの glob (`.lake/build` を走査しない — 孤児 olean を拾うため) |
 | `--source-url` | git の HEAD + origin remote。**github.com のみ** (`/blob/<rev>/` は GitHub の形) |
-| 依存写像 (`.lidx`) | **抽出器が import 済みの環境を走査して作る** — 上流サイトの配布物に依存しない |
+| 依存写像 (`.lidx`) | **抽出器が import 済みの環境を走査して作る** — 上流サイトの配布物に依存しない。宣言ごとの**ソース行範囲**もここに入る |
+| 依存リンクの飛び先 | `lake-manifest.json` の url + 40 桁 rev、Lean core だけ `lean --githash`。**すべてオフライン** — ビルド時にネットワークへ出ない |
 | フル生成か増分か | `--out` に何が居るか (`lean-doc-build.json` マーカー) |
 
 **`--out` は必須で既定なし。** 素直な既定 `<root>/.lake/build/doc` は doc-gen4 の出力木
@@ -247,6 +251,14 @@ doc-gen4 の資産を横に置く必要がある。byte 再現率の母数もこ
    詳細と母数は [`docs/implementation-plan.md`](docs/implementation-plan.md) §5。
 10. **プレビューモード・テーマ・検索の依存横断** は**持たない**と決めている
     (→ [`docs/approach.md`](docs/approach.md) §9)。
+11. **GitHub 以外の依存 / rev が 40 桁 hex で取れない依存** — 版固定リンクが組めないので
+    **相対リンクへフォールバック**する経路は実装してあるが、**実物で踏んだことがない**
+    (対象の 15 パッケージは全部 GitHub + 40 桁 rev)。単体テストでしか通っていない。
+12. **依存 root の 39 件中 27 件にオフラインのオラクルが無い** — doc-gen4 の参照木は対象の
+    import closure しかドキュメント化していないので、`Archive` / `Counterexamples` / `Cli` /
+    `MD4Lean` / `UnicodeBasic` などは**照合相手が無い**。HTTP のサンプルだけが手段。
+13. **`--root` 無しの `ledger check` は `build` と違う `renderKey` を出す** — 依存リンクの
+    写像が key に入ったため。**全ページ再生成になるだけで誤りは出ない**が、手で段を回す人は踏む。
 
 ---
 
@@ -256,7 +268,7 @@ doc-gen4 の資産を横に置く必要がある。byte 再現率の母数もこ
 |---|---|
 | [`docs/approach.md`](docs/approach.md) | アプローチの **SoT**。なぜこの形なのか、何を意図的にやらないか |
 | [`docs/implementation-plan.md`](docs/implementation-plan.md) | 実装の **SoT**。ゲート / 移設の順序 / Rust 側の構成と制約 |
-| [`docs/milestone-log.md`](docs/milestone-log.md) | 上の**結果**。M1〜M6 の各段で何を通し、どの数字が出たか |
+| [`docs/milestone-log.md`](docs/milestone-log.md) | 上の**結果**。M1〜M7 の各段で何を通し、どの数字が出たか |
 | [`docs/verification-log.md`](docs/verification-log.md) | **数字の SoT**。予測と食い違ったらこちらが正 |
 | [`benchmarks/`](benchmarks/) | 実測レポート・計装パッチ・生ログ。**数字の出所** |
 
