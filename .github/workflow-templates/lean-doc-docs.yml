@@ -87,10 +87,24 @@
 #   on 9 modules (3.6 KB - 1.2 MB oleans) on an M1: byte-identical after a
 #   delete-and-rebuild and again after an edit was reverted, with the edited
 #   build as the positive control 【実測 2026-08-17,
-#   benchmarks/results/olean-determinism-2026-08-17*.txt】. **Not yet measured on
-#   a Linux runner across two jobs** — that is what the validation workflow
-#   `.github/workflows/ci-template.yml` is for, and until it has run this entry
-#   claims a mechanism, not a speedup.
+#   benchmarks/results/olean-determinism-2026-08-17*.txt】. Measured again on a
+#   Linux runner by running `.github/workflows/ci-template.yml` twice on one
+#   commit: the second job restored the cache, rebuilt every olean with
+#   `lake build` all the same, and re-extracted **0 of 13 modules** — the
+#   ledger matched every hash 【実測 2026-08-17, runs 31959354738 / 31959511320】.
+#
+#   WHAT IT IS WORTH, WITH THE DENOMINATOR STATED 【実測 2026-08-17】
+#   Nothing changed: `lean-doc build` 1.6741 s -> 0.0163 s on that 13-module
+#   package; on a 422-module package measured locally, 9.8848 s -> 0.313 s
+#   (31.6x), with no Lean process started at all.
+#   ONE MODULE CHANGED — the shape of a real push: 9.8848 s -> 7.3118 s, only
+#   **1.35x**. The cache removes the re-extraction (422 modules -> 1) but not
+#   the two costs that do not scale with the change: loading the environment
+#   (3.329 s) and rewriting the dependency map (1.461 s), whose whole-file
+#   digest then re-renders every page. Do not quote the 31.6x for a push.
+#   And the job is more than the docs: on the validation runs `lake build`
+#   (4.9-5.1 s) and `lake exe cache get` (5.1-5.2 s) dominated, so the job went
+#   12.427 s -> 10.790 s = 1.15x.
 name: docs
 
 on:
