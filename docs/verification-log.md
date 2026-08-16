@@ -5305,6 +5305,31 @@ run `31963581512`。生ログ `benchmarks/results/g3-ci-2026-08-17.txt`。
 **`impact` は 0.078 s しかない** — IR を 422 件読んでいるのは事実だが秒としては効いていない。
 **「4 周読んでいる」を秒の問題として扱う根拠は無い** (測る前は最有力候補だった)。
 
+### 段 E — 核の githash は `lake env` 抜きで聞ける【実測 2026-08-17】
+
+生ログ `benchmarks/results/g3-stage-e-2026-08-17.txt`。実装は commit `04fb36b`。
+`resolve_external_links` の `lake env lean --githash` を `lean --githash` に替えた。
+elan の `lean` shim は `lake env lean` が最終的に呼ぶのと同じ shim で、
+同じ `lean-toolchain` を作業ディレクトリから解決する。
+
+| | 対象 (lean-projects) | 第 2 の対象 |
+|---|---|---|
+| `lake env lean --githash` | `68218e87…` **0.84 s** | `68218e87…` **0.98 s** |
+| `lean --githash` | `68218e87…` **0.03 s** | `68218e87…` **0.03 s** |
+
+**陽性対照**: `lean-toolchain` の無いディレクトリでは shim が
+`no default toolchain configured` で失敗する — 一致は「たまたま同じ既定」ではなく
+**同じ toolchain を同じ経路で解決している**こと。
+
+第 2 の対象で end-to-end: **wall 中央値 2.87 → 1.94 s (−0.94 s)**、site 23 ファイルと
+`.lidx` はバイト一致。**`build full in` は動かない** — この呼び出しが `build` 自身の
+clock の**外**にあるという上の割り当てがそのまま裏付けられた。
+**内側の秒だけ見ていたら、この改善は 1 度も見えなかった。**
+
+**422 モジュール対象での end-to-end A/B は回していない** — 機材のディスクが満杯になり、
+2 つの `--out` を要する交互 A/B を安全に走らせられなかった。**完走したことにしない。**
+引き算で壁時計を書くこともしない (書くなら【外挿】)。
+
 ---
 
 ## 書き方

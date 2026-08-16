@@ -1,0 +1,95 @@
+# 段 E — 核の githash を `lake env` 抜きで聞く (2026-08-17)
+
+`resolve_external_links` は Lean core の revision を知るために
+`lake env lean --githash` を叩いていた。これは **`build` 自身の clock の外**で走るので
+`--timings` には出ないが、wall では **0.763 s**【実測 → `g3-attribution-2026-08-17.txt`】、
+1 モジュール変更 5.33 s のうち環境ロードの床に次ぐ大きさだった。
+
+**その 0.763 s はほぼ全部 Lake の起動**で、`--githash` は Lake が用意するもの
+(`LEAN_PATH`、ビルド木、依存) を 1 つも使わない。使うのは toolchain の選択だけで、
+**それは Lake ではなく elan の仕事** — elan の `lean` shim は `lake env lean` が最終的に
+呼ぶのと同じ shim で、同じ `lean-toolchain` を作業ディレクトリから解決する。
+
+## 前提の実測 — 2 つの綴りは同じ答えを返す
+
+機材 M1 / Darwin 25.6.0。`/usr/bin/time -p`。
+
+```
+                          対象 (lean-projects)        第 2 の対象 (target2)
+lake env lean --githash   68218e876d2a38b1...  0.84s  68218e876d2a38b1...  0.98s
+lean --githash            68218e876d2a38b1...  0.03s  68218e876d2a38b1...  0.03s
+                          ^^^^^^^^^^^^^^^^^^ 同一      ^^^^^^^^^^^^^^^^^^ 同一
+```
+
+**陽性対照** — shim が本当に作業ディレクトリを見ているか:
+
+```
+$ cd /private/tmp && lean --githash
+error: no default toolchain configured. run `elan default stable` ...
+```
+
+**`lean-toolchain` の無いディレクトリでは答えが存在しない。** つまり上の一致は
+「たまたま同じ既定を返した」ではなく、**同じ toolchain を同じ経路で解決している**こと。
+
+## 出力の同一性 — 第 2 の対象でフル生成を新旧バイナリで
+
+```
+before (段 D)  build full in 4.4811 s
+after  (段 E)  build full in 1.8849 s
+site           23 ファイル、/usr/bin/diff -r -q で IDENTICAL
+link-index.lidx cmp で identical
+```
+
+## 壁時計 — 第 2 の対象、交互 A/B (13 モジュール、フル生成)
+
+```
+before1 build   full in 2.2866 s  wall 3.27s   <- 1 本目は cold 寄り
+after1  build   full in 1.8780 s  wall 1.92s
+before2 build   full in 1.8990 s  wall 2.91s
+after2  build   full in 1.9478 s  wall 1.98s
+before3 build   full in 1.8698 s  wall 2.85s
+after3  build   full in 1.8767 s  wall 1.91s
+before4 build   full in 1.9479 s  wall 2.93s
+after4  build   full in 1.8801 s  wall 1.91s
+before5 build   full in 1.8645 s  wall 2.84s
+after5  build   full in 1.9519 s  wall 1.99s
+```
+
+**wall 中央値 2.87 → 1.94 s、−0.94 s。**
+**`build full in` は動かない** — この呼び出しが `build` 自身の clock の外にあるという
+割り当て (`g3-attribution-2026-08-17.txt`) がそのまま裏付けられた。
+**内側の秒だけ見ていたら、この改善は 1 度も見えなかった。**
+
+## 危険と、それをどう扱ったか
+
+- **間違った revision を返しても「エラー」にはならない** — Lean core への外部リンクが
+  全部間違った commit を指すだけで、無診断。だから前提 (2 つの綴りが同じ答え) を
+  **実装より先に、両方の対象で、陽性対照つきで測った。**
+- 残る番人は 2 つ: `is_revision` (40 桁の 16 進でなければエラー) と、値が
+  `renderKey.externalLinks` に入ること — 動けば**全ページ再描画という騒がしい形**で出る。
+- `--lake <path>` を渡すと `lean` は**その兄弟**から取る。toolchain 局所の lake を
+  名指しした呼び手は、その toolchain の lean を意味しているため (`PATH` の先頭ではなく)。
+
+## 測っていないもの — **422 モジュール対象での end-to-end A/B**
+
+**回していない。** 機材のディスクが満杯になり (残り 1 GB 未満)、
+2 つの `--out` を要する交互 A/B を安全に走らせられなかった。**完走したことにしない。**
+
+代わりに主張の根拠にしているのは 2 つ:
+
+1. **置き換えた呼び出しそのものを実対象で直接測った** — `lake env lean --githash` 0.84 s
+   → `lean --githash` 0.03 s (上の表)。段 E が消すのはこの差だけで、
+   他の段には触れていない。
+2. **第 2 の対象で end-to-end に出た** — wall 中央値 −0.94 s、出力はバイト一致。
+
+**この 2 つから 422 モジュール対象の壁時計を引き算で書かない。**
+書くとしたら「約 0.8 s 減るはず【外挿】」であって実測ではない。
+
+なお、このディスク満杯は**対象リポジトリの olean を 1 つ欠落させた**
+(中断された `lake build` が消したまま終わった)。`lake build InformationTheory` で復旧、
+`Build completed successfully (3769 jobs)`、ソースツリーは clean を確認済み。
+
+## ゲート
+
+`cargo test --workspace` 346 passed / 0 failed / 21 ignored、`cargo clippy` 無警告、
+`tools/e2e-micro.sh` 緑、`tools/target2-gate.sh all` = **all checks passed**。
