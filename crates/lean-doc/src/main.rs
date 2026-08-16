@@ -202,9 +202,10 @@ usage: lean-doc build  --root <repo> --out <dir> [--link-index <file>]
                  resident request is checked against
   --lake         (`extract`, `incremental --serve`) the lake executable, or
                  $LAKE (default: `lake`). Also (`build`, `site`, `render`,
-                 `ledger`) how `lake env lean --githash` is run to learn Lean
-                 core's revision, which is the one dependency the manifest does
-                 not pin
+                 `ledger`) where the `lean` that answers `--githash` is looked
+                 for: its **sibling**, so `--lake ~/.elan/bin/lake` means
+                 `~/.elan/bin/lean`. That revision is Lean core's, the one
+                 dependency the manifest does not pin
   --events       (`extract`) the extractor's phase events JSONL. Defaults to
                  <timings without .json>-events.jsonl, which is what
                  `incremental` relies on: it passes only --timings
