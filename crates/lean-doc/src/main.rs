@@ -81,7 +81,8 @@ usage: lean-doc build  --root <repo> --out <dir> [--link-index <file>]
        lean-doc extract --modules <file> --ir-dir <dir> --timings <file>
                        [--extractor-bin <path>] [--target <repo>] [--lake <path>]
                        [--events <file>] [--jobs <n>]
-                       [--link-index <file> [--link-index-omit <file>]]
+                       [--link-index <file> [--link-index-omit <file>]
+                        [--link-index-key <token>]]
        lean-doc site   --ir <dir> --out <dir> --source-url <url>
                        (--link-index <file> | --no-link-index)
                        [--root <repo>] [--lake <path>]
@@ -159,6 +160,15 @@ usage: lean-doc build  --root <repo> --out <dir> [--link-index <file>]
                  moving when the package is edited, and with it renderKey.
                  Module names still appear in the map's `@` section.
                  `incremental --serve` passes its own --modules here.
+  --link-index-key  (`extract`, with --link-index) an opaque token standing for
+                 everything about that map the extractor cannot see: the oleans
+                 behind the imported modules, and the omit list's bytes. With
+                 it, a map whose sidecar <file>.key holds the same token and
+                 whose `@` section still matches the environment is left
+                 untouched — no scan, no write (1.20-1.81 s of a 6.2 s one-module
+                 incremental build on the measurement target). Anything less than
+                 a full match rewrites both. `build` and `incremental --serve`
+                 compute their own; here it is passed through verbatim.
   --make-link-index  (`incremental --serve`) the resident extractor writes
                  --link-index instead of reading it
   --work         (`incremental`) the round's scratch directory. Everything in

@@ -156,6 +156,15 @@ Usage: extract <modules.txt> <out.jsonl> [options]
                       renderer resolves docstring autolinks through, which used
                       to be derived from a doc-gen4 site's
                       `declaration-data.bmp` (see `writeLinkIndex`)
+  --link-index-omit <p>  modules whose declaration groups are left out of that
+                      map, one name per line. Their names stay in the `@`
+                      section (段 C; see `writeLinkIndex`)
+  --link-index-key <t>  an opaque token standing for everything about the map
+                      that this process cannot see — the caller's `extractKey`
+                      and the omit list. With it, a map whose sidecar
+                      `<p>.key` holds the same token and whose `@` section is
+                      still this environment's is left alone: no scan, no
+                      write (段 D; see `writeLinkIndex`)
   --skip-analyze      skip the semantic analysis (module docs / tactics only)
   --tactics-emulate   additionally run the tactic collection doc-gen4's way
                       (`allTacticDocs` once per module) for comparison
@@ -221,6 +230,14 @@ structure Cfg where
   for the measurement that licenses the omission. Without `--link-index` it
   means nothing and is ignored. -/
   linkIndexOmitPath : Option FilePath := none
+  /-- `--link-index-key <token>`: an opaque string the caller supplies for
+  everything the map depends on that **this process cannot cheaply see** — the
+  oleans behind the imported modules, and the omit list's contents. Given it, the
+  map is rewritten only when it is not already the right file; see
+  `writeLinkIndex`'s 段 D heading for what "the right file" means and why the
+  token is a sidecar rather than a line of the map. Without it the map is
+  rewritten every time, which is the pre-段 D behaviour byte for byte. -/
+  linkIndexKey : Option String := none
   tacticsEmulate : Bool := false
   tacticsProbe : Bool := false
   tacticsDumpPath : Option FilePath := none
@@ -425,7 +442,59 @@ flag: `modules + omitted` and `declarations + omittedDeclarations` are that
 run's `modules` and `declarations`, and `scanned` does not move at all. The
 saving that is given up by still walking them is ~3.6% of a 0.9 s phase; a
 silent omission is the failure mode this project keeps catching, and it is not
-worth 30 ms. -/
+worth 30 ms.
+
+### 段 D — a map that is already right is not rewritten (`--link-index-key`)
+
+段 C made the map stop *moving*; it still gets *rewritten* on every extraction
+request — 490,287 constants walked and 10 MB written, **1.20〜1.81 s** of a 6.2 s
+one-module incremental build【実測 2026-08-17 →
+`benchmarks/results/g3-stage-c-2026-08-17.txt`】. The file it produces is a
+function of exactly three things:
+
+1. **the set of modules in the imported environment** (`env.header.moduleNames`),
+   which decides both the `@` section and which oleans are walked;
+2. **the contents of those modules' oleans**, which decide the names and their
+   line ranges;
+3. **the omit list**, which decides whose groups are dropped.
+
+Only (1) is something this process can read cheaply — it is already in memory.
+(2) would mean hashing the dependency closure's oleans, which is most of the cost
+this is trying to avoid, and (3) is the caller's own input. So (2) and (3) are
+delegated: the caller passes **one opaque token** (`--link-index-key`) that it
+promises moves whenever either of them does, and this process checks (1) itself.
+On this pipeline the token is a digest of the run's `extractKey` (Lean toolchain
++ `lake-manifest.json` SHA-256 + extractor id + IR schema) and the omit list's
+bytes — the same key that already invalidates every IR on the Rust side, so a
+toolchain or dependency bump re-writes the map for the same reason it re-extracts
+everything.
+
+**The token goes in a sidecar `<path>.key`, not in a `#` header line of the map**
+— and that is not a style choice. The map's SHA-256 is an input to the renderer's
+`renderKey`, so anything written *into* the file re-renders every page when it
+changes. Folding `extractKey` in would tie every toolchain bump to a full
+re-render of a map whose content did not move, which is precisely the coupling
+段 C exists to break. A separate file carries the token without touching the
+bytes the renderer hashes.
+
+**The `@`-section comparison is not redundant with the token, in either
+direction.** The token cannot see the closure: a package that adds
+`import Mathlib.NewThing` pulls in modules whose declarations belong in the map,
+and neither `lean-toolchain` nor `lake-manifest.json` moves for it — the token
+would still match while the map is short. Conversely the `@` section cannot see
+the oleans: the same module list can be built from a different Mathlib. Each
+closes what the other leaves open, so **both** are required, compared **in order
+and in count** (a prefix match would accept a truncated map, and equal counts
+with a reordered list would accept a map written under a different import order,
+whose group order is that same list — see the ordering note above).
+
+**The failure direction is: any doubt rewrites.** No token, no sidecar, an
+unreadable sidecar, a token that differs, a count that differs, one name that
+differs — every one of them falls through to the full walk and a full write.
+Being wrong here means serving a stale map, which is silent; being conservative
+costs 1.2 s. And when no token is supplied at all, a stale `<path>.key` left by
+an earlier run is **deleted**, so a later run with a token cannot match a sidecar
+that describes a map this run has since overwritten. -/
 
 structure LinkIndexStats where
   /-- Names walked: every constant in every loaded module's olean. -/
@@ -458,7 +527,114 @@ structure LinkIndexStats where
   /-- Size of the file, in bytes rather than in UTF-16 code units — the
   prototype reported the latter and the two differ by 13,454 (落とし穴 1). -/
   bytes : Nat := 0
+  /-- 段 D: the map on disk was already the right file and was left alone.
+
+  **Every other field of this structure is then 0, and 0 here means "not counted
+  this time" — never "the map is empty".** Nothing was scanned, so `scanned` is
+  0; nothing was written, so `declarations`, `modules` and `bytes` are 0; the
+  `@` section was *read* and compared but not produced, so `moduleNames` is 0
+  too. The map still on disk holds whatever the run that wrote it counted. A
+  reader that sums these fields across runs has to drop the reused ones, which
+  is why this flag is reported unconditionally in the events file rather than
+  only when it is true. -/
+  reused : Bool := false
   deriving Inhabited
+
+/-- 段 D: where the token that describes a map is kept — beside it, never in it.
+
+`<the map>.key`, so the two travel together and a `rm` of the map's directory
+takes both. See `writeLinkIndex`'s 段 D heading for why this is not a `#` line
+of the map itself (the map's SHA-256 is an input to the renderer's key). -/
+def linkIndexKeyPath (path : FilePath) : FilePath := ⟨path.toString ++ ".key"⟩
+
+/-- The marker `writeLinkIndex` puts on the first line, and the one 段 D's reuse
+check requires to be there already.
+
+**One definition for both** because it is the only thing standing between a
+format change and a map reused across it. The caller's token covers the oleans
+and the omit list; it does **not** cover this file's own layout, and the value in
+`extractKey` that names the extractor (`EXTRACTOR_ID`) is a constant somebody has
+to remember to bump. The marker is the guard that does not need remembering: the
+number in it moves with the field count (see `writeLinkIndex`'s heading, where
+`#lidx1` is name-only and `#lidx2` adds the two line numbers), so a writer that
+changes the format changes this string in the same edit, and every map written
+before it stops being reusable on the next run. -/
+def linkIndexMarker : String := "#lidx2"
+
+/-- 段 D: does the `@` section of an existing `.lidx` still describe this
+environment?
+
+Reads the file **a line at a time and stops at the first line that is neither
+`#` nor `@`**, which is the group header of the first declaration group: the
+`@` section is written first (`writeLinkIndex`), so this touches the head of a
+10 MB file rather than the whole of it. `#` lines are skipped because the format
+marker (`#lidx2`) is one and the renderer's own parser ignores them, so a future
+comment line must not be read as the end of the section.
+
+The comparison is **in order and in count**: `i` walks `modNames` in step with
+the `@` lines, a mismatch fails immediately, and reaching the end of the section
+with `i` short of `modNames.size` (a truncated map) or finding an `@` line past
+the end (a longer one) fails too. Order matters because the map's group order is
+this same array's order; count matters because a prefix would otherwise pass.
+
+Module names are compared against `toString (escape := false)`, which is how
+`writeLinkIndex` spells them — see the escaping note in its heading, where the
+two spellings are deliberately different for declarations and modules. -/
+private partial def linkIndexAtSectionMatches
+    (h : IO.FS.Handle) (modNames : Array Name) (i : Nat) : IO Bool := do
+  let raw ← h.getLine
+  -- `getLine` answers "" only at EOF: a map that is nothing but its `@` section
+  -- (an environment in which no module defines anything) is legal, so this is a
+  -- count check rather than a refusal.
+  if raw.isEmpty then
+    return i == modNames.size
+  let line := raw.trimAscii.toString
+  if line.startsWith "#" then
+    linkIndexAtSectionMatches h modNames i
+  else if line.startsWith "@" then
+    if i ≥ modNames.size then
+      return false
+    else if line.drop 1 == modNames[i]!.toString (escape := false) then
+      linkIndexAtSectionMatches h modNames (i + 1)
+    else
+      return false
+  else
+    -- The first group header. The `@` section ended here, so it is complete iff
+    -- it named every module.
+    return i == modNames.size
+
+/-- 段 D: is the map already on disk the one this run would write?
+
+**Three** halves have to hold, which is one more than the design started with:
+the caller's token, which covers the oleans and the omit list; the `@` section,
+which covers the module set (see `writeLinkIndex`'s 段 D heading for why neither
+implies the other); and `linkIndexMarker`, which covers **this file's own
+format** — the one input neither of the other two can see, because the caller
+cannot know what shape this code writes and the module set is the same whatever
+shape it is written in. Everything that is not a clear "yes" answers `false`: a
+missing map, a missing or unreadable sidecar, a token that differs by one byte, a
+section that differs by one name, a marker from an older format. Rewriting when
+it was not needed costs 1.2 s; not rewriting when it was needed serves a stale
+map, silently.
+
+The marker is required on the **first** line rather than looked for among the
+`#` lines: that is where `writeLinkIndex` puts it, and accepting it anywhere
+would accept a file that has a `#lidx1` first line and a `#lidx2` comment.
+
+The sidecar is written with a trailing newline and compared after trimming ASCII
+whitespace: the token is a hex digest with no whitespace in it, so this is an
+exact comparison that also tolerates a file somebody `echo`ed by hand. -/
+def linkIndexIsCurrent (path : FilePath) (key : String) (modNames : Array Name) :
+    IO Bool := do
+  unless ← path.pathExists do return false
+  let keyPath := linkIndexKeyPath path
+  unless ← keyPath.pathExists do return false
+  let stored ← IO.FS.readFile keyPath
+  if stored.trimAscii.toString != key then return false
+  let h ← IO.FS.Handle.mk path .read
+  let first ← h.getLine
+  if first.trimAscii.toString != linkIndexMarker then return false
+  linkIndexAtSectionMatches h modNames 0
 
 /-- Writes the map as one `.lidx`. Returns what went into it.
 
@@ -477,7 +653,10 @@ def writeLinkIndex (path : FilePath) (omitModules : Std.HashSet Name) :
   let mut stats : LinkIndexStats := { moduleNames := modNames.size }
   -- Written in chunks: one `putStr` per line would be 750k calls, one string
   -- for the whole file would be 8 MB of appends.
-  let mut buf := "#lidx2\n"
+  -- `linkIndexMarker`, not a literal: 段 D's reuse check compares the first line
+  -- against the same definition, and two spellings of a format marker is how a
+  -- format change and the guard against reusing across it drift apart.
+  let mut buf := linkIndexMarker ++ "\n"
   for m in modNames do
     buf := buf ++ "@" ++ m.toString (escape := false) ++ "\n"
     if buf.utf8ByteSize ≥ 262144 then
@@ -2570,7 +2749,29 @@ def run (cfg : Cfg) (preEnv : Option Environment := none) : IO UInt32 := do
         pure (Std.HashSet.emptyWithCapacity ns.size |>.insertMany ns)
       | none => pure {}
     let t0 ← IO.monoNanosNow
-    let s ← runMeta (writeLinkIndex p omitModules)
+    -- 段 D. The check runs **before anything is scanned**, and the whole of the
+    -- work is inside the same phase timer either way: a phase that vanished
+    -- from the events file when it got cheap would be indistinguishable from a
+    -- run that stopped writing the map at all. It collapses instead.
+    let s ← match cfg.linkIndexKey with
+      | some key =>
+        if ← linkIndexIsCurrent p key header.moduleNames then
+          pure { reused := true }
+        else do
+          let s ← runMeta (writeLinkIndex p omitModules)
+          -- After the map, never before: a sidecar written first and a write
+          -- that then died would leave a token vouching for a half-written map.
+          IO.FS.writeFile (linkIndexKeyPath p) (key ++ "\n")
+          pure s
+      | none => do
+        let s ← runMeta (writeLinkIndex p omitModules)
+        -- No token means "rewrite every time", which is the pre-段 D behaviour —
+        -- but a sidecar an earlier run left behind describes a map that no
+        -- longer exists, and a later run *with* a token would believe it. It is
+        -- this run's map, so it is this run's job to take the claim down.
+        let keyPath := linkIndexKeyPath p
+        if ← keyPath.pathExists then IO.FS.removeFile keyPath
+        pure s
     let t1 ← IO.monoNanosNow
     tLi := t1 - t0
     linkIndex := some s
@@ -2583,7 +2784,12 @@ def run (cfg : Cfg) (preEnv : Option Environment := none) : IO UInt32 := do
        -- from "this run predates the counter".
        ("omitted", toString s.omitted),
        ("omittedDeclarations", toString s.omittedDeclarations),
-       ("bytes", toString s.bytes)]
+       ("bytes", toString s.bytes),
+       -- 段 D. Emitted on **both** paths, as `true` and as `false`, for the same
+       -- reason: every other number in this record is 0 when it is `true`, and
+       -- without the field a reader cannot tell "nothing was counted" from "the
+       -- map came out empty" — nor a reused run from one that predates 段 D.
+       ("reused", if s.reused then "true" else "false")]
 
   -- doc-gen4's `getAllModuleDocs`, split in two so the two halves can be told
   -- apart: the per-module part (module docstrings + direct imports) and the part
@@ -2931,15 +3137,27 @@ def run (cfg : Cfg) (preEnv : Option Environment := none) : IO UInt32 := do
   IO.println s!"indexLookup          {fmtDur (tIdx1 - tIdx0)}  enumerated {enumerated}, unique {candidates.size}"
   IO.println s!"moduleDocs           {fmtDur (tMd1 - tMd0)}  {modDocCount} docs in {modsWithDocs} modules, {importCount} imports"
   if let some s := linkIndex then
-    IO.println s!"linkIndex            {fmtDur tLi}  {s.declarations} declarations in {s.modules} modules \
-      ({s.ranged} with a line range, {s.unranged} without, {s.scanned} constants scanned, \
-      {s.moduleNames} module names, {s.bytes} bytes)"
-    -- 段 C. Printed only when something was actually left out, so the line
-    -- cannot be mistaken for noise — but then unconditionally, because the one
-    -- thing an omission must never be is invisible.
-    if s.omitted != 0 || s.omittedDeclarations != 0 then
-      IO.println s!"  omitted            {s.omittedDeclarations} declarations in {s.omitted} modules \
-        (--link-index-omit; their names are still in the @ section)"
+    -- 段 D. Two shapes, because the counting line would be a lie on the reuse
+    -- path: it would report 0 declarations in 0 modules for a map that has a
+    -- quarter of a million of them. The word `reused` and the path it was reused
+    -- from are what this line has to say, and it says the rest in words so that
+    -- a reader who greps for a count and finds none knows why there is none.
+    let liPath := (cfg.linkIndexPath.map (·.toString)).getD "?"
+    if s.reused then
+      IO.println s!"linkIndex            {fmtDur tLi}  reused {liPath} \
+        (--link-index-key matched its .key sidecar and the @ section still matches this \
+        environment, so nothing was scanned and nothing was written; the counts are 0 because \
+        nothing was counted this time, not because the map is empty)"
+    else
+      IO.println s!"linkIndex            {fmtDur tLi}  {s.declarations} declarations in {s.modules} modules \
+        ({s.ranged} with a line range, {s.unranged} without, {s.scanned} constants scanned, \
+        {s.moduleNames} module names, {s.bytes} bytes)"
+      -- 段 C. Printed only when something was actually left out, so the line
+      -- cannot be mistaken for noise — but then unconditionally, because the one
+      -- thing an omission must never be is invisible.
+      if s.omitted != 0 || s.omittedDeclarations != 0 then
+        IO.println s!"  omitted            {s.omittedDeclarations} declarations in {s.omitted} modules \
+          (--link-index-omit; their names are still in the @ section)"
   IO.println s!"tactics              {fmtDur (tTac1 - tTac0)}  {tacticsInEnv} in env, {tacticsAssigned} in target modules"
   if cfg.tacticsEmulate then
     IO.println s!"tacticsPerModule     {fmtDur tEmu}  (doc-gen4's shape: {targets.size} × allTacticDocs)"
@@ -3073,7 +3291,11 @@ partial def serve (cfg : Cfg) : IO UInt32 := do
       -- (段 C): the request's `<modules.txt>` is a *subset* of the start-up
       -- list, so deriving the omit set from it would make the map's bytes
       -- depend on which round wrote it. The start-up list is the package, and
-      -- it is what the map is written against every round.
+      -- it is what the map is written against every round. `linkIndexKey` is
+      -- start-up configuration for the same reason and a stronger one (段 D):
+      -- it stands for inputs that are fixed for the life of this process — the
+      -- imported environment's oleans and the omit list — so a per-request one
+      -- could only ever say something this process has no way to have learnt.
       let reqCfg := { cfg with
         modulesPath := ⟨modules⟩, outPath := ⟨out⟩,
         irDir := match rest with | dir :: _ => some ⟨dir⟩ | [] => cfg.irDir }
@@ -3095,7 +3317,7 @@ open Stage4b in
 def parseArgs (args : List String) : Except String Cfg :=
   match args with
   | modules :: out :: rest => go { modulesPath := ⟨modules⟩, outPath := ⟨out⟩ } rest >>= check
-  | _ => .error "usage: extract <modules.txt> <out.jsonl> [--equations] [--dump <p>] [--dump-modules <p>] [--only <p>] [--open <ns,..>] [--tag] [--refs] [--dump-refs <p>] [--link-index <p>] [--link-index-omit <p>] [--write-ir --ir-dir <p>] [--tagged-code] [--skip-analyze] [--tactics-emulate] [--tactics-probe] [--pp-breakdown] [--decl-profile <p>] [--jobs <n>]"
+  | _ => .error "usage: extract <modules.txt> <out.jsonl> [--equations] [--dump <p>] [--dump-modules <p>] [--only <p>] [--open <ns,..>] [--tag] [--refs] [--dump-refs <p>] [--link-index <p>] [--link-index-omit <p>] [--link-index-key <t>] [--write-ir --ir-dir <p>] [--tagged-code] [--skip-analyze] [--tactics-emulate] [--tactics-probe] [--pp-breakdown] [--decl-profile <p>] [--jobs <n>]"
 where
   /-- The one cross-flag rule (M4-a). It is checked **before anything runs**
   rather than where the directory is used, because the IR is written at the very
@@ -3130,6 +3352,11 @@ where
   -- at all — a caller that passes the omit list unconditionally and the map path
   -- only sometimes is doing the reasonable thing, not a mistake.
   | "--link-index-omit" :: p :: rest => go { cfg with linkIndexOmitPath := some ⟨p⟩ } rest
+  -- 段 D. Opaque here on purpose: this process cannot check what the token
+  -- claims (the caller's `extractKey` and the omit list's bytes), only whether
+  -- it is the same string as last time. Tolerated without `--link-index` for the
+  -- same reason as the flag above.
+  | "--link-index-key" :: k :: rest => go { cfg with linkIndexKey := some k } rest
   -- Stage 7d.
   | "--pp-breakdown" :: rest => go { cfg with ppBreakdown := true } rest
   | "--decl-profile" :: p :: rest =>

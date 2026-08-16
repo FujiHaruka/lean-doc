@@ -73,6 +73,7 @@ pub fn extract(args: &[String]) -> Result<(), Failure> {
     let mut events: Option<PathBuf> = None;
     let mut link_index: Option<PathBuf> = None;
     let mut link_index_omit: Option<PathBuf> = None;
+    let mut link_index_key: Option<String> = None;
     let mut jobs: usize = 1;
     let mut bin: Option<PathBuf> = None;
     let mut target: Option<PathBuf> = None;
@@ -117,6 +118,20 @@ pub fn extract(args: &[String]) -> Result<(), Failure> {
             // not this round's slice of it. The caller that knows the difference
             // is the one that writes both files.
             "--link-index-omit" => link_index_omit = Some(value("--link-index-omit")?.into()),
+            // 段 D. An opaque token, passed through verbatim — this command does
+            // not compute one and does not interpret one. The extractor uses it
+            // as the caller's promise about the two inputs it cannot see (the
+            // oleans behind the imported modules, and the omit list's bytes) and
+            // leaves the map alone when the token still matches the sidecar
+            // `<map>.key` *and* the map's `@` section still matches the
+            // environment; see `Extract.lean`'s `writeLinkIndex` heading.
+            //
+            // Not derived here from `--target`, unlike `lean-doc build`'s: this
+            // command is the seam, and a caller driving it in a loop is the one
+            // that knows what its own runs have in common. `lean-doc build`
+            // computes the token in `pipeline::serve_options` and that is the
+            // only place in the product that does.
+            "--link-index-key" => link_index_key = Some(value("--link-index-key")?),
             "--extractor-bin" => bin = Some(value("--extractor-bin")?.into()),
             "--target" => target = Some(value("--target")?.into()),
             "--lake" => lake = Some(value("--lake")?.into()),
@@ -196,6 +211,15 @@ pub fn extract(args: &[String]) -> Result<(), Failure> {
         return usage(
             "--link-index-omit without --link-index does nothing: it names the modules whose \
              declaration groups are left out of the map, and no map is being written",
+        );
+    }
+    // 段 D, and the same rule for the same reason: with no map there is nothing
+    // to reuse and nothing to write a `.key` sidecar beside, so the token would
+    // be accepted and dropped.
+    if link_index_key.is_some() && link_index.is_none() {
+        return usage(
+            "--link-index-key without --link-index does nothing: it is the token that lets the \
+             extractor leave an already-correct map alone, and no map is being written or read",
         );
     }
     // Flag, then environment, then nothing. **No default path** — both of these
@@ -324,6 +348,9 @@ pub fn extract(args: &[String]) -> Result<(), Failure> {
         command.arg("--link-index").arg(path);
         if let Some(omit) = &link_index_omit {
             command.arg("--link-index-omit").arg(omit);
+        }
+        if let Some(key) = &link_index_key {
+            command.arg("--link-index-key").arg(key);
         }
     }
     command

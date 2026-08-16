@@ -350,6 +350,17 @@ if ! cmp -s "$OUT/lidx-before" "$OUT/first/link-index.lidx"; then
   exit 1
 fi
 
+# 段 D. Not moving is one claim; not being *written* is another, and the bytes
+# cannot tell them apart — a map rewritten to the same content passes the check
+# above while still costing the 490,287-constant walk that produced it. The
+# extractor says which it did, so read that rather than infer it.
+if ! grep -qE '^linkIndex .* reused ' "$OUT/first/work/serve.out"; then
+  echo "GATE 6: the extractor rewrote the dependency map instead of reusing it" >&2
+  grep -E '^linkIndex ' "$OUT/first/work/serve.out" >&2 || \
+    echo "  (no linkIndex line in $OUT/first/work/serve.out)" >&2
+  exit 1
+fi
+
 # `site` writes the pages and the global artefacts; the static assets `build`
 # copies are not its business, so a name present on one side only is not a
 # difference here — a *shared* name whose bytes differ is.

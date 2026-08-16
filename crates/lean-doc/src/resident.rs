@@ -187,6 +187,19 @@ pub struct Serve {
     /// closure and nothing else, which is the half that moves only when the
     /// oleans under it do. [`Server::start`] has the rest.
     pub link_index: Option<PathBuf>,
+    /// 段 D: the token the extractor compares the map's `.key` sidecar against
+    /// before deciding whether it has to write the map at all, or `None` to make
+    /// it write unconditionally (the pre-段 D behaviour).
+    ///
+    /// **Start-up configuration for the same reason [`Self::link_index`] is**,
+    /// and it has to be: a token that changed between two requests of one server
+    /// would describe two different maps in one file. It is computed once by
+    /// [`crate::pipeline::serve_options`], which is also the only place that
+    /// knows both halves of it — the run's `extractKey` and the bytes of the
+    /// omit list. What it does **not** cover is the imported module set, which
+    /// only the extractor can see, and this file's format, which only the
+    /// extractor can name; both are checked on the extractor's side.
+    pub link_index_key: Option<String>,
 }
 
 /// A resident extractor and the world it is valid for.
@@ -528,6 +541,14 @@ impl Server {
             // on purpose and never lets a request replace it, so this is one
             // flag, given once, for the whole life of the process.
             command.arg("--link-index-omit").arg(&serve.modules_file);
+            // 段 D. With the token the extractor may decide the map on disk is
+            // already the one it would write and skip the walk that produces it
+            // (490,287 constants, 1.2 s warm). Without it — `None` — it writes
+            // unconditionally, which is what every caller outside this pipeline
+            // gets and what the flag's absence has to keep meaning.
+            if let Some(key) = &serve.link_index_key {
+                command.arg("--link-index-key").arg(key);
+            }
         }
         command
             .arg("--serve")
@@ -820,6 +841,9 @@ mod tests {
         fn resident(&self) -> Result<Resident, Failure> {
             Resident::new(Serve {
                 link_index: None,
+                // No map, so nothing to key: 段 D's token is only ever paired
+                // with `--link-index`.
+                link_index_key: None,
                 bin: self.bin.clone(),
                 lake: self.lake.clone(),
                 target: fs::canonicalize(&self.target).expect("a real directory"),

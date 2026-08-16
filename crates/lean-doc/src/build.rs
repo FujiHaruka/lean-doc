@@ -1017,6 +1017,9 @@ fn open_extractor(
             link_index: request
                 .derived_link_index
                 .then_some(request.link_index.as_path()),
+            // 段 D: for the reuse token, not for the server — its `index.json`
+            // is part of `extractKey`. On a full generation it does not exist
+            // yet, which the token computation expects.
         })?,
     )?)))
 }

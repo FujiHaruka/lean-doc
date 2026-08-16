@@ -1240,16 +1240,90 @@ pub fn serve_options(request: ServeRequest<'_>) -> Result<Serve, Failure> {
             Some(crate::extract::absolute(path))
         }
     };
+    let modules_file = crate::extract::absolute(modules_file);
+    // 段 D. Computed here, once, for both callers — `build` and `incremental`
+    // resolve `--target` differently and neither should own a second spelling of
+    // a key that has to compare equal across runs. `None` when there is no map:
+    // the extractor is passed the token only beside `--link-index`.
+    let link_index_key = match &link_index {
+        None => None,
+        Some(_) => Some(link_index_key(&target, &modules_file)?),
+    };
     Ok(Serve {
         bin: crate::extract::absolute(&bin),
         lake: crate::extract::or_env(lake, "LAKE").unwrap_or_else(|| PathBuf::from("lake")),
         target,
         jobs,
-        modules_file: crate::extract::absolute(modules_file),
+        modules_file,
         modules: modules.to_vec(),
         work: crate::extract::absolute(work),
         link_index,
+        link_index_key,
     })
+}
+
+/// 段 D: the token the extractor checks the dependency map's sidecar against.
+///
+/// The map is a function of three inputs (`Extract.lean`'s `writeLinkIndex`, 段 D
+/// heading): the imported module set, those modules' oleans, and the omit list.
+/// The extractor checks the first itself, out of the environment it is holding;
+/// this covers the other two.
+///
+/// **The oleans are covered by three of `extractKey`'s five values rather than
+/// by hashing them**: `leanToolchain`, `manifestSha256` and `extractor`. The
+/// first two are this pipeline's existing answer to "could the bytes Lean
+/// produces have moved" — the one that invalidates every module's IR when it
+/// changes — and the third is the constant that names the code doing the
+/// writing, the one `docs/implementation-plan.md` §6 says to bump when the
+/// extractor is reimplemented.
+///
+/// **The other two are deliberately left out**, and this is a correction of the
+/// first version of this function rather than a shortcut. `irSchemaVersion` and
+/// `irGenerator` are read out of `<ir>/index.json` and describe **the IR**: the
+/// second is explicitly "who wrote the IR on disk", a fact §6 says *not* to
+/// update when the implementation changes. The map is not the IR and does not
+/// move with either. Including them cost real behaviour: `extract_key` reads
+/// that file, a first-ever build has not written it yet, so the token of a
+/// first-ever build differed from the token of every run after it and **the
+/// first incremental build after a first-ever build rewrote the map for
+/// nothing** — a symptom with no defensible cause【実測 2026-08-17】.
+///
+/// **The omit list goes in by its bytes, not its path.** It is the package's
+/// module list, it changes when the package gains or loses a module, and a path
+/// is not an identity — the same path holding a different list has to move the
+/// token (品質ゲート: 入力の同一性をパスで判定しない).
+///
+/// What is *not* here: the format of the map itself. The extractor checks that
+/// against its own `#lidx2` marker, where a format change and the check that
+/// catches it sit in the same file.
+fn link_index_key(target: &Path, omit: &Path) -> Result<String, Failure> {
+    // `None`: the IR half of the key is not wanted here (see above), so there is
+    // nothing to read `<ir>/index.json` for.
+    let key = lean_doc_incr::extract_key(&target.to_string_lossy(), None).map_err(refused)?;
+    let mut bytes = Vec::new();
+    for name in ["leanToolchain", "manifestSha256", "extractor"] {
+        let Some(value) = key.get(name) else {
+            return Err(Failure::Refused {
+                code: 3,
+                message: format!("extractKey has no `{name}`: the reuse token cannot be built"),
+            });
+        };
+        // `name=value\n`, one per line: neither half can contain a newline (a
+        // toolchain string, a hex digest and a compile-time constant), so the
+        // concatenation is unambiguous without escaping.
+        bytes.extend_from_slice(name.as_bytes());
+        bytes.push(b'=');
+        bytes.extend_from_slice(value.as_bytes());
+        bytes.push(b'\n');
+    }
+    // A blank line ends the key half, so that no rearrangement of its characters
+    // can produce the same digest as a different omit list.
+    bytes.push(b'\n');
+    bytes.extend_from_slice(&fs::read(omit).map_err(|source| Failure::Refused {
+        code: 3,
+        message: format!("{}: {source}", omit.display()),
+    })?);
+    Ok(lean_doc_incr::sha256_hex(&bytes))
 }
 
 /// Plan 決定 1 / §7 debt 7: the revision in `--source-url` has to be 40 hex
