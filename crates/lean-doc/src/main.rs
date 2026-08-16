@@ -80,7 +80,8 @@ usage: lean-doc build  --root <repo> --out <dir> [--link-index <file>]
        lean-doc modules --root <repo> [--lib <Name>]... [--out <file>]
        lean-doc extract --modules <file> --ir-dir <dir> --timings <file>
                        [--extractor-bin <path>] [--target <repo>] [--lake <path>]
-                       [--events <file>] [--jobs <n>] [--link-index <file>]
+                       [--events <file>] [--jobs <n>]
+                       [--link-index <file> [--link-index-omit <file>]]
        lean-doc site   --ir <dir> --out <dir> --source-url <url>
                        (--link-index <file> | --no-link-index)
                        [--root <repo>] [--lake <path>]
@@ -150,6 +151,14 @@ usage: lean-doc build  --root <repo> --out <dir> [--link-index <file>]
                  from the environment it imported anyway (M5-a). Given, it is an
                  input and is never written to. For `extract` it asks the
                  extractor to write one.
+  --link-index-omit  (`extract`, with --link-index) the modules whose own
+                 declaration groups are left out of that map, one name per
+                 line — normally the package's own module list. The renderer
+                 answers those names out of the IR before it reads the map, so
+                 the site is byte-identical; what changes is that the map stops
+                 moving when the package is edited, and with it renderKey.
+                 Module names still appear in the map's `@` section.
+                 `incremental --serve` passes its own --modules here.
   --make-link-index  (`incremental --serve`) the resident extractor writes
                  --link-index instead of reading it
   --work         (`incremental`) the round's scratch directory. Everything in

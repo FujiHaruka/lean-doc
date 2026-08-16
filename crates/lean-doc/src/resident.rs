@@ -176,6 +176,16 @@ pub struct Serve {
     /// extraction that is already several seconds, paid only in rounds that
     /// extract at all — a run with nothing to extract never starts the server, so
     /// it writes no map and pays nothing.
+    ///
+    /// **段 C gives "every round writes the same bytes" a second and stronger
+    /// reason.** The first one is about the *environment* and is therefore
+    /// per-process: it says the map cannot move within one server's life, and
+    /// says nothing about two runs. Since 段 C the server also passes
+    /// `--link-index-omit <modules_file>`, so the package's own declaration
+    /// groups are not in the map at all — and those groups are the only part of
+    /// it that an edit to the package can move. The map now holds the dependency
+    /// closure and nothing else, which is the half that moves only when the
+    /// oleans under it do. [`Server::start`] has the rest.
     pub link_index: Option<PathBuf>,
 }
 
@@ -497,6 +507,27 @@ impl Server {
             .arg(&unused_ir);
         if let Some(link_index) = &serve.link_index {
             command.arg("--link-index").arg(link_index);
+            // 段 C. The map leaves out the groups of the modules named here, and
+            // **`modules_file` is the right list precisely because it is the
+            // start-up one**. Three properties, and the third is the reason:
+            //
+            // * it is the package's own modules — the superset this server
+            //   imported, i.e. everything the render is going to have IR for,
+            //   and the renderer answers those names out of the IR-derived index
+            //   before it ever reads the `.lidx`;
+            // * it is a file that already exists on disk and is already on this
+            //   command line, so no new artefact and no new failure mode;
+            // * it is **fixed for the life of the server**. A request's own
+            //   `<modules.txt>` is a *subset* — the round loop extracts what went
+            //   stale — so deriving the omit set from the request would make the
+            //   map's bytes depend on which round happened to write it, and the
+            //   map's SHA-256 is in `renderKey`. That is the exact failure this
+            //   change exists to remove, reintroduced one layer down.
+            //
+            // The extractor's serve loop keeps `linkIndexOmitPath` from start-up
+            // on purpose and never lets a request replace it, so this is one
+            // flag, given once, for the whole life of the process.
+            command.arg("--link-index-omit").arg(&serve.modules_file);
         }
         command
             .arg("--serve")

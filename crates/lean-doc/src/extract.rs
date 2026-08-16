@@ -72,6 +72,7 @@ pub fn extract(args: &[String]) -> Result<(), Failure> {
     let mut timings: Option<PathBuf> = None;
     let mut events: Option<PathBuf> = None;
     let mut link_index: Option<PathBuf> = None;
+    let mut link_index_omit: Option<PathBuf> = None;
     let mut jobs: usize = 1;
     let mut bin: Option<PathBuf> = None;
     let mut target: Option<PathBuf> = None;
@@ -103,6 +104,19 @@ pub fn extract(args: &[String]) -> Result<(), Failure> {
             // when it is asked for it costs 0.9 s warm on top of the run, not a
             // second 15-second environment load.
             "--link-index" => link_index = Some(value("--link-index")?.into()),
+            // 段 C. Handed straight to the extractor: the modules whose own
+            // declaration groups the map leaves out. The renderer answers those
+            // names out of the IR-derived index before it reads the `.lidx` at
+            // all, so leaving them out renders the same bytes — and it is the
+            // only part of the map an edit to the package moves, which is what
+            // makes the map stop invalidating `renderKey`. See
+            // `Extract.lean`'s `writeLinkIndex` heading for the measurement.
+            //
+            // A path, not a derivation from `--modules`: this command extracts a
+            // *subset* as often as not, and the omit set has to be the package,
+            // not this round's slice of it. The caller that knows the difference
+            // is the one that writes both files.
+            "--link-index-omit" => link_index_omit = Some(value("--link-index-omit")?.into()),
             "--extractor-bin" => bin = Some(value("--extractor-bin")?.into()),
             "--target" => target = Some(value("--target")?.into()),
             "--lake" => lake = Some(value("--lake")?.into()),
@@ -171,6 +185,18 @@ pub fn extract(args: &[String]) -> Result<(), Failure> {
     };
     if jobs == 0 {
         return usage("--jobs must be at least 1");
+    }
+    // 段 C. Refused rather than ignored. The extractor itself tolerates the
+    // combination — it is a low-level tool and a script that passes the omit
+    // list unconditionally is not making a mistake — but here the flag would do
+    // nothing at all, and a flag that does nothing is the shape of bug this
+    // project keeps finding: the run looks right and the artefact is not the one
+    // that was asked for.
+    if link_index_omit.is_some() && link_index.is_none() {
+        return usage(
+            "--link-index-omit without --link-index does nothing: it names the modules whose \
+             declaration groups are left out of the map, and no map is being written",
+        );
     }
     // Flag, then environment, then nothing. **No default path** — both of these
     // are absolute paths on somebody's machine, and a default would be the
@@ -271,6 +297,13 @@ pub fn extract(args: &[String]) -> Result<(), Failure> {
         .map_err(|source| Failure::Failed(format!("{}: {source}", ir_dir.display())))?;
 
     let link_index = link_index.as_deref().map(absolute);
+    // 段 C. Made absolute for the reason in the block above — the child's working
+    // directory is the target — but **not** guarded against being inside the
+    // target, and the difference is the direction of the I/O: `--ir-dir` and
+    // `--link-index` are written and the target is opened read-only, while this
+    // one is read. A module list that lives inside the package being documented
+    // is an odd place to keep it, not a write into it.
+    let link_index_omit = link_index_omit.as_deref().map(absolute);
     let mut command = Command::new(&lake);
     command
         .current_dir(&target)
@@ -289,6 +322,9 @@ pub fn extract(args: &[String]) -> Result<(), Failure> {
                 .map_err(|source| Failure::Failed(format!("{}: {source}", parent.display())))?;
         }
         command.arg("--link-index").arg(path);
+        if let Some(omit) = &link_index_omit {
+            command.arg("--link-index-omit").arg(omit);
+        }
     }
     command
         // `> /dev/null`, as the prototype does. The extractor's stdout is a

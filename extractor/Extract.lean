@@ -214,6 +214,13 @@ structure Cfg where
   by-product of an environment that is loaded anyway, which is the whole reason
   it lives here rather than in a tool of its own; see `writeLinkIndex`. -/
   linkIndexPath : Option FilePath := none
+  /-- `--link-index-omit <path>`: the modules whose declaration groups are left
+  out of the `--link-index` map, one module name per line (`readNameList`'s
+  format). Their names still appear in the `@` section — only their groups go
+  away; see `writeLinkIndex` for why the two halves are treated differently and
+  for the measurement that licenses the omission. Without `--link-index` it
+  means nothing and is ignored. -/
+  linkIndexOmitPath : Option FilePath := none
   tacticsEmulate : Bool := false
   tacticsProbe : Bool := false
   tacticsDumpPath : Option FilePath := none
@@ -373,7 +380,52 @@ has (実装計画 §M7「行範囲が取れない宣言でリンクを消さな�
 reported so that "no range" stays a number rather than a silence — and on the
 measurement target that number is **0 of 255,975**【実測 2026-08-16 →
 `benchmarks/results/m7a-summary.txt`】, so the fallback has no instance here and
-is covered by the reader's unit tests only. -/
+is covered by the reader's unit tests only.
+
+### 段 C — the package's own groups can be left out (`--link-index-omit`)
+
+**The renderer never reads them.** A docstring token is resolved by
+`NameIndex::module_of` (`crates/lean-doc-render/src/autolink.rs:258`), which
+asks the IR-derived index *first* and only falls back to the `.lidx`, so a name
+the package itself declares is answered before this file is consulted at all.
+And the line range this file carries is spent only where
+`ExternalLinks::url_for` has a root for the module
+(`crates/lean-doc-render/src/external.rs:146-162`) — that is, only for a
+**dependency**: for an own-package module `href` takes the relative-page branch
+and drops the range it was handed. So every own-package group in the map is
+written, read past, and discarded.
+
+That is an argument, and it was measured rather than believed: with all of the
+package's own groups removed from the map, the rendered site is **byte-identical
+— 0 of 429 files differ**; the positive control, which removes the *dependency*
+half instead, differs in **408 of 429**【実測 2026-08-17 →
+`benchmarks/results/lidx-own-half-2026-08-17.txt`】.
+
+**Why leave them out, given that they are only 3.6% of the file.** Because they
+are the only part of it that moves when a module of the package is edited, and
+the map's SHA-256 is part of the renderer's `renderKey`: one added declaration
+moves the map, the key moves with it, and all 422 pages re-render for an edit
+that touched one. Dropping the own half makes the map stop moving for exactly
+the edits this pipeline exists to make cheap.
+
+**The `@` section stays complete — omitted modules included.** It is a different
+map answering a different question: `module_for_source_path`
+(`crates/lean-doc-render/src/autolink.rs:289-315`) scans `known_modules`
+linearly for a docstring source path and answers `None` when **two** entries
+match, so taking an entry out can turn a `None` into a `Some` — a link that did
+not exist before, possibly to a page this run did not write. The measurement saw
+no difference on this target either way; keeping the set whole is what stops
+that from being a claim about this target only.
+
+**What is left out is counted, not merely absent** (`omitted`,
+`omittedDeclarations`). An omitted module is walked exactly as it would be
+otherwise and only its *output* is dropped, which makes both counts exact and
+leaves the run with two invariants a reader can check against a run without the
+flag: `modules + omitted` and `declarations + omittedDeclarations` are that
+run's `modules` and `declarations`, and `scanned` does not move at all. The
+saving that is given up by still walking them is ~3.6% of a 0.9 s phase; a
+silent omission is the failure mode this project keeps catching, and it is not
+worth 30 ms. -/
 
 structure LinkIndexStats where
   /-- Names walked: every constant in every loaded module's olean. -/
@@ -388,17 +440,34 @@ structure LinkIndexStats where
   unranged : Nat := 0
   /-- Groups written: modules defining at least one of them. -/
   modules : Nat := 0
+  /-- Groups **not** written because `--link-index-omit` named the module
+  (段 C). Counted the same way `modules` is — a module with nothing to write
+  would have had no group either way, so it is in neither number — which makes
+  `modules + omitted` the `modules` of the same run without the flag. -/
+  omitted : Nat := 0
+  /-- The declarations in those groups: what `declarations` would have been
+  larger by. `declarations + omittedDeclarations` is the `declarations` of the
+  same run without the flag, and `scanned` is the same in both. -/
+  omittedDeclarations : Nat := 0
   /-- The `@` section: every module in the environment, whether or not it
   defines anything, because a module name is a link target in its own right
-  (doc-gen4 checks `res.moduleNames.contains` before the module-local search). -/
+  (doc-gen4 checks `res.moduleNames.contains` before the module-local search).
+  **`--link-index-omit` does not shrink this** — see `writeLinkIndex`'s heading
+  on `module_for_source_path`. -/
   moduleNames : Nat := 0
   /-- Size of the file, in bytes rather than in UTF-16 code units — the
   prototype reported the latter and the two differ by 13,454 (落とし穴 1). -/
   bytes : Nat := 0
   deriving Inhabited
 
-/-- Writes the map as one `.lidx`. Returns what went into it. -/
-def writeLinkIndex (path : FilePath) : MetaM LinkIndexStats := do
+/-- Writes the map as one `.lidx`. Returns what went into it.
+
+`omitModules` is `--link-index-omit`'s set (段 C): a module in it contributes its
+name to the `@` section like any other and contributes **no declaration group**.
+An empty set is the pre-段 C behaviour byte for byte. (Spelled out rather than
+`omit`, which Lean 4 reserves for the `variable`-section instance elision.) -/
+def writeLinkIndex (path : FilePath) (omitModules : Std.HashSet Name) :
+    MetaM LinkIndexStats := do
   let env ← getEnv
   let header := env.header
   -- `EnvironmentHeader.moduleNames` is a `def`, not a field: every call
@@ -431,6 +500,13 @@ def writeLinkIndex (path : FilePath) : MetaM LinkIndexStats := do
       if ← isBlackListed n then continue
       kept := kept.push n
     if kept.isEmpty then continue
+    -- 段 C. The walk above is deliberately *not* skipped for an omitted module:
+    -- its cost is 3.6% of this phase and doing it is what makes `omitted` and
+    -- `omittedDeclarations` exact rather than "however many there were".
+    if omitModules.contains m then
+      stats := { stats with omitted := stats.omitted + 1,
+                            omittedDeclarations := stats.omittedDeclarations + kept.size }
+      continue
     stats := { stats with modules := stats.modules + 1,
                           declarations := stats.declarations + kept.size }
     buf := buf ++ m.toString (escape := false) ++ "\n"
@@ -2486,8 +2562,15 @@ def run (cfg : Cfg) (preEnv : Option Environment := none) : IO UInt32 := do
   let mut linkIndex : Option LinkIndexStats := none
   let mut tLi := 0
   if let some p := cfg.linkIndexPath then
+    -- 段 C. Read here rather than inside `writeLinkIndex` so that the file is
+    -- read once per request and the writer takes a set, not a path.
+    let omitModules ← match cfg.linkIndexOmitPath with
+      | some q => do
+        let ns ← readNameList q
+        pure (Std.HashSet.emptyWithCapacity ns.size |>.insertMany ns)
+      | none => pure {}
     let t0 ← IO.monoNanosNow
-    let s ← runMeta (writeLinkIndex p)
+    let s ← runMeta (writeLinkIndex p omitModules)
     let t1 ← IO.monoNanosNow
     tLi := t1 - t0
     linkIndex := some s
@@ -2495,6 +2578,11 @@ def run (cfg : Cfg) (preEnv : Option Environment := none) : IO UInt32 := do
       [("scanned", toString s.scanned), ("declarations", toString s.declarations),
        ("ranged", toString s.ranged), ("unranged", toString s.unranged),
        ("modules", toString s.modules), ("moduleNames", toString s.moduleNames),
+       -- 段 C. Always emitted, including as `0 0` when the flag is absent: a
+       -- reader of the events file has to be able to tell "nothing was omitted"
+       -- from "this run predates the counter".
+       ("omitted", toString s.omitted),
+       ("omittedDeclarations", toString s.omittedDeclarations),
        ("bytes", toString s.bytes)]
 
   -- doc-gen4's `getAllModuleDocs`, split in two so the two halves can be told
@@ -2846,6 +2934,12 @@ def run (cfg : Cfg) (preEnv : Option Environment := none) : IO UInt32 := do
     IO.println s!"linkIndex            {fmtDur tLi}  {s.declarations} declarations in {s.modules} modules \
       ({s.ranged} with a line range, {s.unranged} without, {s.scanned} constants scanned, \
       {s.moduleNames} module names, {s.bytes} bytes)"
+    -- 段 C. Printed only when something was actually left out, so the line
+    -- cannot be mistaken for noise — but then unconditionally, because the one
+    -- thing an omission must never be is invisible.
+    if s.omitted != 0 || s.omittedDeclarations != 0 then
+      IO.println s!"  omitted            {s.omittedDeclarations} declarations in {s.omitted} modules \
+        (--link-index-omit; their names are still in the @ section)"
   IO.println s!"tactics              {fmtDur (tTac1 - tTac0)}  {tacticsInEnv} in env, {tacticsAssigned} in target modules"
   if cfg.tacticsEmulate then
     IO.println s!"tacticsPerModule     {fmtDur tEmu}  (doc-gen4's shape: {targets.size} × allTacticDocs)"
@@ -2975,6 +3069,11 @@ partial def serve (cfg : Cfg) : IO UInt32 := do
     let parts := (line.splitOn " ").flatMap (·.splitOn "\t") |>.filter (!·.isEmpty)
     match parts with
     | modules :: out :: rest =>
+      -- Three fields, and `linkIndexOmitPath` is deliberately not one of them
+      -- (段 C): the request's `<modules.txt>` is a *subset* of the start-up
+      -- list, so deriving the omit set from it would make the map's bytes
+      -- depend on which round wrote it. The start-up list is the package, and
+      -- it is what the map is written against every round.
       let reqCfg := { cfg with
         modulesPath := ⟨modules⟩, outPath := ⟨out⟩,
         irDir := match rest with | dir :: _ => some ⟨dir⟩ | [] => cfg.irDir }
@@ -2996,7 +3095,7 @@ open Stage4b in
 def parseArgs (args : List String) : Except String Cfg :=
   match args with
   | modules :: out :: rest => go { modulesPath := ⟨modules⟩, outPath := ⟨out⟩ } rest >>= check
-  | _ => .error "usage: extract <modules.txt> <out.jsonl> [--equations] [--dump <p>] [--dump-modules <p>] [--only <p>] [--open <ns,..>] [--tag] [--refs] [--dump-refs <p>] [--link-index <p>] [--write-ir --ir-dir <p>] [--tagged-code] [--skip-analyze] [--tactics-emulate] [--tactics-probe] [--pp-breakdown] [--decl-profile <p>] [--jobs <n>]"
+  | _ => .error "usage: extract <modules.txt> <out.jsonl> [--equations] [--dump <p>] [--dump-modules <p>] [--only <p>] [--open <ns,..>] [--tag] [--refs] [--dump-refs <p>] [--link-index <p>] [--link-index-omit <p>] [--write-ir --ir-dir <p>] [--tagged-code] [--skip-analyze] [--tactics-emulate] [--tactics-probe] [--pp-breakdown] [--decl-profile <p>] [--jobs <n>]"
 where
   /-- The one cross-flag rule (M4-a). It is checked **before anything runs**
   rather than where the directory is used, because the IR is written at the very
@@ -3026,6 +3125,11 @@ where
   | "--dump-refs" :: p :: rest => go { cfg with dumpRefsPath := some ⟨p⟩ } rest
   | "--skip-analyze" :: rest => go { cfg with skipAnalyze := true } rest
   | "--link-index" :: p :: rest => go { cfg with linkIndexPath := some ⟨p⟩ } rest
+  -- 段 C. Not an error without `--link-index`: `check` refuses the one cross-flag
+  -- combination that would write a wrong artefact, and this one writes nothing
+  -- at all — a caller that passes the omit list unconditionally and the map path
+  -- only sometimes is doing the reasonable thing, not a mistake.
+  | "--link-index-omit" :: p :: rest => go { cfg with linkIndexOmitPath := some ⟨p⟩ } rest
   -- Stage 7d.
   | "--pp-breakdown" :: rest => go { cfg with ppBreakdown := true } rest
   | "--decl-profile" :: p :: rest =>
