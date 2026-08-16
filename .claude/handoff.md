@@ -15,7 +15,7 @@
 - Goal: **G2「宣言単位の再解析キャッシュ — 意味解析を*速く*するのではなく*回数*を減らす」**。
   達成後、**朝 10:00 JST 前ならゴールを自分で再設定して自走を続ける**【ユーザー指示】
 - Leg: 3 / cap 8
-- Predecessor: none (leg 1・2 はユーザーの元セッション。tmux 名を持たないので kill しない)
+- Predecessor: `ci-placement-r2`   # leg 3 が走り出しを確認してから kill する
 - Stop-on: completion | user-decision | no-progress×2 | leg-cap
 - Progress ledger:
   - r1: ゴール設定のみ。実作業ゼロ
