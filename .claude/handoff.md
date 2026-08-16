@@ -1,70 +1,70 @@
-# Handoff — 2026-08-16 21:00
+# Handoff — 2026-08-16 16:05
 
 ## State
 
-- Branch: main / **clean** / push 済み (`332c697`)
-- Active phase: **M8 (UI 刷新) 完遂**。<https://fujiharuka.github.io/information-theory/> が新 UI で公開済み
-- 品質: `cargo test --workspace --no-fail-fast` **355 passed / 2 failed**、clippy 0、fmt 緑。
-  **赤 2 件は環境要因で直してはいけない** — 計測対象が `lakefile.toml` → `lakefile.lean`・
-  依存 15 → 9 に変わったため。変更を stash して HEAD で走らせても同じ 2 件が落ちることを確認済み
-- 計測環境: 計測対象 `/Users/haruka/dev/lean-projects` は**無傷** (HEAD `c4f6af29`、
-  doc-gen4 の参照木 6,080 ページ健在)。ただし**別作業で動いている最中**
+- Branch: main / **clean** / push 済み (`7825916`)
+- Active phase: **`experiments/` のクリーンアップ**。そのために **採点器 (reference oracle) 自体を見直す**
+- 品質ベースライン: `cargo test --workspace --no-fail-fast` **355 passed / 2 failed**、clippy 0、fmt 緑、
+  抽出器の Lean ビルドも通る (`extractor/build.sh` EXIT=0)。
+  **赤 2 件は環境要因で直してはいけない** — 計測対象の依存が 15 → 9 に変わったため
+  (`packages::tests::every_root_matches_doc_gen4s_own_blob_urls` と `the_corpus_matches_the_prototype`)
+- 計測環境: 計測対象 `/Users/haruka/dev/lean-projects` は無傷。**doc-gen4 の計装は当たったまま**
+  (`benchmarks/tools/apply-instrumentation.sh --check` → `APPLIED (v4.31.0)`)【実測】
 
 ## Tasks
 
-なし (M8 の 7 件はすべて完了)。
+なし (ライセンス対応は完了、3 コミット push 済み)。
 
 ## Where we are
 
-M8 で doc-gen4 の HTML / CSS / JS の模倣をやめ、IR はそのままで UI を自前にした。
-静的資産 3 本 (`style.css` / `app.js` / `favicon.svg`) は**新規に書いたもの**で、doc-gen4 の
-ファイルをコピーしてはいない。一方で**レンダラのロジックは M1〜M7 で doc-gen4 から移設したもの**で、
-各 `src/*.rs` の doc comment に `Ported from` / `DocGen4/Output/*.lean` の参照が大量に残っている。
-**lean-doc リポジトリに LICENSE ファイルが無い。**
+ライセンス対応は決着した — 全体を doc-gen4 の派生物として扱い Apache-2.0 に統一、
+`LICENSE` / `NOTICE` / `docs/provenance.md` を新設し、逐字コピー 6 箇所と移設 9 ファイルに帰属を書いた。
+残った唯一の未決が **`experiments/` を公開するか** で、**ユーザーの決定は「公開しない、クリーンアップする」**。
+ただし調査の結果、`experiments/` は凍結された過去ではなく **いまも回っている採点側** だと判明した。
 
 ## Next step
 
-**doc-gen4 由来のスタイル / スクリプトの棚卸しと、ライセンス上の義務の確認。** 順に:
+**採点器の見直しから入る。`experiments/` の削除はその後。** 順に:
 
-1. **由来の棚卸し** — 「コピー」「移設 (読んで書き直した)」「設計の踏襲」「無関係」の 4 段階で分類する。
-   出発点は `rg -n 'Ported from|DocGen4|doc-gen4' crates/*/src/*.rs` (分布: `packages.rs` 22、
-   `decl.rs` 12、`md/html.rs` 12、`md/lib.rs` 8、`autolink.rs` 7…)。
-   **`crates/lean-doc-render/assets/` の 3 本は M8 で新規に書いた** — `git log --follow` で確認できる。
-2. **生成物に何が残るか** — 公開サイトは public なので、ここが実際に配布しているもの。
-   1 ページに `class="fn"` 84 / `class="name"` 11 / `break_within` 2 / `markdown-heading` 3 /
-   `hover-link` 3【実測】。**class 名と HTML の構造は doc-gen4 の設計そのまま**
-   (`code.rs` は M8 でも変えていない)。
-3. **ライセンスの確認** — doc-gen4 は **Apache License 2.0**
-   (`/Users/haruka/dev/lean-projects/.lake/packages/doc-gen4/LICENSE`)。Lean 4 と Mathlib も同じ。
-   Apache 2.0 の義務は「ライセンス本文の同梱 / 変更の告知 / NOTICE の保持」。
-   **どこまでが「派生物」か**を、上の 1〜2 の分類に照らして判断する。
-4. **vendor しているもの** — `crates/lean-doc-md/vendor/md4c/` に `LICENSE.md` と
-   `PROVENANCE.md` が**既にある**。ここは前例として先に読む価値がある (同じ作法を doc-gen4 にも
-   適用すればよいのかもしれない)。
-5. **結論を落とす先** — lean-doc の `LICENSE` / `NOTICE` を作るかどうか、
-   生成サイトのフッタに表記が要るかどうか。**要らないなら「要らない」と根拠付きで書く。**
+1. **採点器の棚卸し** — `experiments/` に依存している実行系は次の 9 本【実測】:
+   `tools/{render,global,merge,impact,ledger,incremental}-reference.sh`、`tools/{build,clone}-gate.sh`、
+   `.github/workflows/ci-import-prefetch-narrow.yml` (`experiments/stage4b/build.sh` を直接叩く)。
+   参照先は `stage7d/render.ts` / `stage7h/{global.ts,incremental.sh}` /
+   `stage5/{ownership,merge-ir,impact,prune-pages,ledger}.ts` / `stage5e/setup-clone.sh` / `stage7g/extract-once.sh`。
+   出発点: `rg -n 'experiments/' crates/ tools/ extractor/ .github/ --glob '!*.md'`
+2. **各採点器を「まだ意味があるか」で仕分ける** — 判断軸は
+   **「Rust 版を独立に採点できるか」**。同じ言語・同じ設計で書き直すと
+   「両方同じ間違いをする」経路ができるので、単純な Rust 移植は採点器にならない
+   (README の `stage4c/coverage.ts` の記述がこの原則の出所)
+3. **フィクスチャで代替できるものを見分ける** — `crates/*/tests/data/*-expected.json` は
+   既に凍結プロトタイプの出力を固定したもの。**採点器が「フィクスチャ生成器」でしかないなら、
+   フィクスチャさえ残れば `experiments/` 側は消せる**。逆に実行時に走らせているものは消せない
+4. **削除の実行と、壊れる参照の始末** — docs (`verification-log` / `milestone-log` / `approach`) から
+   `experiments/` を指している数字の出所を、フィクスチャ or benchmarks/results に付け替える
+5. **`docs/provenance.md` §8 の前提を確定させる** — いま「`experiments/` は配布物に入らない前提」と
+   書いてある。決着したら書き換える
 
 ## Files to read first
 
-- `crates/lean-doc-md/vendor/md4c/PROVENANCE.md` — **vendor した第三者コードの扱いの前例**。まずこれ
-- `docs/implementation-plan.md` §6「ファイル別内訳」 — 何が移設で何が移動かの一覧
-- `crates/lean-doc-render/src/decl.rs` / `frame.rs` の冒頭 — 移設の記述の典型。
-  `frame.rs` は M8 で書き換えた側、`decl.rs` は「決定は doc-gen4 のもの」と明記している側
-- `crates/lean-doc-render/assets/style.css` — 自前で書いた側。冒頭に設計の根拠がある
-- `docs/plans/ui-redesign.md` — M8 で何をやめ何を作ったか (§8 の表)
+- `docs/provenance.md` §8 — `experiments/` を棚卸しの対象外にしている前提が書いてある。まずこれ
+- `experiments/README.md` — 何が凍結されていて、なぜかの一次資料
+- `tools/clone-gate.sh` (`:146-151`) — 採点器を 6 本まとめて参照している最大の依存元
+- `README.md` の「リポジトリの構成」節 — `stage4c/coverage.ts` を今も回す理由が書いてある
+- `crates/lean-doc-{md,render}/tests/data/PROVENANCE.md` — どのフィクスチャが何の出力かの一覧 (2026-08-16 新設)
 
 ## Load-bearing context
 
-- **「コピーした」ものは無いはず**だが、**CSS のテクニックは 2 つ意図的に踏襲した** —
-  `.fn` のハンギングインデント (`text-indent: -1ex; padding-left: 1ex`) と
-  `.break_within` の `word-break` の組。どちらも `style.css` にコメントで出典を書いてある。
-  「アイデアの踏襲」と「表現の複製」の線引きがここに出る
-- **`experiments/` は凍結** (数字の出所)。doc-gen4 を読んで書いた TS が入っているが、
-  **1 バイトも変更しない**。棚卸しの対象には入るが、修正の対象には入らない
-- **`benchmarks/doc-gen4-instrumentation.patch`** は doc-gen4 のソースへのパッチ =
-  **doc-gen4 の著作物の差分**。ここは他と性質が違うので分けて扱う
-- lean-doc リポジトリは **private**、生成サイトは **public**。義務が発生するとしたら後者が先
-- **ssh (port 22) はこの機材から通らない**【実測】。push は HTTPS + `gh` の credential helper を
-  `GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0='!gh auth git-credential'`
-  で**その 1 コマンドの間だけ**指す。git の設定を汚さないこと
+- **削除は目的を達成しない**【重要】 — HEAD から消しても **git 履歴に残る**ので、
+  リポジトリを public にした時点で `experiments/` は見える。隠すには `filter-repo` で
+  履歴を書き換えるしかなく、全コミットのハッシュが変わる。
+  **「公開しない」を本当に満たすなら、リポジトリを private のままにして公開は部分的に出す方が確実。**
+  ユーザーはこの事実を提示された上で「クリーンアップする」と決めた
+- **法的な理由では消さなくてよい** — 全体が Apache-2.0 + `NOTICE` 済なので、
+  `experiments/` を公開するコストは記述 1 本。**削除の理由は方針であって法務ではない**
+- CLAUDE.md と README には **「`experiments/` は 1 バイトも変更しない」** と書いてある。
+  削除はこの規則の変更にあたるので、**両方を同じコミットで直す**
+- `experiments/stage4c/coverage.ts` は受け入れオラクルとして**今も回している** (README に明記)
 - **subagent には「コミットするな」と指示する。同時に走らせるのは 1 体まで**
+- **ssh (port 22) はこの機材から通らない**【実測】。push は
+  `GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0='!gh auth git-credential' git push https://github.com/FujiHaruka/lean-doc.git main:main`
+  で**その 1 コマンドの間だけ** credential helper を指す。git の設定を汚さないこと
