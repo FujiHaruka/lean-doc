@@ -1,0 +1,32 @@
+# CI 実走 — 段 C / 段 D の後 (2026-08-17)
+
+ワークフロー .github/workflows/ci-template.yml (workflow_dispatch)。
+対象は tools/make-target2.sh が生成する 13 モジュールの package (Alpha / Beta)、
+ランナーは GitHub Actions ubuntu-latest。lean-doc は c8c0fae。
+
+## run 31962696064 / 31962863538 — どちらも無変更
+
+```
+run 1  cache-hit false (restore-keys で前 run の docs-out を復元)
+       work    extract 0 / render 0 / requests 0 / ir 1.00 full pass
+       build   incremental in 0.0164 s
+       ci-build 全体 27.186 s (cache-get 5.182 / lake-build 5.411 /
+                extractor build 15.801 / docs 0.725)
+
+run 2  cache-hit true
+       work    extract 0 / render 0 / requests 0 / ir 1.00 full pass
+       build   incremental in 0.0184 s
+       ci-build 全体 11.491 s (cache-get 5.494 / lake-build 5.082 /
+                extractor cached / docs 0.833)
+```
+
+**段 C / 段 D はこの 2 run では 1 度も走っていない。** package は run ごとに
+決定的に生成されるので、増分ビルドは常に無変更になり、抽出器が起動すらしない
+(requests 0)。地図を書く経路に入らないので、取り分は測れない。
+**測れたのは「回帰が無い」ことだけ。**
+
+→ この穴を塞ぐため、計測用ワークフローに「1 モジュール編集してもう一度回す」段を
+  足した (commit e13897e)。判定は tools/onemod-gate.sh で、e2e と CI が同じ 1 本を呼ぶ。
+  **利用者に配る雛形 (.github/workflow-templates/lean-doc-docs.yml) は変えていない。**
+  編集は docs-out の**コピー**に対して行う — docs-out はキャッシュに保存されるので、
+  そこに探り針の IR を残すと次 run の無変更計測が静かに別物になる。
