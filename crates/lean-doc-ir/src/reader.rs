@@ -115,8 +115,16 @@ impl IrTree {
 /// that has no index to check the file against: the **merger** reads the tree it
 /// is in the middle of writing, whose `index.json` is written last. Keeping it
 /// here rather than letting that caller reach for `serde_json` is the plan §3
-/// constraint — every read of the IR is in this crate, so the `contentHash`
-/// cache has one place to go.
+/// constraint — the `contentHash` cache has one place to go.
+///
+/// **That constraint holds for module files and not for `index.json`**【実測
+/// 2026-08-16, the work counters】. Three callers read the index outside this
+/// crate: `merge` (which round-trips index keys this crate does not model),
+/// `ledger::extract_key` and `prune::read_index_modules`. The V2 cache belongs
+/// on the module files, so the design stands — but a counter placed only inside
+/// this crate under-reports every incremental run by three or four index reads,
+/// and the claim as originally written ("every read of the IR is in this crate")
+/// was false.
 pub fn read_module_file(path: &Path) -> Result<ModuleFile> {
     let module: ModuleFile = read_json(path, IrFile::Module)?;
     if module.schema_version < MIN_SCHEMA_VERSION {
