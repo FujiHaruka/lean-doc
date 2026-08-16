@@ -1,0 +1,290 @@
+# The A/B this repository's central CI claim has never had: documentation built
+# in the SAME job as `lake build`, and in a SEPARATE job, on a real runner.
+#
+# WHAT IS ALREADY MEASURED, AND WHAT IS NOT
+#   `docs/approach.md` §3 and §8 say the first move against a cold environment
+#   load is placement, and cite a Linux measurement: the same import took
+#   **2.61 s with `lake build` in the same job and 20-89 s without it**. That
+#   number is `importModules` **alone**, taken by `ci-import-modules.yml`. What
+#   has never been measured on a runner is the thing a user actually pays: the
+#   whole `lean-doc build` — extract, render, global index — under the two
+#   placements. Every end-to-end number in README and in the milestone log is
+#   from an Apple M1 laptop with a warm page cache, and says so.
+#
+# THE TWO ARMS
+#   same   cache get -> lake build -> lean-doc build, one runner, one page cache.
+#   split  a fresh runner: cache get (Mathlib's oleans, downloaded and unpacked),
+#          the package's own oleans and the extractor **restored as bytes** from
+#          the `same` job of the same pair, then lean-doc build with
+#          `--no-lake-build`.
+#
+#   `split` is not a strawman: restoring the build outputs into the docs job is
+#   what a split workflow really does, and it is the case `actions/cache` is
+#   supposed to cover. The question is whether bytes on disk are worth the same
+#   as bytes in the page cache. Both arms run the identical command on the
+#   identical oleans — the artifact is produced once, by `same`, and the pairing
+#   is per matrix entry, so a pair is one set of bytes measured twice.
+#
+# WHY A MATRIX AND NOT A LOOP
+#   Only the FIRST documentation build in a job is a placement measurement; the
+#   ones after it are the warm floor of that runner, because the first one warmed
+#   the cache. So n for the placement comes from `pairs` (independent runner
+#   pairs), and `reps` only brackets each arm against its own warm floor. Reading
+#   run 3 of arm `same` as a third sample of placement is the mistake this
+#   comment exists to prevent.
+#
+# WHY IT IS `workflow_dispatch` ONLY
+#   It is a measurement, not a check. On a push it would download several GB per
+#   commit.
+#
+# WHAT MAKES THE RESULT READABLE
+#   `benchmarks/tools/check-placement.sh`, run per arm and again over the union:
+#   every declared run reported, nothing reported that was not declared, and all
+#   arms produced a **byte-identical site**. Placement is supposed to move the
+#   clock and not the bytes; two clean builds of this target agree byte for byte
+#   【実測 2026-08-17, local】, so a disagreement means the arms did different
+#   work and the ratio between them is not a ratio of anything.
+name: CI placement A/B (measurement)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: "commit of FujiHaruka/information-theory to measure"
+        required: false
+        default: "c4f6af29704029b3c62eaa0842c3225ad0e689a0"
+      lib:
+        description: "the package's lean_lib (its lakefile is Lean code, so it cannot be read)"
+        required: false
+        default: "InformationTheory"
+      pairs:
+        description: "runner pairs, as a JSON array — n for the placement comparison"
+        required: false
+        default: "[1]"
+      reps:
+        description: "documentation builds per arm; run 1 is the measurement, the rest are that runner's warm floor"
+        required: false
+        default: "2"
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------- arm `same`
+  same:
+    name: same job (pair ${{ matrix.pair }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        pair: ${{ fromJSON(github.event.inputs.pairs || '[1]') }}
+    steps:
+      - name: Check out lean-doc
+        uses: actions/checkout@v5
+        with:
+          path: lean-doc
+
+      - name: Check out the measurement target (public), pinned
+        uses: actions/checkout@v5
+        with:
+          repository: FujiHaruka/information-theory
+          ref: ${{ github.event.inputs.target_ref }}
+          path: target
+
+      - name: Record the machine, before anything is downloaded
+        run: lean-doc/benchmarks/tools/record-runner.sh env-before.txt target
+
+      - name: Install elan at the target's pinned toolchain
+        run: |
+          curl -sSfL https://github.com/leanprover/elan/releases/latest/download/elan-x86_64-unknown-linux-gnu.tar.gz \
+            | tar xz
+          ./elan-init -y --default-toolchain "$(cat target/lean-toolchain)"
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Install the Rust toolchain rust-toolchain.toml asks for
+        working-directory: lean-doc
+        run: |
+          rustup show
+          cargo build --release -p lean-doc
+
+      - name: lake exe cache get
+        working-directory: target
+        run: /usr/bin/time -v lake exe cache get 2>&1 | tail -20
+
+      # Before `lake build`, so that the build is the last thing to touch the
+      # page cache before run 1 — the same order `ci-import-modules.yml` uses.
+      - name: Build the extractor
+        env:
+          TARGET_REPO: ${{ github.workspace }}/target
+        run: |
+          /usr/bin/time -v lean-doc/extractor/build.sh 2>&1 | tail -20
+          ls -l lean-doc/extractor/build/extract
+
+      - name: lake build (the placement itself)
+        working-directory: target
+        run: /usr/bin/time -v lake build 2>&1 | tail -40
+
+      # The bytes arm `split` will restore. Only the library outputs: the docs
+      # job needs the oleans, not the C intermediates.
+      - name: Pack the package's oleans and the extractor for the split arm
+        run: |
+          tar -C target/.lake/build -cf oleans.tar lib
+          cp lean-doc/extractor/build/extract extract-bin
+          ls -l oleans.tar extract-bin
+
+      - name: Upload them
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-outputs-${{ matrix.pair }}
+          path: |
+            oleans.tar
+            extract-bin
+          retention-days: 1
+          compression-level: 1
+
+      - name: Measure
+        env:
+          ARM: same
+          PAIR: ${{ matrix.pair }}
+          REPS: ${{ github.event.inputs.reps }}
+          LIB: ${{ github.event.inputs.lib }}
+        run: lean-doc/benchmarks/tools/run-placement-arm.sh
+
+      - name: Check this arm before anyone reads it
+        run: lean-doc/benchmarks/tools/check-placement.sh results
+
+      - name: Upload the raw logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: placement-same-${{ matrix.pair }}
+          path: |
+            env-before.txt
+            results/
+
+  # --------------------------------------------------------------- arm `split`
+  split:
+    name: split job (pair ${{ matrix.pair }})
+    needs: same
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        pair: ${{ fromJSON(github.event.inputs.pairs || '[1]') }}
+    steps:
+      - name: Check out lean-doc
+        uses: actions/checkout@v5
+        with:
+          path: lean-doc
+
+      - name: Check out the measurement target (public), pinned
+        uses: actions/checkout@v5
+        with:
+          repository: FujiHaruka/information-theory
+          ref: ${{ github.event.inputs.target_ref }}
+          path: target
+
+      - name: Record the machine, before anything is downloaded
+        run: lean-doc/benchmarks/tools/record-runner.sh env-before.txt target
+
+      - name: Install elan at the target's pinned toolchain
+        run: |
+          curl -sSfL https://github.com/leanprover/elan/releases/latest/download/elan-x86_64-unknown-linux-gnu.tar.gz \
+            | tar xz
+          ./elan-init -y --default-toolchain "$(cat target/lean-toolchain)"
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Install the Rust toolchain rust-toolchain.toml asks for
+        working-directory: lean-doc
+        run: |
+          rustup show
+          cargo build --release -p lean-doc
+
+      # The dependencies' oleans, exactly as the same-job arm got them.
+      - name: lake exe cache get
+        working-directory: target
+        run: /usr/bin/time -v lake exe cache get 2>&1 | tail -20
+
+      # And the package's own build outputs — restored, not rebuilt. This is the
+      # step that stands in for `actions/cache` in a split workflow.
+      - name: Restore the package's oleans and the extractor
+        uses: actions/download-artifact@v4
+        with:
+          name: build-outputs-${{ matrix.pair }}
+
+      - name: Put them where a build would have left them
+        run: |
+          mkdir -p target/.lake/build lean-doc/extractor/build
+          tar -C target/.lake/build -xf oleans.tar
+          install -m 755 extract-bin lean-doc/extractor/build/extract
+          find target/.lake/build/lib -name '*.olean' | wc -l
+
+      - name: Measure
+        env:
+          ARM: split
+          PAIR: ${{ matrix.pair }}
+          REPS: ${{ github.event.inputs.reps }}
+          LIB: ${{ github.event.inputs.lib }}
+        run: lean-doc/benchmarks/tools/run-placement-arm.sh
+
+      - name: Check this arm before anyone reads it
+        run: lean-doc/benchmarks/tools/check-placement.sh results
+
+      - name: Upload the raw logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: placement-split-${{ matrix.pair }}
+          path: |
+            env-before.txt
+            results/
+
+  # -------------------------------------------------------------------- report
+  report:
+    name: report
+    needs: [same, split]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: lean-doc
+
+      - name: Collect every arm's results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: placement-*
+          path: arms
+
+      # The union is where the cross-arm claim is checked: the two placements
+      # have to have produced the same site, or the ratio is between two
+      # different pieces of work.
+      - name: Merge and check
+        run: |
+          mkdir -p results
+          : > results/runs.txt
+          for d in arms/placement-*/results; do
+            [ -d "$d" ] || continue
+            cat "$d/runs.txt" >> results/runs.txt
+            # Every file the checker and the summary read: the run log carries
+            # the import time, so leaving it behind would make the union check
+            # fail on runs that did report one.
+            cp "$d"/timings-*.json "$d"/site-*.sha256 "$d"/time-*.txt results/ 2>/dev/null || true
+            cp "$d"/leandoc-*.json results/ 2>/dev/null || true
+          done
+          sort -o results/runs.txt results/runs.txt
+          lean-doc/benchmarks/tools/check-placement.sh results
+
+      - name: Summarise
+        if: always()
+        run: lean-doc/benchmarks/tools/summarize-placement.sh results arms | tee results/placement-summary.txt
+
+      - name: Upload the summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: placement-summary
+          path: results/
