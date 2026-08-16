@@ -408,6 +408,70 @@ impl<'a> DeclRenderer<'a> {
         Ok(out)
     }
 
+    /// The constructors of an `inductive` or a `class inductive`
+    /// (`inductiveToHtml` / `ctorToHtml`, `Output/Inductive.lean`).
+    ///
+    /// **This is the branch the measurement target cannot reach.** That package
+    /// holds no `inductive` and no `class_inductive` declaration at all
+    /// (`tests/page_parts.rs` names it as one of the nine such branches), so
+    /// until `e2e/micro` existed nothing rendered a constructor through the real
+    /// pipeline — and nothing did: the body came out empty, so the constructors
+    /// were absent from the page while staying in the search index, which sends
+    /// a reader to `#Micro.Colour.red` and lands them at the top of the page.
+    ///
+    /// Byte reproduction could not have caught it either: the oracle only ever
+    /// saw pages of a package with no inductives on it.
+    pub fn constructors_html(&self, decl: &Decl) -> String {
+        let refs = decl_refs(decl);
+        let mut lis = String::with_capacity(256);
+        for ctor in decl.members.iter().filter(|m| m.label == "ctor") {
+            self.ctor_html(&mut lis, ctor, &refs);
+        }
+        if lis.is_empty() {
+            return String::new();
+        }
+        let mut out = String::with_capacity(lis.len() + 32);
+        out.push_str("<ul class=\"ctors\">");
+        out.push_str(&lis);
+        out.push_str("</ul>");
+        out
+    }
+
+    /// One constructor. Deliberately the same shape as a direct field
+    /// ([`Self::field_html`]'s second branch): both are a name, its arguments,
+    /// its type and an optional docstring, and a reader gains nothing from
+    /// their being laid out differently. There is no inherited case — a
+    /// constructor belongs to exactly one inductive.
+    fn ctor_html(&self, out: &mut String, ctor: &Member, refs: &Refs<'_>) {
+        let short = last_component(&ctor.name);
+        let mut args = String::new();
+        push_args(
+            &mut args,
+            &ctor.binders,
+            &ctor.binder_code,
+            &ctor.implicits,
+            self.root,
+            refs,
+            &self.code,
+        );
+        let body = self.code.fragment(&ctor.text, &ctor.code, self.root, refs);
+        out.push_str("<li id=\"");
+        escape_html_into(out, &ctor.name);
+        out.push_str("\" class=\"ctor\"><div class=\"field-sig\"><span class=\"field-name\">");
+        escape_html_into(out, short);
+        out.push_str("</span>");
+        out.push_str(&args);
+        out.push_str("<span class=\"colon\"> : </span>");
+        out.push_str(&body.html);
+        out.push_str("</div>");
+        if let Some(doc) = nonempty(ctor.doc.as_deref()) {
+            out.push_str("<div class=\"field-doc\">");
+            out.push_str(&self.docs.docstring(doc));
+            out.push_str("</div>");
+        }
+        out.push_str("</li>");
+    }
+
     /// `fieldToHtml`, whose two branches differ in more than a CSS class.
     ///
     /// `contained` is the lazily built [`contained_names`] of the structure: the
@@ -525,8 +589,14 @@ impl<'a> DeclRenderer<'a> {
                 extra.push_str(&instances_for_html(&decl.name));
             }
             "instance" => extra = equations_html(decl, self.root, &refs, &self.code),
-            "inductive" => extra = instances_for_html(&decl.name),
-            "class_inductive" => extra = class_instances_html(&decl.name),
+            "inductive" => {
+                body = self.constructors_html(decl);
+                extra = instances_for_html(&decl.name);
+            }
+            "class_inductive" => {
+                body = self.constructors_html(decl);
+                extra = class_instances_html(&decl.name);
+            }
             // theorem / axiom / opaque / constructor
             _ => {}
         }
@@ -965,6 +1035,59 @@ mod tests {
             ),
             "{html}"
         );
+    }
+
+    /// **The regression the corpus could not have caught.**
+    ///
+    /// The measurement package holds no `inductive` and no `class_inductive`
+    /// declaration at all — `tests/page_parts.rs` counts that among nine
+    /// branches real data never reaches — so byte reproduction against doc-gen4
+    /// never rendered a constructor, and the curated cases reached the branch
+    /// without ever looking at what came out of it. What came out was nothing:
+    /// the body was empty, so the constructors were absent from their own page
+    /// while the search index went on pointing at `#C.red`.
+    ///
+    /// Found by `e2e/micro`, the fixture whose purpose is to hold the shapes the
+    /// target does not. The lesson is the one plan §7 already states — full
+    /// byte equality is not branch coverage — sharpened: it is not even
+    /// *reachability*, because a branch the oracle's own input cannot contain is
+    /// invisible however many bytes match.
+    #[test]
+    fn an_inductives_constructors_are_rendered_with_their_own_anchors() {
+        let red = r#"{"label": "ctor", "name": "C.red", "text": "C", "code": [],
+                      "doc": "The first one."}"#;
+        let green = r#"{"label": "ctor", "name": "C.green", "text": "C", "code": []}"#;
+        let mut d = decl("C", "inductive");
+        d.members = vec![member(red), member(green)];
+        let page = Page::new(index(&[]), module_with(vec![d.clone()]));
+        let html = page.render(0).expect("nothing to place");
+
+        assert!(html.contains("<ul class=\"ctors\">"), "{html}");
+        // An anchor each, because that is what the search index links to.
+        assert!(
+            html.contains(
+                "<li id=\"C.red\" class=\"ctor\"><div class=\"field-sig\">\
+                 <span class=\"field-name\">red</span>\
+                 <span class=\"colon\"> : </span>C</div>"
+            ),
+            "{html}"
+        );
+        assert!(
+            html.contains("<li id=\"C.green\" class=\"ctor\">"),
+            "{html}"
+        );
+        // A constructor's docstring is rendered where a field's would be.
+        assert!(html.contains("<div class=\"field-doc\">"), "{html}");
+
+        // A class inductive renders the same constructors ...
+        d.kind = "class_inductive".to_owned();
+        let page = Page::new(index(&[]), module_with(vec![d]));
+        let html = page.render(0).expect("nothing to place");
+        assert!(html.contains("<li id=\"C.red\" class=\"ctor\">"), "{html}");
+        // ... and keeps the block that belongs to a class: its instances, not
+        // the instances *for* it.
+        assert!(html.contains("data-fill=\"instances\""), "{html}");
+        assert!(!html.contains("data-fill=\"instances-for\""), "{html}");
     }
 
     /// The inherited branch: a different `<li>`, a link instead of plain text,

@@ -357,15 +357,19 @@ code, pre, .sig, .tree, .toc a, .decl-name, kbd { font-family: var(--mono); }
 .break_within { word-break: break-all; }
 .break_within .name { word-break: normal; }
 
-/* -- 10. structure fields ------------------------------------------------ */
+/* -- 10. structure fields and inductive constructors ---------------------- */
 
-.fields { list-style: none; margin-top: .75rem; }
-.field {
+/* A constructor is laid out exactly like a direct field: both are a name, its
+   arguments, its type and an optional docstring, so `.ctors`/`.ctor` share the
+   field rules rather than restating them. The selectors are separate only
+   because the HTML has to name what each list is. */
+.fields, .ctors { list-style: none; margin-top: .75rem; }
+.field, .ctor {
   padding: .4rem 0 .4rem .85rem;
   border-left: 2px solid var(--line);
   scroll-margin-top: calc(var(--topbar-h) + 1rem);
 }
-.field + .field { margin-top: .15rem; }
+.field + .field, .ctor + .ctor { margin-top: .15rem; }
 .field-sig { font-family: var(--mono); font-size: .84rem; white-space: pre-wrap; }
 .field-name { font-weight: 600; }
 .field.inherited { border-left-style: dashed; }
