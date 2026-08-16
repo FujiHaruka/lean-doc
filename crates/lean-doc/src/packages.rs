@@ -46,7 +46,7 @@
 //! world.
 
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use lean_doc_render::ExternalLinks;
@@ -337,34 +337,68 @@ fn module_roots(dir: &Path) -> Result<Vec<String>, String> {
 
 // ------------------------------------------------------------------ the core
 
-/// `lake env lean --githash` inside the target.
+/// The `lean` that answers for a given `lake`: its sibling.
 ///
-/// The same mechanism [`crate::extract::extract`] starts the extractor with, and
-/// for the same reason: the toolchain belongs to the package being documented,
-/// so the question "which lean4 commit is this" can only be asked from inside it.
+/// `lake` reaches this project as a path (`--lake`, `$LAKE`) or as the bare word
+/// `lake` to be found on `PATH`; [`Path::with_file_name`] turns both into the
+/// matching spelling of `lean` (`/x/y/lake` -> `/x/y/lean`, `lake` -> `lean`).
 ///
-/// **Only stdout is read.** `lake env` writes warnings to stderr — the target
-/// prints one about a dependency with local changes on every invocation 【実測】
-/// — and folding those into the answer would produce a revision that is not one.
+/// **Sibling and not `PATH`**: with elan both are shims in one directory, but a
+/// caller who names a toolchain-local `lake` means that toolchain's `lean`, and
+/// the first `lean` on `PATH` could be another one entirely.
+fn lean_beside(lake: &Path) -> PathBuf {
+    lake.with_file_name("lean")
+}
+
+/// `lean --githash` inside the target.
+///
+/// The toolchain belongs to the package being documented, so the question "which
+/// lean4 commit is this" can only be asked from inside it — the answer comes from
+/// whatever `lean-toolchain` in `root` selects.
+///
+/// # Why not `lake env lean --githash`
+///
+/// That is what this was until 段 E, and it cost **0.763 s** of a 5.33 s
+/// one-module incremental — the single largest item after the Lean environment
+/// load【実測 2026-08-17 → `benchmarks/results/g3-attribution-2026-08-17.txt`】.
+/// Nearly all of it is Lake's own start-up (`lake env` alone measured at 0.9618 s,
+/// 段階 5), and `--githash` needs none of what Lake sets: not `LEAN_PATH`, not the
+/// package's build tree, not its dependencies. **What it does need is the
+/// toolchain, and that is elan's answer, not Lake's** — elan's `lean` shim
+/// resolves the same `lean-toolchain` from the working directory that `lake env
+/// lean` ultimately hands to the same shim. So the two spellings ask the same
+/// question of the same program, and one of them starts Lake first.
+///
+/// **The two were measured to agree** before this was changed — on the
+/// measurement target and on the synthetic second target, byte for byte, and the
+/// sites built either way are byte-identical (同ログ). That equality is the whole
+/// argument; if a setup ever breaks it, this returns a *different* revision
+/// rather than an error, and every external link into Lean core points at the
+/// wrong commit. The guard against that is [`is_revision`] plus the fact that the
+/// value lands in `renderKey.externalLinks`, so a change re-renders every page
+/// loudly rather than editing a few links quietly.
+///
+/// **Only stdout is read.** Warnings go to stderr — the target prints one about a
+/// dependency with local changes 【実測】 — and folding those into the answer
+/// would produce a revision that is not one.
 fn core_githash(root: &Path, lake: &Path) -> Result<String, String> {
-    let output = Command::new(lake)
+    let lean = lean_beside(lake);
+    let output = Command::new(&lean)
         .current_dir(root)
-        .arg("env")
-        .arg("lean")
         .arg("--githash")
         .output()
         .map_err(|source| {
             format!(
-                "{} env lean --githash in {}: {source}. Lean core's revision is unknown, so \
+                "{} --githash in {}: {source}. Lean core's revision is unknown, so \
                  Init/Lean/Std/Lake carry no external links",
-                lake.display(),
+                lean.display(),
                 root.display(),
             )
         })?;
     if !output.status.success() {
         return Err(format!(
-            "{} env lean --githash in {} failed: {}",
-            lake.display(),
+            "{} --githash in {} failed: {}",
+            lean.display(),
             root.display(),
             String::from_utf8_lossy(&output.stderr).trim(),
         ));
@@ -372,9 +406,9 @@ fn core_githash(root: &Path, lake: &Path) -> Result<String, String> {
     let hash = String::from_utf8_lossy(&output.stdout).trim().to_owned();
     if !is_revision(&hash) {
         return Err(format!(
-            "{} env lean --githash printed `{hash}`, which is not 40 hex digits — a toolchain \
+            "{} --githash printed `{hash}`, which is not 40 hex digits — a toolchain \
              built without a git revision cannot be linked to",
-            lake.display(),
+            lean.display(),
         ));
     }
     Ok(hash)
