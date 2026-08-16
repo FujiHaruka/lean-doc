@@ -30,7 +30,12 @@ lean-doc の設計判断はすべてここの数字に紐づいている。
 
 新しい計測を足すときは、**同じ計測を連続で 5 回以上回して収束を見る**こと。
 1 回目だけの数字は cold 側を掴んでいる可能性がある。
-`experiments/stage1/run.sh` は条件と peak RSS を `*-summary.txt` に残す。
+
+**記録済みの `ci-*` 系の駆動器は HEAD に無い。** `experiments/stage1/run.sh` が条件と
+peak RSS を `*-summary.txt` に残していたが、`experiments/` は 2026-08-16 に撤去した
+(tag `experiments-frozen`)。`measure-{residency,prefetch,warmstart}.sh` は既定値を持たず、
+`RUN_CMD` / `EXTRACT_BIN` でワークロードを名指しさせる —
+**別のワークロードで回したら、それは継続ではなく新しいベースライン。**
 
 ## 計測対象は固定
 

@@ -7,8 +7,9 @@
 `findDocString?` も Lean のプロセスの中にしか無い。
 
 移動元は `experiments/stage7d/Extract.lean` (2,784 行) と `experiments/stage7d/build.sh` (31 行)。
-M4-a で**移設ではなく移動**した (Lean のまま)。`experiments/` は凍結なので向こうは 1 バイトも
-触っていない — `docs/verification-log.md` の数字はあちらのバイナリで取られている。
+M4-a で**移設ではなく移動**した (Lean のまま)。移動中 `experiments/` は凍結していたので
+向こうは 1 バイトも触っていない — `docs/verification-log.md` の数字はあちらのバイナリで取られている。
+**`experiments/` は 2026-08-16 に HEAD から撤去した** (tag `experiments-frozen`)。
 
 | ファイル | 行 | |
 |---|---:|---|
@@ -77,7 +78,8 @@ Mathlib** であることを前提にしていて、この対象では成り立�
 ## 移動で挙動を変えた点 — 全部
 
 **IR のバイトは 1 つも動かない。**変えたのはコマンドラインの表面だけで、内訳は次の 5 件。
-確認は `diff experiments/stage7d/Extract.lean extractor/Extract.lean` — 移動直後は
+確認は `diff <(git show experiments-frozen:experiments/stage7d/Extract.lean) extractor/Extract.lean`
+(`experiments/` は撤去済なので tag 経由で読む) — 移動直後は
 **11 hunk / 86 行**ですべて下の 5 件のいずれかだった。**現在は 17 hunk / 218 行** で、
 増えた 6 hunk / 133 行は上の `--link-index` (M5-a)。
 
@@ -123,6 +125,11 @@ IR 木を全ファイル `cmp` する。
 | 参照 | `experiments/stage7d/build/extract` (凍結。**実行するだけ、再ビルドしない**) |
 | 候補 | `extractor/build/extract` |
 | 結果 | **436/436 バイト一致** (432 モジュール + `index.json` + `deps/*.json` 3)【実測 2026-08-15】 |
+
+**このゲートは今は回せない。** 参照側のバイナリは `.gitignore` 対象で、
+tag `experiments-frozen` にも入っていない (ソースの `Extract.lean` は入っている)。
+撤去とは無関係に、**M4-a の時点からローカルファイル依存だった** — 回すには
+tag から `stage7d/Extract.lean` を取り出してビルドし直すところから要る。
 
 `diff -r` も `IDENTICAL`。差分 0 / 欠落 0 / 余分 0。
 再実行は `extractor/build.sh` してから両側を上のフラグで回すだけ。
