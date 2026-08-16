@@ -16,9 +16,21 @@ doc-gen4 — https://github.com/leanprover/doc-gen4
 Licensed under the Apache License, Version 2.0.
 doc-gen4 itself ships no NOTICE file; this entry is lean-doc's own attribution.
 
-Portions of the following files are derived from doc-gen4 and have been
-**changed** — some transcribed verbatim, some rewritten in Rust to preserve the
-output byte for byte, some restructured to write an IR instead of HTML:
+**lean-doc is a derivative work of doc-gen4 and has been changed.** It is not a
+clean-room reimplementation: doc-gen4's sources were read, and byte-identical
+output was used as the acceptance oracle while the renderer and the extractor
+were written. What changed is the whole architecture around them — a Lean
+extractor that emits an IR, Rust that consumes it, incremental rebuilds, a
+dependency map that links out to pinned upstream sources instead of
+regenerating them, and a UI written from scratch. What did not change is the
+set of rendering and extraction decisions, which are doc-gen4's.
+
+lean-doc is not doc-gen4, is not endorsed by its authors, and its output is not
+compatible with doc-gen4's as of milestone M7.
+
+The files below are where the reproduction is closest — some transcribed
+verbatim, some rewritten in Rust to preserve the output byte for byte, some
+restructured to write an IR instead of HTML:
 
     extractor/Extract.lean
     crates/lean-doc-md/src/html.rs

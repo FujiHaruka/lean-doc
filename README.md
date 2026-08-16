@@ -8,6 +8,14 @@
 抽出器は **Lean** (`extractor/`)、その外側 — IR の消費・HTML レンダリング・増分・
 全域成果物・依存写像 — は **Rust** (`crates/`)。
 
+> **これは doc-gen4 の再実装であって、独立実装ではない。**
+> レンダリングと抽出の判断は **doc-gen4** (Apache-2.0, © 2021 Henrik Böving) を**読んで**
+> 書き直したもので、**出力の byte 一致を受け入れオラクルにして**開発した (M6 で 99.5062%)。
+> 抽出器には逐字コピーも残っている。**lean-doc 全体を doc-gen4 の派生物として扱い**、
+> 同じ Apache-2.0 で配布する。以下の速度比較は**同じ設計の別実装どうしの比較ではなく、
+> やる仕事を減らした実装との比較**。
+> → [`NOTICE`](NOTICE) / [`docs/provenance.md`](docs/provenance.md)
+
 ```sh
 lean-doc build --root <あなたのパッケージ> --out <出力先> --extractor-bin <抽出器>
 ```

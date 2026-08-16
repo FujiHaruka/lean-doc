@@ -12,13 +12,55 @@ lean-doc のコードのうち **第三者の著作物に由来するもの**の
 
 | 問い | 答え | 根拠 |
 |---|---|---|
-| lean-doc は doc-gen4 の派生物か | **一部のファイルは派生物**。逐字コピーが 20 箇所ある | §2 の A 表 |
+| lean-doc は doc-gen4 の派生物か | **全体が派生物**として扱う。クリーンルームではなく、byte 一致を受け入れオラクルにして書いた | §1.1 |
+| どのファイルが特に濃いか | 逐字コピーが 20 箇所、転写が 10 ファイル | §2 |
 | lean-doc 自身のライセンスは | **Apache-2.0** (2026-08-16 決定)。`LICENSE` + `Cargo.toml` の `license` を設置済み | §4 (a) |
 | `NOTICE` ファイルが要るか | **Apache 2.0 の義務としては不要** — doc-gen4 に NOTICE が無いから。ただし置いた (MIT の義務の置き場所として一箇所にまとまる) | §4 (d) |
 | 生成サイトのフッタに表記が要るか | **不要**。配布している doc-gen4 由来物は CSS 8 行だけで、その元ファイルには著作権表示が無い | §5 |
 | 抽出器 (`extractor/`) はどうか | **ここが一番濃い**。§4(b)(c) を履行済み | §2 A 表・§4 |
 
 **§6 の 5 件はすべて完了。**
+
+### 1.1 単位を間違えないこと — 全体が派生物
+
+**§2 のファイル単位の棚卸しは、それだけだと関係を過小評価する。**
+「オリジナルのコードに 20 箇所のコピーが混ざっている」ではなく、
+**「レンダリング層は doc-gen4 の再実装で、その周りに独自の IR・増分・CLI・UI を足したもの」**
+と読むのが正しい。理由は 2 つ:
+
+1. **クリーンルームではない。** クリーンルーム実装とは「A がソースを読んで仕様書を書き、
+   B が仕様書だけを見て実装する」という**人的な分離**を指す。ここにその分離は無く、
+   逆に各ファイルの doc comment が "transcribed" / "Ported from" と自認している
+2. **byte 一致を受け入れオラクルにした** (M6 で 99.5062%)。これは著作権の主張に要る 2 要素
+   — **access** (ソースを見た) と **substantial similarity** (実質的類似) — を、
+   こちらが自分の手で記録に残したのと同じ
+
+**M7 で byte 互換を捨てたことは、由来を打ち消さない。** 書き方が転写だった事実は、
+将来の方針では変わらない。
+
+**それでも義務は増えない。** Apache-2.0 は permissive で **copyleft が無い**ので、
+§4 の 4 条件は「8 行が派生」でも「全体が派生」でも同じ。むしろ §4 の末尾は
+派生物**全体**に別の条件を付けることまで明示的に許している:
+
+> You may add Your own copyright statement to Your modifications and may provide
+> additional or different license terms and conditions for use, reproduction, or
+> distribution of Your modifications, or **for any such Derivative Works as a
+> whole**, provided Your use, reproduction, and distribution of the Work
+> otherwise complies with the conditions stated in this License.
+
+全体を Apache-2.0 にした時点で、この選択肢のうち最も安全側に倒し切っている。
+
+**変わるのは義務ではなく表明 (§4(b) を著作物レベルで払う)。**
+README が 300 行にわたって速度比較を並べたあと最後に由来へ触れる構成だと、
+読者は「速い独立実装」と受け取る。これは CLAUDE.md の
+「**自分に有利な数字が出たときほど疑う**」を、数字ではなく**由来**に適用したときの
+失敗そのもの — 順序が有利な方向に効いている。
+→ README 冒頭・`NOTICE` 冒頭に著作物レベルの告知を置いた (2026-08-16)。
+
+**商標 (§6)**: doc-gen4 の名前を「由来の説明」と「比較」に使うのは §6 が明示的に
+許す範囲 ("reasonable and customary use in describing the origin of the Work")。
+**推奨・提携を示唆しないこと**が線。`NOTICE` に「doc-gen4 ではない / 著者の推奨を
+受けていない」と明記した。
 
 **Apache-2.0 を選んだ理由**: doc-gen4 由来の部分に Apache-2.0 の条件が残る以上、
 リポジトリ全体を別ライセンスにすると「ここは例外」の但し書きが要る。Lean・Mathlib・
@@ -181,7 +223,7 @@ Released under Apache 2.0 license as described in the file LICENSE. / Authors: H
 | 1 | **ライセンスを Apache-2.0 に決めた** | §1 |
 | 2 | `LICENSE` (canonical Apache-2.0 201 行) を置き、`[workspace.package]` に `license = "Apache-2.0"`、各 crate に `license.workspace = true` | `LICENSE`, `Cargo.toml`, `crates/*/Cargo.toml` |
 | 3 | `NOTICE` を置いた — doc-gen4 / md4c / MD4Lean / UnicodeBasic + Unicode® / V8 の 5 件 | `NOTICE` |
-| 4 | **§4(b)(c) の履行** — 下表 | 各ファイル |
+| 4 | **§4(b)(c) の履行** — 下表。加えて **§4(b) を著作物レベルでも払った** (README 冒頭 / `NOTICE` 冒頭。→ §1.1) | 各ファイル + README + NOTICE |
 | 5 | **第三者コードの記録** — 生成フィクスチャに `PROVENANCE.md` を足した (`vendor/md4c/PROVENANCE.md` と同じ作法) | `crates/lean-doc-{md,render}/tests/data/PROVENANCE.md` |
 
 §4(b)(c) を書いた場所:
