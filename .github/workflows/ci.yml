@@ -1,0 +1,156 @@
+# The green light. Everything here runs on a machine that has never seen the
+# measurement target, and that is the point.
+#
+# WHAT "GREEN" MEANS NOW
+#   Gate A (byte reproduction against doc-gen4) ended at M8, so the definition
+#   of green fell back to `cargo test --workspace` (docs/implementation-plan.md
+#   §1). This workflow is what makes that definition mechanical rather than a
+#   sentence in a plan.
+#
+# WHAT IS DELIBERATELY NOT HERE
+#   Anything needing Mathlib. The target package's import closure is several GB
+#   and the second target is synthetic but still Mathlib-pinned, so both stay
+#   manual gates (tools/target2-gate.sh, tools/corpus-gate.sh). A check that
+#   cannot run on a fresh runner is a gate, not a test — the same line
+#   `crates/lean-doc/tests/resident.rs` already draws.
+#
+# WHY THE CORPUS TESTS DO NOT SILENTLY VANISH HERE
+#   They are `#[ignore]`d, not skipped, so `cargo test` reports them by count,
+#   and `tools/corpus-gate.sh --verify-list` fails if that set drifts from the
+#   list the gate knows about. A test that quietly stops running is the failure
+#   this workflow exists to prevent.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A superseded run tells us nothing we want to wait for.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # A backtrace costs nothing here and turns "assertion failed" into a location.
+  RUST_BACKTRACE: 1
+
+jobs:
+  test:
+    name: test (no corpus, no Lean)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      # rust-toolchain.toml pins the channel and asks for rustfmt and clippy;
+      # `rustup show` is what makes rustup act on it.
+      - name: Install the toolchain rust-toolchain.toml asks for
+        run: |
+          rustup show
+          rustc --version
+          cargo --version
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Format
+        run: cargo fmt --all --check
+
+      # `--all-targets` so that tests and benches are linted too: most of this
+      # workspace's code by line count is tests.
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      # `--no-fail-fast`: one red crate must not hide the state of the others.
+      - name: Test
+        run: cargo test --workspace --no-fail-fast
+
+      # The corpus tests are not run here — this asserts that the set of them is
+      # exactly the set the gate script knows about, so neither side can drift.
+      - name: Verify the corpus gate's inventory
+        run: tools/corpus-gate.sh --verify-list
+
+  # The only job that runs a real Lean environment. It exists because every test
+  # in the job above fakes the extractor, so nothing there checks the contract
+  # between `extractor/Extract.lean` and the Rust side: change what the extractor
+  # writes and the whole test job stays green. See e2e/README.md.
+  e2e-micro:
+    name: e2e (real extractor, no Mathlib)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install the toolchain rust-toolchain.toml asks for
+        run: rustup show
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      # Lean core only. The fixture depends on nothing else, which is what keeps
+      # this job to minutes instead of the gigabytes Mathlib would cost.
+      - name: Cache elan
+        id: elan-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.elan
+          key: elan-${{ runner.os }}-${{ hashFiles('e2e/micro/lean-toolchain') }}
+
+      - name: Install elan at the fixture's toolchain
+        if: steps.elan-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -sSfL https://github.com/leanprover/elan/releases/latest/download/elan-x86_64-unknown-linux-gnu.tar.gz \
+            | tar xz
+          ./elan-init -y --default-toolchain "$(cat e2e/micro/lean-toolchain)"
+
+      - name: Put elan on PATH
+        run: echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Build the CLI
+        run: cargo build --bin lean-doc
+
+      # Builds the fixture, builds the extractor inside the fixture's own Lean
+      # environment, generates a site, and checks the three gates: one command,
+      # idempotence, determinism.
+      - name: End to end
+        run: tools/e2e-micro.sh --out "$RUNNER_TEMP/e2e" --keep
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      # The runtime half. Static checks cannot see whether the module tree draws,
+      # whether search returns anything, or whether 375 px still fits — and
+      # ui-redesign.md left that last one recorded as 未判定 for exactly that
+      # reason. ubuntu-latest ships Chrome, so nothing is downloaded to drive it.
+      - name: Browser gate
+        run: tools/browser-gate.sh "$RUNNER_TEMP/e2e/first/site" --json "$RUNNER_TEMP/browser.json"
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+
+      - name: Upload the generated site
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-micro-site
+          path: ${{ runner.temp }}/e2e/first/site
+          if-no-files-found: warn
