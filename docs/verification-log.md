@@ -5368,7 +5368,22 @@ end-to-end (`incremental --timings` の `detectSeconds`): **0.463 → 0.042 s (�
 1 モジュール変更 約 4.6 s の **9%**。既定は `available_parallelism()` を [1, 8] に丸める。
 
 **ゲート**: `cargo test` 346/0/21、clippy 無警告、e2e 緑、`target2-gate.sh all` =
-all checks passed。
+all checks passed。CI (run `31978156708`) も緑で、定常状態は
+`impact mode self -> 1 page(s)` / `linkIndex 0.001s reused` / `incremental in 1.1884 s`。
+
+### 「1 モジュール変更の IR 全読みは 3.00 回」は模擬の値だった【2026-08-17 に判明】
+
+`docs/approach.md` と `docs/milestone-log.md` が持っていた **3.00 回** (1,268 / 422、
+実測 2026-08-16) は **`ledger touch` で台帳だけ古くした模擬**の値。
+**本物のソース編集 (宣言を 1 本足す) では 4.00 回** (1,690 / 422)【実測 2026-08-17、
+今日の全 run で一貫】。
+
+**差はちょうど 422。正体は `ownership` の base 側全走査**で、これは
+**全域写像に名前が出入りしたときだけ**走る (`watching`)。`ledger touch` は IR を
+1 バイトも動かさないので名前が 1 つも動かず、この 1 周がまるごと出ない。
+
+**模擬と本物で 1 パス違う。** approach.md 自身が「シナリオを言わずに N 回と書かない」と
+書いている、その実例が自分の数字に出ていた。approach.md 側に但し書きを入れた。
 
 ---
 
