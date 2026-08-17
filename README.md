@@ -66,7 +66,7 @@ jobs:
     environment: { name: github-pages }
     steps:
       - uses: actions/checkout@v4
-      - uses: FujiHaruka/lean-doc@v0.1.1
+      - uses: FujiHaruka/lean-doc@v0.1.2
         id: docs
         with:
           cache-get: true             # `lake exe cache get` — drop it if you have no Mathlib
@@ -122,8 +122,8 @@ not GitHub (another host is refused rather than guessed).
 
 ## Status
 
-`v0.1.1` — the action and the released binaries. Tested on macOS (Apple Silicon) and
-`ubuntu-latest` with Lean/Mathlib v4.31.0. Pin the action to a tag (`@v0.1.1`); `@main` moves.
+`v0.1.2` — the action and the released binaries. Tested on macOS (Apple Silicon) and
+`ubuntu-latest` with Lean/Mathlib v4.31.0. Pin the action to a tag (`@v0.1.2`); `@main` moves.
 
 The extractor is not distributed as a binary. It **could** be — it is decided by the toolchain
 alone, it is portable, and against the wrong toolchain it fails loudly rather than writing a

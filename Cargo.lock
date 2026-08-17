@@ -102,7 +102,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "lean-doc"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "lean-doc-global",
  "lean-doc-incr",
@@ -113,7 +113,7 @@ dependencies = [
 
 [[package]]
 name = "lean-doc-global"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "lean-doc-ir",
  "lean-doc-md",
@@ -124,7 +124,7 @@ dependencies = [
 
 [[package]]
 name = "lean-doc-incr"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "lean-doc-ir",
  "serde",
@@ -134,7 +134,7 @@ dependencies = [
 
 [[package]]
 name = "lean-doc-ir"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -142,7 +142,7 @@ dependencies = [
 
 [[package]]
 name = "lean-doc-md"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "cc",
  "serde",
@@ -151,7 +151,7 @@ dependencies = [
 
 [[package]]
 name = "lean-doc-render"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "lean-doc-ir",
  "lean-doc-md",

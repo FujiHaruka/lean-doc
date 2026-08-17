@@ -8,7 +8,7 @@
 #   blocks whose keys you had to get right, an elan install, and a call into
 #   tools/ci-build.sh. All of that is here now, and the caller writes:
 #
-#       - uses: FujiHaruka/lean-doc@v0.1.1
+#       - uses: FujiHaruka/lean-doc@v0.1.2
 #         id: docs
 #       - uses: actions/upload-pages-artifact@v3
 #         with: { path: "${{ steps.docs.outputs.site }}" }
@@ -88,6 +88,9 @@ outputs:
   timings:
     description: "path to the phase timings JSON"
     value: "${{ steps.build.outputs.timings }}"
+  binary-source:
+    description: "where the lean-doc binary came from: release, cargo or cached. A caller that wants the download path to be exercised can assert on this"
+    value: "${{ steps.binary.outputs.source }}"
 
 runs:
   using: composite
@@ -214,7 +217,9 @@ runs:
         A="$GITHUB_ACTION_PATH"
         BIN="$A/target/release/lean-doc"
         if [ -x "$BIN" ]; then
-          echo "cached: $BIN"; echo "bin=$BIN" >> "$GITHUB_OUTPUT"; exit 0
+          echo "cached: $BIN"
+          { echo "bin=$BIN"; echo "source=cached"; } >> "$GITHUB_OUTPUT"
+          exit 0
         fi
         case "$RUNNER_OS-$(uname -m)" in
           Linux-x86_64)   T=x86_64-unknown-linux-musl ;;
@@ -235,7 +240,7 @@ runs:
             if [ -n "$FOUND" ]; then
               chmod +x "$FOUND"
               echo "downloaded: $FOUND"
-              echo "bin=$FOUND" >> "$GITHUB_OUTPUT"
+              { echo "bin=$FOUND"; echo "source=release"; } >> "$GITHUB_OUTPUT"
               exit 0
             fi
           fi
@@ -243,7 +248,7 @@ runs:
         else
           echo "no release to try (ref='$REF', target='$T') — building from source"
         fi
-        echo "bin=" >> "$GITHUB_OUTPUT"
+        { echo "bin="; echo "source=cargo"; } >> "$GITHUB_OUTPUT"
 
     - name: Rust toolchain
       if: steps.binary.outputs.bin == ''

@@ -10,10 +10,11 @@
 #   script. None of that is visible to `cargo test`.
 #
 # ============================================================================
-# THE FOUR THINGS CHECKED, AND WHY EACH IS SEPARATE
+# THE FIVE THINGS CHECKED, AND WHY EACH IS SEPARATE
 # ============================================================================
 #   local        the action runs, produces a site, and reports its path
 #   incremental  running it twice re-renders nothing (the reason to cache state)
+#   standalone   it installs elan itself when `lake` is not already there
 #   refused      a package that does not exist FAILS. A gate that cannot fail is
 #                not a gate — CLAUDE.md, and this repository has shipped two of
 #                those before
@@ -22,6 +23,10 @@
 #                never exercises. It is @main and not this commit because
 #                `uses:` cannot take an expression — so it tests the channel,
 #                not this diff.
+#   released     the release-download path, which none of the above ever takes
+#                (@main has no release, so they all fall back to cargo).
+#                workflow_dispatch only; it pins a tag, so it goes stale by
+#                design.
 #
 #   The fixture stands in for a user's package: e2e/micro depends on Lean core
 #   only, so this costs an elan download and seconds of Lean, not Mathlib.
@@ -194,3 +199,50 @@ jobs:
           jobs: "2"
 
       - run: test -f "${{ steps.docs.outputs.site }}/index.html"
+
+  # The one path the jobs above never take: `@main` has no release, so they all
+  # fall back to cargo. This pins a tag so the download actually happens, and
+  # asserts on `binary-source` rather than on the log — "it worked" is not
+  # evidence that it worked *that way*.
+  #
+  # On demand only, and the pin goes stale by design: re-run it (and move the
+  # pin, and README's) when a release is cut.
+  released:
+    name: uses:@v0.1.2 — the released binary, not a cargo build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Cache elan
+        id: elan-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.elan
+          key: elan-${{ runner.os }}-${{ hashFiles('e2e/micro/lean-toolchain') }}
+
+      - name: Install elan at the fixture's toolchain
+        if: steps.elan-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -sSfL https://github.com/leanprover/elan/releases/latest/download/elan-x86_64-unknown-linux-gnu.tar.gz \
+            | tar xz
+          ./elan-init -y --default-toolchain "$(cat e2e/micro/lean-toolchain)"
+
+      - name: Put elan on PATH
+        run: echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - id: docs
+        uses: FujiHaruka/lean-doc@v0.1.2
+        with:
+          root: e2e/micro
+          jobs: "2"
+
+      - name: It came from the release
+        run: |
+          SRC="${{ steps.docs.outputs.binary-source }}"
+          echo "binary-source = $SRC"
+          test "$SRC" = "release" || {
+            echo "::error::expected the released binary, got '$SRC' — the download path did not run"
+            exit 1; }
+          test -f "${{ steps.docs.outputs.site }}/index.html"
