@@ -1,0 +1,224 @@
+# Build the `lean-doc` binary for each platform, prove it works, and attach it
+# to a GitHub release.  (docs/plans/distribution.md, D2)
+#
+# ============================================================================
+# WHY ONLY THE RUST BINARY IS HERE
+# ============================================================================
+#   The Lean extractor is 171 MB against this binary's 2.5 MB, and building it
+#   takes ~16 s against cargo's ~24 s 【実測】. Shipping the small one removes a
+#   24 s build **and** a several-hundred-MB cargo cache from every user's CI;
+#   shipping the large one would trade a 16 s build for a 46 MB download and a
+#   matrix that multiplies by toolchain. Whether it can be shipped at all is a
+#   separate measurement — .github/workflows/ci-extractor-portability.yml.
+#
+# ============================================================================
+# WHAT IS IN THE ARCHIVE, AND WHY IT IS NOT JUST THE BINARY
+# ============================================================================
+#   `lean-doc` + `LICENSE` + `NOTICE`. A binary release is Apache-2.0 §4's
+#   "Object form", which triggers (a): recipients get the licence text. And md4c
+#   is compiled into the binary under MIT, whose permission notice must travel
+#   with "all copies" — NOTICE used to *point* at vendor/md4c/LICENSE.md, which
+#   is not in this archive, so the full text was moved into NOTICE on
+#   2026-08-18. docs/provenance.md §4 is the record.
+#
+# ============================================================================
+# WHY A SMOKE JOB THAT BUILDS A WHOLE SITE
+# ============================================================================
+#   `--version` proves the file is executable, not that it is correct: a musl
+#   build with a broken md4c link would pass it and then produce documentation
+#   with no rendered markdown. So the archive that will be uploaded is unpacked
+#   on a clean runner and run through tools/e2e-micro.sh, which is the same
+#   three gates CI uses (one command / idempotence / determinism).
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "build and verify the archives without publishing"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The one that matters for the happy path: GitHub Actions runners.
+          # musl so that the glibc version of the runner image stops being a
+          # thing anyone has to think about.
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          # Intel macOS is built ON an Intel runner rather than cross-compiled
+          # from arm, so the smoke test below is a real execution and not a
+          # `file` check. If macos-13 goes away, this target goes with it.
+          - target: x86_64-apple-darwin
+            os: macos-13
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install the toolchain rust-toolchain.toml asks for
+        run: |
+          rustup show
+          rustup target add ${{ matrix.target }}
+
+      # cc-rs picks musl-gcc up from PATH, but only if it is there: without
+      # this, vendored md4c is compiled by the host gcc and the link fails late,
+      # after cargo has already spent minutes on the Rust half.
+      - name: musl toolchain for the vendored C
+        if: endsWith(matrix.target, '-musl')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Build
+        run: cargo build --release --locked --bin lean-doc --target ${{ matrix.target }}
+        env:
+          CC_x86_64_unknown_linux_musl: musl-gcc
+
+      # A musl target that came out dynamically linked is the failure this
+      # whole choice of target exists to avoid, and it is invisible until it
+      # runs on a machine with a different libc. Assert it here.
+      - name: It is what it claims to be
+        run: |
+          BIN=target/${{ matrix.target }}/release/lean-doc
+          ls -l "$BIN"
+          file "$BIN"
+          if [ "${{ matrix.target }}" = "x86_64-unknown-linux-musl" ]; then
+            if ldd "$BIN" 2>&1 | grep -qv "not a dynamic executable"; then
+              echo "expected a static binary; ldd says:" >&2
+              ldd "$BIN" >&2 || true
+              exit 1
+            fi
+            echo "statically linked"
+          fi
+
+      - name: Work out the version
+        id: v
+        shell: bash
+        run: |
+          # A tag is authoritative when there is one; otherwise the workspace
+          # version, so a dry run produces the same names a release would.
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then V="${GITHUB_REF_NAME#v}"
+          else V="$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)"; fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "name=lean-doc-$V-${{ matrix.target }}" >> "$GITHUB_OUTPUT"
+
+      - name: Archive
+        shell: bash
+        run: |
+          NAME="${{ steps.v.outputs.name }}"
+          mkdir -p "dist/$NAME"
+          cp "target/${{ matrix.target }}/release/lean-doc" "dist/$NAME/"
+          cp LICENSE NOTICE "dist/$NAME/"
+          tar -C dist -czf "dist/$NAME.tar.gz" "$NAME"
+          rm -rf "dist/$NAME"
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.v.outputs.name }}
+          path: dist/*.tar.gz
+          retention-days: 7
+
+  # --------------------------------------------------------------------------
+  # The archive, on a runner that never built it, generating a real site.
+  smoke:
+    name: smoke — the Linux archive builds a site
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "*x86_64-unknown-linux-musl"
+          path: ${{ runner.temp }}/dl
+          merge-multiple: true
+
+      - name: Unpack exactly what a user would download
+        run: |
+          cd "$RUNNER_TEMP/dl"
+          ls -l
+          tar xzf *.tar.gz
+          find . -maxdepth 2 -type f | sort
+          # The licence files are an obligation, not decoration: fail if the
+          # archive ever stops carrying them.
+          test -f */LICENSE || { echo "no LICENSE in the archive" >&2; exit 1; }
+          test -f */NOTICE  || { echo "no NOTICE in the archive"  >&2; exit 1; }
+          grep -q "Martin Mit" */NOTICE || { echo "NOTICE lost md4c's MIT text" >&2; exit 1; }
+
+      - name: Cache elan
+        id: elan-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.elan
+          key: elan-${{ runner.os }}-${{ hashFiles('e2e/micro/lean-toolchain') }}
+
+      - name: Install elan at the fixture's toolchain
+        if: steps.elan-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -sSfL https://github.com/leanprover/elan/releases/latest/download/elan-x86_64-unknown-linux-gnu.tar.gz \
+            | tar xz
+          ./elan-init -y --default-toolchain "$(cat e2e/micro/lean-toolchain)"
+
+      - name: Put elan on PATH
+        run: echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      # LEAN_DOC points e2e-micro.sh at the unpacked binary instead of a cargo
+      # build, so what is measured is the artifact, not this checkout.
+      - name: End to end with the downloaded binary
+        run: |
+          BIN="$(find "$RUNNER_TEMP/dl" -name lean-doc -type f | head -1)"
+          chmod +x "$BIN"
+          "$BIN" --version || true
+          LEAN_DOC="$BIN" tools/e2e-micro.sh --out "$RUNNER_TEMP/e2e" --keep
+
+  # --------------------------------------------------------------------------
+  publish:
+    name: publish
+    needs: [build, smoke]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/dl
+          merge-multiple: true
+
+      - name: Checksums
+        run: |
+          cd "$RUNNER_TEMP/dl"
+          ls -l
+          sha256sum *.tar.gz > checksums.txt
+          cat checksums.txt
+
+      - name: Create or update the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd "$RUNNER_TEMP/dl"
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" ./*.tar.gz checksums.txt --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" ./*.tar.gz checksums.txt \
+              --title "$GITHUB_REF_NAME" --generate-notes
+          fi
