@@ -1,116 +1,123 @@
-# Handoff — 2026-08-17 (未検証項目 4 件を潰す relay の起点 / leg 0 → r1)
+# Handoff — 2026-08-17 (未検証項目 4 段を完遂 / relay leg 1 で DONE)
 
 ## State
 
-- Branch: main / **clean** / push 済み (HEAD `a3aeb31`)。tag `v0.1.0` は `117e928`
-- 直前の仕事は **未検証項目の棚卸し** (`a3aeb31`) — README の 18 件を **15 件**に整理した。
-  **減ったのは分類と鮮度であって、検証が進んだからではない**:
-  1 件は古く (実ブラウザ = `browser-gate.sh` が既に CI で 9 検査緑)、
-  3 件は「持たないと決めた」ものなので別節へ分けた。**実作業はここから**
-- `cargo test --workspace` **0 failed**、`tools/provenance-gate.sh` ok (27 claims)
-- **ディスクは 57 Gi 空き** (`/private/tmp/lean-doc-relay` の残骸は無い)。
-  **計測が終わったら消すこと** — leg 4 で満杯にして対象の olean を壊した実績がある
+- Branch: main / **clean** / push 済み (HEAD `3eae364`)。tag `v0.1.0` は `117e928`
+- `cargo test --workspace` **355 passed / 0 failed / 21 ignored**、
+  `cargo fmt --check` / `clippy -D warnings` 緑、`tools/corpus-gate.sh --verify-list` ok (21)、
+  `tools/provenance-gate.sh` ok (27 claims)
+- **CI は 3 ジョブ緑** (`test` / `e2e (real extractor, no Mathlib)` / `supply chain`)
+- **README「未検証項目」は 18 → 15 → 13 件**。**15 → 13 は実際に潰した 2 件で、
+  どちらも「未検証」ではなく壊れていた**
+- **ディスクは 56 Gi 空き**。`/private/tmp/lean-doc-relay` は**削除済み**
 
 ## Relay control
 
-- Mode: ON
-- Goal: **README「未検証項目」15 件のうち 4 件を、下の順で潰す**
+- Mode: DONE
+- Goal: README「未検証項目」15 件のうち 4 件を、段 1〜4 の順で潰す
 - Leg: 1 / cap 8
-- Predecessor: none (leg 0 = ユーザーの元セッション。tmux 名を持たないので kill しない)
+- Predecessor: none
 - Stop-on: completion
 - Progress ledger:
   - r0: **棚卸しのみ** (`a3aeb31`)。4 段の実作業はゼロ
+  - r1: **段 1〜4 すべて完了**。`2d70d5b` (段 2) / `19a4fc6` (段 1) / `80e1eb8` + `16be789` (段 3) /
+    `2c9b198` + `3eae364` (段 4)
 
-## ゴール — 4 段。**この順を変えない**
+## この leg で出たもの — 4 段の結果
 
-順序の根拠は「**安い恒久ゲートを先に敷いてから、高コストの一回性実験を撃つ**」。
-段 4 を先にやると、そこで出た問題を受け止める網 (段 1〜3) がまだ無く、
-**実走で何かが出ても「それが唯一の問題か」を言えない**。
-
-| 段 | 項目 | 完了条件 |
+| 段 | 項目 | 結果 |
 |---|---|---|
-| **1** | **#15 md4c FFI の fuzz + `cargo-deny`** | commit 済 seed corpus を全通しするゲートが CI で緑。`cargo-deny` が CI に乗る |
-| **2** | **#10 + #4 を 1 本で** | `e2e/micro` に **path 依存のサブパッケージ**を足し、相対リンクフォールバックと `«…»` の `.lidx` 綴りが**実経路**を通る |
-| **3** | **#13 等幅フォントの字形** | `browser-gate.sh` が字幅/字形を見て、**CI の `ubuntu-latest`** で判定する |
-| **4** | **#1 実在の公開パッケージでの実走** | **Mathlib に依存していない**実在の公開 Lean パッケージで `lean-doc build` が通る |
+| **1** | #15 md4c fuzz + `cargo-deny` | **両方すでに動いていた**。docs が古かった。探索は新規に実走 |
+| **2** | #10 + #4 | **#10 は未検証ではなく壊れていた**。#4 は綴り差が実在すると判明 |
+| **3** | #13 等幅フォント | **2 OS で欠け 0**。UI-V1 (JuliaMono vendor) は発火しない |
+| **4** | #1 実在の公開パッケージ | **`batteries` で 3 件出た**。うち 2 件は product の欠陥 |
 
-### 段ごとの要点
+**この leg の教訓は 1 つに集約する**: **「未検証」と書いてあるものは、測ると壊れている。**
+4 段のうち **3 段で欠陥が出た**。残り 13 件を「たぶん大丈夫」と読まないこと。
 
-**段 1 — #15 fuzz + cargo-deny**
-- 設計は決定済で、**時間ではなく corpus で回す** (→ `docs/plans/quality-gates.md` §4 決定 5)。
-  「N 秒回して落ちなければ緑」は非決定的なので**やらない**。commit 済 seed corpus を全通しする形
-- 既知の 2 入力 (fenced code 中の NUL / 本文行の無い GFM テーブル) は**既に回帰テストにある**。
-  seed に入れること自体は目的ではない — **探索は手元で回し、新しい入力が見つかったら corpus に足す**
-- `cargo-deny` は Q9 の残り。数分で入る
-- **これが唯一の「安全性」項目** — vendor した C を FFI で呼んでいる
+### 段 1 — 探索は回した。ゲートは元からあった
 
-**段 2 — #10 + #4 を 1 本で**
-- **なぜ今まで触れなかったか (棚卸しで判明した構造)**: フィクスチャが 2 つとも依存の形を持たない。
-  `e2e/micro` は `lake-manifest.json` が `packages: []` で**依存 0**、
-  第 2 の対象 (`tools/make-target2.sh`) は**対象 1 の manifest をコピー**するので
-  常に同じ 15 パッケージ (全部 GitHub + 40 桁 rev)。**依存の形を変える機材が無い**
-- **path 依存** (url 無し / rev が 40 桁 hex でない) を 1 本足せば #10 の
-  相対リンクフォールバックが実経路を通る。**そのモジュール名にギュメを入れれば #4 も同じ 1 本**
-- ネットワーク不要・Mathlib 不要。`e2e/micro` は Mathlib に依存しないフィクスチャ (→ `e2e/README.md`)
-- **`micro/` の既存の宣言を消さない** — 1 つ 1 つが「対象が持たない形」を担当している
+- **`cargo-deny` は CI ジョブ `supply-chain` で既に緑だった** (commit `76d17e0`、2026-08-16)。
+  README #15 と `quality-gates.md` Q9 が**1 日古いまま**だった
+- **fuzz corpus ゲートも既に毎 push 走っていた** (`crates/lean-doc-md/tests/fuzz_corpus.rs`)
+- **新しくやったのは探索** — `fuzz/` (cargo-fuzz、nightly、ワークスペース外) で
+  **8,939,197 execs / crash 0**【実測】。うち 1 本は**空 corpus** から回して
+  **MD4Lean を殺す 2 入力を自力で再発見** (QV6 成立)
+- **最大の発見は「何を検査していなかったか」**: `RUSTFLAGS` は Rust にしか届かないので、
+  **`CFLAGS` を渡さない fuzz は md4c を一切見ていない**。cov 1023 → 2487 で確認【実測】
 
-**段 3 — #13 字形**
-- 「**macOS 以外では見ていない**」と README に書き続けていたが、**CI ランナーは `ubuntu-latest`**。
-  Linux 環境は既にタダで手に入っている。**持っている機材を使っていなかった**型
-- 本文に出る**非 ASCII 178 種**【実測】。添字 (₁ ᵢ ᵐ ⁿ) と double-struck (ℝ ℕ ℤ) を
-  持たない等幅フォントでは字幅が崩れる。崩れるなら JuliaMono をサブセットして vendor する
-- `browser-gate.sh` → `benchmarks/tools/check-site-browser.ts` に足す。
-  今そこにある検査は 7 種 (幅ループで 9): コンソールエラー / ツリー / 検索 ×2 / instances /
-  テーマ (`data-theme` が動くことだけ) / 横スクロール / JS 無効
+### 段 2 — 版固定できない依存へのリンクは 404 していた
 
-**段 4 — #1 実在の公開パッケージ**
-- **【ユーザー指定・最重要】Mathlib はサイズが大きいので、Mathlib に依存していない
-  実在の公開 Lean パッケージを対象にすること。** 対象 1 / 第 2 の対象は両方 Mathlib 依存なので、
-  これは**新しい軸**であって置き換えではない — **既存の数字は残す** (CLAUDE.md「ベンチマーク」)
-- 候補になりうるのは `batteries` / `Cli` / `MD4Lean` / `UnicodeBasic` / `LSpec` など、
-  **対象の依存に実在していて Mathlib を要らないもの**。選定理由を docs に書くこと
-- これは**一回性**で恒久ゲートにならない (rev が動く)。だから最後
-- **#5 (同名宣言) / #9 (乖離 3 件) / #6 (より大きい対象での cold) はこの段に付随して当たりうる** —
-  当たったら記録する。**当たらなかったことも記録する**
+- `e2e/micro-dep/` を **path で require** した初回に `site-gate` が **DEAD internal links 3**
+- 3 経路とも別物 (import リスト / docstring の名前参照 / 署名中の定数リンク)
+- 直した形: **版固定できない依存にはリンクを張らない** (名前はテキスト)
+- **#4 の実測**: `.lidx` は非エスケープ、IR はエスケープ済み。docstring の 3 綴りのうち
+  **`.lidx` と同じ非エスケープ綴りだけ解決しない**。ただし**出力に出るのは版固定できる依存の
+  ときだけ**なので #4 は残っている (README #3)
 
-## 共通の規律 (CLAUDE.md より、外すと事故る)
+### 段 3 — 持っていた Linux 機材を使っていなかった
 
-- **ゲートは必ず一度落としてから通す。** 作った当日に「何をしても通るゲート」を 2 件作っている
-- **skip で緑を返さない。** 入力が無いテストは `#[ignore]` + `tools/corpus-tests.txt`
-- **ゲートは「走った本数」を数える。** cargo は 0 件マッチでも exit 0
-- **性能を壁時計でゲートしない。** 決定的な整数を使う
-- **数字には 4 ラベル** (実測 / 外挿 / 仮定 / 理論値)。**出所を辿れること**
-- **docs を同じコミットで直す** — README「未検証項目」/ `implementation-plan.md` §1 末尾 /
-  `milestone-log.md` / `verification-log.md`。**件数 (15 件) を動かしたら引用元も全部**
-  (`CLAUDE.md` 冒頭にも書いてある)
-- **各段は独立にコミットする。** メッセージは 1 行、日本語、短く
+- ブラウザゲートに**検査 8** を追加。**文字集合は対象由来の 178 種**を固定
+  (`benchmarks/tools/mono-charset.json`、`mono-charset.py` で再生成)
+- **macOS も `ubuntu-latest` も字形の欠け 0**。off-width は 34 / 22 だが**決定 2 が許容済み**
+- **等幅スタック単独では 8〜9 割しか描いていない**ことも数字で出た
+
+### 段 4 — batteries は 3 つ驚かせてきた
+
+対象: `leanprover-community/batteries` @ `fa08db58…` (**Mathlib 非依存**、176 モジュール / 3,030 宣言)。
+数字は `benchmarks/results/batteries-2026-08-17.txt`。
+
+1. **build が止まった** — `class LawfulLTCmp … extends Std.OrientedCmp` の継承 field を
+   置けず、ページを 1 枚も書かずに終了。→ 解決を `.lidx` まで落とした
+2. **死にリンク 10 本** — `[[lean_lib]]` が 3 つあるのに `--lib` は 1 つ分しか書かない。
+   → 「**このランがページを書かないモジュールにはリンクを張らない**」に一般化 (段 2 と同じ穴)
+3. **ゲート側の偽陽性 2 件** — `check-site-closure.py` が `id` 属性を unescape していなかった
+
+最終状態: **site-gate ok / DEAD 0 / browser-gate 10 検査すべて緑 (180 ページ)**。
+
+## 次に手をつけるなら
+
+**ユーザーの指示待ち**。この leg のゴールは完遂したので、次は新しいゴールが要る。候補:
+
+- **README 未検証項目の残り 13 件**。「測ると壊れている」実績が 3/4 なので、
+  効きそうなのは **#1 (`push:` トリガと利用者リポジトリの checkout)** と
+  **#9 (依存 root 27 件にオラクルが無い)**
+- **Mathlib 依存の実在パッケージでの実走** — batteries は Mathlib 非依存なので、
+  ゲート B の「合成に限る」制約はまだ実物で外れていない
+- **性能の次の一手は構造変更**で、この計画の外 (→ `implementation-plan.md` §1 末尾)
 
 ## Files to read first
 
-- `README.md` §未検証項目 — **15 件の現況。棚卸し直後なので正確**
-- `docs/plans/quality-gates.md` §4 決定 5 / §5 の Q6・Q9・Q10 — **段 1 の設計はここにある**
-- `e2e/README.md` — フィクスチャが「対象が持たない形」を担当する設計。**段 2 で読む**
-- `benchmarks/tools/check-site-browser.ts` — **段 3 で足す先** (341 行)
-- `docs/implementation-plan.md` §1 末尾 — v0.1 を締めた根拠と残したもの
+- `README.md` §未検証項目 — **13 件の現況**
+- `benchmarks/results/batteries-2026-08-17.txt` — 段 4 の数字と出たもの全部
+- `docs/implementation-plan.md` §M7「訂正 —『マップに root が無い ⇒ 相対ページリンク』は
+  死にリンクだった」 — **同じ穴を 1 日で 2 回踏んだ記録**
+- `e2e/README.md` — フィクスチャの担当表と「path 依存を足して出たもの」
+- `fuzz/README.md` — 探索の回し方。**`CFLAGS` が無いと md4c を見ない**
+- `docs/plans/quality-gates.md` Q6 / Q8 — ゲートの現況
 
 ## 踏んだ地雷 (次の自分へ)
 
-- **ディスクを満杯にした。** `/private/tmp/lean-doc-relay` に 5 世代 24 GB。満杯になると
-  **中断された `lake build` が対象の olean を欠落させ**、**シェルコマンド自体が動かなくなる**。
-  → **計測が終わったら消す**。1 回のサイトは約 60 MB、`make-target2.sh` の package は数 GB
-- **`git checkout <file>` で subagent の実装を吹き飛ばした。** 無効化実験はスクラッチのコピーか `git stash` で
-- **「あるものを使う」は「今のソースのものを使う」ではない。** 1 日で 3 件出た。**3 件とも出力は正常に見えていた**
-- **壁時計はこの対象で 1.6 倍動く** (同一バイナリ 6 回で 3.96〜6.22 s)。判定は決定的な整数で
-- **Python 3.9 の f-string に backslash / ネスト同種クォートが書けない**
-- **`diff` はこのシェルで `colordiff` に alias されていて存在しない。`/usr/bin/diff` を使う**
-- **`rg` の `-r` は `--replace`。`-rn` のように束ねない** (後続フラグが置換文字列に食われる)
-- **ssh (port 22) はこの機材から通らない。** push は HTTPS + `gh`:
+- **「未検証」を「たぶん大丈夫」と読まない。** この leg で 4 段中 3 段で欠陥が出た
+- **同じ穴を 1 日で 2 回踏んだ** — 「マップに無い ⇒ 自パッケージ ⇒ 相対リンク」。
+  1 回目 (依存) を直したとき**自パッケージ側にも同じ穴がある**と気づけなかった。
+  **一般形で直したか**を毎回問うこと
+- **計装していない fuzz は何も検査していない。** `RUSTFLAGS` は Rust にしか届かない
+- **ゲートの偽陽性は「両方向で同時に落ちる」形で出る** — 片方向だけならサイトが不整合、
+  両方向同時なら**比較の文字集合が違う**
+- **`gh run watch` の後に puppeteer が port を掴んだまま残ることがある** —
+  `AddrInUse` が出たら `pkill -f check-site-browser.ts`
+- **ディスクを満杯にした実績がある** (leg 4、24 GB)。**計測が終わったら消す**。今回は消した
+- **`git checkout <file>` で subagent の実装を吹き飛ばした。** 無効化実験はスクラッチのコピーで
+- **`diff` は `colordiff` に alias されている。`/usr/bin/diff` を使う**
+- **`rg` の `-r` は `--replace`。`-rn` のように束ねない**
+- **ssh (port 22) は通らない。** push は HTTPS + `gh`:
   ```
   GIT_CONFIG_COUNT=2 \
   GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0='' \
   GIT_CONFIG_KEY_1=credential.helper GIT_CONFIG_VALUE_1='!gh auth git-credential' \
   git push https://github.com/FujiHaruka/lean-doc.git main:main
   ```
-- **CI ワークフローは検証用が `workflow_dispatch` のみ** (push 毎に数 GB 落ちるので意図的)。
-  `ci.yml` だけが push / PR で走る。`gh workflow run ci-template.yml --ref main` → 12〜15 分
+- **CI で数字を先に取りたいときはブランチ + `gh workflow run ci.yml --ref <branch>`**。
+  main を赤くせずに `ubuntu-latest` の実測が取れる (段 3 でそうした)
 - **subagent には「コミットするな」と指示する。同時に走らせるのは 1 体まで**
