@@ -31,17 +31,20 @@ Already hosting doc-gen4 output? Page paths (`Foo/Bar.html`) and declaration anc
 
 ## Speed
 
-432-module package, Apple M1 / 16 GB, `--jobs 4`, warm page cache:
+432-module package on an Apple M1 / 16 GB, warm page cache, wall clock:
 
 | | doc-gen4 | lean-doc |
 |---|---:|---:|
-| Extract all 432 modules | 1,076 s | **14.08 s** |
-| Full site from nothing | ≈9 h¹ | **29.5 s** |
-| Rebuild after one added declaration | n/a² | **~4 s** |
-| Rebuild with nothing changed | n/a² | **0.3 s** |
+| Extract all 432 modules, single-threaded | 1,076 s | **14.08 s** |
+| Full site from nothing, `--jobs 4` | — | **29.5 s** |
+| Rebuild after one added declaration | — | **~4 s** |
+| Rebuild with nothing changed | — | **0.3 s** |
 
-¹ Extrapolated from a partial run: doc-gen4 documents the whole ~8,600-module import closure,
-lean-doc documents your 432 and links to the rest. ² doc-gen4 regenerates every page every time.
+**The dashes are the point**: doc-gen4 is not doing these jobs. It documents your entire import
+closure — ~8,600 modules here against your 432 — and regenerates every page on every run. That
+build has never been finished on this machine (aborted at 42%, memory-bound, after 13,611 s of
+CPU time, which extrapolates to ~9 h of CPU for the closure), so there is no wall-clock number to
+put next to 29.5 s.
 
 On a 4-core GitHub runner `lean-doc build` took **11.5–20.7 s** for 422 modules. A first run also
 builds the tools (~16 s extractor, ~24 s cargo, cached afterwards); the rest of the job is your
