@@ -1,113 +1,109 @@
-# Handoff — 2026-08-17 08:15 (G3 = 段 C 達成。段 D / E / F と CI の穴埋めまで完了 / leg 4)
+# Handoff — 2026-08-17 (未検証項目 4 件を潰す relay の起点 / leg 0 → r1)
 
 ## State
 
-- Branch: main / **clean** / push 済み (HEAD `117e928`)。
-  **tag `v0.1.0` を打って push 済み** (2026-08-17)
-- leg 4 で **29 commit**。`cargo test --workspace` **346 passed / 0 failed / 21 ignored**、
-  clippy 無警告、`tools/e2e-micro.sh` 緑、`tools/target2-gate.sh all` = **all checks passed**、
-  CI (run `31978156708`) 緑
-- 計測環境: 対象 `/Users/haruka/dev/lean-projects` は `c4f6af29`、**作業ツリーは元通り**
-  (`?? docs/doc-gen-bench/` は元から)。`lake build InformationTheory` 済み。
-  `extractor/build/extract` と `target/release/lean-doc` は両方 built
-- **ディスクは 11 Gi 空き**。leg 4 で一度満杯にして事故を起こした (下の「踏んだ地雷」)
+- Branch: main / **clean** / push 済み (HEAD `a3aeb31`)。tag `v0.1.0` は `117e928`
+- 直前の仕事は **未検証項目の棚卸し** (`a3aeb31`) — README の 18 件を **15 件**に整理した。
+  **減ったのは分類と鮮度であって、検証が進んだからではない**:
+  1 件は古く (実ブラウザ = `browser-gate.sh` が既に CI で 9 検査緑)、
+  3 件は「持たないと決めた」ものなので別節へ分けた。**実作業はここから**
+- `cargo test --workspace` **0 failed**、`tools/provenance-gate.sh` ok (27 claims)
+- **ディスクは 57 Gi 空き** (`/private/tmp/lean-doc-relay` の残骸は無い)。
+  **計測が終わったら消すこと** — leg 4 で満杯にして対象の olean を壊した実績がある
 
 ## Relay control
 
-- Mode: DONE
-- Goal: **G3「段 C — 依存写像を『安定な部分』と『動く部分』に割る」** → **達成**。
-  ただし**割る必要は無かった** — 動く部分は誰も読んでいなかったので**書かないだけで済んだ**
-- Leg: 4 / cap 8
-- Predecessor: none (leg 3 は起動確認後に kill 済み)
+- Mode: ON
+- Goal: **README「未検証項目」15 件のうち 4 件を、下の順で潰す**
+- Leg: 1 / cap 8
+- Predecessor: none (leg 0 = ユーザーの元セッション。tmux 名を持たないので kill しない)
 - Stop-on: completion
 - Progress ledger:
-  - r1: ゴール設定のみ。実作業ゼロ
-  - r2: **G1 完遂** — `af7fe18`〜`a39f7e8` (14 commit)
-  - r3: **G2 を否定して G3 を出した** — `d5af924`〜`4590030` (6 commit)
-  - r4: **G3 達成 + 段 D/E/F + CI の穴埋め** — `594ae01`〜`9a05d05` (29 commit)
+  - r0: **棚卸しのみ** (`a3aeb31`)。4 段の実作業はゼロ
 
-## この leg で入ったもの
+## ゴール — 4 段。**この順を変えない**
 
-**1 モジュール変更 (対象 422 モジュール、warm) の姿が変わった:**
+順序の根拠は「**安い恒久ゲートを先に敷いてから、高コストの一回性実験を撃つ**」。
+段 4 を先にやると、そこで出た問題を受け止める網 (段 1〜3) がまだ無く、
+**実走で何かが出ても「それが唯一の問題か」を言えない**。
 
-| | leg 開始時 | 現在 |
-|---|---:|---:|
-| 再描画ページ | **422 / 422** | **1 / 422** |
-| 抽出器が走査した定数 | 490,287 | **0** (地図を再利用) |
-| 抽出要求の合計 | 2.09 s | **0.022 s** |
-| `detect` の olean ハッシュ | 0.463 s | **0.042 s** |
-| `lake env` の呼び出し | 2 回 (約 1.90 s) | **1 回** (約 1.14 s) |
-| 壁時計 | (内側 6.24 s) | **3.96〜6.22 s、中央値 4.35 s** |
+| 段 | 項目 | 完了条件 |
+|---|---|---|
+| **1** | **#15 md4c FFI の fuzz + `cargo-deny`** | commit 済 seed corpus を全通しするゲートが CI で緑。`cargo-deny` が CI に乗る |
+| **2** | **#10 + #4 を 1 本で** | `e2e/micro` に **path 依存のサブパッケージ**を足し、相対リンクフォールバックと `«…»` の `.lidx` 綴りが**実経路**を通る |
+| **3** | **#13 等幅フォントの字形** | `browser-gate.sh` が字幅/字形を見て、**CI の `ubuntu-latest`** で判定する |
+| **4** | **#1 実在の公開パッケージでの実走** | **Mathlib に依存していない**実在の公開 Lean パッケージで `lean-doc build` が通る |
 
-4 段の中身 (SoT は `docs/plans/reextract-count.md` §6、数字は `docs/verification-log.md`):
+### 段ごとの要点
 
-- **段 C** `54239be` — `.lidx` から**自パッケージの宣言群を書かない** (`--link-index-omit`)。
-  `@` 節は全部残す。**落としてもサイトは 429/429 バイト一致**という実測が根拠
-- **段 D** `c8c0fae` — 地図が既に正しければ**書き直さない** (`--link-index-key` + `.key` sidecar)。
-  判定は トークン / `@` 節 / `#lidx2` マーカーの 3 つ
-- **段 E** `04fb36b` — 核の githash を `lake env` 抜きで聞く (`lean --githash`)。0.84 → 0.03 s
-- **段 F** `1ab83b3` — 台帳の olean ハッシュを並列に。0.500 → 0.029 s、**台帳のバイトは不動**
+**段 1 — #15 fuzz + cargo-deny**
+- 設計は決定済で、**時間ではなく corpus で回す** (→ `docs/plans/quality-gates.md` §4 決定 5)。
+  「N 秒回して落ちなければ緑」は非決定的なので**やらない**。commit 済 seed corpus を全通しする形
+- 既知の 2 入力 (fenced code 中の NUL / 本文行の無い GFM テーブル) は**既に回帰テストにある**。
+  seed に入れること自体は目的ではない — **探索は手元で回し、新しい入力が見つかったら corpus に足す**
+- `cargo-deny` は Q9 の残り。数分で入る
+- **これが唯一の「安全性」項目** — vendor した C を FFI で呼んでいる
 
-**ゲート**: `tools/onemod-gate.sh` (e2e と CI が同じ 1 本を呼ぶ)。CI にも
-「1 モジュール編集してもう一度回す」段を足した (**雛形は変えていない**)。
+**段 2 — #10 + #4 を 1 本で**
+- **なぜ今まで触れなかったか (棚卸しで判明した構造)**: フィクスチャが 2 つとも依存の形を持たない。
+  `e2e/micro` は `lake-manifest.json` が `packages: []` で**依存 0**、
+  第 2 の対象 (`tools/make-target2.sh`) は**対象 1 の manifest をコピー**するので
+  常に同じ 15 パッケージ (全部 GitHub + 40 桁 rev)。**依存の形を変える機材が無い**
+- **path 依存** (url 無し / rev が 40 桁 hex でない) を 1 本足せば #10 の
+  相対リンクフォールバックが実経路を通る。**そのモジュール名にギュメを入れれば #4 も同じ 1 本**
+- ネットワーク不要・Mathlib 不要。`e2e/micro` は Mathlib に依存しないフィクスチャ (→ `e2e/README.md`)
+- **`micro/` の既存の宣言を消さない** — 1 つ 1 つが「対象が持たない形」を担当している
 
-## 次にやるなら — **性能はもう床に当たっている**
+**段 3 — #13 字形**
+- 「**macOS 以外では見ていない**」と README に書き続けていたが、**CI ランナーは `ubuntu-latest`**。
+  Linux 環境は既にタダで手に入っている。**持っている機材を使っていなかった**型
+- 本文に出る**非 ASCII 178 種**【実測】。添字 (₁ ᵢ ᵐ ⁿ) と double-struck (ℝ ℕ ℤ) を
+  持たない等幅フォントでは字幅が崩れる。崩れるなら JuliaMono をサブセットして vendor する
+- `browser-gate.sh` → `benchmarks/tools/check-site-browser.ts` に足す。
+  今そこにある検査は 7 種 (幅ループで 9): コンソールエラー / ツリー / 検索 ×2 / instances /
+  テーマ (`data-theme` が動くことだけ) / 横スクロール / JS 無効
 
-残り 4.35 s の内訳【実測 → `benchmarks/results/g3-attribution-2026-08-17.txt`】:
+**段 4 — #1 実在の公開パッケージ**
+- **【ユーザー指定・最重要】Mathlib はサイズが大きいので、Mathlib に依存していない
+  実在の公開 Lean パッケージを対象にすること。** 対象 1 / 第 2 の対象は両方 Mathlib 依存なので、
+  これは**新しい軸**であって置き換えではない — **既存の数字は残す** (CLAUDE.md「ベンチマーク」)
+- 候補になりうるのは `batteries` / `Cli` / `MD4Lean` / `UnicodeBasic` / `LSpec` など、
+  **対象の依存に実在していて Mathlib を要らないもの**。選定理由を docs に書くこと
+- これは**一回性**で恒久ゲートにならない (rev が動く)。だから最後
+- **#5 (同名宣言) / #9 (乖離 3 件) / #6 (より大きい対象での cold) はこの段に付随して当たりうる** —
+  当たったら記録する。**当たらなかったことも記録する**
 
-```
-Lean の環境ロード (ready)                  約 2.4 s   approach.md §3 が「床」と結論済み
-Server::start の lake env + exec + 171 MB  約 1.14 s  LEAN_PATH を本当に要る。
-                                                      自前で組むのは Lake のレイアウト知識の
-                                                      再実装で、Lake が変えた瞬間に静かに壊れる
-                                                      → **やらない**と結論済み
-ownership                                  0.309 s    L3-1 の正しさの規則。逆索引を持てば
-                                                      減るが過少報告の危険。ノイズ以下
-残り                                       約 0.5 s
-```
+## 共通の規律 (CLAUDE.md より、外すと事故る)
 
-**この 2 つで残りの 8 割。どちらも「触らない」理由が書いてある。**
-次の性能改善は構造変更 (常駐をプロセス跨ぎにする等) が要り、別の計画になる。
-
-候補は 3 つ、**どれも自明ではないのでユーザー判断を仰ぐ側**:
-
-1. ~~v0.1 を締めるか~~ → **締めた** (2026-08-17、tag **`v0.1.0`**、commit `117e928`)
-   【決定、ユーザー判断】。根拠は**ゲート A / B の決着だけ**で、未検証項目は片付いていない
-   (18 件のまま)。**GitHub Release は作らない**と決めた — バイナリを配布できない
-   (抽出器は対象の toolchain に対して作るので使い回せない) ので実質ノートだけになり、
-   未検証 18 件を抱えた状態で「ダウンロードして使える製品」と読まれるため。
-   **判定の SoT は `docs/implementation-plan.md` §1 末尾**、この日の実測は
-   `docs/milestone-log.md` の末尾節
-2. **残る未検証項目** (README §未検証項目) — `push:` トリガと利用者リポジトリの checkout。
-   検証用ワークフローが `workflow_dispatch` のみなのは**意図的** (push 毎に数 GB 落ちる)
-   なので、**このリポジトリでは安く試せない**
-3. **実在の公開パッケージでの実走** — v0.1 の範囲外と決めてある【決定 2026-08-15】
+- **ゲートは必ず一度落としてから通す。** 作った当日に「何をしても通るゲート」を 2 件作っている
+- **skip で緑を返さない。** 入力が無いテストは `#[ignore]` + `tools/corpus-tests.txt`
+- **ゲートは「走った本数」を数える。** cargo は 0 件マッチでも exit 0
+- **性能を壁時計でゲートしない。** 決定的な整数を使う
+- **数字には 4 ラベル** (実測 / 外挿 / 仮定 / 理論値)。**出所を辿れること**
+- **docs を同じコミットで直す** — README「未検証項目」/ `implementation-plan.md` §1 末尾 /
+  `milestone-log.md` / `verification-log.md`。**件数 (15 件) を動かしたら引用元も全部**
+  (`CLAUDE.md` 冒頭にも書いてある)
+- **各段は独立にコミットする。** メッセージは 1 行、日本語、短く
 
 ## Files to read first
 
-- `docs/plans/reextract-count.md` §6 — 段 C〜F の設計と結果。**この線の SoT**
-- `docs/verification-log.md` の 2026-08-17 の節 — **数字の SoT**
-- `benchmarks/results/g3-*-2026-08-17.txt` (6 本) — 生ログ
-- `tools/onemod-gate.sh` — 1 モジュール編集の判定器。e2e と CI が共有
+- `README.md` §未検証項目 — **15 件の現況。棚卸し直後なので正確**
+- `docs/plans/quality-gates.md` §4 決定 5 / §5 の Q6・Q9・Q10 — **段 1 の設計はここにある**
+- `e2e/README.md` — フィクスチャが「対象が持たない形」を担当する設計。**段 2 で読む**
+- `benchmarks/tools/check-site-browser.ts` — **段 3 で足す先** (341 行)
+- `docs/implementation-plan.md` §1 末尾 — v0.1 を締めた根拠と残したもの
 
 ## 踏んだ地雷 (次の自分へ)
 
-- **ディスクを満杯にした。** `/private/tmp/lean-doc-relay` に 5 世代 24 GB 溜まっていた。
-  満杯になると**中断された `lake build` が対象の olean を欠落させ**、さらに
-  **シェルコマンド自体が動かなくなる** (ハーネスが出力ファイルを作れない) ので復旧手段も失う。
-  → 規則を CLAUDE.md「ベンチマーク」に追加した。**計測が終わったら消す**
-- **`git checkout <file>` で subagent の実装を吹き飛ばした。** 一時的に機能を無効化して
-  ゲートを落とす実験をしたあと `git checkout` で戻したら、**HEAD にまだ無い変更ごと消えた**。
-  無効化はスクラッチのコピーでやるか、`git stash` を使う
-- **Python 3.9 の f-string に backslash / ネスト同種クォートが書けない**。集計スクリプトで 2 回踏んだ
-- **「あるものを使う」は「今のソースのものを使う」ではない。** 今日 3 件出た
-  (e2e の抽出器再利用 / `ci-build.sh` の抽出器と lean-doc)。**3 件とも出力は正常に見えていた**
-- **壁時計はこの対象で 1.6 倍動く。** 同一バイナリ 6 回で 3.96〜6.22 s。
-  判定に使うのは決定的な整数の方
-- **`--timings` に出ない仕事がある。** `resolve_external_links` は `build` の clock の外。
-  wall − 内側 = その差、という形で切り出せる
-- **模擬と本物でシナリオが違う。** 「1 モジュール変更 3.00 パス」は `ledger touch` の値で、
-  本物のソース編集は 4.00 パス。差は `ownership` の全走査 1 周
+- **ディスクを満杯にした。** `/private/tmp/lean-doc-relay` に 5 世代 24 GB。満杯になると
+  **中断された `lake build` が対象の olean を欠落させ**、**シェルコマンド自体が動かなくなる**。
+  → **計測が終わったら消す**。1 回のサイトは約 60 MB、`make-target2.sh` の package は数 GB
+- **`git checkout <file>` で subagent の実装を吹き飛ばした。** 無効化実験はスクラッチのコピーか `git stash` で
+- **「あるものを使う」は「今のソースのものを使う」ではない。** 1 日で 3 件出た。**3 件とも出力は正常に見えていた**
+- **壁時計はこの対象で 1.6 倍動く** (同一バイナリ 6 回で 3.96〜6.22 s)。判定は決定的な整数で
+- **Python 3.9 の f-string に backslash / ネスト同種クォートが書けない**
+- **`diff` はこのシェルで `colordiff` に alias されていて存在しない。`/usr/bin/diff` を使う**
+- **`rg` の `-r` は `--replace`。`-rn` のように束ねない** (後続フラグが置換文字列に食われる)
 - **ssh (port 22) はこの機材から通らない。** push は HTTPS + `gh`:
   ```
   GIT_CONFIG_COUNT=2 \
@@ -115,10 +111,6 @@ ownership                                  0.309 s    L3-1 の正しさの規則
   GIT_CONFIG_KEY_1=credential.helper GIT_CONFIG_VALUE_1='!gh auth git-credential' \
   git push https://github.com/FujiHaruka/lean-doc.git main:main
   ```
-- **`diff` はこのシェルで `colordiff` に alias されていて存在しない。`/usr/bin/diff` を使う**
-- **CI ワークフローは `workflow_dispatch` のみ**。`gh workflow run ci-template.yml --ref main`
-  → 12〜15 分 (package の生成が長い)。結果は
-  `gh run download <id> -n template-validation`
+- **CI ワークフローは検証用が `workflow_dispatch` のみ** (push 毎に数 GB 落ちるので意図的)。
+  `ci.yml` だけが push / PR で走る。`gh workflow run ci-template.yml --ref main` → 12〜15 分
 - **subagent には「コミットするな」と指示する。同時に走らせるのは 1 体まで**
-- **新しいゲート / 計測器は必ず一度落としてから通す** — 今回 `onemod-gate.sh` は
-  **2 回続けて本物を捕まえた**
