@@ -63,11 +63,15 @@ jobs:
             os: ubuntu-latest
           - target: aarch64-apple-darwin
             os: macos-latest
-          # Intel macOS is built ON an Intel runner rather than cross-compiled
-          # from arm, so the smoke test below is a real execution and not a
-          # `file` check. If macos-13 goes away, this target goes with it.
-          - target: x86_64-apple-darwin
-            os: macos-13
+          # NO x86_64-apple-darwin. It needs an Intel runner to be *tested* on,
+          # and `macos-13` sat queued for over 15 minutes on 2026-08-18 without
+          # ever starting. Cross-compiling it from the arm runner would produce
+          # a binary nobody had executed — the same "it built, therefore it
+          # works" this file's smoke job exists to refuse. Intel macOS builds
+          # from source; README says so.
+          #
+          # Also absent: aarch64-unknown-linux-*. It needs a cross toolchain for
+          # the vendored C, and there is no arm Linux runner here to test on.
     steps:
       - uses: actions/checkout@v5
 
@@ -121,22 +125,28 @@ jobs:
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then V="${GITHUB_REF_NAME#v}"
           else V="$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)"; fi
           echo "version=$V" >> "$GITHUB_OUTPUT"
-          echo "name=lean-doc-$V-${{ matrix.target }}" >> "$GITHUB_OUTPUT"
+          # **The asset name carries no version.** That is what makes
+          #   releases/latest/download/lean-doc-<target>.tar.gz
+          # a URL that keeps working, which is the whole install instruction in
+          # README. The version is inside, in the directory it unpacks to, so
+          # two downloads still do not collide on disk.
+          echo "asset=lean-doc-${{ matrix.target }}" >> "$GITHUB_OUTPUT"
+          echo "dir=lean-doc-$V-${{ matrix.target }}" >> "$GITHUB_OUTPUT"
 
       - name: Archive
         shell: bash
         run: |
-          NAME="${{ steps.v.outputs.name }}"
-          mkdir -p "dist/$NAME"
-          cp "target/${{ matrix.target }}/release/lean-doc" "dist/$NAME/"
-          cp LICENSE NOTICE "dist/$NAME/"
-          tar -C dist -czf "dist/$NAME.tar.gz" "$NAME"
-          rm -rf "dist/$NAME"
+          DIR="${{ steps.v.outputs.dir }}"
+          mkdir -p "dist/$DIR"
+          cp "target/${{ matrix.target }}/release/lean-doc" "dist/$DIR/"
+          cp LICENSE NOTICE "dist/$DIR/"
+          tar -C dist -czf "dist/${{ steps.v.outputs.asset }}.tar.gz" "$DIR"
+          rm -rf "dist/$DIR"
           ls -l dist
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.v.outputs.name }}
+          name: ${{ steps.v.outputs.asset }}
           path: dist/*.tar.gz
           retention-days: 7
 

@@ -24,7 +24,8 @@ module tree, search, instance lists, "Imported by", hyperlinked signatures, and 
 - **you are far from Lean 4.31.0** — nothing else is tested, and the extractor is compiled
   against your toolchain, so a mismatch surfaces as a build failure, not as bad output
 - **you use `lakefile.lean`** — library names cannot be derived from it; pass `--lib` by hand
-- **you cannot build from source** — there is no released binary and no `cargo install` yet
+- **you are on Windows, Intel macOS, or Linux/arm64** — releases carry Linux/x86-64 and
+  Apple Silicon; anything else builds from source, which needs Rust and a C compiler
 
 Already hosting doc-gen4 output? Page paths (`Foo/Bar.html`) and declaration anchors
 (`#Foo.bar`) keep doc-gen4's shape, so existing links into your own docs survive.
@@ -52,8 +53,8 @@ usual `lake exe cache get` + `lake build`. Peak memory ≈3.3 GB. Raw logs: [`be
 
 ## Documentation on GitHub Pages
 
-Copy this into your package as `.github/workflows/docs.yml`. Keep `lake build` and the docs in
-**one job** — split across jobs the oleans fall out of the page cache and it runs 5–12× slower.
+Copy this into your package as `.github/workflows/docs.yml`, and enable Pages in your
+repository settings (Settings → Pages → Source: GitHub Actions).
 
 ```yaml
 name: docs
@@ -61,48 +62,52 @@ on: { push: { branches: [main] } }
 jobs:
   docs:
     runs-on: ubuntu-latest
+    permissions: { contents: read, pages: write, id-token: write }
+    environment: { name: github-pages }
     steps:
       - uses: actions/checkout@v4
-        with: { path: package }
-      - uses: actions/checkout@v4                  # add `ref:` to pin lean-doc
-        with: { repository: FujiHaruka/lean-doc, path: lean-doc }
-      - run: |
-          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
-            | sh -s -- -y --default-toolchain none
-          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
-      - uses: actions/cache@v4                     # Mathlib's oleans
-        with: { path: ~/.cache/mathlib, key: "mathlib-${{ hashFiles('package/lake-manifest.json') }}" }
-      - uses: actions/cache@v4                     # the Lean extractor (171 MB)
-        with: { path: lean-doc/extractor/build, key: "extractor-${{ hashFiles('package/lean-toolchain', 'lean-doc/extractor/Extract.lean') }}" }
-      - uses: actions/cache@v4                     # the Rust build
+      - uses: FujiHaruka/lean-doc@v0.1.1
+        id: docs
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            lean-doc/target
-          key: cargo-${{ hashFiles('lean-doc/Cargo.lock') }}
-      - uses: actions/cache@v4                     # last run's state — what makes it incremental
-        with: { path: docs-out, key: "leandoc-docs-${{ github.sha }}", restore-keys: leandoc-docs- }
-      - run: |                                     # no Mathlib? drop --cache-get
-          lean-doc/tools/ci-build.sh --root package \
-            --out "$GITHUB_WORKSPACE/docs-out" --cache-get --jobs 4
-      - uses: actions/upload-artifact@v4
-        with: { name: docs, path: docs-out/site }
+          cache-get: true             # `lake exe cache get` — drop it if you have no Mathlib
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: "${{ steps.docs.outputs.site }}" }
+      - uses: actions/deploy-pages@v4
 ```
 
-To publish rather than archive: swap the last step for `actions/upload-pages-artifact` +
-`actions/deploy-pages`, add `pages: write` and `id-token: write` to `permissions:`, and enable
-Pages in your repository settings.
+That is the whole thing: the action installs elan if it is missing, runs `lake build` and the
+docs **in one job** (split across jobs the oleans fall out of the page cache and it runs 5–12×
+slower), and keeps four caches for you — Mathlib's oleans, the Lean extractor, the Rust build,
+and last run's state, which is what makes the second run incremental.
+
+Inputs you may need: `root` if your package is not at the repository root, `lib` if you use
+`lakefile.lean`, `lake-build: false` if you already built the package **earlier in the same
+job** (from another job the page cache is cold), `full: true` to ignore previous state.
+Outputs: `site`, `out`, `timings`.
+
+To archive instead of publish, swap the last two steps for `actions/upload-artifact` and drop
+the `permissions` / `environment` lines.
 
 ## Running it locally
 
-Needs Rust (via `rustup`), a C compiler, `elan`/`lake`, and a package that `lake build` passes.
+You need `elan`/`lake` and a package that `lake build` passes. The `lean-doc` binary can be
+downloaded; the Lean extractor is always built here, because it is compiled against **your**
+toolchain.
 
 ```sh
 git clone https://github.com/FujiHaruka/lean-doc && cd lean-doc
-cargo build --release                                    # -> target/release/lean-doc
+
+# the extractor — always built here, against your package's toolchain (~16 s)
 TARGET_REPO=/path/to/your-package extractor/build.sh     # -> extractor/build/extract
 
+# the binary — download it (Linux/x86-64 shown; aarch64-apple-darwin is the
+# other one), which unpacks to lean-doc-<version>-<target>/lean-doc …
+curl -sSfL https://github.com/FujiHaruka/lean-doc/releases/latest/download/lean-doc-x86_64-unknown-linux-musl.tar.gz \
+  | tar xz
+# … or build it, which needs Rust (via rustup) and a C compiler
+cargo build --release                                    # -> target/release/lean-doc
+
+# then, with whichever of the two you have:
 ./target/release/lean-doc build --root /path/to/your-package --out /path/to/docs \
   --extractor-bin ./extractor/build/extract --jobs 4
 ```
@@ -117,8 +122,13 @@ not GitHub (another host is refused rather than guessed).
 
 ## Status
 
-`v0.1.0`, tagged 2026-08-17 — build from source, and pin `ref:` in CI if you want it to hold
-still. Tested on macOS (Apple Silicon) and `ubuntu-latest` with Lean/Mathlib v4.31.0.
+`v0.1.1` — the action and the released binaries. Tested on macOS (Apple Silicon) and
+`ubuntu-latest` with Lean/Mathlib v4.31.0. Pin the action to a tag (`@v0.1.1`); `@main` moves.
+
+The extractor is not distributed as a binary. It **could** be — it is decided by the toolchain
+alone, it is portable, and against the wrong toolchain it fails loudly rather than writing a
+wrong IR (all three measured, `benchmarks/results/extractor-uniqueness-2026-08-18.txt`). It is
+not shipped because at 226 MB it is not worth replacing a 16 s build that CI caches anyway.
 
 ## License
 

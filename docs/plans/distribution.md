@@ -60,9 +60,10 @@ extractor を「ビルドする」のか「ダウンロードする」のかを�
 |---|---|---|---|
 | **X1** | 同一 toolchain・**異なる依存セット**でビルドした `extract` が byte 一致するか (`e2e/micro` / `micro-dep` / `lean-projects`) | 手元 (macOS arm64) | **真**【実測 2026-08-18】 |
 | **X2** | ~~交差実走 — IR が byte 一致するか~~ | — | **不要になった** (下記) |
-| **X3** | X1 を Linux で再現 | CI (`workflow_dispatch`) | 未 |
-| **X4** | **可搬性** — job A でビルドした `extract` を artifact 経由で job B (別 runner) に渡し、動くか | CI | macOS 側は**真**、Linux 未 |
-| **X5** | **不一致の壊れ方** — 別 toolchain の環境で走らせると何が起きるか (静かに壊れるか、落ちるか) | CI | 未 |
+| **X3** | X1 を Linux で再現 | CI (`workflow_dispatch`) | **真**【実測 2026-08-18】 |
+| **X4** | **可搬性** — job A でビルドした `extract` を artifact 経由で job B (別 runner) に渡し、動くか | CI | **真**。ただし runner は全部 `$HOME=/home/runner` → X6 が要った |
+| **X5** | **不一致の壊れ方** — 別 toolchain の環境で走らせると何が起きるか (静かに壊れるか、落ちるか) | CI | **明確に落ちる**【実測】 |
+| **X6** | `ELAN_HOME` を別の場所に置き、`~/.elan` が無い環境で動くか (X4 で埋め込みパス 17 件が残った) | CI | **真**【実測】 |
 
 **X1 の結果**【実測 2026-08-18 → [`../../benchmarks/results/extractor-uniqueness-2026-08-18.txt`](../../benchmarks/results/extractor-uniqueness-2026-08-18.txt)】:
 依存パッケージ **0 個 / path 依存 / 15 個 (Mathlib 全体)** の 3 環境と、**昨日別セッションで
@@ -116,14 +117,27 @@ X2 で比べるのは「バイナリの byte」ではなく「**出てくる IR 
     `leanprover/lean-action` を既に使っている利用者と組み合わせられるように
 - **バージョン運用**: `v0.1.1` を固定用、可動 `v0` を「最新の 0.x」として付け替える。
 
-### D4 — extractor のプリビルド配布 (D1 の結果次第)
+### D4 — extractor のプリビルド配布 → **配れる。しかし配らない**【決定 2026-08-18】
 
-**やると決まっていない。** D1 が全部通ったときだけ着手し、通らなければ
-**「やらない理由」を数字付きでこの文書に残す**(= 次に同じ疑問を持った人が測り直さずに済む)。
+D1 の 5 検証はすべて通った。**配布の前提条件は 3 つとも満たしている**:
+toolchain だけで決まり (X1/X3)、可搬で (X4/X6)、不一致は静かに壊れず落ちる (X5)。
 
-やる場合の形: Release に `extract-<toolchain>-<target>.tar.gz` を置き、action は
-「一致する toolchain のアセットがあれば取る、無ければ建てる」。**フォールバックは必須** —
-Lean が新しい版を出した日に穴が開かない形にする。
+**それでも配らない**。理由は数字で、好みではない:
+
+| | |
+|---|---|
+| ビルド | **15〜16 s**【実測】。しかも CI ではキャッシュが効くので**初回だけ** |
+| 配布物 | **Linux 226 MB / macOS 171 MB** (gzip 45.9 MB)【実測】。**strip で 8 バイトしか減らない** |
+| マトリクス | toolchain × OS。**Lean が版を出すたびに増え、追随しないところに穴が開く** |
+
+16 秒を 45〜70 MB のダウンロードに置き換えても勝たない。**維持コストが利得を上回る**、が結論。
+
+**将来やるときの手順は揃っている** — `.github/workflows/ci-extractor-portability.yml` が
+X3〜X6 を回すので、`release.yml` にアセットを足し、action の取得順を
+「Release → 無ければ建てる」にするだけ (Rust 側と同じ形)。**前提が崩れる条件**:
+Lean が extract を桁で小さくしたとき、または環境ロードが重くなってビルドが 16 秒で
+済まなくなったとき。→ 数字は
+[`../../benchmarks/results/extractor-uniqueness-2026-08-18.txt`](../../benchmarks/results/extractor-uniqueness-2026-08-18.txt) §5。
 
 ---
 

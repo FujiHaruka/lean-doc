@@ -210,9 +210,10 @@ runs:
         esac
         REF="${GITHUB_ACTION_REF:-}"
         if [ -n "$T" ] && [ -n "$REF" ] && [ "$REF" != "main" ]; then
-          V="${REF#v}"
-          NAME="lean-doc-$V-$T.tar.gz"
-          echo "trying release asset $NAME"
+          # Asset names carry no version (release.yml says why), so the ref
+          # selects the release and the name selects the platform.
+          NAME="lean-doc-$T.tar.gz"
+          echo "trying release asset $NAME from $REF"
           if gh release download "$REF" --repo FujiHaruka/lean-doc --pattern "$NAME" \
                --dir "$RUNNER_TEMP/leandoc-dl" 2>/dev/null; then
             tar -C "$RUNNER_TEMP/leandoc-dl" -xzf "$RUNNER_TEMP/leandoc-dl/$NAME"
