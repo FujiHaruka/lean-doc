@@ -130,7 +130,7 @@ X2 で比べるのは「バイナリの byte」ではなく「**出てくる IR 
   - composite の中から `uses:` は呼べる。その post ステップ (cache の save) も走る
   - **`lake build` を含めるかは input で選ばせる** (`lake-build`, 既定 `true`)。
     `leanprover/lean-action` を既に使っている利用者と組み合わせられるように
-- **バージョン運用**: `v0.1.2` を固定用。可動 `v0` はまだ作っていない (作るなら
+- **バージョン運用**: `v0.1.3` を固定用。可動 `v0` はまだ作っていない (作るなら
   「最新の 0.x」として付け替える)。
 
 > **結果 — 完遂**【2026-08-18】。`action.yml` (ルート) + `.github/workflows/ci-action.yml`
