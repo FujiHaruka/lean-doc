@@ -680,10 +680,14 @@ mod tests {
     use crate::link_index::LinkIndex;
     use lean_doc_ir::SpanKind;
 
+    /// The world these cases resolve against: these declarations, and **a page
+    /// for every module they name** — which is what a run has for its own
+    /// package's modules, and what [`NameIndex::link_to`]'s last branch checks
+    /// (2026-08-17).
     fn index(entries: &[(&str, &str)]) -> NameIndex {
         let mut builder = NameIndex::builder();
         for (name, module) in entries {
-            builder.declaration(name, module);
+            builder.declaration(name, module).module_name(module);
         }
         builder.build(LinkIndex::default(), ExternalLinks::default())
     }
@@ -922,7 +926,9 @@ mod tests {
     fn an_inherited_field_of_a_dependencys_structure_links_at_its_source() {
         let mut builder = NameIndex::builder();
         builder.declaration("Mathlib.P.y", "Mathlib.Order.Basic");
-        builder.declaration("Pkg.M.z", "Pkg.M");
+        // The one module of the package being documented, and the only one this
+        // run writes a page for.
+        builder.declaration("Pkg.M.z", "Pkg.M").module_name("Pkg.M");
         builder.declaration("Dep.P.w", "Dep.Aux");
         let names = builder.build(
             LinkIndex::parse("Mathlib.Order.Basic\n\tMathlib.P.y\t67\t67\n"),

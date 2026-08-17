@@ -162,7 +162,14 @@ impl Case {
         // **fallback** branch — which an empty [`ExternalLinks`] reproduces
         // exactly. With a map every link into a dependency moves, on purpose
         // (`docs/implementation-plan.md` §1).
-        builder.build(LinkIndex::parse(&self.lidx), ExternalLinks::default())
+        //
+        // 2026-08-17: and the prototype rendered the whole environment, so its
+        // links point at pages it wrote. A run's world has pages for the target
+        // package alone; the oracle is resolved in the world it was recorded in.
+        builder.build_with_a_page_for_every_module(
+            LinkIndex::parse(&self.lidx),
+            ExternalLinks::default(),
+        )
     }
 
     /// The head and the signature, which together are what `declHeader` was:
@@ -501,8 +508,16 @@ fn frames_carry_the_same_content_as_the_prototype() {
 
         // The import list: the same modules, in the same order, at the same
         // hrefs. M7-c: the prototype's are all relative, and the empty map is
-        // what reproduces that (see `Case::index`).
-        let meta = module_meta_html(&frame.root, &frame.imports, &ExternalLinks::default());
+        // what reproduces that (see `Case::index`). 2026-08-17: the prototype
+        // wrote a page for every module it named, so this frame's world is one
+        // where each of its imports has one — a run's would not, and that is the
+        // difference the fix is about.
+        let mut builder = NameIndex::builder();
+        for import in &frame.imports {
+            builder.module_name(import);
+        }
+        let index = builder.build(LinkIndex::default(), ExternalLinks::default());
+        let meta = module_meta_html(&frame.root, &frame.imports, &index);
         let want_imports = list_items(&frame.nav, "<summary>Imports</summary><ul>");
         let got_imports = list_items(&meta, "<ul>");
         if want_imports != got_imports {
@@ -829,7 +844,12 @@ fn the_whole_corpus_carries_the_prototypes_content() {
     // **fallback** branch — which an empty [`ExternalLinks`] reproduces
     // exactly. With a map every link into a dependency moves, on purpose
     // (`docs/implementation-plan.md` §1).
-    let index = builder.build(links, ExternalLinks::default());
+    //
+    // 2026-08-17: the prototype also rendered the whole environment, so its
+    // relative links into `Mathlib.*` point at pages it wrote. A run's world has
+    // pages for the target package alone and would draw none of them, so the
+    // oracle is compared in the world it was recorded in.
+    let index = builder.build_with_a_page_for_every_module(links, ExternalLinks::default());
     let code = CodeRenderer::new(&index);
 
     // `render.ts:2043-2048` — across **every** module, which is why it cannot
@@ -926,7 +946,7 @@ fn the_whole_corpus_carries_the_prototypes_content() {
                 &format!("want {want_title}, got {got_title}"),
             );
         }
-        let meta = module_meta_html(&root, &module.imports, &ExternalLinks::default());
+        let meta = module_meta_html(&root, &module.imports, &index);
         let want_imports = list_items(&frame.nav, "<summary>Imports</summary><ul>");
         let got_imports = list_items(&meta, "<ul>");
         if want_imports != got_imports {

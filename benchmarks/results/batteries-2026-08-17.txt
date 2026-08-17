@@ -1,0 +1,105 @@
+実在の公開パッケージでの実走 — batteries【実測 2026-08-17】
+================================================================
+
+README「未検証項目」#1 を潰すための 1 本。**合成でも計測対象でもない、第三者が書いた実在の
+公開パッケージ**に `lean-doc build` を通し、自己整合性ゲートと実ブラウザまで回した記録。
+
+対象の選定
+----------
+  package : leanprover-community/batteries
+  rev     : fa08db58b30eb033edcdab331bba000827f9f785
+  toolchain: leanprover/lean4:v4.31.0
+  manifest : {"packages": []}  ← 依存 0。Lean core しか要らない
+
+  選んだ理由:
+  - **Mathlib に依存していない**【ユーザー指定の条件】。import closure が数 GB にならない
+  - **実在・公開**で、こちらが形を選んでいない (合成の第 2 の対象と違い、
+    「知らない形で驚かせてくれる」ことが唯一の目的)
+  - rev が**計測対象の `lake-manifest.json` に載っている**ので toolchain が v4.31.0 で一致し、
+    「ビルドが通らないのは lean-doc のせいではない」を排除できる
+  - 176 モジュール / 3,030 宣言で、smoke test ではない規模
+
+  **これは置き換えではなく追加の軸**。計測対象 (InformationTheory、432 モジュール、Mathlib 依存) と
+  第 2 の対象 (合成、Mathlib 依存) の数字はそのまま残る。
+
+機材と条件
+----------
+  Apple M1 / macOS 26.0 / RAM は同一機材の既存計測と同じ
+  lake build 済み (215 jobs) の warm 状態。olean は暖まっている
+  lean-doc は release ビルド。抽出器は batteries 自身の `lake env` で建てたもの
+  **1 回しか測っていない** — 壁時計はこの機材で 1.6 倍動くので、下の秒数は
+  「桁」以上の主張をしない (CLAUDE.md「1 回だけ測った数字を信じない」)
+
+出た数字【実測】
+----------------
+  lake build                 : 215 jobs
+  external                   : 4 root(s) from 0/0 package(s) + core   ← 依存 0 なので core だけ
+  source                     : https://github.com/leanprover-community/batteries/blob/fa08db58…
+                               (`git rev-parse HEAD` + remote から自動導出。実チェックアウトで通った)
+  modules                    : 176 (--lib Batteries)
+  extract                    : 176 module(s) in 10.14 s
+  render                     : 176/176, declarations 2804/3030 (254 suppressed), module docs 178
+  site bytes                 : 8,723,711
+  global                     : declarations 3030 + 1526 dependency names,
+                               instance classes 45, instance types 86, tactic docs 25
+  work (full)                : extract 176 / render 176 / requests 1 / ir 361 file(s)
+                               (352 module read(s) = 2.00 full pass(es))
+  build full                 : 10.54 s   (/usr/bin/time -p: real 10.96 user 8.77 sys 0.61)
+
+  2 回目 (無変更):
+  work (incremental)         : extract 0 / render 0 / requests 0 / cache 176 hit 0 miss /
+                               ir 183 file(s) (176 module read(s) = 1.00 full pass(es))
+  build incremental          : 0.118 s   (real 0.15 user 0.12 sys 0.09)
+
+  ページ数                    : 180
+  tools/browser-gate.sh      : **10 検査すべて緑** — コンソールエラー 0 (180 ページ)、
+                               ツリー 365 ノード、検索 2 経路、instances、テーマ、
+                               375/1440 px の overflow 0 px、JS 無効で 23 宣言、
+                               等幅フォントの字形 178/178 (off-width 34、決定 2 の許容内)
+
+出たもの — 実物は 3 つ驚かせてきた
+----------------------------------
+  1) **build が止まった** (product の欠陥)
+     lean-doc: rendering Batteries.Classes.Order: declNameToLink:
+       no defining module for Std.OrientedCmp.eq_swap (doc-gen4 would panic here)
+     `class LawfulLTCmp … extends Std.OrientedCmp` — **自パッケージが宣言していないクラスからの
+     継承 field**。`declNameToLink` は IR 自身の map しか引かない設計だったので、名前を置けず
+     ページを 1 枚も書かずに終了した。名前は `.lidx` (環境全体) にはあった。
+     → 解決を `.lidx` まで落とした。回帰は `e2e/micro` の `Micro.Preferred`
+       (`class Preferred extends Inhabited`) が持つ — **足した時点で e2e が同じエラーで落ちた**。
+
+  2) **ページの無いモジュールへの死にリンク 10 本** (product の欠陥)
+     `lakefile.toml` に `[[lean_lib]]` が 3 つある (`Batteries` / `BatteriesRecycling` /
+     `BatteriesTest`)。`--lib Batteries` は 1 つ分しかページを書かないのに、
+     `BatteriesRecycling/*.html` への相対リンクを 10 本書いた (9 destination / 10 ページ)。
+     **2026-08-17 に同じ形を 2 回踏んでいる** — 1 回目は版固定できない依存 (README #10)。
+     どちらも「マップに無い ⇒ 自パッケージ ⇒ 相対リンク」という推論が原因。
+     → 「**このランがページを書かないモジュールにはリンクを張らない**」に一般化した。
+     直したあと **DEAD internal links 0 / SITE GATE: ok**【実測】。
+     **凍結オラクル (プロトタイプ) 側にも同じ死にリンクが 4 本あった** — `tests/pages.rs` は
+     期待バイトを書き換えずに、「**IR にモジュールが無い .html への相対リンクは落とす**」という
+     規則でオラクルを再回答し、落とした本数に下限 (4) を置いてある。除外リストではない。
+
+  3) **ゲート側の偽陽性 2 件** (gate の欠陥)
+     `check-site-closure.py` が `id` 属性を unescape せずに比較していたので、
+     `List.«term_<+~_»` / `Batteries.Tactic.«tacticOn_goal-_=>_»` が
+     search-index → pages と pages → search-index の**両方向で同時に**食い違って見えた。
+     両方向同時は「サイトが不整合」ではなく「比較の文字集合が違う」の兆候。
+     → `html.unescape` を通した。`packages.rs` のオラクルは以前から同じことをしていた。
+
+付随して当たった / 当たらなかった未検証項目
+--------------------------------------------
+  #5 (同名宣言を複数モジュールが持つ形) : **当たらなかった**。
+      search-index の 3,030 名は**すべて distinct**、重複 0。
+  #9 (プロトタイプとの乖離 3 件)        : **heading id は出た** — docstring 由来の
+      `<h1 id=…>` が **69 ファイル**にある。「対象 1 に出現しない」という根拠は
+      batteries では成立しない。**ただし照合相手が無い** (doc-gen4 の batteries 出力を
+      持っていない) ので、乖離するかどうかは未検証のまま。
+  #6 (より大きい対象での cold)          : **当たらない**。batteries は 176 モジュールで
+      計測対象 (432) より小さい。cold 側の問いはこの実走では動かない。
+
+作業ディレクトリ
+----------------
+  /private/tmp/lean-doc-relay/stage4 (batteries のチェックアウト + 出力、約 560 MB)
+  **計測後に削除した** (CLAUDE.md「計測が終わったら作業ディレクトリを消す」)。
+  再現手順はこのファイルの「対象の選定」と上のコマンド列で足りる。

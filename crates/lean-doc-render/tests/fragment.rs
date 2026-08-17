@@ -128,7 +128,11 @@ impl Case {
         // empty [`ExternalLinks`] reproduces byte for byte. A populated map
         // would move every link into a dependency, on purpose
         // (`docs/implementation-plan.md` §1).
-        builder.build(LinkIndex::default(), ExternalLinks::default())
+        //
+        // 2026-08-17: and the prototype rendered the whole environment, so its
+        // links point at pages it wrote. A run's world has pages for the target
+        // package alone; the oracle is resolved in the world it was recorded in.
+        builder.build_with_a_page_for_every_module(LinkIndex::default(), ExternalLinks::default())
     }
 
     fn refs(&self) -> Refs<'_> {
@@ -578,7 +582,11 @@ fn the_whole_corpus_matches_the_prototype() {
     // empty [`ExternalLinks`] reproduces byte for byte. A populated map
     // would move every link into a dependency, on purpose
     // (`docs/implementation-plan.md` §1).
-    let index = builder.build(LinkIndex::default(), ExternalLinks::default());
+    // 2026-08-17: and the prototype rendered the whole environment, so its
+    // links point at pages it wrote. A run's world has pages for the target
+    // package alone; the oracle is resolved in the world it was recorded in.
+    let index =
+        builder.build_with_a_page_for_every_module(LinkIndex::default(), ExternalLinks::default());
     let renderer = CodeRenderer::new(&index);
     eprintln!("{} names in `known`", index.len());
 

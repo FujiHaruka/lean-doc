@@ -520,10 +520,27 @@ mod tests {
     use crate::external::ExternalLinks;
     use crate::link_index::LinkIndex;
 
+    /// The world these cases resolve against: these declarations, and **a page
+    /// for every module they name** — which is what a run has for its own
+    /// package's modules, and what [`NameIndex::link_to`]'s last branch checks
+    /// (2026-08-17).
     fn index(entries: &[(&str, &str)]) -> NameIndex {
         let mut builder = NameIndex::builder();
         for (name, module) in entries {
-            builder.declaration(name, module);
+            builder.declaration(name, module).module_name(module);
+        }
+        builder.build(LinkIndex::default(), ExternalLinks::default())
+    }
+
+    /// [`index`] plus modules that have a page and declare nothing this case
+    /// names: a `refs` target, or the module a private name's prefix spells.
+    fn index_with_pages(entries: &[(&str, &str)], pages: &[&str]) -> NameIndex {
+        let mut builder = NameIndex::builder();
+        for (name, module) in entries {
+            builder.declaration(name, module).module_name(module);
+        }
+        for module in pages {
+            builder.module_name(module);
         }
         builder.build(LinkIndex::default(), ExternalLinks::default())
     }
@@ -533,7 +550,7 @@ mod tests {
     fn index_with_dependency(entries: &[(&str, &str)], lidx: &str) -> NameIndex {
         let mut builder = NameIndex::builder();
         for (name, module) in entries {
-            builder.declaration(name, module);
+            builder.declaration(name, module).module_name(module);
         }
         builder.build(
             LinkIndex::parse(lidx),
@@ -643,7 +660,7 @@ mod tests {
     /// The declaration's own references outrank the global map.
     #[test]
     fn references_are_consulted_before_the_global_map() {
-        let names = index(&[("Nat.succ", "Stale.Module")]);
+        let names = index_with_pages(&[("Nat.succ", "Stale.Module")], &["Init.Prelude"]);
         let refs = Refs::from([("Nat.succ", "Init.Prelude")]);
         let out = CodeRenderer::new(&names).fragment(
             &Utf16Text::from("Nat.succ"),
@@ -729,7 +746,7 @@ mod tests {
             ("Dep.rec", "Dep.Aux"),
             ("Pkg.f", "Pkg.A"),
         ] {
-            builder.declaration(name, module);
+            builder.declaration(name, module).module_name(module);
         }
         let names = builder.build(
             LinkIndex::parse("Dep.Aux\n\tDep.f\t26\t27\n"),
@@ -782,7 +799,7 @@ mod tests {
 
     #[test]
     fn a_private_name_falls_back_to_its_module() {
-        let names = index(&[]);
+        let names = index_with_pages(&[], &["Init.Prelude"]);
         let out = render(
             "h",
             &[konst(0, 1, "_private.Init.Prelude.0.Foo")],
@@ -796,7 +813,7 @@ mod tests {
     /// but its user name can still find a parent, which beats the module link.
     #[test]
     fn a_private_name_is_not_looked_up_directly() {
-        let names = index(&[("_private.Pkg.A.0.f", "Pkg.Wrong")]);
+        let names = index_with_pages(&[("_private.Pkg.A.0.f", "Pkg.Wrong")], &["Pkg.A"]);
         let out = render("h", &[konst(0, 1, "_private.Pkg.A.0.f")], "./", &names);
         assert_eq!(out.html, "<a href=\"./Pkg/A.html\">h</a>");
 

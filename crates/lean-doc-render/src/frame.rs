@@ -32,9 +32,9 @@
 //! before: the module system does produce duplicates, and doc-gen4's DB hid
 //! them behind an `INSERT OR IGNORE` (`DB.lean:162`).
 
+use crate::autolink::NameIndex;
 use crate::break_within;
 use crate::escape::escape_html_into;
-use crate::external::ExternalLinks;
 use crate::order::cmp_name;
 
 /// What every page says about the site it belongs to. Configuration, not IR:
@@ -241,21 +241,26 @@ pub fn module_head_html(module: &str, module_source_url: &str) -> String {
 /// Nearly every import of a package like the measurement target is a
 /// *dependency's* module — `Mathlib.Order.Basic`, `Init.Prelude` — and this site
 /// has a page for none of them, so the relative link this used to write was a
-/// 404 on every page. [`ExternalLinks::href`] turns those into the dependency's
-/// pinned source; an import of the package's own modules is not in the map and
-/// keeps its page link.
+/// 404 on every page. [`NameIndex::link_to_module`] turns those into the
+/// dependency's pinned source.
 ///
-/// **An import of a dependency that could not be version-pinned is neither**: it
-/// is listed by name, inside its `<li>`, with no `<a>` at all (2026-08-17). The
-/// import is a fact about the module and stays on the page; where to read it is
-/// a fact this run does not have, and writing the relative link anyway put the
-/// pre-M7 404 back one dependency at a time.
+/// **Two kinds of import get no `<a>` at all** — a dependency that could not be
+/// version-pinned, and a module of *this* package that this run writes no page
+/// for (2026-08-17, both). They are listed by name inside their `<li>`: the
+/// import is a fact about the module and stays on the page, while where to read
+/// it is a fact this run does not have. Writing the relative link anyway put the
+/// pre-M7 404 back one module at a time, which is why the whole three-way
+/// decision is [`NameIndex::link_to`]'s rather than this function's.
+///
+/// The index is taken whole rather than the dependency map alone for exactly
+/// that reason: with the map, this list could tell a dependency from the rest
+/// and nothing else.
 ///
 /// "Imported by" is empty markup and starts `hidden`: it is a fact about the
 /// whole site, `app.js` fills it from `modules.json`, and a module nothing
 /// imports has the block removed rather than shown empty.
 #[must_use]
-pub fn module_meta_html(root: &str, imports: &[String], external: &ExternalLinks) -> String {
+pub fn module_meta_html(root: &str, imports: &[String], index: &NameIndex) -> String {
     let sorted = sorted_imports(imports);
     let mut out = String::with_capacity(256 + sorted.len() * 96);
     out.push_str("<div class=\"modmeta\"><details class=\"imports\"><summary>Imports");
@@ -266,7 +271,7 @@ pub fn module_meta_html(root: &str, imports: &[String], external: &ExternalLinks
     }
     out.push_str("</summary><ul>");
     for import in sorted {
-        match external.href(root, import, None, None) {
+        match index.link_to_module(root, import) {
             Some(href) => {
                 out.push_str("<li><a href=\"");
                 escape_html_into(&mut out, &href);
@@ -310,6 +315,22 @@ pub fn sorted_imports(imports: &[String]) -> Vec<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::external::ExternalLinks;
+    use crate::link_index::LinkIndex;
+
+    /// A world for the import list: `pages` are the modules this run rendered,
+    /// `external` is what it knows about everything else.
+    ///
+    /// The index is built here rather than passed a bare [`ExternalLinks`]
+    /// because the list's three answers are [`NameIndex::link_to`]'s, and two of
+    /// them need the page set (2026-08-17).
+    fn index(pages: &[&str], external: ExternalLinks) -> NameIndex {
+        let mut builder = NameIndex::builder();
+        for module in pages {
+            builder.module_name(module);
+        }
+        builder.build(LinkIndex::default(), external)
+    }
 
     #[test]
     fn the_source_url_joins_components_with_slashes() {
@@ -415,7 +436,11 @@ mod tests {
     #[test]
     fn the_meta_block_counts_imports_and_leaves_imported_by_to_the_script() {
         let imports = vec!["B.C".to_owned(), "A".to_owned()];
-        let meta = module_meta_html(".././", &imports, &ExternalLinks::default());
+        let meta = module_meta_html(
+            ".././",
+            &imports,
+            &index(&["A", "B.C"], ExternalLinks::default()),
+        );
         assert!(
             meta.contains("<summary>Imports <span class=\"count\">2</span></summary>"),
             "{meta}"
@@ -432,7 +457,7 @@ mod tests {
 
     #[test]
     fn a_module_with_no_imports_still_gets_the_block_but_no_count() {
-        let meta = module_meta_html("./", &[], &ExternalLinks::default());
+        let meta = module_meta_html("./", &[], &index(&[], ExternalLinks::default()));
         assert!(
             meta.contains("<summary>Imports</summary><ul></ul>"),
             "{meta}"
@@ -450,7 +475,10 @@ mod tests {
         let meta = module_meta_html(
             ".././",
             &imports,
-            &ExternalLinks::new([("A", "https://host/o/dep/blob/abc")]),
+            &index(
+                &["B.C"],
+                ExternalLinks::new([("A", "https://host/o/dep/blob/abc")]),
+            ),
         );
         assert!(
             meta.contains(
@@ -470,7 +498,11 @@ mod tests {
     #[test]
     fn an_import_that_cannot_be_version_pinned_is_listed_without_a_link() {
         let imports = vec!["B.C".to_owned(), "A".to_owned()];
-        let meta = module_meta_html(".././", &imports, &ExternalLinks::new([("A", "")]));
+        let meta = module_meta_html(
+            ".././",
+            &imports,
+            &index(&["B.C"], ExternalLinks::new([("A", "")])),
+        );
         assert!(
             meta.contains("<ul><li>A</li><li><a href=\".././B/C.html\">B.C</a></li></ul>"),
             "{meta}"
@@ -480,5 +512,37 @@ mod tests {
             "an unlinkable import is still an import: {meta}"
         );
         assert!(!meta.contains("<a href=\".././A.html\">"), "{meta}");
+    }
+
+    /// **2026-08-17, the import half of the `batteries` fix**: the three answers
+    /// an import can get, on one list.
+    ///
+    /// `Pkg.Recycling` is the case this test exists for — a module of the
+    /// package being documented that this run writes no page for, which is what
+    /// a `lakefile.toml` with more than one `[[lean_lib]]` produces. It gets the
+    /// same treatment as the unpinnable dependency beside it: named, not linked.
+    #[test]
+    fn an_import_this_run_writes_no_page_for_is_listed_without_a_link() {
+        let imports: Vec<String> = ["Mathlib.Order", "Dep.Aux", "Pkg.Recycling", "Pkg.Two"]
+            .iter()
+            .map(|s| (*s).to_owned())
+            .collect();
+        let meta = module_meta_html(
+            ".././",
+            &imports,
+            &index(
+                &["Pkg.Two"],
+                ExternalLinks::new([("Mathlib", "https://host/o/m/blob/abc"), ("Dep", "")]),
+            ),
+        );
+        assert!(
+            meta.contains(
+                "<ul><li>Dep.Aux</li>\
+                 <li><a href=\"https://host/o/m/blob/abc/Mathlib/Order.lean\">Mathlib.Order</a></li>\
+                 <li>Pkg.Recycling</li>\
+                 <li><a href=\".././Pkg/Two.html\">Pkg.Two</a></li></ul>"
+            ),
+            "{meta}"
+        );
     }
 }

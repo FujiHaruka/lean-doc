@@ -128,7 +128,14 @@ impl Case {
         // **fallback** branch — which an empty [`ExternalLinks`] reproduces
         // exactly. With a map every link into a dependency moves, on purpose
         // (`docs/implementation-plan.md` §1).
-        builder.build(LinkIndex::parse(&self.lidx), ExternalLinks::default())
+        //
+        // 2026-08-17: and the prototype rendered the whole environment, so its
+        // links point at pages it wrote. A run's world has pages for the target
+        // package alone; the oracle is resolved in the world it was recorded in.
+        builder.build_with_a_page_for_every_module(
+            LinkIndex::parse(&self.lidx),
+            ExternalLinks::default(),
+        )
     }
 
     fn render(&self) -> String {
@@ -472,7 +479,10 @@ fn the_whole_corpus_matches_the_prototype() {
     // **fallback** branch — which an empty [`ExternalLinks`] reproduces
     // exactly. With a map every link into a dependency moves, on purpose
     // (`docs/implementation-plan.md` §1).
-    let index = builder.build(
+    // 2026-08-17: and the prototype rendered the whole environment, so its
+    // links point at pages it wrote. A run's world has pages for the target
+    // package alone; the oracle is resolved in the world it was recorded in.
+    let index = builder.build_with_a_page_for_every_module(
         LinkIndex::read(&lidx_path).expect("the .lidx reads"),
         ExternalLinks::default(),
     );

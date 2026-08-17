@@ -49,9 +49,9 @@
 //!
 //! Dropping an entry that cannot be version-pinned used to drop its module roots
 //! with it, and that was a dead link rather than a missing one: a root the map
-//! does not hold is read by [`ExternalLinks::href`] as *the package being
-//! documented*, so every link into that dependency became a relative link to a
-//! page this site never writes. Measured on a fixture whose manifest declares
+//! does not hold is read by the renderer as *the package being documented*, so
+//! every link into that dependency became a relative link to a page this site
+//! never writes. Measured on a fixture whose manifest declares
 //! `{"type": "path", "name": "dep", "dir": "../micro-dep"}`: three dead internal
 //! links, one per shape (the import list, a docstring's name reference, a
 //! signature's constant).
@@ -59,7 +59,8 @@
 //! So the entry is still dropped as a *link target* — there is no `/blob/<rev>`
 //! and never will be one from this input — and its directory is still scanned,
 //! and its roots go into the map **with an empty base**, which is the value
-//! [`ExternalLinks::href`] answers `None` to. The problem line is unchanged: the
+//! `lean_doc_render::NameIndex::link_to` answers `None` to. The problem line is
+//! unchanged: the
 //! entry did not resolve, and saying otherwise would be the report drifting from
 //! the map.
 
@@ -729,34 +730,25 @@ mod tests {
         assert_eq!(resolved.declared, 3);
         assert_eq!(resolved.resolved, 1, "only one of the three has a URL");
         assert_eq!(resolved.unpinned_roots, 2);
-        // The link a page would draw, which is the whole point: nothing for the
-        // two, the blob URL for the third.
+        // What a page can build out of that, which is the whole point: no URL
+        // for the two, the blob URL for the third. The roots are *in* the map
+        // with an empty base, which is what makes the renderer draw no link at
+        // all rather than a relative one
+        // (`lean_doc_render::NameIndex::link_to`, branch 2).
+        assert_eq!(resolved.links.url_for("DepAux.Basic", None), None);
+        assert_eq!(resolved.links.base_for("DepAux"), Some(""));
+        assert_eq!(resolved.links.url_for("Tagged", None), None);
+        assert_eq!(resolved.links.base_for("Tagged"), Some(""));
         assert_eq!(
-            resolved
-                .links
-                .href("../", "DepAux.Basic", Some("DepAux.marker"), None),
-            None,
-        );
-        assert_eq!(resolved.links.href("../", "Tagged", None, None), None);
-        assert_eq!(
-            resolved
-                .links
-                .href("../", "Pinned.M", None, None)
-                .as_deref(),
+            resolved.links.url_for("Pinned.M", None).as_deref(),
             Some(
                 "https://github.com/o/pinned/blob/fabf563a7c95a166b8d7b6efca11c8b4dc9d911f/\
                  Pinned/M.lean"
             ),
         );
         // …and a module of the package being documented is still not in the map
-        // at all, so it still gets its page link.
-        assert_eq!(
-            resolved
-                .links
-                .href("../", "Pkg.Two", Some("Pkg.Two.a"), None)
-                .as_deref(),
-            Some("../Pkg/Two.html#Pkg.Two.a"),
-        );
+        // at all, which is the state that leaves the page link on the table.
+        assert_eq!(resolved.links.base_for("Pkg"), None);
         // One line for `lake`, one per unpinnable entry — the same lines as
         // before the fix, because the report is about what did not resolve.
         assert_eq!(resolved.problems.len(), 3, "{:?}", resolved.problems);

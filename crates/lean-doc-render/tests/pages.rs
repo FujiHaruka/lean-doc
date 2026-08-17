@@ -57,7 +57,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use lean_doc_render::{ExternalLinks, ModuleSet, RenderOptions, render_site};
+use lean_doc_render::{
+    ExternalLinks, ModuleSet, RenderOptions, escape_html, page_path, render_site,
+};
 use serde::Deserialize;
 
 mod common;
@@ -140,6 +142,7 @@ fn every_case_carries_the_prototypes_page_content() {
     let mut failures = Vec::new();
     let mut compared = 0usize;
     let mut items = 0usize;
+    let mut dangling = 0usize;
     for case in &e.cases {
         if case.only.as_ref().is_some_and(Vec::is_empty) {
             continue;
@@ -155,8 +158,10 @@ fn every_case_carries_the_prototypes_page_content() {
             ));
             continue;
         }
+        let site = case.site_pages();
         for (path, want) in &case.pages {
-            let want = PageContent::prototype(want);
+            let want =
+                PageContent::prototype(want).without_links_to_absent_pages(&site, &mut dangling);
             items += want.items.len();
             if let Err(why) = want.matches(&PageContent::of(&got[path])) {
                 failures.push(format!("{} {path}: {why}", case.what));
@@ -172,6 +177,14 @@ fn every_case_carries_the_prototypes_page_content() {
         failures.join("\n")
     );
     assert!(compared >= 14, "only {compared} pages were compared");
+    // The rewrite above is the one place this oracle is *re-answered* rather
+    // than trusted, so it has to keep firing: at zero it would be comparing the
+    // prototype's bytes unchanged and this test would say nothing about the
+    // 2026-08-17 rule 【実測: 4 over the committed cases】.
+    assert!(
+        dangling >= 4,
+        "only {dangling} of the prototype's links pointed at a page it did not write"
+    );
     // A `PageContent` that came out empty on both sides would pass every
     // comparison above, so the extractor is held to finding something.
     // 【実測 2026-08-16: 19 items over the committed cases】
@@ -413,14 +426,22 @@ fn the_sample_reaches_every_shape() {
 /// a dependency's revision. What is asserted instead is a property of the pair
 /// of runs, which is stronger than a recorded expectation would be:
 ///
-/// 1. every byte outside an `href` attribute is identical to the empty-map run;
-/// 2. the hrefs are the same in number and in order;
-/// 3. every href that moved was a link into `Dep`, and moved to `Dep`'s blob URL;
-/// 4. no href into the package being documented moved.
+/// 1. take the run **with** the map and unwrap every anchor that points under
+///    `Dep`'s blob URL, leaving the text it wrapped;
+/// 2. what is left is the empty-map run **byte for byte** — so the map added
+///    those anchors and changed nothing else, anywhere on the page;
+/// 3. the URLs unwrapped are the three shapes named below;
+/// 4. the empty-map run points at `Dep` nowhere at all.
+///
+/// **The pair is anchors appearing, not hrefs moving** (2026-08-17). Before that
+/// day a link into `Dep` was a relative page link and the map replaced its
+/// `href`; now the empty map draws no link — the page has a page for no module
+/// of `Dep` — so what the map adds is the whole `<a>`. That is the same
+/// property one level up, and it is the shape that says the dead link is gone.
 ///
 /// So the empty-map run keeps the prototype as its oracle
-/// ([`every_case_reproduces_the_prototypes_pages`]) and this one says exactly
-/// what the map added on top of it.
+/// ([`every_case_carries_the_prototypes_page_content`]) and this one says
+/// exactly what the map added on top of it.
 #[test]
 fn a_dependency_map_moves_exactly_the_links_into_the_dependency() {
     let e = expected();
@@ -444,41 +465,27 @@ fn a_dependency_map_moves_exactly_the_links_into_the_dependency() {
         );
         let mut touched = false;
         for (path, want) in &before {
-            let got = &after[path];
-            let (want_between, want_hrefs) = split_hrefs(want);
-            let (got_between, got_hrefs) = split_hrefs(got);
+            let (stripped, urls) = without_anchors_under(&after[path], DEP_BASE);
             assert_eq!(
-                want_between, got_between,
-                "{} {path}: the map changed a byte outside an href",
+                want, &stripped,
+                "{} {path}: the map changed something other than the links into Dep",
                 case.what
             );
-            assert_eq!(
-                want_hrefs.len(),
-                got_hrefs.len(),
-                "{} {path}: the map added or dropped a link",
-                case.what
-            );
-            for (was, now) in want_hrefs.iter().zip(&got_hrefs) {
-                if was == now {
-                    assert!(
-                        !was.contains("/Dep/"),
-                        "{} {path}: a link into Dep stayed relative: {was}",
-                        case.what
-                    );
-                    continue;
-                }
+            for was in split_hrefs(want).1 {
+                assert!(
+                    !was.contains("/Dep/"),
+                    "{} {path}: a link into Dep is still a relative page link: {was}",
+                    case.what
+                );
+            }
+            for url in urls {
+                assert!(
+                    url.ends_with(".lean"),
+                    "{} {path}: {url} is not a source file",
+                    case.what
+                );
                 touched = true;
-                assert!(
-                    was.contains("/Dep/"),
-                    "{} {path}: {was} is not a link into Dep and moved anyway (-> {now})",
-                    case.what
-                );
-                assert!(
-                    now.starts_with(DEP_BASE) && now.ends_with(".lean"),
-                    "{} {path}: {was} -> {now}",
-                    case.what
-                );
-                moved.insert((*now).to_owned());
+                moved.insert(url);
             }
         }
         if touched {
@@ -825,6 +832,21 @@ impl Case {
         self.render_with(work, &ExternalLinks::default())
     }
 
+    /// **The pages this site has**: one per module of the case's IR — not per
+    /// page this run wrote, because `--only` narrows the run and not the site,
+    /// and the page it skipped was written by the run before it. That is the set
+    /// [`lean_doc_render::NameIndex::has_page`] is, read off the same input.
+    ///
+    /// Escaped, because an href spells a module name the way HTML does:
+    /// `Pkg.A<B&C"D` lives at `Pkg/A&lt;B&amp;C&quot;D.html`.
+    fn site_pages(&self) -> BTreeSet<String> {
+        self.ir
+            .keys()
+            .filter_map(|path| path.strip_prefix("modules/")?.strip_suffix(".json"))
+            .map(|module| escape_html(&page_path(module).to_string_lossy()).into_owned())
+            .collect()
+    }
+
     fn render_with(&self, work: &TempDir, external: &ExternalLinks) -> BTreeMap<String, String> {
         let ir = work.path.join("ir");
         for (name, text) in &self.ir {
@@ -917,6 +939,45 @@ impl PageContent {
             imports: list_after(html, "<div class=\"modmeta\">"),
             links: sorted(attr_values(main, "href")),
         }
+    }
+
+    /// **2026-08-17**: the prototype's answer with every link to a page it did
+    /// not write taken out — which is what this crate now renders as text.
+    ///
+    /// The prototype linked any module it could resolve, and it resolved the
+    /// whole environment: a module of a dependency, or of the package that this
+    /// run does not render, got a relative `<a href>` to a file nobody created.
+    /// `batteries` is where that became visible 【実測 2026-08-17】, and the
+    /// three shapes below are the same bug in the curated corpus — the fixture's
+    /// own page list is the proof, since `Dep/M.html` and `Pkg/One.html` are
+    /// links in pages the prototype wrote and are not pages it wrote.
+    ///
+    /// This is a **rule**, not a list of excused cases: an href is dropped if
+    /// and only if it is a relative link to an `.html` this site has no module
+    /// for. A second divergence of any other shape still fails.
+    fn without_links_to_absent_pages(
+        mut self,
+        site: &BTreeSet<String>,
+        dropped: &mut usize,
+    ) -> Self {
+        let absent = |href: &String| {
+            let path = href.split('#').next().unwrap_or_default();
+            // Only relative page links: an absolute URL is somebody else's site
+            // and this run's page list says nothing about it.
+            if path.contains("://") || !path.ends_with(".html") {
+                return false;
+            }
+            let mut rest = path;
+            while let Some(tail) = rest.strip_prefix("../").or_else(|| rest.strip_prefix("./")) {
+                rest = tail;
+            }
+            !site.contains(rest)
+        };
+        let before = self.links.len() + self.imports.len();
+        self.links.retain(|href| !absent(href));
+        self.imports.retain(|(href, _)| !absent(href));
+        *dropped += before - self.links.len() - self.imports.len();
+        self
     }
 
     fn matches(&self, got: &Self) -> Result<(), String> {
@@ -1111,6 +1172,36 @@ fn text_of(html: &str) -> String {
 /// The prefix the `Dep` package's sources live under in the test below. 40 hex
 /// digits, because plan 決定 1 wants one everywhere a revision reaches a URL.
 const DEP_BASE: &str = "https://github.com/o/dep/blob/0123456789abcdef0123456789abcdef01234567";
+
+/// `html` with every `<a href="<base>…">text</a>` replaced by `text`, and the
+/// URLs that were unwrapped.
+///
+/// The inverse of what a dependency map adds to a page (2026-08-17): with no map
+/// those names are bare text, so undoing the anchors is what makes the two runs
+/// comparable byte for byte. Anchors never nest here — the code renderer
+/// suppresses that — so the first `</a>` closes the one that was opened.
+fn without_anchors_under(html: &str, base: &str) -> (String, Vec<String>) {
+    let open = format!("<a href=\"{base}");
+    let mut out = String::with_capacity(html.len());
+    let mut urls = Vec::new();
+    let mut rest = html;
+    while let Some(at) = rest.find(&open) {
+        out.push_str(&rest[..at]);
+        let tag = &rest[at..];
+        let url_end = tag[open.len()..]
+            .find('"')
+            .expect("an href attribute is closed")
+            + open.len();
+        urls.push(format!("{base}{}", &tag[open.len()..url_end]));
+        let text = &tag[url_end..];
+        let opened = text.find('>').expect("the tag is closed") + 1;
+        let closed = text.find("</a>").expect("the anchor is closed");
+        out.push_str(&text[opened..closed]);
+        rest = &text[closed + "</a>".len()..];
+    }
+    out.push_str(rest);
+    (out, urls)
+}
 
 /// Every `href="…"` in `html`, and the bytes between them.
 ///

@@ -191,7 +191,7 @@ pub fn page_html(
     out.push_str(&sidebar_html(&root, &member_names));
     out.push_str("<main class=\"content\" id=\"content\">");
     out.push_str(&module_head_html(&module.module, &module_url));
-    out.push_str(&module_meta_html(&root, &module.imports, index.external()));
+    out.push_str(&module_meta_html(&root, &module.imports, index));
     out.push_str(&main);
     out.push_str("</main></div></body></html>");
     Ok(out)

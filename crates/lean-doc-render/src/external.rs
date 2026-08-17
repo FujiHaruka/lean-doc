@@ -1,10 +1,13 @@
 //! Where a **dependency's** source lives: a version-pinned GitHub blob URL.
 //!
 //! Milestone **M7-b** — the value type; the resolver that fills it is
-//! `lean-doc`'s `packages` module. **M7-c** added [`ExternalLinks::href`], which
-//! is the one place in this crate that decides between a blob URL and a relative
-//! page link, and wired the map into every call site that builds a link to
-//! another module (`docs/implementation-plan.md` §M7).
+//! `lean-doc`'s `packages` module. **M7-c** wired the map into every call site
+//! that builds a link to another module
+//! (`docs/implementation-plan.md` §M7). This module answers *where a
+//! dependency's source is* and nothing else: which of the three shapes of link a
+//! page draws is [`crate::autolink::NameIndex::link_to`]'s single decision,
+//! because two of them need a fact this map does not hold — whether the run
+//! wrote a page.
 //!
 //! # The rule is doc-gen4's, not a new one
 //!
@@ -52,8 +55,9 @@
 //! a docstring's name reference and a signature's constant — on a fixture whose
 //! `lake-manifest.json` declares `{"type": "path", …}`.
 //!
-//! So such a root is carried **with an empty base**, and [`ExternalLinks::href`]
-//! answers `None` for it: no link at all. The rule is
+//! So such a root is carried **with an empty base**, and
+//! [`crate::autolink::NameIndex::link_to`] answers `None` for it: no link at
+//! all. The rule is
 //! [`crate::autolink::NameIndex::module_for_source_path`]'s, applied one level
 //! up — *a link to the wrong page is worse than no link*. This is **not** the
 //! case §M7「行範囲が取れない宣言でリンクを消さない」 refuses, which is about a
@@ -62,7 +66,6 @@
 
 use sha2::{Digest, Sha256};
 
-use crate::autolink::module_link;
 use crate::frame::module_source_url;
 
 /// The first line of the canonical serialization [`ExternalLinks::digest`]
@@ -94,8 +97,8 @@ impl ExternalLinks {
     ///
     /// **An empty `base` is a value, not a missing entry**: it says "this root
     /// is a dependency's and there is no version-pinned URL for it", which
-    /// [`ExternalLinks::href`] turns into no link rather than into a relative
-    /// one.
+    /// [`crate::autolink::NameIndex::link_to`] turns into no link rather than
+    /// into a relative one.
     #[must_use]
     pub fn new<K: Into<String>, V: Into<String>>(
         entries: impl IntoIterator<Item = (K, V)>,
@@ -120,7 +123,7 @@ impl ExternalLinks {
     /// and has no prefix for. Callers that want "can I build a URL" should ask
     /// [`ExternalLinks::url_for`], which folds the two into one `None`; callers
     /// that need to tell a dependency from this package's own module — there is
-    /// one, [`ExternalLinks::href`] — have to ask this.
+    /// one, [`crate::autolink::NameIndex::link_to`] — have to ask this.
     #[must_use]
     pub fn base_for(&self, root: &str) -> Option<&str> {
         self.roots
@@ -135,8 +138,9 @@ impl ExternalLinks {
     /// every module of the package being documented — **and** for one whose
     /// root is in the map with an empty base, which is a dependency with no
     /// `/blob/<rev>` to build a URL out of. The two are the same answer here
-    /// (there is no URL) and different answers to [`ExternalLinks::href`] (one
-    /// gets a page link, the other gets nothing).
+    /// (there is no URL) and different answers to
+    /// [`crate::autolink::NameIndex::link_to`] (one may get a page link, the
+    /// other never does).
     ///
     /// **The line anchor is optional and its absence is not a failure**
     /// (`docs/implementation-plan.md` §M7「行範囲が取れない宣言でリンクを消さない」):
@@ -162,59 +166,6 @@ impl ExternalLinks {
             url.push_str(&to.to_string());
         }
         Some(url)
-    }
-
-    /// **The M7-c decision, and the only copy of it**: the `href` a page uses to
-    /// reach `module`, anchored at the declaration `anchor` when there is one —
-    /// or `None` when the honest answer is no link at all.
-    ///
-    /// Three states, decided by what the map holds for the module's first
-    /// component:
-    ///
-    /// | the map | the answer | which module |
-    /// |---|---|---|
-    /// | no entry | `Some(<root><module path>.html#<anchor>)` | the package being documented |
-    /// | a non-empty base | `Some(<base>/<module path>.lean#L…-L…)` | a version-pinned dependency |
-    /// | an **empty** base | **`None`** | a dependency with no `/blob/<rev>` |
-    ///
-    /// The third row is the 2026-08-17 fix (see the heading). It is `None`
-    /// rather than the first row's page link because that page does not exist:
-    /// this site writes pages for the target package only, so a relative link
-    /// into a dependency is a 404 the reader cannot tell from a real page until
-    /// they follow it.
-    ///
-    /// **The empty map therefore reproduces the pre-M7 bytes exactly**, and so
-    /// does any map with no empty-base entry. That is load-bearing rather than
-    /// incidental: it is what confines M7 to dependency links
-    /// (`docs/implementation-plan.md` §M7「自パッケージのリンクを巻き込まない」),
-    /// and it is what keeps the frozen prototype's and doc-gen4's fixtures valid
-    /// as the oracle of the *fallback* branch.
-    ///
-    /// The two anchors are different kinds of thing and never both appear:
-    /// `#Nat.succ` names a declaration on a page this site wrote, `#L26-L27`
-    /// names lines of a file on GitHub. A blob URL carrying a declaration
-    /// fragment would point at nothing.
-    #[must_use]
-    pub fn href(
-        &self,
-        root: &str,
-        module: &str,
-        anchor: Option<&str>,
-        lines: Option<(u32, u32)>,
-    ) -> Option<String> {
-        // Membership first, and the base's contents second: `url_for` alone
-        // cannot tell the first row from the third, and they differ.
-        if let Some(component) = lean_doc_ir::module_components(module).first()
-            && self.base_for(component).is_some()
-        {
-            return self.url_for(module, lines);
-        }
-        let mut out = module_link(root, module);
-        if let Some(anchor) = anchor {
-            out.push('#');
-            out.push_str(anchor);
-        }
-        Some(out)
     }
 
     /// The roots, in the order they were given.
@@ -343,106 +294,30 @@ mod tests {
         );
     }
 
-    /// [`ExternalLinks::href`]'s two *linking* branches, side by side, with the
-    /// same arguments: into a dependency it is the blob URL, and into the
-    /// package being documented it is the relative page link.
-    #[test]
-    fn a_link_into_a_dependency_is_a_blob_url_and_one_into_this_site_is_not() {
-        let links = links();
-        assert_eq!(
-            links
-                .href(
-                    ".././",
-                    "Mathlib.Order.Basic",
-                    Some("LE.ext"),
-                    Some((67, 67))
-                )
-                .unwrap(),
-            format!("{MATHLIB}/Mathlib/Order/Basic.lean#L67-L67"),
-            "the declaration fragment is replaced by the line anchor, not appended"
-        );
-        // No range: the file's URL, which is the shape `gh_nav_link` already has
-        // (§M7「行範囲が取れない宣言でリンクを消さない」).
-        assert_eq!(
-            links
-                .href(".././", "Mathlib.Order.Basic", Some("LE.ext"), None)
-                .unwrap(),
-            format!("{MATHLIB}/Mathlib/Order/Basic.lean")
-        );
-        // A module link — the import list, and `nameToLink`'s third branch.
-        assert_eq!(
-            links.href(".././", "Init.Prelude", None, None).unwrap(),
-            format!("{CORE}/Init/Prelude.lean")
-        );
-        // The package being documented: unchanged, anchor and all.
-        assert_eq!(
-            links
-                .href(".././", "Pkg.Two", Some("Pkg.Two.a"), Some((5, 5)))
-                .unwrap(),
-            ".././Pkg/Two.html#Pkg.Two.a",
-            "a range must not turn an own-package link into anything else"
-        );
-    }
-
     /// **The third state** 【実測 2026-08-17】: a root the map holds with an
-    /// empty base is a dependency nothing could pin, and every shape of link
-    /// into it is `None` — not the relative page link, which is the 404 this
-    /// state exists to stop.
+    /// empty base is a dependency nothing could pin, so there is no URL for it —
+    /// and, unlike a root the map does not hold at all, no page link either
+    /// ([`crate::autolink::NameIndex::link_to`] is where that difference is
+    /// read).
     ///
     /// The two roots either side of it are in the same map, so a change that
     /// answered `None` too widely fails here rather than somewhere downstream.
     #[test]
-    fn a_dependency_with_no_pinned_base_gets_no_link_at_all() {
+    fn a_dependency_with_no_pinned_base_has_no_url_and_is_still_in_the_map() {
         let mixed = ExternalLinks::new([("Mathlib", MATHLIB), ("Dep", "")]);
-        // The three call shapes: a declaration with a range, a declaration
-        // without one, and a module.
-        assert_eq!(
-            mixed.href("../", "Dep.Aux", Some("Dep.f"), Some((3, 4))),
-            None
-        );
-        assert_eq!(mixed.href("../", "Dep.Aux", Some("Dep.f"), None), None);
-        assert_eq!(mixed.href("../", "Dep", None, None), None);
-        // …and no URL either, which is what the `.lidx` oracle asks.
+        // With a range and without: no URL either way.
         assert_eq!(mixed.url_for("Dep.Aux", Some((3, 4))), None);
+        assert_eq!(mixed.url_for("Dep", None), None);
         // The root is in the map — `None` here would mean the resolver had
-        // dropped it, which is the bug rather than the fix.
+        // dropped it, which is the bug rather than the fix, and it is the only
+        // thing that tells this state from the package being documented.
         assert_eq!(mixed.base_for("Dep"), Some(""));
+        assert_eq!(mixed.base_for("Pkg"), None);
         assert_eq!(mixed.len(), 2);
-        // Its neighbours are untouched, in both directions.
+        // Its neighbour is untouched.
         assert_eq!(
-            mixed.href("../", "Mathlib.Order", None, None).unwrap(),
+            mixed.url_for("Mathlib.Order", None).unwrap(),
             format!("{MATHLIB}/Mathlib/Order.lean")
-        );
-        assert_eq!(
-            mixed
-                .href("../", "Pkg.Two", Some("Pkg.Two.a"), None)
-                .unwrap(),
-            "../Pkg/Two.html#Pkg.Two.a"
-        );
-    }
-
-    /// **The property M7-c is confined by**: with no map, every one of those
-    /// answers is the byte the renderer wrote before M7.
-    #[test]
-    fn the_empty_map_reproduces_the_relative_link_for_everything() {
-        let none = ExternalLinks::default();
-        assert_eq!(
-            none.href(
-                ".././",
-                "Mathlib.Order.Basic",
-                Some("LE.ext"),
-                Some((67, 67))
-            )
-            .unwrap(),
-            ".././Mathlib/Order/Basic.html#LE.ext"
-        );
-        assert_eq!(
-            none.href("./", "Init.Prelude", None, None).unwrap(),
-            "./Init/Prelude.html"
-        );
-        assert_eq!(
-            none.href("", "Foo", Some("Foo.f"), None).unwrap(),
-            "Foo.html#Foo.f"
         );
     }
 

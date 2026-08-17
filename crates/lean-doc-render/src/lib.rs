@@ -72,19 +72,27 @@
 //!
 //! **M7-c is where the pages use it.** Every link *into another module* — a
 //! docstring autolink, a constant in a signature, an inherited structure field,
-//! an entry in the import list — is built by [`ExternalLinks::href`], which is
+//! an entry in the import list — is built by [`NameIndex::link_to`], which is
 //! the only place the choice is made:
 //!
 //! | the module is | the href |
 //! |---|---|
-//! | in the map (a dependency) | `…/blob/<rev>/<path>.lean#L<from>-L<to>` |
-//! | not in the map | the relative page link, unchanged |
+//! | in the map with a `/blob/<rev>` (a pinned dependency) | `…/blob/<rev>/<path>.lean#L<from>-L<to>` |
+//! | in the map with an empty base (an unpinnable dependency) | none: the name is text |
+//! | not in the map, and this run wrote its page | the relative page link, unchanged |
+//! | not in the map, and it has no page | none: the name is text |
 //!
 //! The package being documented is never in the map, so its own links do not
-//! move — and **an empty map reproduces the pre-M7 bytes exactly**, which is what
-//! keeps the frozen prototype's fixtures meaningful as the fallback branch's
-//! oracle (`docs/implementation-plan.md` §1: gate A is suspended, and byte
+//! move — and **an empty map, over a run that renders every module it can name,
+//! reproduces the pre-M7 bytes exactly**, which is what keeps the frozen
+//! prototype's fixtures meaningful as the fallback branch's oracle
+//! ([`NameIndexBuilder::build_with_a_page_for_every_module`] is that world;
+//! `docs/implementation-plan.md` §1: gate A is suspended, and byte
 //! compatibility with doc-gen4 is no longer claimed for dependency links).
+//!
+//! The last row is 2026-08-17's: a package whose `lakefile.toml` declares more
+//! than one `[[lean_lib]]` has modules that this run does not render, and
+//! linking to them relatively wrote an href to a file nobody created.
 //!
 //! # What is here so far (M8-a)
 //!

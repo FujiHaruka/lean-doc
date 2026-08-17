@@ -176,7 +176,10 @@ fn every_docstring_in_the_reference_pages_is_reproduced() {
     // **fallback** branch — which an empty [`ExternalLinks`] reproduces
     // exactly. With a map every link into a dependency moves, on purpose
     // (`docs/implementation-plan.md` §1).
-    let index = builder.build(
+    // 2026-08-17: and the prototype rendered the whole environment, so its
+    // links point at pages it wrote. A run's world has pages for the target
+    // package alone; the oracle is resolved in the world it was recorded in.
+    let index = builder.build_with_a_page_for_every_module(
         LinkIndex::read(&lidx).expect("the .lidx reads"),
         ExternalLinks::default(),
     );

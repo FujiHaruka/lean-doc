@@ -53,6 +53,23 @@
 //! purpose (`render.ts:2059-2064`): `known` also backs the signature path, which
 //! is byte-exact today, and a map fifty times larger underneath it would move
 //! results that are already right.
+//!
+//! # "A name that is a module" and "a module this run wrote a page for" differ
+//!
+//! `knownModules` answers the first question and [`NameIndex::has_page`] the
+//! second, and the gap between them is **modules of the package being
+//! documented that this run does not render**. A `lakefile.toml` may declare
+//! more than one `[[lean_lib]]` — `batteries` declares three — and
+//! `lean-doc build --lib Batteries` extracts one of them while the `.lidx` holds
+//! the whole environment, so `BatteriesRecycling.*` is a known module, is in no
+//! dependency's map, and has no page 【実測 2026-08-17】. Reading absence from
+//! [`ExternalLinks`] as "this package's module, so link to its page" wrote a
+//! relative href to a file that was never created, which is the same dead link
+//! the empty-base state closed one level up (see [`crate::external`]).
+//!
+//! So the page set is carried separately: [`NameIndexBuilder::build`] freezes it
+//! **before** the union that widens `knownModules`, and
+//! [`NameIndex::link_to`]'s last branch consults it.
 
 use std::collections::{HashMap, HashSet};
 
@@ -229,6 +246,11 @@ pub struct NameIndex {
     known: HashMap<String, String>,
     links: LinkIndex,
     known_modules: HashSet<String>,
+    page_modules: HashSet<String>,
+    /// Set by [`NameIndexBuilder::build_with_a_page_for_every_module`] only.
+    /// `false` — the derived default — is the product's answer and the safe one:
+    /// a page has to be in `page_modules` to be linked to.
+    every_module_has_a_page: bool,
     external: ExternalLinks,
 }
 
@@ -258,11 +280,24 @@ impl NameIndex {
         self.known(name).or_else(|| self.links.module_of(name))
     }
 
-    /// Whether a name is a module with a page of its own — the union of all
-    /// three sources.
+    /// Whether a name **is a module** — the union of all three sources.
+    ///
+    /// Not the same question as [`NameIndex::has_page`]: this one decides which
+    /// branch of `nameToLink?` answers, and that one decides what the answer
+    /// looks like. A module of a dependency is `true` here.
     #[must_use]
     pub fn is_known_module(&self, name: &str) -> bool {
         self.known_modules.contains(name)
+    }
+
+    /// Whether **this run wrote a page for** `module` — the modules the builder
+    /// was fed, before the union that widens `known_modules`.
+    ///
+    /// This is the set the site actually has files for, and the reason it is
+    /// kept apart from `known_modules` is in the module comment.
+    #[must_use]
+    pub fn has_page(&self, module: &str) -> bool {
+        self.every_module_has_a_page || self.page_modules.contains(module)
     }
 
     /// The module a **source path** written in a docstring names, or `None`
@@ -314,39 +349,75 @@ impl NameIndex {
         found
     }
 
-    /// **The link every page draws** (M7-c): [`ExternalLinks::href`] with this
-    /// run's two maps supplied — the prefix from the dependency map, the line
-    /// range from the `.lidx`.
+    /// **The link every page draws** (M7-c), and the only copy of the decision:
+    /// where to point at `module`, anchored at the declaration `anchor` when
+    /// there is one — or `None` when the honest answer is no link at all.
     ///
     /// `module` is where the target is defined and `anchor` is the declaration
     /// being linked to, or `None` when the link is to a module rather than into
-    /// one. Every call site in this crate that builds a link to *another*
-    /// module goes through here; the one that does not is a declaration's own
-    /// self-link, which is on this page by construction.
+    /// one ([`NameIndex::link_to_module`] is that call spelled out). Every call
+    /// site in this crate that builds a link to *another* module goes through
+    /// here; the one that does not is a declaration's own self-link, which is on
+    /// this page by construction.
     ///
-    /// **`None` means "render the name, draw no link"** (2026-08-17): the name
-    /// was resolved — to a module of a dependency this run could not
-    /// version-pin — and there is nowhere to point at. Every caller below turns
-    /// that into text, and none of them falls through to a later branch: a
-    /// resolved name that happens to be unlinkable must not be re-resolved to
-    /// some *other* declaration that happens to have a page.
+    /// # Three questions, because absence means three different things
+    ///
+    /// | asked | answer | which module |
+    /// |---|---|---|
+    /// | 1. [`ExternalLinks::url_for`] resolves | the `…/blob/<rev>/….lean#L…` | a version-pinned dependency |
+    /// | 2. [`ExternalLinks::base_for`] holds the root | **`None`** | a dependency with no `/blob/<rev>` |
+    /// | 3. [`NameIndex::has_page`] | `<root><module path>.html#<anchor>` | a module this run rendered |
+    /// | 3. …and otherwise | **`None`** | a module of this package this run does not render |
+    ///
+    /// One lookup would do if "the map has no entry for this root" meant "this
+    /// package's own module" and that in turn meant "a page exists". **Neither
+    /// implication holds**, and each was a dead link 【実測 2026-08-17】: a
+    /// `path` dependency breaks the first (see [`crate::external`]) and
+    /// `batteries` breaks the second (see the module comment). So the questions
+    /// are asked separately and in this order — question 2 has to come before 3,
+    /// because a dependency's module has no page either and answering it with
+    /// question 3 would lose *why* there is no link.
+    ///
+    /// **`None` means "render the name, draw no link"**. Every caller turns that
+    /// into text, and none of them falls through to a later branch: a resolved
+    /// name that happens to be unlinkable must not be re-resolved to some
+    /// *other* declaration that happens to have a page.
     #[must_use]
     pub fn link_to(&self, root: &str, module: &str, anchor: Option<&str>) -> Option<String> {
-        self.external.href(
-            root,
-            module,
-            anchor,
-            anchor.and_then(|name| self.links.range_of(name)),
-        )
+        let lines = anchor.and_then(|name| self.links.range_of(name));
+        if let Some(url) = self.external.url_for(module, lines) {
+            return Some(url);
+        }
+        // Membership rather than `url_for`'s answer: that one folds "not a
+        // dependency" and "a dependency with nothing to build a URL from" into
+        // the same `None`, and those two get different answers here.
+        // The *unescaped* first component, as `url_for` looks it up.
+        if lean_doc_ir::module_components(module)
+            .first()
+            .is_some_and(|component| self.external.base_for(component).is_some())
+        {
+            return None;
+        }
+        if !self.has_page(module) {
+            return None;
+        }
+        let mut out = module_link(root, module);
+        if let Some(anchor) = anchor {
+            out.push('#');
+            out.push_str(anchor);
+        }
+        Some(out)
     }
 
-    /// The dependency map this index was built with, for the one caller that
-    /// builds a link without holding an index — the page frame's import list
-    /// ([`crate::internal_nav_html`]), where there is no declaration and so
-    /// nothing to look a range up for.
+    /// [`NameIndex::link_to`] for a link **to** a module rather than into one:
+    /// the page frame's import list, where there is no declaration.
+    ///
+    /// Its own method rather than `link_to(root, module, None)` at the call site
+    /// so that the import list cannot drift onto a second rule — the anchor is
+    /// the only thing that differs, and a module has no source range to look up.
     #[must_use]
-    pub const fn external(&self) -> &ExternalLinks {
-        &self.external
+    pub fn link_to_module(&self, root: &str, module: &str) -> Option<String> {
+        self.link_to(root, module, None)
     }
 
     /// Names in `known` (the IR's own map).
@@ -432,6 +503,11 @@ impl NameIndexBuilder {
 
     /// A module of the package being rendered. Every one of them is a link
     /// target whether or not it declares anything.
+    ///
+    /// **This is also the page set** ([`NameIndex::has_page`]): the modules fed
+    /// here — by [`NameIndexBuilder::module`], once per module of the IR — are
+    /// the ones the run writes files for, and a module named only as a value in
+    /// `known` or in the `.lidx` is not one of them.
     pub fn module_name(&mut self, module: &str) -> &mut Self {
         if !self.modules.contains(module) {
             self.modules.insert(module.to_owned());
@@ -453,8 +529,49 @@ impl NameIndexBuilder {
     /// dependency stays a relative page link — and that has to be something a
     /// caller *says*, because the failure it produces is a site full of hrefs
     /// pointing at pages this run never wrote.
+    ///
+    /// **The page set is taken here, before the union** (2026-08-17): the
+    /// modules fed to this builder are the ones the run renders, and the two
+    /// sources below only widen "which names are modules". Widening both is the
+    /// dead link the module comment describes.
     #[must_use]
     pub fn build(self, links: LinkIndex, external: ExternalLinks) -> NameIndex {
+        let pages = self.modules.clone();
+        self.close(links, external, pages, false)
+    }
+
+    /// [`NameIndexBuilder::build`] for a world where **every module has a
+    /// page**, which no product run is and none should become.
+    ///
+    /// It is what the frozen oracles need. doc-gen4 and the prototype rendered
+    /// the whole environment, so their bytes link into `Mathlib.*`, into the
+    /// modules the `.lidx` groups its entries under, and into the module a
+    /// private name's prefix spells — a list no page set could be enumerated
+    /// from, since the last of those is conjured from the name rather than read
+    /// out of a map. Resolving a fixture in a *run's* world would drop links the
+    /// oracle has and report it as a difference in this crate's output.
+    ///
+    /// Spelling it as a second constructor rather than an argument keeps the
+    /// assumption in one place: the product path cannot reach it by passing a
+    /// wrong flag, and a reader of a test can see which world is being claimed.
+    #[must_use]
+    pub fn build_with_a_page_for_every_module(
+        self,
+        links: LinkIndex,
+        external: ExternalLinks,
+    ) -> NameIndex {
+        self.close(links, external, HashSet::new(), true)
+    }
+
+    /// The union `knownModules` is (`render.ts:2051-2052, 2079`), with the page
+    /// set the caller decided on.
+    fn close(
+        self,
+        links: LinkIndex,
+        external: ExternalLinks,
+        page_modules: HashSet<String>,
+        every_module_has_a_page: bool,
+    ) -> NameIndex {
         let Self { known, mut modules } = self;
         for module in known.values() {
             if !modules.contains(module) {
@@ -470,6 +587,8 @@ impl NameIndexBuilder {
             known,
             links,
             known_modules: modules,
+            page_modules,
+            every_module_has_a_page,
             external,
         }
     }
@@ -757,6 +876,10 @@ mod tests {
     fn resolution_takes_the_branches_in_order() {
         let mut builder = NameIndex::builder();
         builder.module(&module());
+        // The two modules the `.lidx` contributes are pages of this world too:
+        // the branches are what this case is about, and a page set that left
+        // them out would answer `None` for a reason the next case covers.
+        builder.module_name("Dep.M").module_name("Lidx.Only");
         let index = builder.build(LinkIndex::parse(LIDX), ExternalLinks::default());
         let names = ["Pkg.Two.a", "Pkg.Two.b"];
 
@@ -797,7 +920,7 @@ mod tests {
     /// The three branches that can name another package's module move to its
     /// pinned source; the two that can only name this package's own do not. The
     /// case above is the same assertions with an empty map, so the two together
-    /// are both sides of [`ExternalLinks::href`].
+    /// are both sides of [`NameIndex::link_to`]'s first two branches.
     #[test]
     fn a_docstring_link_into_a_dependency_is_a_blob_url() {
         let mut builder = NameIndex::builder();
@@ -890,6 +1013,113 @@ mod tests {
         assert_eq!(
             render("`Pkg.Two.a`\n"),
             "<p><code><a href=\"../Pkg/Two.html#Pkg.Two.a\">Pkg.Two.a</a></code></p>"
+        );
+    }
+
+    /// [`NameIndex::link_to`]'s four answers on **one** index, which is the only
+    /// way to see that they are one decision and not four call sites.
+    ///
+    /// M7-c's two rows, the 2026-08-17 empty-base row, and the same day's
+    /// no-page row. The map and the page set disagree on purpose: `Mathlib` is
+    /// pinned, `Dep` is not, `Pkg.Two` has a page and `Pkg.One` does not.
+    #[test]
+    fn a_link_takes_one_of_four_branches() {
+        const MATHLIB: &str = "https://host/o/mathlib4/blob/fabf563";
+        let mut builder = NameIndex::builder();
+        builder.module(&module());
+        let index = builder.build(
+            LinkIndex::parse("Mathlib.Order.Basic\n\tLE.ext\t67\t67\n"),
+            ExternalLinks::new([("Mathlib", MATHLIB), ("Dep", "")]),
+        );
+
+        // 1: a version-pinned dependency. The declaration fragment is
+        // **replaced** by the line anchor rather than appended — the two name
+        // different kinds of thing and a blob URL with `#LE.ext` on it points at
+        // nothing.
+        assert_eq!(
+            index
+                .link_to(".././", "Mathlib.Order.Basic", Some("LE.ext"))
+                .as_deref(),
+            Some("https://host/o/mathlib4/blob/fabf563/Mathlib/Order/Basic.lean#L67-L67")
+        );
+        // …and a declaration the `.lidx` has no range for keeps the file's URL
+        // (§M7「行範囲が取れない宣言でリンクを消さない」).
+        assert_eq!(
+            index
+                .link_to(".././", "Mathlib.Order.Basic", Some("no.range"))
+                .as_deref(),
+            Some("https://host/o/mathlib4/blob/fabf563/Mathlib/Order/Basic.lean")
+        );
+        // 2: a dependency with no `/blob/<rev>`, in every call shape.
+        assert_eq!(index.link_to("../", "Dep.Aux", Some("Dep.f")), None);
+        assert_eq!(index.link_to_module("../", "Dep"), None);
+        // 3: a module this run rendered — the pre-M7 bytes, anchor and all.
+        assert_eq!(
+            index
+                .link_to(".././", "Pkg.Two", Some("Pkg.Two.a"))
+                .as_deref(),
+            Some(".././Pkg/Two.html#Pkg.Two.a")
+        );
+        assert_eq!(
+            index.link_to_module("./", "Pkg.Two").as_deref(),
+            Some("./Pkg/Two.html")
+        );
+        // 4: a module of this package with no page.
+        assert_eq!(index.link_to("../", "Pkg.One", Some("Pkg.One.a")), None);
+        assert_eq!(index.link_to_module("../", "Pkg.One"), None);
+    }
+
+    /// **2026-08-17, `batteries`**: a module of *this* package that this run
+    /// writes no page for is not a link target either.
+    ///
+    /// `batteries`' `lakefile.toml` declares three `[[lean_lib]]`s, so
+    /// `--lib Batteries` extracts one of them while the `.lidx` — which is the
+    /// whole environment — holds all three. `Pkg.Recycling` is that shape: a
+    /// module no dependency map says anything about, known to the index through
+    /// the `.lidx` and through a resolved reference, and with **no page**. The
+    /// relative link this used to draw was a 404
+    /// 【実測 2026-08-17, `tools/site-gate.sh`: DEAD internal link 1】.
+    #[test]
+    fn a_module_of_this_package_with_no_page_is_not_a_link() {
+        let mut builder = NameIndex::builder();
+        builder.module(&module());
+        let index = builder.build(
+            LinkIndex::parse("@Pkg.Recycling\nPkg.Recycling\n\tPkg.Recycling.helper\t3\t4\n"),
+            ExternalLinks::default(),
+        );
+        let names = ["Pkg.Two.a", "Pkg.Two.b"];
+
+        // The two questions, on the same name: `Pkg.Recycling` **is** a module
+        // and this run wrote no page for it.
+        assert!(index.is_known_module("Pkg.Recycling"));
+        assert!(!index.has_page("Pkg.Recycling"));
+        assert!(index.has_page("Pkg.Two"));
+
+        // 2, through the `.lidx`; 3, the module itself; 2, through `known` —
+        // `Pkg.One` is a module a reference named and the IR never carried.
+        assert_eq!(resolve(&index, &names, "Pkg.Recycling.helper"), None);
+        assert_eq!(resolve(&index, &names, "Pkg.Recycling"), None);
+        assert_eq!(resolve(&index, &names, "Pkg.One.a"), None);
+        // The one page this run wrote is unchanged, anchor and all.
+        assert_eq!(
+            resolve(&index, &names, "Pkg.Two.a").as_deref(),
+            Some("../Pkg/Two.html#Pkg.Two.a")
+        );
+        assert_eq!(
+            index.link_to_module("../", "Pkg.Two").as_deref(),
+            Some("../Pkg/Two.html")
+        );
+        assert_eq!(index.link_to_module("../", "Pkg.Recycling"), None);
+
+        // The bytes: the name stays, the anchor goes.
+        let render = |md: &str| {
+            PageLinks::new(&index, "../", &names)
+                .renderer()
+                .docstring(md)
+        };
+        assert_eq!(
+            render("`Pkg.Recycling.helper`\n"),
+            "<p><code>Pkg.Recycling.helper</code></p>"
         );
     }
 

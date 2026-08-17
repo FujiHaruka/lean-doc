@@ -543,9 +543,13 @@ fn synthetic_ir(root: &Path) {
                 "Pkg.a",
                 "def",
                 // `Dep.elsewhere` is in the IR's own dependency slice, so it
-                // links either way; `Dep.Home.other` exists only in the
-                // `.lidx`, which is the difference the flag makes.
-                Some("See `Pkg.B.b`, `Dep.elsewhere` and `Dep.Home.other`."),
+                // links either way; `Dep.Home.other` and `Pkg.B.only_in_lidx`
+                // exist only in the `.lidx`, which is the difference the flag
+                // makes. The second of the two is the one that reaches the
+                // bytes: since 2026-08-17 a name whose module has no page is
+                // not linked at all, and `Dep.Home` is not a page this site
+                // writes — `Pkg.B` is.
+                Some("See `Pkg.B.b`, `Dep.elsewhere`, `Dep.Home.other` and `Pkg.B.only_in_lidx`."),
             )],
         ),
         (
@@ -631,12 +635,18 @@ fn synthetic_ir(root: &Path) {
     );
 }
 
-/// A dependency closure holding the one name `Pkg.a`'s docstring mentions and
-/// the IR does not define.
+/// A dependency closure holding the names `Pkg.a`'s docstring mentions and the
+/// IR does not define.
+///
+/// It is the **environment**, not only the dependencies: `Pkg.B` is a module of
+/// the package being documented and the map names it too, which is what a real
+/// `.lidx` does. That group is the one whose absence moves a byte — a name in
+/// `Dep.Home` gets no link either way, because this site writes no page for it.
 fn write_lidx(path: &Path) {
     write(
         path,
-        b"#lidx1\n@Dep.Home\nDep.Home\n\tDep.elsewhere\n\tDep.Home.other\n",
+        b"#lidx1\n@Dep.Home\n@Pkg.B\nDep.Home\n\tDep.elsewhere\n\tDep.Home.other\n\
+          Pkg.B\n\tPkg.B.only_in_lidx\n",
     );
 }
 
