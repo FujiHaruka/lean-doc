@@ -4,7 +4,9 @@ Mathlib に依存する Lean パッケージのための、高速ドキュメン
 **検証段階は全部完了** (`approach.md` §7 の 1〜8 + CI 軸)。**移設も完了** — 使い捨てプロトタイプ
 (TS + シェル) から Rust の製品ツリー `crates/` への移設は M1〜M8 で終わり、
 プロトタイプは **2026-08-16 に HEAD から撤去した** (→ 下の「撤去したプロトタイプ」)。
-遠いゴールは **v0.1 = 使える CLI**。
+**v0.1 は 2026-08-17 に締めた** — tag **`v0.1.0`**。締めた根拠はゲート A / B の決着だけで、
+**未検証項目 18 件はそのまま残っている** (判定の SoT は `docs/implementation-plan.md` §1 末尾)。
+**「v0.1」を「完成」の意味で書かない。**
 アプローチの SoT は `docs/approach.md`、**実装の SoT は `docs/implementation-plan.md`**、
 数字の SoT は `docs/verification-log.md`。実装の**結果**は `docs/milestone-log.md`。
 
