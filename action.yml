@@ -117,7 +117,21 @@ runs:
         if [ -z "$OUT" ]; then OUT="$RUNNER_TEMP/lean-doc-out"; fi
         case "$OUT" in /*) ;; *) OUT="$GITHUB_WORKSPACE/$OUT" ;; esac
 
+        # **Restore caches only the first time this action runs in a job.**
+        #
+        # A second call re-runs every step, including `actions/cache`, and a
+        # restore overwrites what the first call just produced: the state cache
+        # hits on `restore-keys` and puts an OLDER commit's state back on top of
+        # the fresh one. Measured — a second call rendered all 6 pages again
+        # after restoring `leandoc-state-…-9aa5519b` over its own output, while
+        # the same two runs by hand rendered 0. The same shape would corrupt the
+        # cargo and extractor caches; they only escaped because their keys
+        # happened to miss.
+        SENTINEL="$RUNNER_TEMP/.lean-doc-action-has-run"
+        if [ -f "$SENTINEL" ]; then FIRST=false; else FIRST=true; : > "$SENTINEL"; fi
+
         {
+          echo "first=$FIRST"
           echo "root=$ROOT"
           echo "out=$OUT"
           # Hashed here rather than with hashFiles(): see the header.
@@ -128,7 +142,7 @@ runs:
         } >> "$GITHUB_OUTPUT"
 
     - name: Cache the Rust build
-      if: inputs.cache == 'true'
+      if: inputs.cache == 'true' && steps.keys.outputs.first == 'true'
       uses: actions/cache@v4
       with:
         # Absolute, because the action's own tree is outside the workspace and a
@@ -142,14 +156,14 @@ runs:
         restore-keys: leandoc-cargo-${{ runner.os }}-
 
     - name: Cache the Lean extractor
-      if: inputs.cache == 'true'
+      if: inputs.cache == 'true' && steps.keys.outputs.first == 'true'
       uses: actions/cache@v4
       with:
         path: ${{ github.action_path }}/extractor/build
         key: leandoc-extractor-${{ runner.os }}-${{ steps.keys.outputs.extractor }}
 
     - name: Cache Mathlib's oleans
-      if: inputs.cache == 'true' && inputs.cache-get == 'true'
+      if: inputs.cache == 'true' && inputs.cache-get == 'true' && steps.keys.outputs.first == 'true'
       uses: actions/cache@v4
       with:
         path: ~/.cache/mathlib
@@ -159,7 +173,7 @@ runs:
     # What makes a run incremental: last run's state. The key moves every commit
     # so each run saves its own, and restore-keys picks the most recent one up.
     - name: Cache the incremental state
-      if: inputs.cache == 'true' && inputs.full != 'true'
+      if: inputs.cache == 'true' && inputs.full != 'true' && steps.keys.outputs.first == 'true'
       uses: actions/cache@v4
       with:
         path: ${{ steps.keys.outputs.out }}
