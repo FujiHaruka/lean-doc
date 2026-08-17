@@ -1,0 +1,196 @@
+# Does `uses: FujiHaruka/lean-doc@…` actually work?  (docs/plans/distribution.md, D3)
+#
+# ============================================================================
+# WHY THIS IS NOT PART OF ci.yml
+# ============================================================================
+#   ci.yml answers "is the code green". This answers "is the distribution
+#   channel green", which is a different thing and fails differently: the action
+#   can be broken while every test passes — a bad cache key, a `hashFiles()`
+#   that cannot see outside the workspace, an input that never reaches the
+#   script. None of that is visible to `cargo test`.
+#
+# ============================================================================
+# THE FOUR THINGS CHECKED, AND WHY EACH IS SEPARATE
+# ============================================================================
+#   local        the action runs, produces a site, and reports its path
+#   incremental  running it twice re-renders nothing (the reason to cache state)
+#   refused      a package that does not exist FAILS. A gate that cannot fail is
+#                not a gate — CLAUDE.md, and this repository has shipped two of
+#                those before
+#   published    `uses: FujiHaruka/lean-doc@main` goes through the real path
+#                (GitHub checks the action out into _actions/), which `uses: ./`
+#                never exercises. It is @main and not this commit because
+#                `uses:` cannot take an expression — so it tests the channel,
+#                not this diff.
+#
+#   The fixture stands in for a user's package: e2e/micro depends on Lean core
+#   only, so this costs an elan download and seconds of Lean, not Mathlib.
+name: action (self-test)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "action.yml"
+      - "tools/ci-build.sh"
+      - ".github/workflows/ci-action.yml"
+  pull_request:
+    paths:
+      - "action.yml"
+      - "tools/ci-build.sh"
+      - ".github/workflows/ci-action.yml"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  local:
+    name: the action builds a site, twice
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+
+      # elan up front so the toolchain download is cached across runs. The
+      # action would install it itself (install-elan); the `standalone` job
+      # below is where that path is exercised.
+      - name: Cache elan
+        id: elan-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.elan
+          key: elan-${{ runner.os }}-${{ hashFiles('e2e/micro/lean-toolchain') }}
+
+      - name: Install elan at the fixture's toolchain
+        if: steps.elan-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -sSfL https://github.com/leanprover/elan/releases/latest/download/elan-x86_64-unknown-linux-gnu.tar.gz \
+            | tar xz
+          ./elan-init -y --default-toolchain "$(cat e2e/micro/lean-toolchain)"
+
+      - name: Put elan on PATH
+        run: echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - id: docs
+        uses: ./
+        with:
+          root: e2e/micro
+          jobs: "2"
+
+      - name: The outputs point at something real
+        run: |
+          set -euo pipefail
+          SITE="${{ steps.docs.outputs.site }}"
+          echo "site = $SITE"
+          test -d "$SITE" || { echo "::error::outputs.site is not a directory"; exit 1; }
+          test -f "$SITE/index.html" || { echo "::error::no index.html"; exit 1; }
+          echo "pages: $(find "$SITE" -name '*.html' | wc -l)"
+          cat "${{ steps.docs.outputs.timings }}"
+          # A first run that renders nothing would satisfy every check below,
+          # so it is asserted here rather than assumed.
+          python3 - "${{ steps.docs.outputs.out }}/lean-doc-build.json" <<'PY'
+          import json, sys
+          w = json.load(open(sys.argv[1]))["work"]
+          if not w.get("pagesRendered"):
+              print(f"::error::the first run rendered no pages: {w}")
+              sys.exit(1)
+          print(f"first run rendered {w['pagesRendered']} pages")
+          PY
+
+      # The second run is the claim the whole tool is built on. Same inputs,
+      # same --out: nothing should be re-rendered.
+      - id: again
+        uses: ./
+        with:
+          root: e2e/micro
+          jobs: "2"
+
+      # `work` in lean-doc-build.json is the product's own count of what it did,
+      # and it is integers rather than seconds — the thing CLAUDE.md says to
+      # gate on, because wall clock moves 5x with the page cache.
+      - name: The second run did no work
+        run: |
+          set -euo pipefail
+          J="${{ steps.again.outputs.out }}/lean-doc-build.json"
+          cat "$J"
+          python3 - "$J" <<'PY'
+          import json, sys
+          w = json.load(open(sys.argv[1]))["work"]
+          bad = {k: w.get(k) for k in ("modulesExtracted", "pagesRendered") if w.get(k, -1) != 0}
+          if bad:
+              print("::error::a rebuild with nothing changed did work: " +
+                    ", ".join(f"{k}={v}" for k, v in bad.items()))
+              sys.exit(1)
+          print("no-op rebuild: extracted 0, rendered 0")
+          PY
+
+  standalone:
+    name: the action installs elan itself
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - name: Nothing in ~/.elan to start with
+        run: test ! -d "$HOME/.elan" && echo "clean"
+      - id: docs
+        uses: ./
+        with:
+          root: e2e/micro
+          jobs: "2"
+      - run: test -f "${{ steps.docs.outputs.site }}/index.html"
+
+  refused:
+    name: a package that does not exist fails
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - id: attempt
+        continue-on-error: true
+        uses: ./
+        with:
+          root: this-package-does-not-exist
+      - name: It must have failed
+        run: |
+          if [ "${{ steps.attempt.outcome }}" != "failure" ]; then
+            echo "::error::the action accepted a package that is not there"
+            exit 1
+          fi
+          echo "refused, as it should"
+
+  published:
+    name: uses:FujiHaruka/lean-doc@main (the real checkout path)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    # Only from this repository's own branches: a fork's PR would resolve @main
+    # to this repository anyway, which tells the fork nothing.
+    if: github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Cache elan
+        id: elan-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.elan
+          key: elan-${{ runner.os }}-${{ hashFiles('e2e/micro/lean-toolchain') }}
+
+      - name: Install elan at the fixture's toolchain
+        if: steps.elan-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -sSfL https://github.com/leanprover/elan/releases/latest/download/elan-x86_64-unknown-linux-gnu.tar.gz \
+            | tar xz
+          ./elan-init -y --default-toolchain "$(cat e2e/micro/lean-toolchain)"
+
+      - name: Put elan on PATH
+        run: echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - id: docs
+        uses: FujiHaruka/lean-doc@main
+        with:
+          root: e2e/micro
+          jobs: "2"
+
+      - run: test -f "${{ steps.docs.outputs.site }}/index.html"

@@ -261,8 +261,14 @@ jobs:
       - name: Build the CLI
         run: cargo build --bin lean-doc
 
+      # `LAKE` is explicit because e2e-micro.sh defaults to ~/.elan/bin/lake,
+      # and the whole point of this job is that there is nothing in ~/.elan.
+      # (That default is fine for the fixture's normal use; it just cannot be
+      # left implicit here.)
       - name: End to end, with the toolchain in an unusual place
         run: |
           tools/e2e-micro.sh \
             --extractor "$RUNNER_TEMP/downloaded/extract" \
             --out "$RUNNER_TEMP/e2e" --keep
+        env:
+          LAKE: ${{ runner.temp }}/alt/elan/bin/lake

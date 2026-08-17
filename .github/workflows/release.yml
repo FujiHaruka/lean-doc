@@ -97,12 +97,19 @@ jobs:
           ls -l "$BIN"
           file "$BIN"
           if [ "${{ matrix.target }}" = "x86_64-unknown-linux-musl" ]; then
-            if ldd "$BIN" 2>&1 | grep -qv "not a dynamic executable"; then
-              echo "expected a static binary; ldd says:" >&2
-              ldd "$BIN" >&2 || true
+            # The test is "did ldd resolve any shared object", i.e. does its
+            # output contain `=>`. **Not** the wording: a static binary makes
+            # ldd say "not a dynamic executable" on some systems and
+            # "statically linked" on others, and the first version of this
+            # check failed the build over that difference rather than over
+            # anything about the binary.
+            if ldd "$BIN" 2>&1 | grep -q "=>"; then
+              echo "::error::expected a static binary, but ldd resolved shared objects"
+              ldd "$BIN" || true
               exit 1
             fi
-            echo "statically linked"
+            echo "statically linked — ldd resolved nothing:"
+            ldd "$BIN" 2>&1 || true
           fi
 
       - name: Work out the version

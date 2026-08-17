@@ -1,0 +1,277 @@
+# lean-doc as a GitHub Action.  (docs/plans/distribution.md, D3)
+#
+# ============================================================================
+# WHAT THIS REPLACES
+# ============================================================================
+#   Before this file, using lean-doc in CI meant copying ~30 lines of YAML out
+#   of README.md: a second `actions/checkout` for this repository, three cache
+#   blocks whose keys you had to get right, an elan install, and a call into
+#   tools/ci-build.sh. All of that is here now, and the caller writes:
+#
+#       - uses: FujiHaruka/lean-doc@v0.1.1
+#         id: docs
+#       - uses: actions/upload-pages-artifact@v3
+#         with: { path: "${{ steps.docs.outputs.site }}" }
+#
+#   Publishing is deliberately NOT here. Where the site goes is the caller's
+#   decision, and an action that uploads to Pages cannot be used by anyone who
+#   wants an artifact, a commit to gh-pages, or a copy on S3.
+#
+# ============================================================================
+# WHY THE CACHE KEYS ARE COMPUTED BY HAND
+# ============================================================================
+#   `hashFiles()` can only read inside GITHUB_WORKSPACE. This action's own
+#   Cargo.lock lives under $GITHUB_ACTION_PATH, which is outside it — so the key
+#   that used to be `hashFiles('lean-doc/Cargo.lock')` (correct when the caller
+#   checked this repository out into the workspace) cannot be written any more.
+#   `github.action_ref` looks like a replacement and is not: pinned to a tag it
+#   works, and `@main` freezes the key while the sources move underneath it.
+#   So the `keys` step hashes the files itself. It is the only correct option
+#   that does not depend on how the action was referenced.
+#
+# ============================================================================
+# WHAT IS BORROWED AND WHAT IS BUILT
+# ============================================================================
+#   The Lean extractor is built here, against the caller's toolchain, and cached
+#   on (toolchain + Extract.lean). It cannot be shipped prebuilt without the
+#   evidence in .github/workflows/ci-extractor-portability.yml.
+#   The Rust binary is downloaded from this repository's releases when one
+#   matches, and built with cargo when none does — a new platform, or a ref
+#   that has no release, must not become a hard failure.
+name: lean-doc
+description: Fast HTML documentation for Lean 4 packages, built for the ones standing on Mathlib
+author: FujiHaruka
+
+branding:
+  icon: book-open
+  color: purple
+
+inputs:
+  root:
+    description: "the Lean package to document, relative to the workspace (or absolute)"
+    default: "."
+  out:
+    description: "where the documentation state goes; <out>/site is the site. Must be outside root. Default: a directory under RUNNER_TEMP"
+    default: ""
+  cache-get:
+    description: "run `lake exe cache get` first — you want this for a Mathlib-dependent package"
+    default: "false"
+  lake-build:
+    description: "run `lake build` in the same job. Turn off only if the package was already built in THIS job — from another job the page cache is cold and the extractor is 5-12x slower"
+    default: "true"
+  jobs:
+    description: "extractor threads"
+    default: "4"
+  lib:
+    description: "library name, when it cannot be read from lakefile.toml (needed for lakefile.lean)"
+    default: ""
+  source-url:
+    description: "base URL for source links, when `origin` is not GitHub"
+    default: ""
+  full:
+    description: "ignore any previous state under out and regenerate everything"
+    default: "false"
+  install-elan:
+    description: "install elan if `lake` is not already on PATH"
+    default: "true"
+  cache:
+    description: "use actions/cache for the extractor, the Rust build, Mathlib's oleans and the incremental state"
+    default: "true"
+
+outputs:
+  site:
+    description: "the generated site — hand this to upload-pages-artifact or upload-artifact"
+    value: "${{ steps.build.outputs.site }}"
+  out:
+    description: "the state directory (site + caches). Keep it between runs to stay incremental"
+    value: "${{ steps.build.outputs.out }}"
+  timings:
+    description: "path to the phase timings JSON"
+    value: "${{ steps.build.outputs.timings }}"
+
+runs:
+  using: composite
+  steps:
+    # Inputs reach the shell through `env`, never interpolated into the script
+    # body: `${{ }}` is substituted before bash sees the line, so a value with a
+    # quote in it would be running as code rather than being read as a string.
+    - id: keys
+      shell: bash
+      env:
+        INPUT_ROOT: ${{ inputs.root }}
+        INPUT_OUT: ${{ inputs.out }}
+      run: |
+        set -euo pipefail
+        A="$GITHUB_ACTION_PATH"
+
+        # Resolve --root once, here, so every later step and every cache key
+        # talks about the same directory.
+        case "$INPUT_ROOT" in
+          /*) ROOT="$INPUT_ROOT" ;;
+          *)  ROOT="$GITHUB_WORKSPACE/$INPUT_ROOT" ;;
+        esac
+        [ -d "$ROOT" ] || { echo "::error::no such package: $ROOT (input root=$INPUT_ROOT)"; exit 1; }
+        ROOT="$(cd "$ROOT" && pwd)"
+
+        OUT="$INPUT_OUT"
+        if [ -z "$OUT" ]; then OUT="$RUNNER_TEMP/lean-doc-out"; fi
+        case "$OUT" in /*) ;; *) OUT="$GITHUB_WORKSPACE/$OUT" ;; esac
+
+        {
+          echo "root=$ROOT"
+          echo "out=$OUT"
+          # Hashed here rather than with hashFiles(): see the header.
+          echo "cargo=$(sha256sum "$A/Cargo.lock" | cut -c1-16)"
+          echo "extractor=$(cat "$A/extractor/Extract.lean" "$ROOT/lean-toolchain" 2>/dev/null | sha256sum | cut -c1-16)"
+          echo "manifest=$(sha256sum "$ROOT/lake-manifest.json" 2>/dev/null | cut -c1-16 || echo none)"
+          echo "toolchain=$(tr -d '\n' < "$ROOT/lean-toolchain" 2>/dev/null || echo unknown)"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Cache the Rust build
+      if: inputs.cache == 'true'
+      uses: actions/cache@v4
+      with:
+        # Absolute, because the action's own tree is outside the workspace and a
+        # relative path here would resolve against the workspace.
+        path: |
+          ~/.cargo/registry/index
+          ~/.cargo/registry/cache
+          ~/.cargo/git/db
+          ${{ github.action_path }}/target
+        key: leandoc-cargo-${{ runner.os }}-${{ steps.keys.outputs.cargo }}
+        restore-keys: leandoc-cargo-${{ runner.os }}-
+
+    - name: Cache the Lean extractor
+      if: inputs.cache == 'true'
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.action_path }}/extractor/build
+        key: leandoc-extractor-${{ runner.os }}-${{ steps.keys.outputs.extractor }}
+
+    - name: Cache Mathlib's oleans
+      if: inputs.cache == 'true' && inputs.cache-get == 'true'
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/mathlib
+        key: leandoc-mathlib-${{ steps.keys.outputs.manifest }}
+        restore-keys: leandoc-mathlib-
+
+    # What makes a run incremental: last run's state. The key moves every commit
+    # so each run saves its own, and restore-keys picks the most recent one up.
+    - name: Cache the incremental state
+      if: inputs.cache == 'true' && inputs.full != 'true'
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.keys.outputs.out }}
+        key: leandoc-state-${{ steps.keys.outputs.toolchain }}-${{ github.sha }}
+        restore-keys: leandoc-state-${{ steps.keys.outputs.toolchain }}-
+
+    - name: Install elan
+      if: inputs.install-elan == 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        if command -v lake > /dev/null 2>&1; then
+          echo "lake is already on PATH: $(command -v lake)"
+          exit 0
+        fi
+        case "$RUNNER_OS" in
+          Linux)  A=elan-x86_64-unknown-linux-gnu.tar.gz ;;
+          macOS)  if [ "$(uname -m)" = arm64 ]; then A=elan-aarch64-apple-darwin.tar.gz; else A=elan-x86_64-apple-darwin.tar.gz; fi ;;
+          *) echo "::error::unsupported runner OS for elan: $RUNNER_OS"; exit 1 ;;
+        esac
+        curl -sSfL "https://github.com/leanprover/elan/releases/latest/download/$A" | tar xz
+        # `--default-toolchain none`: the package's lean-toolchain decides, and
+        # elan fetches it on first use. Installing a default here would download
+        # a second toolchain nobody asked for.
+        ./elan-init -y --default-toolchain none
+        echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+        rm -f ./elan-init
+
+    # The Rust binary: a release asset if this ref has one for this platform,
+    # cargo otherwise. Never a hard failure — a fresh checkout on a platform
+    # with no asset must still work, only slower.
+    - id: binary
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -uo pipefail
+        A="$GITHUB_ACTION_PATH"
+        BIN="$A/target/release/lean-doc"
+        if [ -x "$BIN" ]; then
+          echo "cached: $BIN"; echo "bin=$BIN" >> "$GITHUB_OUTPUT"; exit 0
+        fi
+        case "$RUNNER_OS-$(uname -m)" in
+          Linux-x86_64)   T=x86_64-unknown-linux-musl ;;
+          macOS-arm64)    T=aarch64-apple-darwin ;;
+          macOS-x86_64)   T=x86_64-apple-darwin ;;
+          *)              T="" ;;
+        esac
+        REF="${GITHUB_ACTION_REF:-}"
+        if [ -n "$T" ] && [ -n "$REF" ] && [ "$REF" != "main" ]; then
+          V="${REF#v}"
+          NAME="lean-doc-$V-$T.tar.gz"
+          echo "trying release asset $NAME"
+          if gh release download "$REF" --repo FujiHaruka/lean-doc --pattern "$NAME" \
+               --dir "$RUNNER_TEMP/leandoc-dl" 2>/dev/null; then
+            tar -C "$RUNNER_TEMP/leandoc-dl" -xzf "$RUNNER_TEMP/leandoc-dl/$NAME"
+            FOUND="$(find "$RUNNER_TEMP/leandoc-dl" -name lean-doc -type f | head -1)"
+            if [ -n "$FOUND" ]; then
+              chmod +x "$FOUND"
+              echo "downloaded: $FOUND"
+              echo "bin=$FOUND" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          echo "no usable asset for $T at $REF — building from source"
+        else
+          echo "no release to try (ref='$REF', target='$T') — building from source"
+        fi
+        echo "bin=" >> "$GITHUB_OUTPUT"
+
+    - name: Rust toolchain
+      if: steps.binary.outputs.bin == ''
+      shell: bash
+      run: rustup show
+
+    - id: build
+      shell: bash
+      env:
+        ROOT: ${{ steps.keys.outputs.root }}
+        OUT: ${{ steps.keys.outputs.out }}
+        LEAN_DOC_BIN: ${{ steps.binary.outputs.bin }}
+        IN_CACHE_GET: ${{ inputs.cache-get }}
+        IN_LAKE_BUILD: ${{ inputs.lake-build }}
+        IN_JOBS: ${{ inputs.jobs }}
+        IN_LIB: ${{ inputs.lib }}
+        IN_SOURCE_URL: ${{ inputs.source-url }}
+        IN_FULL: ${{ inputs.full }}
+      run: |
+        set -euo pipefail
+        # `if`, not `[ … ] && …`: under `set -e` a false test is the last
+        # command of the line and kills the step. That is not hypothetical —
+        # it is how the first draft of this file failed for every caller who
+        # left `cache-get` at its default.
+        ARGS=()
+        if [ "$IN_CACHE_GET" = "true" ]; then ARGS+=(--cache-get); fi
+        if [ "$IN_LAKE_BUILD" != "true" ]; then ARGS+=(--no-lake-build); fi
+        if [ -n "$LEAN_DOC_BIN" ]; then ARGS+=(--lean-doc-bin "$LEAN_DOC_BIN"); fi
+
+        # Everything after `--` goes to `lean-doc build` itself, so `--` has to
+        # be one argument and the rest separate ones.
+        PASS=()
+        if [ -n "$IN_LIB" ]; then PASS+=(--lib "$IN_LIB"); fi
+        if [ -n "$IN_SOURCE_URL" ]; then PASS+=(--source-url "$IN_SOURCE_URL"); fi
+        if [ "$IN_FULL" = "true" ]; then PASS+=(--full); fi
+        if [ "${#PASS[@]}" -gt 0 ]; then ARGS+=(-- "${PASS[@]}"); fi
+
+        "$GITHUB_ACTION_PATH/tools/ci-build.sh" \
+          --root "$ROOT" --out "$OUT" --jobs "$IN_JOBS" \
+          ${ARGS[@]+"${ARGS[@]}"}
+
+        {
+          echo "site=$OUT/site"
+          echo "out=$OUT"
+          echo "timings=$OUT/ci-timings.json"
+        } >> "$GITHUB_OUTPUT"
