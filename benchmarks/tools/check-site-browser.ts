@@ -316,6 +316,146 @@ async function main() {
       else bad("readable without JavaScript", "no declaration is in the HTML");
       await page.close();
     }
+
+    // 8 — the monospace stack can draw what a Lean package puts in a signature.
+    //
+    // `ui-redesign.md` 決定 2 dropped the JuliaMono web font on the **assumption**
+    // that the system stack renders the 178 non-ASCII characters the measurement
+    // target's pages contain (`mono-charset.json`, regenerable with
+    // `mono-charset.py`). That assumption had only ever been looked at on macOS,
+    // and this runner is ubuntu-latest — the Linux machine was free the whole
+    // time.
+    //
+    // **The character set comes from the target, not from the site under test.**
+    // The e2e fixture is deliberately tiny, so judging the font stack by what it
+    // happens to contain would pass a stack that cannot draw `ℝ`.
+    //
+    // Two different questions, and only one of them is a failure:
+    //
+    // * **Is there a glyph at all?** 決定 2 is a bet that there is. A character
+    //   that draws nothing is unreadable, so it fails.
+    // * **Is the advance the monospace advance?** 決定 2 says outright that
+    //   「**字幅は崩れうる**」 — a proportional fallback mixing in is an accepted
+    //   cost, not a regression. So this is counted and reported, never failed on.
+    //   The count is what UI-V1 (subset and vendor JuliaMono) would be decided on.
+    {
+      const charset = JSON.parse(
+        await Deno.readTextFile(new URL("./mono-charset.json", import.meta.url)),
+      ) as { chars: string; distinct: number; source: string };
+
+      const page = await browser.newPage();
+      await page.goto(`${base}/${first}`, { waitUntil: "networkidle0" });
+      const measured = await page.evaluate((chars: string) => {
+        // The font a signature is actually drawn in, read off the page rather
+        // than written down here: a change to `--mono` must move this check.
+        const probe = document.querySelector(".sig, code, pre, .decl-name") ??
+          document.body;
+        const style = getComputedStyle(probe);
+        const font = `${style.fontSize} ${style.fontFamily}`;
+
+        const box = Math.ceil(parseFloat(style.fontSize) * 2) || 32;
+        const canvas = document.createElement("canvas");
+        canvas.width = box;
+        canvas.height = box;
+        const g = canvas.getContext("2d", { willReadFrequently: true })!;
+
+        // A span carrying every character, in the same font, for the platform
+        // font question below. Off-screen rather than hidden: `display: none`
+        // is not laid out, so nothing would be shaped and no font reported.
+        const span = document.createElement("span");
+        span.id = "mono-probe";
+        span.style.cssText =
+          `position:absolute;left:-9999px;top:0;white-space:pre;font:${font}`;
+        span.textContent = chars;
+        document.body.appendChild(span);
+
+        const paint = () => {
+          g.font = font;
+          g.fillStyle = "#000";
+          g.textBaseline = "middle";
+        };
+        paint();
+        const unit = g.measureText("M").width;
+
+        const blank: string[] = [];
+        const offWidth: string[] = [];
+        let total = 0;
+        for (const ch of chars) {
+          total += 1;
+          const width = g.measureText(ch).width;
+          g.clearRect(0, 0, box, box);
+          paint();
+          g.fillText(ch, 1, box / 2);
+          const pixels = g.getImageData(0, 0, box, box).data;
+          let inked = false;
+          for (let i = 3; i < pixels.length; i += 4) {
+            if (pixels[i] !== 0) {
+              inked = true;
+              break;
+            }
+          }
+          if (!inked) blank.push(ch);
+          // Half a pixel: sub-pixel advances differ between platforms even
+          // inside one font, and a fallback is never that close.
+          if (Math.abs(width - unit) > 0.5) offWidth.push(ch);
+        }
+        return { font, unit, total, blank, offWidth };
+      }, charset.chars);
+
+      // Which families actually drew it. This is the diagnosis a width number
+      // cannot give: Chrome reports the real fonts used for a laid-out node, so
+      // a failure names the family that is missing the glyphs instead of saying
+      // that something was wide.
+      let families = "";
+      try {
+        const cdp = await page.createCDPSession();
+        await cdp.send("DOM.enable");
+        await cdp.send("CSS.enable");
+        const { root } = await cdp.send("DOM.getDocument") as {
+          root: { nodeId: number };
+        };
+        const { nodeId } = await cdp.send("DOM.querySelector", {
+          nodeId: root.nodeId,
+          selector: "#mono-probe",
+        }) as { nodeId: number };
+        const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", {
+          nodeId,
+        }) as { fonts: { familyName: string; glyphCount: number }[] };
+        families = fonts
+          .map((f) => `${f.familyName}:${f.glyphCount}`)
+          .join(", ");
+        await cdp.detach();
+      } catch (error) {
+        families = `unavailable (${error})`;
+      }
+
+      counts["mono charset size"] = measured.total;
+      counts["mono glyphs missing"] = measured.blank.length;
+      counts["mono off-width glyphs"] = measured.offWidth.length;
+      console.log(`  mono font: ${measured.font}`);
+      console.log(`  mono platform fonts: ${families || "none reported"}`);
+      if (measured.offWidth.length) {
+        console.log(
+          `  mono off-width (accepted by 決定 2): ${
+            measured.offWidth.slice(0, 40).join("")
+          }`,
+        );
+      }
+      if (measured.blank.length) {
+        bad(
+          "every non-ASCII the target emits has a glyph",
+          `${measured.blank.length} of ${measured.total} draw nothing: ${
+            measured.blank.slice(0, 20).join("")
+          } — fonts: ${families}`,
+        );
+      } else {
+        ok(
+          "every non-ASCII the target emits has a glyph",
+          `${measured.total} characters, ${measured.offWidth.length} off-width`,
+        );
+      }
+      await page.close();
+    }
   } finally {
     await browser?.close();
     await server.shutdown();
