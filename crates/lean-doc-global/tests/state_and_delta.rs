@@ -902,6 +902,10 @@ fn mutate_added(ir: &Path) -> String {
 
 /// A declaration with every schema-4 key `lean_doc_ir` requires — the same
 /// shape the (now frozen) `tests/oracle/gen-global-expected.ts` wrote.
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "`json!` takes the value, so a reference would only move the clone"
+)]
 fn decl(name: &str, kind: &str, doc: Option<&str>, type_code: Value) -> Value {
     json!({
         "name": name, "kind": kind, "modifiers": [], "binders": [], "implicits": [],
@@ -1827,7 +1831,7 @@ fn curated_delta_branches() -> BTreeSet<&'static str> {
     covered.extend(fired);
 
     // 4. The delta with neither output file: the counts still come back.
-    let mut again = after.clone();
+    let mut again = after;
     again.insert("Pkg.moved".to_owned(), "Somewhere.Else".to_owned());
     let (fired, _) = run_delta(&trees, "no-outputs", &ir, again, false, false);
     covered.extend(fired);
@@ -1868,6 +1872,10 @@ fn curated_delta_branches() -> BTreeSet<&'static str> {
 }
 
 /// Runs one delta over `ir` with `before` as the previous map.
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "callers build the map for this call and have no use for it after"
+)]
 fn run_delta(
     trees: &TempDir,
     what: &str,

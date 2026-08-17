@@ -615,7 +615,7 @@ fn generate_site(
         rendered,
         derived,
         render_seconds: render_done.as_secs_f64(),
-        global_seconds: (total - render_done).as_secs_f64(),
+        global_seconds: total.saturating_sub(render_done).as_secs_f64(),
     })
 }
 
@@ -1258,6 +1258,10 @@ fn prune(args: &[String]) -> Result<(), Failure> {
 
 /// Carries the library's exit code out to the process, so that "the ledger is
 /// too old" (3) stays distinguishable from "the file would not read" (1).
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "it is a `map_err` argument, which is handed the error by value"
+)]
 fn refused(error: lean_doc_incr::Error) -> Failure {
     Failure::Refused {
         code: error.exit_code(),

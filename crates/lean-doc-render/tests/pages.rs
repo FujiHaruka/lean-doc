@@ -53,6 +53,11 @@
 //! whole difference between the page order's real tie-breaker and the obvious
 //! wrong one, and it is invisible to all 432 pages.
 
+#![expect(
+    clippy::case_sensitive_file_extension_comparisons,
+    reason = "reproduces the prototype's `endsWith`, which is the thing being checked"
+)]
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};

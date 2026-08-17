@@ -164,6 +164,42 @@ docs に書くすべての数字は、次の 4 ラベルのいずれかを持つ
   同じ名前で同時に食い違ったら、それは「サイトが不整合」ではなく「**比較の文字集合が違う**」。
   実際 `id` 属性を unescape していないだけだった【実測 2026-08-17】
 
+## Rust の lint
+
+**lint 設定の SoT は root `Cargo.toml` の `[workspace.lints]`。** CI の
+`cargo clippy -- -D warnings` は**昇格しかしていない** — どの lint が有効かは
+Cargo.toml が決める。これは意図的で、**ローカルの `cargo check` と CI が
+同じことを言う**ようにするため。CI のコマンドラインに `-W` を足さない
+(ローカルから見えないゲートになる)。
+
+- **グループを丸ごと入れない。** `clippy::pedantic` + `nursery` はこの木で
+  **約 1,800 件**出る【実測 2026-08-17】が、その大半は publish しないクレート向けの
+  doc lint (`missing_errors_doc`, `must_use_candidate`) と好みの問題
+  (`option_if_let_else`, `too_many_lines`)。**採用したのは 35 件** (うち deny 6)。
+  グループを入れて 400 件 allow するのは「例外リストを持つ比較器」と同じ失敗
+- **基準は「発火したら何が壊れたか 1 行で言えるか」。** 言えないものは入れない。
+  実際 `missing_debug_implementations` / `trivially_copy_pass_by_ref` /
+  `unreadable_literal` / `assigning_clones` / `unused_self` /
+  `iter_on_single_items` は**一度入れてから外した** —
+  全件が FFI 型・`&self`・Unicode の `0x10FFFF`・テストの `to_owned()` で、
+  「壊れている」と言えなかった。**外した理由は Cargo.toml に残してある**
+  (再検討のたびに同じ調査をやり直さないため)
+- **`#[allow]` を書かない。`#[expect(..., reason = "...")]` を書く。**
+  `allow_attributes` / `allow_attributes_without_reason` で機械的に強制している
+  (両方 warn → CI で error。**理由なしの `#[allow]` 1 個で落ちることを確認済み**)。
+  `#[expect]` は**lint が発火しなくなったときに警告する**のが要点 —
+  実際これで `lean-doc-md/src/ffi.rs` の `#![allow(non_camel_case_types)]` が
+  **もう不要**だと分かって消えた【実測 2026-08-17】。`#[allow]` は黙って腐る
+- **`cargo clippy --fix` の結果を読まずに信じない。** 自動修正が
+  `needless_collect` を落として**失敗時の診断を壊した** (両方のマップに在る
+  パスが 2 回列挙される) 【実測 2026-08-17】。テストは通る —
+  **その枝はテストが落ちたときしか走らない**
+
+lint と別に CI が持っているもの: **rustdoc のリンク**
+(`cargo doc` + `RUSTDOCFLAGS=-D warnings`。初回に **15 件**壊れていて、
+2 件は改名された型を指していた【実測】) と **未使用依存** (`cargo machete`。
+`lean-doc` が `lean-doc-md` を宣言だけしていた【実測】)。
+
 ## 欠陥を直すとき
 
 - **修正を一般形に引き上げたか、毎回問う。** 「マップに root が無い ⇒ 自パッケージ ⇒

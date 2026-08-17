@@ -52,6 +52,15 @@
 //! many anchors it moved. Everything else stays byte for byte, so a second
 //! divergence still fails.
 
+#![expect(
+    clippy::case_sensitive_file_extension_comparisons,
+    reason = "reproduces the prototype's `endsWith`, which is the thing being checked"
+)]
+#![expect(
+    clippy::format_push_string,
+    reason = "in the escape helper, which runs only once an assertion has already failed"
+)]
+
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::PathBuf;
 

@@ -64,6 +64,8 @@
 //! declaration with no line range inside a package that *is* pinned; there the
 //! file's URL is still right.
 
+use std::fmt::Write as _;
+
 use sha2::{Digest, Sha256};
 
 use crate::frame::module_source_url;
@@ -192,7 +194,9 @@ impl ExternalLinks {
         let digest = Sha256::digest(self.canonical().as_bytes());
         let mut hex = String::with_capacity(digest.len() * 2);
         for byte in digest {
-            hex.push_str(&format!("{byte:02x}"));
+            // `write!` rather than `push_str(&format!(..))`: the same bytes
+            // without a temporary `String` per byte.
+            write!(hex, "{byte:02x}").expect("writing to a String cannot fail");
         }
         hex
     }

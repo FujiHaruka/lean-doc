@@ -72,7 +72,7 @@ use lean_doc_render::ExternalLinks;
 
 /// Lean core's repository. Core has no manifest entry — it is the toolchain —
 /// so this is the one URL in the product that is written down rather than read.
-pub const CORE_URL: &str = "https://github.com/leanprover/lean4";
+pub(crate) const CORE_URL: &str = "https://github.com/leanprover/lean4";
 
 /// Core's module roots and the directory each lives in inside that checkout.
 ///
@@ -80,7 +80,7 @@ pub const CORE_URL: &str = "https://github.com/leanprover/lean4";
 /// what says so 【実測】: `Lake.Build` links at `…/src/lake/Lake/Build.lean` while
 /// `Std.Time` links at `…/src/Std/Time.lean`. Sharing one base would 404 every
 /// Lake link.
-pub const CORE_ROOTS: [(&str, &str); 4] = [
+pub(crate) const CORE_ROOTS: [(&str, &str); 4] = [
     ("Init", "src"),
     ("Lean", "src"),
     ("Std", "src"),
@@ -91,7 +91,7 @@ pub const CORE_ROOTS: [(&str, &str); 4] = [
 const DEFAULT_PACKAGES_DIR: &str = ".lake/packages";
 
 /// What a resolution produced.
-pub struct Packages {
+pub(crate) struct Packages {
     /// The map, core first (see [`ExternalLinks::new`]: first wins).
     pub links: ExternalLinks,
     /// Manifest entries that contributed at least one root **with a URL**.
@@ -125,7 +125,7 @@ pub struct Packages {
 /// [`crate::extract::extract`] gives: elan's shim is what picks the toolchain the
 /// target pins.
 #[must_use]
-pub fn external_links(root: &Path, lake: &Path) -> Packages {
+pub(crate) fn external_links(root: &Path, lake: &Path) -> Packages {
     let mut problems: Vec<String> = Vec::new();
     let mut collisions: Vec<String> = Vec::new();
     // Core first: its four roots are the toolchain's and are not a package's to
@@ -694,7 +694,7 @@ mod tests {
         let root = tmp.path.join("pkg");
         let dep = tmp.path.join("dep");
         for (dir, file) in [
-            (dep.clone(), "DepAux.lean"),
+            (dep, "DepAux.lean"),
             (root.join(".lake/packages/tagged"), "Tagged.lean"),
             (root.join(".lake/packages/pinned"), "Pinned.lean"),
         ] {

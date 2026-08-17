@@ -507,12 +507,14 @@ fn text_to_plaintext(out: &mut String, text: &Text) {
         // Both break kinds become a newline, which the heading id then treats
         // as a separator like any other `C` character.
         Text::Br(_) | Text::SoftBr(_) => out.push('\n'),
-        Text::Em(ts) | Text::Strong(ts) | Text::U(ts) | Text::Del(ts) => {
-            for t in ts {
-                text_to_plaintext(out, t);
-            }
-        }
-        Text::A { children: ts, .. } | Text::WikiLink { children: ts, .. } => {
+        // Formatting and links alike contribute their children and nothing of
+        // themselves: the wrapper is what plaintext drops.
+        Text::Em(ts)
+        | Text::Strong(ts)
+        | Text::U(ts)
+        | Text::Del(ts)
+        | Text::A { children: ts, .. }
+        | Text::WikiLink { children: ts, .. } => {
             for t in ts {
                 text_to_plaintext(out, t);
             }

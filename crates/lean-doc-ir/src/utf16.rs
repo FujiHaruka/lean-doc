@@ -157,6 +157,12 @@ impl Utf16Text {
         self.units as usize == self.text.len()
     }
 
+    // `as u32` throughout: [`Utf16Text::new`] refuses a string whose byte length
+    // does not fit a `u32`, so every offset into it fits by construction.
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "the constructor asserts the byte length fits a u32"
+    )]
     fn offsets(&self) -> &[u32] {
         self.offsets.get_or_init(|| {
             let mut table = Vec::with_capacity(self.units as usize + 1);
@@ -381,7 +387,7 @@ mod tests {
         let mut names = vec!["\u{FB00}x", "𝒜", "z", "\u{E000}"];
         sort_utf16(&mut names);
         assert_eq!(names, ["z", "𝒜", "\u{E000}", "\u{FB00}x"]);
-        names.sort();
+        names.sort_unstable();
         assert_eq!(names, ["z", "\u{E000}", "\u{FB00}x", "𝒜"]);
     }
 }

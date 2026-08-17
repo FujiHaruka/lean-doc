@@ -17,12 +17,15 @@
 
 // Each test binary uses a part of this module; `mod common;` compiles all of it
 // into each of them.
-#![allow(dead_code)]
+#![allow(
+    dead_code,
+    reason = "not `expect`: which part is dead depends on which test binary is compiling this"
+)]
 
 /// What [`rewrite_source_path_anchors`] did, so that a comparison cannot pass
 /// by rewriting everything or by rewriting nothing.
 #[derive(Debug, Default, PartialEq, Eq)]
-pub struct Tally {
+pub(crate) struct Tally {
     /// The new answer names the page the oracle named.
     pub unchanged: usize,
     /// The new answer names a different page.
@@ -33,7 +36,7 @@ pub struct Tally {
 
 impl Tally {
     /// Every source-path anchor seen, however it was answered.
-    pub fn total(&self) -> usize {
+    pub(crate) fn total(&self) -> usize {
         self.unchanged + self.relinked + self.dropped
     }
 }
@@ -45,7 +48,7 @@ impl Tally {
 /// with its text — which is exactly what `autoLinkInline` writes for a word that
 /// resolves to nothing. Every other anchor, and every byte between anchors, is
 /// copied.
-pub fn rewrite_source_path_anchors(
+pub(crate) fn rewrite_source_path_anchors(
     html: &str,
     answer: &dyn Fn(&str) -> Option<String>,
     tally: &mut Tally,
@@ -100,7 +103,7 @@ pub fn rewrite_source_path_anchors(
 }
 
 /// The four characters `Html.escape` writes, back.
-pub fn unescape(s: &str) -> String {
+pub(crate) fn unescape(s: &str) -> String {
     s.replace("&lt;", "<")
         .replace("&gt;", ">")
         .replace("&quot;", "\"")

@@ -4,6 +4,8 @@ license.workspace = true
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
 
 [dependencies]
 lean-doc-ir = { path = "../lean-doc-ir" }
@@ -24,3 +26,6 @@ serde = { workspace = true }
 # `preserve_order` is set on the workspace dependency and is load-bearing here:
 # see src/artifacts.rs.
 serde_json = { workspace = true }
+
+[lints]
+workspace = true

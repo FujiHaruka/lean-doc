@@ -34,6 +34,19 @@
 //! The dependency is asserted rather than commented:
 //! [`the_curated_cases_cover_what_the_package_does_not`].
 
+#![expect(
+    clippy::cast_possible_truncation,
+    reason = "counts and sizes read back out of the frozen fixture's JSON"
+)]
+#![expect(
+    clippy::case_sensitive_file_extension_comparisons,
+    reason = "reproduces the prototype's `endsWith`, which is the thing being checked"
+)]
+#![expect(
+    clippy::useless_let_if_seq,
+    reason = "the loop below sets the same flag, so it cannot become an if-expression"
+)]
+
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -880,7 +893,7 @@ fn observe_verify(
     let names_a: Vec<String> = ta.module_names();
     let names_b: BTreeSet<String> = tb.module_names().into_iter().collect();
     let mut trouble = false;
-    if BTreeSet::from_iter(names_a.iter().cloned()).len() != names_b.len() {
+    if names_a.iter().cloned().collect::<BTreeSet<_>>().len() != names_b.len() {
         fire("verifyModuleCountDiffers");
         trouble = true;
     }
@@ -1279,7 +1292,7 @@ fn the_corpus_matches_the_prototype() {
             out: copy_of("moved"),
             inc: Some(fixtures.join("inc-moved")),
             removed: None,
-            exclude: Some(exclude_three.clone()),
+            exclude: Some(exclude_three),
         },
         Round {
             name: "gained",
@@ -1291,8 +1304,8 @@ fn the_corpus_matches_the_prototype() {
         },
         Round {
             name: "copyout",
-            ir: copyout_base.clone(),
-            out: copyout_merged.clone(),
+            ir: copyout_base,
+            out: copyout_merged,
             inc: Some(fixtures.join("inc-moved")),
             removed: None,
             exclude: None,
@@ -1318,13 +1331,13 @@ fn the_corpus_matches_the_prototype() {
             ir: restored.clone(),
             out: restored.clone(),
             inc: None,
-            removed: Some(removed_leaf.clone()),
+            removed: Some(removed_leaf),
             exclude: None,
         },
         Round {
             name: "restored-2",
             ir: restored.clone(),
-            out: restored.clone(),
+            out: restored,
             inc: Some(fixtures.join("inc-restored")),
             removed: None,
             exclude: None,

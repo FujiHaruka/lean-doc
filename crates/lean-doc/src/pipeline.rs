@@ -153,7 +153,7 @@ use crate::{Failure, LINK_INDEX_COST, USAGE, print_global_summary, refused, usag
 /// `--max-rounds` reached with modules still stale. The prototype's exit code
 /// (`incremental.sh:293`), and the one number a caller may branch on: it means
 /// "the loop did not converge", not "something is broken".
-pub const EXIT_ROUNDS: u8 = 5;
+pub(crate) const EXIT_ROUNDS: u8 = 5;
 
 /// The extractor exited non-zero.
 ///
@@ -162,7 +162,7 @@ pub const EXIT_ROUNDS: u8 = 5;
 /// already means "the round loop did not converge" here. A caller that has to
 /// tell those apart cannot, so the child's code is put in the message instead of
 /// on the process.
-pub const EXIT_EXTRACTOR: u8 = 4;
+pub(crate) const EXIT_EXTRACTOR: u8 = 4;
 
 /// `opt("--max-rounds", 5)`.
 const DEFAULT_MAX_ROUNDS: usize = 5;
@@ -177,7 +177,7 @@ const REV_HEX_DIGITS: usize = 40;
 // ----------------------------------------------------------------- the driver
 
 /// Everything one incremental round needs to know.
-pub struct Incremental<'a> {
+pub(crate) struct Incremental<'a> {
     pub ir: &'a Path,
     pub pages: &'a Path,
     pub ledger: &'a Path,
@@ -206,7 +206,7 @@ pub struct Incremental<'a> {
 /// The two are the same interface — a module list in, an IR tree and a timings
 /// record out — and they differ in **who owns the process**. Nothing downstream
 /// of this enum can tell which one ran, which is the M4-c gate stated as a type.
-pub enum Extractor {
+pub(crate) enum Extractor {
     /// `--extractor <program>`: a program called once per round.
     ///
     /// **There is no default, and that is the design** 【判断】. Two jobs:
@@ -255,7 +255,12 @@ impl Extractor {
     /// `<timings>-events.jsonl`, and it is an implementation detail of how the
     /// Lean side reports its phase timers — one the resident path reproduces
     /// exactly, so that two records of the same round stay comparable.
-    pub fn run(&mut self, modules: &Path, ir_dir: &Path, timings: &Path) -> Result<(), Failure> {
+    pub(crate) fn run(
+        &mut self,
+        modules: &Path,
+        ir_dir: &Path,
+        timings: &Path,
+    ) -> Result<(), Failure> {
         let (program, args, requests) = match self {
             Self::Resident(resident) => return resident.extract(modules, ir_dir, timings),
             Self::OneShot {
@@ -305,7 +310,7 @@ impl Extractor {
     /// sharpest of the work counters: it is the only one whose zero says Lean
     /// was never started, which is where the whole incremental path's saving
     /// comes from.
-    pub fn requests(&self) -> usize {
+    pub(crate) fn requests(&self) -> usize {
         match self {
             Self::OneShot { requests, .. } => *requests,
             Self::Resident(resident) => resident.requests(),
@@ -319,7 +324,7 @@ impl Extractor {
     /// server alive at all (see [`crate::resident`]). This exists so the ordinary
     /// stop is reported and its cost is inside the run's clock, not so that a
     /// failure needs it.
-    pub fn release(&mut self) {
+    pub(crate) fn release(&mut self) {
         if let Self::Resident(resident) = self {
             resident.stop();
         }
@@ -369,7 +374,7 @@ impl Work {
 }
 
 /// What one incremental run did. Every field is a denominator.
-pub struct Summary {
+pub(crate) struct Summary {
     pub rounds: usize,
     pub stale_found: usize,
     pub changed: usize,
@@ -400,7 +405,7 @@ pub struct Summary {
 /// drops it on the floor exactly as before — see this module's heading — and
 /// [`crate::build`] is the command that writes it, after the last step that
 /// could fail.
-pub struct Run {
+pub(crate) struct Run {
     pub summary: Summary,
     pub timings: Timings,
     /// [`lean_doc_incr::CheckSummary::fresh`]: the module hashes as `detect`
@@ -410,7 +415,7 @@ pub struct Run {
 
 /// One incremental round: a changed build tree in, an updated IR and updated
 /// pages out.
-pub fn run_incremental(
+pub(crate) fn run_incremental(
     options: &Incremental<'_>,
     extractor: &mut Extractor,
 ) -> Result<Run, Failure> {
@@ -776,11 +781,11 @@ pub fn run_incremental(
             extract: extract_seconds,
             ownership: ownership_seconds,
             merge: merge_seconds,
-            rounds: (rounds_done - detect_done).as_secs_f64(),
-            prune: (prune_done - rounds_done).as_secs_f64(),
-            global: (global_done - prune_done).as_secs_f64(),
-            impact: (impact_done - global_done).as_secs_f64(),
-            render: (render_done - impact_done).as_secs_f64(),
+            rounds: rounds_done.saturating_sub(detect_done).as_secs_f64(),
+            prune: prune_done.saturating_sub(rounds_done).as_secs_f64(),
+            global: global_done.saturating_sub(prune_done).as_secs_f64(),
+            impact: impact_done.saturating_sub(global_done).as_secs_f64(),
+            render: render_done.saturating_sub(impact_done).as_secs_f64(),
             total: render_done.as_secs_f64(),
         },
         detected: check.fresh,
@@ -792,7 +797,7 @@ pub fn run_incremental(
 /// Kept out of [`Summary`] because the durations are **diagnostics**: nothing
 /// may assert on them, and a summary without them is one a test can compare with
 /// `==`.
-pub struct Timings {
+pub(crate) struct Timings {
     pub detect: f64,
     pub extract: f64,
     pub ownership: f64,
@@ -834,7 +839,7 @@ fn prune_removed(
 // ------------------------------------------------------------------- the CLI
 
 /// `lean-doc incremental`.
-pub fn incremental(args: &[String]) -> Result<(), Failure> {
+pub(crate) fn incremental(args: &[String]) -> Result<(), Failure> {
     let mut ir: Option<PathBuf> = None;
     let mut pages: Option<PathBuf> = None;
     let mut ledger: Option<PathBuf> = None;
@@ -1165,7 +1170,7 @@ pub fn incremental(args: &[String]) -> Result<(), Failure> {
 /// PATH, and elan's shim under that name is what picks the toolchain the target
 /// pins, so `~/.elan/bin/lake` would be the more specific and the more fragile of
 /// the two. The variable names are the prototype's (`serve-ctl.sh:48-50`).
-pub struct ServeRequest<'a> {
+pub(crate) struct ServeRequest<'a> {
     /// `--extractor-bin`, or `$EXTRACT_BIN`.
     pub bin: Option<PathBuf>,
     /// `--target`, or `$TARGET_REPO`.
@@ -1181,7 +1186,7 @@ pub struct ServeRequest<'a> {
     pub link_index: Option<&'a Path>,
 }
 
-pub fn serve_options(request: ServeRequest<'_>) -> Result<Serve, Failure> {
+pub(crate) fn serve_options(request: ServeRequest<'_>) -> Result<Serve, Failure> {
     let ServeRequest {
         bin,
         target,
@@ -1291,7 +1296,7 @@ pub fn serve_options(request: ServeRequest<'_>) -> Result<Serve, Failure> {
 /// `available_parallelism` fails on a machine that will not say; 4 is the same
 /// default `--jobs` uses, and one thread is never wrong, only slow.
 #[must_use]
-pub fn hash_concurrency() -> usize {
+pub(crate) fn hash_concurrency() -> usize {
     std::thread::available_parallelism().map_or(4, |cores| cores.get().clamp(1, 8))
 }
 
@@ -1368,7 +1373,7 @@ fn link_index_key(target: &Path, omit: &Path) -> Result<String, Failure> {
 /// pass placeholder URLs on purpose. The pipeline is the path that runs *every
 /// commit*, and it is the only place a real revision enters, so the check
 /// belongs on it.
-pub fn check_source_url(url: &str) -> Result<(), Failure> {
+pub(crate) fn check_source_url(url: &str) -> Result<(), Failure> {
     let broken = "the acceptance oracle normalises `/blob/[0-9a-f]{40}/` and nothing else \
                   (coverage.ts:512), so with a tag or a branch name here every page keeps its \
                   revision in the compared bytes and the score drops 3.1103 points with no \
@@ -1535,7 +1540,7 @@ fn write_timings(
 /// it**: `check` sorts its re-extract set (`detect.rs:307`) and `impact` sorts
 /// its selection, so the order reaches the ledger's array and the diagnostic
 /// files and stops there.
-pub fn modules(args: &[String]) -> Result<(), Failure> {
+pub(crate) fn modules(args: &[String]) -> Result<(), Failure> {
     let mut root: Option<PathBuf> = None;
     let mut libs: Vec<String> = Vec::new();
     let mut out: Option<PathBuf> = None;
@@ -1599,7 +1604,7 @@ pub fn modules(args: &[String]) -> Result<(), Failure> {
 /// way rather than shelling out to this command — **the same list has to reach
 /// `detect`, the extractor and `merge`** (M3-d2b), and two derivations of "the
 /// same" list is exactly how that stops being true.
-pub fn module_names(root: &Path, libs: &[String]) -> Result<Vec<String>, Failure> {
+pub(crate) fn module_names(root: &Path, libs: &[String]) -> Result<Vec<String>, Failure> {
     // Relative paths, as `find` prints them from inside the repository.
     let mut paths: Vec<String> = Vec::new();
     for lib in libs {
@@ -1653,6 +1658,10 @@ pub fn module_names(root: &Path, libs: &[String]) -> Result<Vec<String>, Failure
 /// `find` follows no symlinks by default and neither does this: a symlinked
 /// directory inside a library would otherwise let one module be listed twice
 /// under two names, and the second one has no olean.
+#[expect(
+    clippy::case_sensitive_file_extension_comparisons,
+    reason = "reproduces `find -name '*.lean'`, which decides what a module is"
+)]
 fn collect_lean(dir: &Path, prefix: &str, out: &mut Vec<String>) -> Result<(), Failure> {
     let listing = fs::read_dir(dir)
         .map_err(|source| Failure::Failed(format!("{}: {source}", dir.display())))?;
@@ -1689,7 +1698,7 @@ fn digest_or_none(digest: Option<&str>) -> String {
 /// The same spelling every stage uses (`detect::write_text`), for the same
 /// reason: an empty set has to be an empty file rather than one blank line, or
 /// `--only-from` and the round loop disagree about what "nothing" is.
-pub fn write_lines(path: &Path, items: &[String]) -> Result<(), Failure> {
+pub(crate) fn write_lines(path: &Path, items: &[String]) -> Result<(), Failure> {
     let body = if items.is_empty() {
         String::new()
     } else {
@@ -1705,7 +1714,7 @@ fn write_file(path: &Path, body: &str) -> Result<(), Failure> {
     fs::write(path, body).map_err(|source| Failure::Failed(format!("{}: {source}", path.display())))
 }
 
-pub fn create_dir(path: &Path) -> Result<(), Failure> {
+pub(crate) fn create_dir(path: &Path) -> Result<(), Failure> {
     fs::create_dir_all(path)
         .map_err(|source| Failure::Failed(format!("{}: {source}", path.display())))
 }

@@ -60,13 +60,13 @@ use crate::{Failure, USAGE, usage};
 /// The same number [`crate::pipeline`] reports when a child extractor fails, and
 /// deliberately so: when this command *is* that child, the code a caller sees is
 /// the same whichever of the two produced it.
-pub const EXIT_EXTRACTOR: u8 = 4;
+pub(crate) const EXIT_EXTRACTOR: u8 = 4;
 
 /// The six flags that spell "IR schema 4", minus the two the caller chooses.
-pub const FIXED_FLAGS: [&str; 4] = ["--equations", "--refs", "--write-ir", "--tagged-code"];
+pub(crate) const FIXED_FLAGS: [&str; 4] = ["--equations", "--refs", "--write-ir", "--tagged-code"];
 
 /// `lean-doc extract`.
-pub fn extract(args: &[String]) -> Result<(), Failure> {
+pub(crate) fn extract(args: &[String]) -> Result<(), Failure> {
     let mut modules: Option<PathBuf> = None;
     let mut ir_dir: Option<PathBuf> = None;
     let mut timings: Option<PathBuf> = None;
@@ -391,7 +391,7 @@ pub fn extract(args: &[String]) -> Result<(), Failure> {
 /// An empty variable counts as unset: `TARGET_REPO=` in a wrapper script is how
 /// a shell spells "I did not set this", and taking it literally would make the
 /// target the filesystem root.
-pub fn or_env(flag: Option<PathBuf>, name: &str) -> Option<PathBuf> {
+pub(crate) fn or_env(flag: Option<PathBuf>, name: &str) -> Option<PathBuf> {
     flag.or_else(|| {
         std::env::var_os(name)
             .filter(|value| !value.is_empty())
@@ -415,14 +415,14 @@ pub fn or_env(flag: Option<PathBuf>, name: &str) -> Option<PathBuf> {
 /// change is only the *relative* case, because the child's working directory is
 /// the target and a relative path there means somewhere inside the package being
 /// documented.
-pub fn absolute(path: &Path) -> PathBuf {
+pub(crate) fn absolute(path: &Path) -> PathBuf {
     if path.is_absolute() {
         return path.to_path_buf();
     }
     std::env::current_dir().map_or_else(|_| path.to_path_buf(), |cwd| cwd.join(path))
 }
 
-pub fn resolve(path: &Path) -> PathBuf {
+pub(crate) fn resolve(path: &Path) -> PathBuf {
     let absolute = if path.is_absolute() {
         path.to_path_buf()
     } else {
@@ -474,7 +474,7 @@ pub fn resolve(path: &Path) -> PathBuf {
 /// the prototype's with every duration dropped, and those are durations.
 ///
 /// Returns the module count, which is also written as `targetModules`.
-pub fn fold_timings(
+pub(crate) fn fold_timings(
     events: &Path,
     modules: &Path,
     jobs: usize,

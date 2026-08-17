@@ -406,7 +406,7 @@ fn first_difference(a: &str, b: &str) -> String {
         .char_indices()
         .zip(b.char_indices())
         .find(|((_, x), (_, y))| x != y)
-        .map_or(a.len().min(b.len()), |((i, _), _)| i);
+        .map_or_else(|| a.len().min(b.len()), |((i, _), _)| i);
     let from = a[..at].char_indices().rev().nth(40).map_or(0, |(i, _)| i);
     let to = a[at..]
         .char_indices()

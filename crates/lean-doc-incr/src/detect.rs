@@ -58,7 +58,7 @@ pub struct BuildOptions<'a> {
     pub out: &'a Path,
     /// An IR tree. Its `schemaVersion` and `generator` join the extract key;
     /// without it those two keys are absent, and an absent key is a change
-    /// (see [`KeySet::diff`]).
+    /// (see [`crate::KeySet::diff`]).
     pub ir: Option<&'a Path>,
     /// `--source-url`. Empty means the key is absent, which is loud rather than
     /// silent: the next `check` that passes one will re-render everything.
@@ -154,7 +154,7 @@ pub fn build_ledger(options: &BuildOptions<'_>) -> Result<BuildSummary, Error> {
         files,
         hashed_bytes,
         ledger_bytes: body.len(),
-        hash_seconds: (hash_done - key_done).as_secs_f64(),
+        hash_seconds: hash_done.saturating_sub(key_done).as_secs_f64(),
         ledger,
     };
     if let Some(path) = options.timings {
@@ -167,7 +167,7 @@ pub fn build_ledger(options: &BuildOptions<'_>) -> Result<BuildSummary, Error> {
             hashed_bytes: summary.hashed_bytes,
             key_seconds: key_done.as_secs_f64(),
             hash_seconds: summary.hash_seconds,
-            write_seconds: (total - hash_done).as_secs_f64(),
+            write_seconds: total.saturating_sub(hash_done).as_secs_f64(),
             total_seconds: total.as_secs_f64(),
         };
         write_json_line(path, &record)?;
@@ -421,9 +421,9 @@ pub fn check_ledger(options: &CheckOptions<'_>) -> Result<CheckSummary, Error> {
             removed_modules: &summary.removed,
             re_extract: summary.re_extract.len(),
             read_ledger_seconds: read_done.as_secs_f64(),
-            key_seconds: (key_done - read_done).as_secs_f64(),
-            hash_seconds: (hash_done - key_done).as_secs_f64(),
-            compare_seconds: (compare_done - hash_done).as_secs_f64(),
+            key_seconds: key_done.saturating_sub(read_done).as_secs_f64(),
+            hash_seconds: hash_done.saturating_sub(key_done).as_secs_f64(),
+            compare_seconds: compare_done.saturating_sub(hash_done).as_secs_f64(),
             total_seconds: started.elapsed().as_secs_f64(),
         };
         write_json_line(path, &record)?;

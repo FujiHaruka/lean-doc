@@ -259,7 +259,7 @@ mod tests {
             generator: "test".to_owned(),
             lean_version: "4.31.0".to_owned(),
             hash_algorithm: "lean-string-hash-64/hex16".to_owned(),
-            module_count: modules.len() as u32,
+            module_count: u32::try_from(modules.len()).expect("a test index is small"),
             declaration_count: 0,
             ablations: Vec::new(),
             modules: modules

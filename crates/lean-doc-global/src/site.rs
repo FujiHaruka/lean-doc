@@ -194,10 +194,15 @@ pub fn build_global(options: &GlobalOptions<'_>) -> Result<GlobalSummary, Error>
             let diffed = started.elapsed();
             let delta = Delta::scan(before.len(), artifacts.name_map.len(), changed, &run.facts);
             let scanned = started.elapsed();
+            // `saturating_sub` rather than `-` throughout the timings: these are
+            // stage boundaries read off one `Instant`, so the later one is later
+            // by construction — but `Duration - Duration` panics if it ever is
+            // not, and a run that dies while reporting how long it took is a
+            // worse failure than a zero in a field.
             split = DeltaTimings {
-                diff_seconds: (diffed - written).as_secs_f64(),
-                scan_seconds: (scanned - diffed).as_secs_f64(),
-                total_seconds: (scanned - written).as_secs_f64(),
+                diff_seconds: diffed.saturating_sub(written).as_secs_f64(),
+                scan_seconds: scanned.saturating_sub(diffed).as_secs_f64(),
+                total_seconds: scanned.saturating_sub(written).as_secs_f64(),
             };
             if let Some(path) = options.print_set {
                 write(path, &delta.print_set())?;
@@ -259,9 +264,9 @@ pub fn build_global(options: &GlobalOptions<'_>) -> Result<GlobalSummary, Error>
             search_index_bytes: summary.search_index_bytes,
             state_load_seconds: state_loaded.as_secs_f64(),
             read_seconds: read.as_secs_f64(),
-            write_seconds: (written - read).as_secs_f64(),
-            delta_seconds: (delta_done - written).as_secs_f64(),
-            state_save_seconds: (total - delta_done).as_secs_f64(),
+            write_seconds: written.saturating_sub(read).as_secs_f64(),
+            delta_seconds: delta_done.saturating_sub(written).as_secs_f64(),
+            state_save_seconds: total.saturating_sub(delta_done).as_secs_f64(),
             total_seconds: total.as_secs_f64(),
             delta: summary.delta.as_ref().map(|delta| TimingsDelta {
                 changed_names: delta.changed.len(),

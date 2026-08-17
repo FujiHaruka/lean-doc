@@ -9,6 +9,12 @@ rust-version = "1.97"
 # Portions are derived from doc-gen4, which is Apache-2.0; NOTICE lists every
 # third-party work and docs/provenance.md says which files are affected.
 license = "Apache-2.0"
+repository = "https://github.com/FujiHaruka/lean-doc"
+# None of these crates is a library anyone outside this repository consumes: the
+# boundaries exist so that a change to rendering cannot reach into the ledger,
+# not so that `lean-doc-render` can be depended on from crates.io. Saying so
+# makes `cargo publish` refuse rather than upload six half-crates by accident.
+publish = false
 
 # SHA-256 is 20x slower unoptimised, and the ledger's corpus test hashes about
 # 4 GB of olean. Only the hash crate is optimised — everything under test stays
@@ -17,9 +23,109 @@ license = "Apache-2.0"
 opt-level = 3
 
 [workspace.dependencies]
-anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 # `preserve_order` is not optional: the global artifacts are written from
 # explicitly pre-sorted arrays and their bytes depend on insertion order.
 # See docs/implementation-plan.md §7.
 serde_json = { version = "1", features = ["preserve_order"] }
+
+# ---------------------------------------------------------------------- lints
+#
+# WHY THESE LIVE HERE AND NOT IN CI
+#   `cargo clippy -- -D warnings` in a workflow file is invisible to whoever is
+#   editing the code: locally the same lint is a warning that scrolls past, and
+#   the first time anyone sees it is a red run. A `[lints]` table is read by
+#   every `cargo check`, so the local answer and CI's answer are the same one.
+#
+# HOW THIS SET WAS CHOSEN
+#   Not by turning on a group. `clippy::pedantic` and `clippy::nursery` together
+#   report about 1,800 findings here, and the large blocks of that are doc-style
+#   lints for crates nobody imports (`missing_errors_doc`, `must_use_candidate`)
+#   and taste calls (`option_if_let_else`, `too_many_lines`). Adopting a group
+#   and then allowing 400 of its findings would be the "比較器に例外リストを
+#   持たせる" failure in CLAUDE.md's own words. What is listed below are the
+#   lints where a firing says, in one line, what is broken.
+#
+#   Each `#[expect]` in the tree carries a reason, and `allow_attributes*` below
+#   is what keeps that true.
+[workspace.lints.rust]
+# The only `unsafe` is md4lean's FFI boundary (lean-doc-md, lean-doc-render).
+# Edition 2024 already denies this; naming it means a downgrade to an older
+# edition cannot quietly re-open the whole body of an `unsafe fn`.
+unsafe_op_in_unsafe_fn = "deny"
+# `lean-doc` is a binary: `pub` there is visible to nobody. Writing `pub(crate)`
+# instead makes "this is the crate's surface" a true statement in the library
+# crates, where it is load-bearing.
+unreachable_pub = "warn"
+unused_qualifications = "warn"
+unused_lifetimes = "warn"
+explicit_outlives_requirements = "warn"
+trivial_casts = "warn"
+trivial_numeric_casts = "warn"
+# NOT `missing_debug_implementations`: it fires 16 times here and 12 of those are
+# md4c's structs written out in `lean-doc-md/src/ffi.rs`, which are never printed
+# as Rust values. Nothing was ever hard to assert against for want of a `Debug`,
+# so the lint would be 16 suppressions buying nothing.
+
+[workspace.lints.clippy]
+# --- things that panic -------------------------------------------------------
+# `Duration - Duration` panics on underflow. Every instance here is a *timing*
+# subtraction, so the failure mode is "the build dies while measuring itself".
+unchecked_time_subtraction = "deny"
+# --- unsafe -----------------------------------------------------------------
+# Every `unsafe` block states what the caller guaranteed. This is what keeps
+# that a rule rather than a habit.
+undocumented_unsafe_blocks = "deny"
+# --- numbers ----------------------------------------------------------------
+# The product of this repository is numbers, so a silent narrowing is a wrong
+# answer rather than a style question. Where a cast is provably in range the
+# `#[expect]` says why.
+cast_possible_truncation = "warn"
+cast_possible_wrap = "warn"
+cast_sign_loss = "warn"
+cast_precision_loss = "warn"
+# --- the filesystem ---------------------------------------------------------
+# APFS is case-insensitive by default, so `ends_with(".olean")` and the file the
+# OS opened are not the same question.
+case_sensitive_file_extension_comparisons = "warn"
+# --- work that need not happen ----------------------------------------------
+# Speed is the whole claim, and these are the shapes that quietly walk the data
+# a second time.
+redundant_clone = "warn"
+needless_collect = "warn"
+format_push_string = "warn"
+format_collect = "warn"
+implicit_clone = "warn"
+# NOT `assigning_clones`: its six findings are all `field = "literal".to_owned()`
+# in a test builder, where `"literal".clone_into(&mut field)` trades a reading of
+# the line for an allocation nothing is waiting on.
+or_fun_call = "warn"
+stable_sort_primitive = "warn"
+needless_pass_by_value = "warn"
+# NOT `trivially_copy_pass_by_ref`: all three of its findings here are `&self` on
+# a small `Copy` renderer. Taking `self` by value would make every caller think
+# about a move to save an indirection the optimiser already removes.
+# --- logic ------------------------------------------------------------------
+maybe_infinite_iter = "warn"
+match_same_arms = "warn"
+# --- shapes that hide a state ------------------------------------------------
+option_option = "warn"
+use_self = "warn"
+semicolon_if_nothing_returned = "warn"
+elidable_lifetime_names = "warn"
+# NOT `unreadable_literal`: every one of its findings is `0x10FFFF`, the top of
+# the Unicode range, in the general-category tables. `0x0010_FFFF` is what the
+# lint asks for and is harder to recognise than the spelling the standard uses.
+from_iter_instead_of_collect = "warn"
+useless_let_if_seq = "warn"
+# NOT `unused_self`: all three findings are test builders whose `&'a self` is the
+# lifetime the returned options borrow from, so the receiver is load-bearing even
+# where the body never reads it.
+# --- things that must not reach a commit -------------------------------------
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+# `#[expect]` fails when the lint stops firing; `#[allow]` goes stale in silence
+# — which is exactly how a suppression outlives the code it was written for.
+allow_attributes = "warn"
+allow_attributes_without_reason = "warn"

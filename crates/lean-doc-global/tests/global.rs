@@ -1042,6 +1042,10 @@ fn fnv1a64(bytes: &[u8]) -> String {
 
 fn describe(what: &str, want: &BTreeMap<String, String>, got: &BTreeMap<String, String>) -> String {
     let mut lines = vec![what.to_owned()];
+    // The `collect` is not needless: `chain` yields a path present in both maps
+    // twice, and this is the message a failing assertion prints. Iterating the
+    // chain directly reports every shared path a second time.
+    #[expect(clippy::needless_collect, reason = "deduplicates the two key sets")]
     for path in want.keys().chain(got.keys()).collect::<BTreeSet<_>>() {
         match (want.get(path), got.get(path)) {
             (Some(a), Some(b)) if a == b => {}

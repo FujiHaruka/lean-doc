@@ -107,7 +107,6 @@ dependencies = [
  "lean-doc-global",
  "lean-doc-incr",
  "lean-doc-ir",
- "lean-doc-md",
  "lean-doc-render",
  "serde_json",
 ]

@@ -313,7 +313,7 @@ pub fn ownership(options: &OwnershipOptions<'_>) -> Result<OwnershipSummary, Err
         stale_modules: stale,
         witnesses,
         diff_seconds: diff_done.as_secs_f64(),
-        scan_seconds: (scan_done - diff_done).as_secs_f64(),
+        scan_seconds: scan_done.saturating_sub(diff_done).as_secs_f64(),
         total_seconds: scan_done.as_secs_f64(),
     };
 

@@ -38,6 +38,18 @@
 //! [`the_curated_cases_cover_what_the_package_does_not`] refuses to let that
 //! quietly stop being true.
 
+// The span counts are differenced against each other, and a difference that
+// comes out negative is what names the branch — hence `isize` rather than
+// `usize`. One fixture case holds tens of spans.
+#![expect(
+    clippy::cast_possible_wrap,
+    reason = "counts from the frozen fixture, differenced as isize"
+)]
+#![expect(
+    clippy::format_push_string,
+    reason = "in the escape helper, which runs only once an assertion has already failed"
+)]
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 

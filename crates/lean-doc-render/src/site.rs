@@ -10,8 +10,8 @@
 //! `known` has three sources and they are not commutative (`render.ts:2001-2036`):
 //! the dependency slices, then every declaration of every module — which
 //! **overwrites** — then every reference the extractor resolved, which **fills
-//! gaps only**. [`NameIndexBuilder`] enforces the difference at the call site;
-//! this module's job is to feed it in that order.
+//! gaps only**. [`crate::autolink::NameIndexBuilder`] enforces the difference at
+//! the call site; this module's job is to feed it in that order.
 //!
 //! # Two things that are read for the whole site before any page is written
 //!

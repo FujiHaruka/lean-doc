@@ -114,6 +114,10 @@ impl IrReads {
     /// to one would turn "half a pass" into either "none" or "a whole one".
     ///
     /// `None` for an empty package, where the question has no answer.
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "both counts are module reads; f64 is exact below 2^53"
+    )]
     pub fn full_passes(&self, modules: usize) -> Option<f64> {
         (modules > 0).then(|| self.module as f64 / modules as f64)
     }

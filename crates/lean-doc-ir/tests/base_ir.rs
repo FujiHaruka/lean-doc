@@ -186,7 +186,7 @@ impl Counts {
                         1
                     } else {
                         2
-                    }] += 1
+                    }] += 1;
                 }
                 None => self.spans_by_arity[0] += 1,
             }

@@ -47,7 +47,7 @@ use std::path::{Path, PathBuf};
 use crate::Failure;
 
 /// The libraries a package declares, and the file that said so.
-pub struct Libraries {
+pub(crate) struct Libraries {
     pub names: Vec<String>,
     /// For the log line: a caller that gets a surprising module list needs to
     /// know which file the surprise came from.
@@ -59,7 +59,7 @@ pub struct Libraries {
 /// Exit 3 (`Failure::Refused`) rather than exit 2 for every failure here: the
 /// command line was fine and the *package* is a shape this cannot read, which is
 /// the same kind of answer as "this module has no olean".
-pub fn read_libraries(root: &Path) -> Result<Libraries, Failure> {
+pub(crate) fn read_libraries(root: &Path) -> Result<Libraries, Failure> {
     let toml = root.join("lakefile.toml");
     let lean = root.join("lakefile.lean");
     if !toml.is_file() {
@@ -175,6 +175,15 @@ fn lean_libs(text: &str, path: &Path) -> Result<Vec<String>, Failure> {
 /// A block with no `name` is refused rather than skipped: Lake defaults the
 /// library's name to the package's, and guessing that here would produce a
 /// module root nobody wrote down.
+///
+/// The two layers of [`Option`] are the two questions the scan tracks and are
+/// not the same question twice: the outer one is whether a block is open, the
+/// inner one whether that block has given its `name` yet. `Some(None)` — open,
+/// unnamed — is the state rule 2 refuses at the block's end.
+#[expect(
+    clippy::option_option,
+    reason = "outer = a block is open, inner = it has a name; a named enum would restate this"
+)]
 fn close(
     open: &mut Option<Option<String>>,
     names: &mut Vec<String>,

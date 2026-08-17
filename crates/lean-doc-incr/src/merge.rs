@@ -498,7 +498,7 @@ pub fn merge(options: &MergeOptions<'_>) -> Result<MergeSummary, Error> {
         declarations,
         dep_maps,
         copy_seconds: modules_done.as_secs_f64(),
-        deps_seconds: (total - modules_done).as_secs_f64(),
+        deps_seconds: total.saturating_sub(modules_done).as_secs_f64(),
         total_seconds: total.as_secs_f64(),
     };
     if let Some(path) = options.changed_out {
@@ -640,10 +640,12 @@ impl VerifyReport {
     /// The text `merge --verify` prints, which is the whole of its answer.
     #[must_use]
     pub fn to_text(&self) -> String {
-        self.lines
-            .iter()
-            .map(|line| format!("{line}\n"))
-            .collect::<String>()
+        let mut text = String::new();
+        for line in &self.lines {
+            text.push_str(line);
+            text.push('\n');
+        }
+        text
     }
 }
 

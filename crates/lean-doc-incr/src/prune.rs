@@ -9,7 +9,7 @@
 //! like a live one. The failure is silent, which is why stage 5b's S4 found the
 //! pipeline exiting rather than pretending to have succeeded.
 //!
-//! The other two thirds: the IR is [`crate::merge`]'s `--remove`, and the ledger
+//! The other two thirds: the IR is [`mod@crate::merge`]'s `--remove`, and the ledger
 //! is rebuilt outright (`build` costs the same ~0.05 s as `check`, so there is no
 //! reason for an incremental ledger-update path).
 //!
@@ -192,7 +192,7 @@ impl PageRoot {
     /// The last check before an unlink: the file's directory really is inside
     /// the root once every symlink on the way has been followed.
     pub fn allow_delete(&self, path: &Path) -> Result<(), Error> {
-        let parent = path.parent().unwrap_or(Path::new("."));
+        let parent = path.parent().unwrap_or_else(|| Path::new("."));
         self.contains(path, parent, false)
     }
 
@@ -347,6 +347,14 @@ fn read_index_modules(ir: &Path) -> Result<Vec<String>, Error> {
 /// prototype cuts the same string off the front of the absolute path
 /// (`prune-pages.ts:87`); building it up instead means a `--pages` with a
 /// trailing slash does not shift the cut by one.
+// `ends_with(".html")` is case-sensitive here on purpose: the prototype's
+// `Deno.readDir` loop compares the same way, and this stage's job is to agree
+// with it about which files are pages. A `.HTML` the renderer never writes is
+// left alone rather than unlinked.
+#[expect(
+    clippy::case_sensitive_file_extension_comparisons,
+    reason = "matches the prototype's comparison, which decides what is a page"
+)]
 fn walk_orphans(
     root: &PageRoot,
     dry_run: bool,

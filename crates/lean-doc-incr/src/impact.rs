@@ -85,6 +85,7 @@
 //! touched.
 
 use std::collections::{HashMap, HashSet};
+use std::fmt::Write as _;
 use std::path::Path;
 
 use lean_doc_ir::{IrTree, sort_utf16};
@@ -285,14 +286,16 @@ pub fn impact(options: &ImpactOptions<'_>) -> Result<ImpactRun, Error> {
             for entry in &index.modules {
                 let module = entry.module.as_str();
                 rows.push('\n');
-                rows.push_str(&format!(
+                write!(
+                    rows,
                     "{module}\t{}\t{}\t{}\t{}\t{}",
                     decl_count.get(module).copied().unwrap_or(0),
                     direct_imports.get(module).map_or(0, Vec::len),
                     imported_by.get(module).map_or(0, Vec::len),
                     closure(&[module], &imported_by).len(),
                     referred_by.get(module).map_or(0, Vec::len),
-                ));
+                )
+                .expect("writing to a String cannot fail");
             }
             rows.push('\n');
             write(path, &rows)?;
@@ -370,7 +373,7 @@ pub fn impact(options: &ImpactOptions<'_>) -> Result<ImpactRun, Error> {
 
     let body = summary.to_json();
     if let Some(path) = options.json {
-        write(path, &(body.clone() + "\n"))?;
+        write(path, &(body + "\n"))?;
     }
     if let Some(path) = options.print_set {
         // **Not** [`crate::detect::write_text`]: the prototype writes

@@ -237,7 +237,7 @@ enum Plan {
 // ------------------------------------------------------------------- the CLI
 
 /// `lean-doc build`.
-pub fn build(args: &[String]) -> Result<(), Failure> {
+pub(crate) fn build(args: &[String]) -> Result<(), Failure> {
     let mut root: Option<PathBuf> = None;
     let mut out: Option<PathBuf> = None;
     let mut libs: Vec<String> = Vec::new();

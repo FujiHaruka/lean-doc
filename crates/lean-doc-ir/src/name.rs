@@ -30,7 +30,7 @@
 //! | **the path** | `Alpha/Odd-Name` | the olean is at the source's path, and doc-gen4 builds a page path out of `Name.toString (escape := false)` components (`Output/Base.lean:188`) |
 //!
 //! Hence [`escape_module`], which the glob applies once, and
-//! [`module_components`] / [`module_path`], which every path derivation goes
+//! [`module_components`] / [`fn@module_path`], which every path derivation goes
 //! through.
 //!
 //! # This is inert on the measurement target 【実測】

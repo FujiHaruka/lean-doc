@@ -34,6 +34,10 @@
 //! case and checks that together they reach all 27.
 
 #![cfg(unix)]
+#![expect(
+    clippy::maybe_infinite_iter,
+    reason = "`(1..).take_while` stops at the first round file that is not on disk"
+)]
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -382,7 +386,7 @@ fn observe(run: &Report) -> BTreeSet<&'static str> {
     match run.value_of("--mode") {
         None => fire("modeDefaulted"),
         Some(text) if ["self", "referrers", "importers", "all"].contains(&text) => {
-            fire("modeGiven")
+            fire("modeGiven");
         }
         Some(_) => fire("modeUnrecognisedRefused"),
     }
@@ -2160,7 +2164,7 @@ fn case_command_line() -> BTreeSet<&'static str> {
 
     // `--extractor` with no `--extractor-arg` is a legal command line: the fake
     // extractor refuses, which is its own business.
-    let mut args = full.clone();
+    let mut args = full;
     while let Some(at) = args.iter().position(|arg| arg == "--extractor-arg") {
         args.drain(at..=at + 1);
     }

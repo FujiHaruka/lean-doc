@@ -67,10 +67,35 @@ jobs:
       - name: Format
         run: cargo fmt --all --check
 
+      # Which lints are on is `[workspace.lints]` in the root Cargo.toml, not this
+      # line — so a local `cargo check` says the same thing this job says. All
+      # that happens here is the promotion to an error.
+      #
       # `--all-targets` so that tests and benches are linted too: most of this
       # workspace's code by line count is tests.
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
+
+      # A `[`Foo`]` that no longer resolves is a doc comment that has drifted from
+      # the code, and this repository's doc comments are where the reasoning
+      # lives. Found 15 of them the first time it ran, two of which named types
+      # that had been renamed.
+      #
+      # `--document-private-items` because nothing outside this repository
+      # consumes these crates: the internal documentation is the documentation.
+      # `private_intra_doc_links` is allowed for the same reason — a public item
+      # pointing at a private one is normal here, not a mistake.
+      - name: Rustdoc links
+        run: cargo doc --workspace --no-deps --document-private-items
+        env:
+          RUSTDOCFLAGS: -D warnings -A rustdoc::private_intra_doc_links
+
+      # A dependency nobody imports is still a crate to compile and still an entry
+      # in what `cargo deny` has to vouch for. `lean-doc` was declaring
+      # `lean-doc-md` without using it.
+      - uses: taiki-e/install-action@cargo-machete
+      - name: Unused dependencies
+        run: cargo machete
 
       # `--no-fail-fast`: one red crate must not hide the state of the others.
       - name: Test

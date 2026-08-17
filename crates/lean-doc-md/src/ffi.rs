@@ -21,8 +21,6 @@
 //! - [`MdAttribute::substr_types`] is `*const c_int`, not `*const MdTextType`,
 //!   for the same reason: the values are read and converted, never transmuted.
 
-#![allow(non_camel_case_types)]
-
 use std::ffi::{c_char, c_int, c_uint, c_void};
 
 /// `MD_CHAR` — the header's character type when `MD4C_USE_UTF16` is not

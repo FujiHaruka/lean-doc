@@ -429,6 +429,10 @@ unsafe fn detail_of<T: Copy>(detail: *mut c_void) -> Result<T> {
 /// md4c's marks and delimiters are ASCII by construction (`-`, `+`, `*`, `.`,
 /// `)`, `` ` ``, `~`, `x`, `X`, space). `MD_CHAR` is signed, so this is where
 /// that assumption is written down rather than hidden in a cast.
+#[expect(
+    clippy::cast_sign_loss,
+    reason = "md4c's marks are the ASCII set listed above, so the sign is never set"
+)]
 fn mark_char(mark: MdChar) -> char {
     char::from(mark as u8)
 }

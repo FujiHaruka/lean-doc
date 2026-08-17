@@ -24,7 +24,7 @@
 //!   modules still stale. The loop is the **pipeline's**, not a stage's: it
 //!   needs the extractor between ownership and merge, so it arrives with the
 //!   driver (`incremental.sh:291-294` is what has to move). What is here is the
-//!   round's machinery — [`ownership`]'s `--exclude` is how a round says what
+//!   round's machinery — [`mod@ownership`]'s `--exclude` is how a round says what
 //!   earlier rounds already took, and its `--print-set` is the next round's
 //!   input;
 //! - a `renderKey` change overrides the impact mode and re-renders everything.

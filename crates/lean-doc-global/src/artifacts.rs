@@ -53,9 +53,9 @@
 //! sorted order. A `BTreeMap` would re-sort — by code point, undoing the
 //! paragraph above — and `name-map.json` would additionally lose the
 //! interleaving of declaration and dependency names. The feature is set on the
-//! workspace dependency;
-//! [`crate::artifacts::tests::preserve_order_is_enabled`] fails if it is ever
-//! dropped as unused.
+//! workspace dependency; this module's `preserve_order_is_enabled` test fails if
+//! it is ever dropped as unused. (Not a link: `#[cfg(test)]` items are invisible
+//! to rustdoc.)
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
@@ -117,7 +117,8 @@ pub struct Artifacts {
 /// parsed the file it had just written rather than recounting its inputs, so
 /// that a number quoted in a document could not disagree with the file it was
 /// about. That file is gone, so the derivation reports its own sizes instead and
-/// [`tests::the_counts_are_what_the_files_hold`] is what keeps the two honest.
+/// this module's `the_counts_are_what_the_files_hold` test is what keeps the two
+/// honest.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Counts {
     /// Distinct declaration names in the package.
@@ -213,7 +214,7 @@ impl Artifacts {
         // *before* sorting, so a name in both appears twice and the second
         // insertion only overwrites the first's value with the same value. A
         // declaration always wins over a dependency slice.
-        let mut merged: Vec<&str> = sorted_names.to_vec();
+        let mut merged: Vec<&str> = sorted_names.clone();
         merged.extend(dep_names.iter().copied());
         merged.sort_by(|a, b| cmp_utf16(a, b));
         let mut flat_map: BTreeMap<String, String> = BTreeMap::new();

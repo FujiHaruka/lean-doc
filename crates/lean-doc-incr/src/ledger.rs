@@ -37,6 +37,7 @@
 //! every file it kept is identical.
 
 use std::collections::HashSet;
+use std::fmt::Write as _;
 use std::fs;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -493,6 +494,13 @@ pub fn module_paths(lib_dir: &str, module: &str) -> Vec<String> {
 /// `--algorithm lake` is a different case and *is* an error: the file the
 /// algorithm names is not there, and reporting the module as removed would
 /// delete its pages.
+// `bytes.len() as i64`: the field is signed because `-1` is how the `lake`
+// algorithm says "this file was not read", so a size and that sentinel share one
+// number. An olean larger than 8 EiB is not the case to degrade gracefully on.
+#[expect(
+    clippy::cast_possible_wrap,
+    reason = "the field is i64 to carry the -1 sentinel; no olean approaches i64::MAX"
+)]
 pub fn hash_module(
     target: &str,
     lib_dir: &str,
@@ -609,7 +617,10 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
     let digest = Sha256::digest(bytes);
     let mut hex = String::with_capacity(digest.len() * 2);
     for byte in digest {
-        hex.push_str(&format!("{byte:02x}"));
+        // `write!` rather than `push_str(&format!(..))`: the corpus test hashes
+        // about 4 GB, and the temporary `String` per byte is 32 allocations per
+        // digest that nothing reads.
+        write!(hex, "{byte:02x}").expect("writing to a String cannot fail");
     }
     hex
 }

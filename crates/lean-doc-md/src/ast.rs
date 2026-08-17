@@ -62,11 +62,11 @@ pub enum Text {
     /// An entity, verbatim and unvalidated, e.g. `&nbsp;`.
     Entity(String),
     /// Emphasis.
-    Em(Vec<Text>),
+    Em(Vec<Self>),
     /// Strong emphasis.
-    Strong(Vec<Text>),
+    Strong(Vec<Self>),
     /// Underline. Needs `MD_FLAG_UNDERLINE`, which docstrings do not use.
-    U(Vec<Text>),
+    U(Vec<Self>),
     /// A link.
     A {
         /// The destination.
@@ -76,7 +76,7 @@ pub enum Text {
         /// True for `<...>` and permissive autolinks.
         is_auto: bool,
         /// The link text.
-        children: Vec<Text>,
+        children: Vec<Self>,
     },
     /// An image.
     Img {
@@ -85,12 +85,12 @@ pub enum Text {
         /// The title, empty when the source gave none.
         title: Vec<AttrText>,
         /// The alt text, which may itself contain spans.
-        alt: Vec<Text>,
+        alt: Vec<Self>,
     },
     /// A code span. The parser may split it into several pieces.
     Code(Vec<String>),
     /// Struck-through text.
-    Del(Vec<Text>),
+    Del(Vec<Self>),
     /// An inline `$...$` math span.
     LatexMath(Vec<String>),
     /// A display `$$...$$` math span.
@@ -100,7 +100,7 @@ pub enum Text {
         /// The target article.
         target: Vec<AttrText>,
         /// The link text.
-        children: Vec<Text>,
+        children: Vec<Self>,
     },
 }
 
@@ -171,7 +171,7 @@ pub enum Block {
     /// A raw HTML block. Never produced under `MD_FLAG_NOHTML`.
     Html(Vec<String>),
     /// A block quote.
-    BlockQuote(Vec<Block>),
+    BlockQuote(Vec<Self>),
     /// A table.
     Table {
         /// The header row's cells. md4c guarantees exactly one header row.

@@ -21,7 +21,7 @@
 //! | [`ffi`] | `md4c.h` transcribed: enums, detail structs, `MD_PARSER`, `md_parse` |
 //! | [`flags`] | `MD_FLAG_*`, and [`flags::DOCSTRING_FLAGS`], the combination doc-gen4 uses |
 //! | [`ast`] | the tree, shaped like MD4Lean's Lean ADT because that is what doc-gen4 matches on |
-//! | [`parse`] | the callbacks, transliterated from `MD4Lean/wrapper/wrapper.c` |
+//! | [`mod@parse`] | the callbacks, transliterated from `MD4Lean/wrapper/wrapper.c` |
 //! | [`html`] | `DocGen4/Output/DocString.lean`: the tree to HTML |
 //! | [`escape`] | `Html.escape`, which is four characters and not five |
 //! | [`gc`] | the Unicode general category tables the two of those need |

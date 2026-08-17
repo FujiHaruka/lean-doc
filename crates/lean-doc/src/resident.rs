@@ -146,7 +146,7 @@ const MOVED_IN_MESSAGE: usize = 5;
 /// `modules` is the **superset** it imports — whatever the requests ask for later
 /// has to be inside it, because a resident environment is never grown
 /// (`Extract.lean:2707-2714`).
-pub struct Serve {
+pub(crate) struct Serve {
     /// The Lean extractor, `extractor/build.sh`'s output.
     pub bin: PathBuf,
     /// The `lake` to borrow the target's environment with.
@@ -211,7 +211,7 @@ pub struct Serve {
 /// extracts *nothing* — the commonest answer this pipeline gives — no longer pays
 /// 3 GB and an import for a server it never speaks to. The generation is taken at
 /// the head of the run either way, so the guard covers the delay.
-pub struct Resident {
+pub(crate) struct Resident {
     serve: Serve,
     /// The world as it stood at the head of the run, before `detect` looked at
     /// it. Every later check is against this one value.
@@ -222,7 +222,7 @@ pub struct Resident {
 
 impl Resident {
     /// Records the world; starts nothing.
-    pub fn new(serve: Serve) -> Result<Self, Failure> {
+    pub(crate) fn new(serve: Serve) -> Result<Self, Failure> {
         if !serve.bin.is_file() {
             return Err(Failure::Refused {
                 code: 3,
@@ -244,7 +244,7 @@ impl Resident {
 
     /// One extraction round, on the same interface as a `--extractor` program:
     /// a module list in, an IR tree and a timings record out.
-    pub fn extract(
+    pub(crate) fn extract(
         &mut self,
         modules: &Path,
         ir_dir: &Path,
@@ -298,7 +298,7 @@ impl Resident {
     /// request(s)` — rather than a second tally: two counters of one thing are
     /// two things that can disagree, and this one is a gate's input (see
     /// `crate::build`'s `work` record).
-    pub fn requests(&self) -> usize {
+    pub(crate) fn requests(&self) -> usize {
         self.requests
     }
 
@@ -313,7 +313,7 @@ impl Resident {
     ///
     /// Idempotent, as the prototype's `cleanup` is idempotent, and [`Drop`] is
     /// still the backstop for every path that does not reach here.
-    pub fn stop(&mut self) {
+    pub(crate) fn stop(&mut self) {
         if let Some(server) = self.server.take() {
             let requests = self.requests;
             let status = server.stop();
@@ -360,7 +360,7 @@ impl Resident {
 
     /// The generation this run is pinned to, for the record.
     #[must_use]
-    pub fn generation(&self) -> &str {
+    pub(crate) fn generation(&self) -> &str {
         &self.generation.digest
     }
 }

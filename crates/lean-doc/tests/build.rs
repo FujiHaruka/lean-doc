@@ -407,7 +407,7 @@ fn the_first_run_builds_and_the_second_one_does_nothing() {
         &live.lidx.display().to_string(),
     ]);
     assert_eq!(code(&ok), 0, "{}", stderr(&ok));
-    let mut pages_and_artifacts = after_first.clone();
+    let mut pages_and_artifacts = after_first;
     for (name, body) in ASSETS {
         let taken = pages_and_artifacts.remove(Path::new(name));
         assert_eq!(

@@ -119,6 +119,9 @@ impl LinkIndex {
                 Some(b'@') => {
                     index.known_modules.insert(line[1..].to_owned());
                 }
+                // Two different nothings, kept apart on purpose: `#` is a
+                // comment line the format defines, `None` is a blank line.
+                #[expect(clippy::match_same_arms, reason = "distinct reasons to skip")]
                 Some(b'#') => {}
                 Some(_) => current = index.intern(line),
                 None => {}
@@ -338,7 +341,7 @@ mod tests {
     #[test]
     fn an_entry_is_twelve_bytes() {
         assert_eq!(
-            std::mem::size_of::<Entry>(),
+            size_of::<Entry>(),
             12,
             "a 1-based line number leaves a niche, so `Option` costs nothing"
         );

@@ -144,7 +144,10 @@ impl<'a> CodeRenderer<'a> {
 
     /// `Renderer.range` — the untagged text between children, escaped, with each
     /// child rendered in place.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the span tree, the text and the link context all have to reach here"
+    )]
     fn range(
         &self,
         out: &mut String,

@@ -37,14 +37,13 @@
 //!
 //! # One test here is about the stylesheet rather than the plumbing
 //!
-//! [`every_class_the_renderer_emits_is_styled`] compares the class names in the
-//! renderer's string literals against the selectors in `style.css`. It lives
-//! here because this is where the two sides meet, and it exists because the
-//! failure it catches is **silent**: a class renamed in `decl.rs` still renders,
-//! still validates, and simply has no styling. Nothing else in the suite opens a
-//! browser, so nothing else would ever notice.
-//!
-//! [`every_class_the_renderer_emits_is_styled`]: tests::every_class_the_renderer_emits_is_styled
+//! This module's `every_class_the_renderer_emits_is_styled` test — not a link,
+//! because `#[cfg(test)]` items are invisible to rustdoc — compares the class
+//! names in the renderer's string literals against the selectors in `style.css`.
+//! It lives here because this is where the two sides meet, and it exists because
+//! the failure it catches is **silent**: a class renamed in `decl.rs` still
+//! renders, still validates, and simply has no styling. Nothing else in the suite
+//! opens a browser, so nothing else would ever notice.
 
 use std::fs;
 use std::path::Path;

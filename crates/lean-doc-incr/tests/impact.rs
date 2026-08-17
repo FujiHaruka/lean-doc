@@ -40,6 +40,15 @@
 //! The dependency is asserted rather than commented:
 //! [`the_curated_cases_cover_what_the_package_does_not`].
 
+#![expect(
+    clippy::case_sensitive_file_extension_comparisons,
+    reason = "reproduces the prototype's `endsWith`, which is the thing being checked"
+)]
+#![expect(
+    clippy::cast_possible_truncation,
+    reason = "counts read back out of the frozen fixture's JSON"
+)]
+
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -916,8 +925,8 @@ fn observe_prune(
 
 // ------------------------------------------------------------ running things
 
-fn run_impact<'a>(
-    options: &ImpactOptions<'a>,
+fn run_impact(
+    options: &ImpactOptions<'_>,
     tree: &SecondTree,
 ) -> (Result<ImpactRun, Error>, BTreeSet<&'static str>) {
     let result = impact(options);
@@ -1007,7 +1016,7 @@ fn corpus() -> (PathBuf, PathBuf, PathBuf) {
 
 /// Regular files under `dir`, recursively. Zero for a missing directory.
 fn file_count(dir: &Path) -> usize {
-    let Ok(entries) = std::fs::read_dir(dir) else {
+    let Ok(entries) = fs::read_dir(dir) else {
         return 0;
     };
     entries
@@ -1057,7 +1066,7 @@ fn the_corpus_matches_the_prototype() {
         leaf.clone(),
         hub.clone(),
     ];
-    let dup = vec![hub.clone(), hub.clone()];
+    let dup = vec![hub.clone(), hub];
     let unrecognised = Mode::parse("nonsense");
     let m_self = Mode::SelfOnly;
     let m_referrers = Mode::Referrers;
@@ -1293,7 +1302,7 @@ fn the_corpus_matches_the_prototype() {
         let path = fixtures.path.join(name);
         fs::write(
             &path,
-            modules.iter().map(|m| format!("{m}\n")).collect::<String>(),
+            modules.iter().flat_map(|m| [*m, "\n"]).collect::<String>(),
         )
         .expect("writable");
         path
@@ -1487,7 +1496,11 @@ fn check_prune(want: &Value, summary: &PruneSummary, json: &Path, tree: &Path, n
         want["dirs"]["count"].as_u64().expect("a count"),
         "{name}: directory count (the harness counts the root, this does not)"
     );
-    let listing: String = after.files.iter().map(|file| format!("{file}\n")).collect();
+    let listing: String = after
+        .files
+        .iter()
+        .flat_map(|file| [file.as_str(), "\n"])
+        .collect();
     assert_eq!(
         fnv1a64(listing.as_bytes()),
         want["files"]["fnv1a64"].as_str().expect("a digest"),
@@ -1619,7 +1632,7 @@ fn curated_impact_branches() -> BTreeSet<&'static str> {
         .expect("a selection");
     assert_eq!(
         summary.selected,
-        vec!["Pkg.Root".to_owned(), astral.clone(), ligature.clone()],
+        vec!["Pkg.Root".to_owned(), astral, ligature],
         "the selection is not in UTF-16 order (plan §7, U1)"
     );
     // The same list by code point would put the ligature first.

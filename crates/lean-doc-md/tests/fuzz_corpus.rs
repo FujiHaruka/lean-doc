@@ -38,6 +38,11 @@
 //! part that has to keep passing on every push, which is the corpus
 //! (`docs/plans/quality-gates.md` 決定 5).
 
+#![expect(
+    clippy::cast_possible_truncation,
+    reason = "the PRNG word is reduced modulo the fragment count on the same line"
+)]
+
 use std::path::{Path, PathBuf};
 
 use lean_doc_md::{NoLinks, Renderer};
