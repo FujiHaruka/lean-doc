@@ -1,7 +1,18 @@
 # 配布 — composite action / Rust バイナリの Release / extractor プリビルドの可否
 
-**状態**: 進行中 (2026-08-18 起票)。v0.1.0 は「ソースから建てる」しか配布経路が無く、
-README がユーザーに `checkout` 2 回とキャッシュ鍵 3 つを書かせている。
+**状態**: **完遂 (2026-08-18)**。D1〜D4 すべて決着 — D2/D3 は公開して実走で緑、
+D4 は「配れると確認した上で配らない」判定。起票時点では v0.1.0 に「ソースから建てる」しか
+配布経路が無く、README がユーザーに `checkout` 2 回とキャッシュ鍵 3 つを書かせていた。
+
+| 段 | 結果 |
+|---|---|
+| **D1** 検証 | X1/X3/X4/X5/X6 すべて実測。extractor は **toolchain だけで決まり、可搬で、不一致では静かに壊れない** |
+| **D2** Release | **`v0.1.3`** — Linux musl (静的) / macOS arm。書庫に `LICENSE` + `NOTICE` |
+| **D3** action | **`FujiHaruka/lean-doc@v0.1.3`** — 利用側は 5 行。self-test 5 ジョブ |
+| **D4** extractor | **配らない**。226 MB vs 16 s のビルド、しかも CI はキャッシュする |
+
+**この作業で見つけた欠陥は 7 件** (うち product 0 件 / 配布経路と検査 7 件) — 内訳は各段の
+結果ブロックに。**最初から緑だったものは 1 つも無い。**
 
 ---
 
@@ -144,9 +155,18 @@ X2 で比べるのは「バイナリの byte」ではなく「**出てくる IR 
 > - **わざと落とす経路**が緑: 存在しない `root` で action は失敗する
 > - **`uses: FujiHaruka/lean-doc@main`** が緑 = `_actions/` への展開という実配布経路が動く。
 >   これで README の未検証項目「利用者リポジトリの checkout」も実質潰れた
-> - **Release からバイナリを取る経路**だけは `@main` では通らない (Release が無いので
->   常に cargo にフォールバックする)。`binary-source` output を足し、
->   `released` ジョブ (`workflow_dispatch` 専用) が `= release` を assert する
+> - **Release からバイナリを取る経路も実走した** — `uses:@v0.1.3` で
+>   **`binary-source = release`**【実測】。`binary-source` output を足したのはこのため
+>   (ログを読むのではなく assert するため)。**ここで欠陥が 2 つ出た**:
+>   (a) **`GITHUB_ACTION_REF` は composite action の `run` 段では空**
+>   (`ref=''` と印字された。context 式 `github.action_ref` には来るので env で渡す)、
+>   (b) ref が tag かどうかだけで判定すると **`@main` が古い Release のバイナリを掴む** —
+>   いまは **ref がツリーの `Cargo.toml` の版と一致するときだけ**取る。
+>   あわせて「`target/release/lean-doc` があれば使う」も**やめた**: そのファイルは
+>   cargo キャッシュ由来かもしれず、鍵は `Cargo.lock` なので**ソースが動いても動かない**
+>   (`ci-build.sh` が一度払った失敗)
+> - **self-test 自身も 1 度直した**: 「1 回目は必ず描画する」が**状態キャッシュの中身に
+>   依存**していた (前の run の状態が復元されると 0 描画が正しい)。`full: true` で決定化
 
 ### D4 — extractor のプリビルド配布 → **配れる。しかし配らない**【決定 2026-08-18】
 
