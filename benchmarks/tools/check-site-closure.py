@@ -34,6 +34,7 @@ usage:
 
 import argparse
 import collections
+import html
 import json
 import os
 import posixpath
@@ -107,8 +108,16 @@ def main():
     resources = []
     for page in pages:
         text = read(os.path.join(site, page))
-        decl_anchors[page] = set(DECL_ANCHOR.findall(text))
-        all_anchors[page] = set(ANY_ANCHOR.findall(text))
+        # `html.unescape`: an `id` attribute is escaped text, so the id of
+        # `id="List.«term_&lt;+~_»"` is `List.«term_<+~_»` — which is what the
+        # search index carries. Comparing the raw attribute bytes reported
+        # **two** false failures per direction on `batteries`【実測 2026-08-17】,
+        # in both directions at once, which is the signature of a comparison
+        # done in the wrong alphabet rather than of a site that is inconsistent.
+        # `crates/lean-doc/src/packages.rs`'s oracle undoes the same escape for
+        # the same reason.
+        decl_anchors[page] = {html.unescape(a) for a in DECL_ANCHOR.findall(text)}
+        all_anchors[page] = {html.unescape(a) for a in ANY_ANCHOR.findall(text)}
         for url in RESOURCE.findall(text):
             if EXTERNAL.match(url):
                 resources.append((page, url))

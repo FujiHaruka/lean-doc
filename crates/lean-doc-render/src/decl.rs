@@ -77,9 +77,22 @@ impl std::error::Error for UnplaceableName {}
 /// `declNameToLink` (`Base.lean:231-234`): the module a rendered name lives in,
 /// the declaration's own references first.
 ///
-/// The lookup is [`NameIndex::known`] and deliberately **not**
-/// [`NameIndex::module_of`] — the dependency closure's `.lidx` belongs to the
-/// docstring path, as it does in [`CodeRenderer::const_link`].
+/// # Why the `.lidx` is consulted here and not in [`CodeRenderer::const_link`]
+///
+/// It was not, until a real package stopped a build【実測 2026-08-17】.
+/// `batteries` declares `class LawfulLTCmp … extends Std.OrientedCmp`, and an
+/// inherited field of a class **the documented package does not declare** is a
+/// name the IR's own map has never heard of: `lean-doc build` rendered nothing
+/// and exited with `no defining module for Std.OrientedCmp.eq_swap`. The name
+/// was in the `.lidx` the whole time — that index covers the environment, not
+/// the package — so the fall-through below is a *correct* answer rather than a
+/// guess, which is what the paragraph above refuses to make.
+///
+/// **No byte that renders today can move.** The `.lidx` is reached only after
+/// `refs` and [`NameIndex::known`] both miss, and that state was an `Err` that
+/// stopped the run. [`CodeRenderer::const_link`] keeps the narrower lookup
+/// because *its* misses render as unlinked text against an oracle that agrees
+/// (`render.ts:2059-2064`), so widening it there would move bytes.
 ///
 /// **Which module the field is in is one question; where that module's source
 /// lives is another** (M7-c). The lookup above is unchanged and still refuses to
@@ -105,7 +118,7 @@ pub fn decl_name_to_link(
     let module = refs
         .get(name)
         .copied()
-        .or_else(|| names.known(name))
+        .or_else(|| names.module_of(name))
         .ok_or_else(|| UnplaceableName {
             name: name.to_owned(),
         })?;
@@ -863,6 +876,38 @@ mod tests {
             Err(UnplaceableName {
                 name: "nowhere".to_owned()
             })
+        );
+    }
+
+    /// **2026-08-17**: an inherited field of a class the documented package does
+    /// **not** declare. `batteries` stopped a whole build on this shape — the
+    /// name is in no `refs` and in no IR map, and it is in the `.lidx`, which is
+    /// the environment rather than the package.
+    ///
+    /// The two assertions are the point: the fall-through answers, and a name
+    /// that is in **neither** map is still an error rather than a guessed href.
+    #[test]
+    fn a_field_inherited_from_outside_the_package_is_found_in_the_lidx() {
+        let mut builder = NameIndex::builder();
+        builder.declaration("Micro.Preferred.reason", "Micro.Shapes");
+        let names = builder.build(
+            LinkIndex::parse("Init.Prelude\n\tInhabited.default\t1227\t1249\n"),
+            ExternalLinks::new([("Init", "https://host/leanprover/lean4/blob/abc/src")]),
+        );
+        assert_eq!(
+            decl_name_to_link("Inhabited.default", ".././", &Refs::default(), &names),
+            Ok(Some(
+                "https://host/leanprover/lean4/blob/abc/src/Init/Prelude.lean#L1227-L1249"
+                    .to_owned()
+            )),
+            "the .lidx knows the module and the map knows the revision"
+        );
+        assert_eq!(
+            decl_name_to_link("Nobody.knows", ".././", &Refs::default(), &names),
+            Err(UnplaceableName {
+                name: "Nobody.knows".to_owned()
+            }),
+            "widening the lookup must not turn the refusal into a guess"
         );
     }
 

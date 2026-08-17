@@ -64,4 +64,26 @@ structure Poly where
   /-- A field whose own signature binds a type implicitly. -/
   apply : {α : Type} → α → α
 
+/-- A class extending one that belongs to **Lean core rather than this package**.
+
+`Derived` above inherits from `Base`, which this package declares, so the IR
+this run is handed knows where the inherited field lives. Here it does not:
+`Inhabited.default` is core's, so `declNameToLink`'s lookup — the IR's own map,
+which is what doc-gen4 uses — has nothing for it.
+
+**The measurement target never produced this shape and `batteries` did on the
+first page it was pointed at**【実測 2026-08-17】: `class LawfulLTCmp … extends
+Std.OrientedCmp` made `lean-doc build` stop with `no defining module for
+Std.OrientedCmp.eq_swap`, having rendered nothing. The name is in the `.lidx`
+all along — the whole environment is — so the fix was to let the lookup fall
+through to it. This declaration is what keeps that path exercised. -/
+class Preferred (α : Type) extends Inhabited α where
+  /-- Why the inherited `default` is the preferred value. -/
+  reason : String
+
+/-- An instance, so the class above reaches the instance table like `Greet`. -/
+instance : Preferred Nat where
+  default := 7
+  reason := "seven is small and not zero"
+
 end Micro
