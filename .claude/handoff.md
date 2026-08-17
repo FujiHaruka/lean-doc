@@ -96,28 +96,16 @@
 - `fuzz/README.md` — 探索の回し方。**`CFLAGS` が無いと md4c を見ない**
 - `docs/plans/quality-gates.md` Q6 / Q8 — ゲートの現況
 
-## 踏んだ地雷 (次の自分へ)
+## 踏んだ地雷
 
-- **「未検証」を「たぶん大丈夫」と読まない。** この leg で 4 段中 3 段で欠陥が出た
-- **同じ穴を 1 日で 2 回踏んだ** — 「マップに無い ⇒ 自パッケージ ⇒ 相対リンク」。
-  1 回目 (依存) を直したとき**自パッケージ側にも同じ穴がある**と気づけなかった。
-  **一般形で直したか**を毎回問うこと
-- **計装していない fuzz は何も検査していない。** `RUSTFLAGS` は Rust にしか届かない
-- **ゲートの偽陽性は「両方向で同時に落ちる」形で出る** — 片方向だけならサイトが不整合、
-  両方向同時なら**比較の文字集合が違う**
-- **`gh run watch` の後に puppeteer が port を掴んだまま残ることがある** —
-  `AddrInUse` が出たら `pkill -f check-site-browser.ts`
-- **ディスクを満杯にした実績がある** (leg 4、24 GB)。**計測が終わったら消す**。今回は消した
-- **`git checkout <file>` で subagent の実装を吹き飛ばした。** 無効化実験はスクラッチのコピーで
-- **`diff` は `colordiff` に alias されている。`/usr/bin/diff` を使う**
-- **`rg` の `-r` は `--replace`。`-rn` のように束ねない**
-- **ssh (port 22) は通らない。** push は HTTPS + `gh`:
-  ```
-  GIT_CONFIG_COUNT=2 \
-  GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0='' \
-  GIT_CONFIG_KEY_1=credential.helper GIT_CONFIG_VALUE_1='!gh auth git-credential' \
-  git push https://github.com/FujiHaruka/lean-doc.git main:main
-  ```
-- **CI で数字を先に取りたいときはブランチ + `gh workflow run ci.yml --ref <branch>`**。
-  main を赤くせずに `ubuntu-latest` の実測が取れる (段 3 でそうした)
-- **subagent には「コミットするな」と指示する。同時に走らせるのは 1 体まで**
+**恒久的なものは `CLAUDE.md` に移した** — この leg で出た一般論は「計測の誠実性」
+(未検証を「たぶん大丈夫」と読まない / docs の「未」は腐る)、「品質ゲート」
+(被検査範囲を数字で確かめる / 両方向同時の差分は比較器を疑う)、**新設「欠陥を直すとき」**
+(一般形に引き上げたか毎回問う)、**新設「この機材の罠」**に入っている。
+**ハンドオフに書き写さないこと。**
+
+この leg 固有の状態:
+
+- **`/private/tmp/lean-doc-relay` は削除済み**。次に計測するときは作り直す
+- **`fuzz/corpus` と `fuzz/target` は gitignored** (合計 140 MB ほど手元に残っている)。
+  消しても `fuzz/README.md` の手順で作り直せる
