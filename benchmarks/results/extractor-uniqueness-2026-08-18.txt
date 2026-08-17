@@ -81,7 +81,11 @@ X1 / X4(macOS) — `extract` は何に依存して決まるか
 
   X6  **ELAN_HOME を /home/runner/work/_temp/alt/elan に置き、~/.elan が
       存在しないことを確認した上で実行 → exit 0、IR 1,269 B**【実測】。
-      → **17 件の埋め込みパスは実行時に読まれていない。バイナリは真に可搬**。
+      さらに同じ環境で **tools/e2e-micro.sh を完走** (one command / idempotence /
+      determinism)。→ **17 件の埋め込みパスは実行時に読まれていない。真に可搬**。
+      ただし e2e-micro.sh には `LAKE` を明示的に渡す必要があった — 既定が
+      `~/.elan/bin/lake` で、この実験ではそこに何も無いため。**バイナリの可搬性とは
+      別に、周辺スクリプトが既定パスを持っている**、という所在の記録。
 
   X5  v4.31.0 でビルドした extract を **v4.30.0** の環境で実行:
 
