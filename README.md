@@ -325,19 +325,26 @@ doc-gen4 が読んでいた CDN 4 本 (Lato / JuliaMono / polyfill / MathJax) �
     `MD4Lean` / `UnicodeBasic` などは**照合相手が無い**。HTTP のサンプルだけが手段。
 11. **`--root` 無しの `ledger check` は `build` と違う `renderKey` を出す** — 依存リンクの
     写像が key に入ったため。**全ページ再生成になるだけで誤りは出ない**が、手で段を回す人は踏む。
-12. **等幅フォントのフォールバック (M8 決定 2)** — Web フォントを読まないので、本文に出る
-    **非 ASCII 178 種**【実測】が読める字形になるかは**環境依存**。添字 (₁ ᵢ ᵐ ⁿ) と
-    double-struck (ℝ ℕ ℤ) を持たない等幅フォントでは字幅が崩れる。
-    **macOS 以外では見ていない。** 崩れるなら JuliaMono をサブセットして vendor する。
-    **ブラウザゲートはここを見ない** (下の 13) — 見るのはレイアウトであって字形ではない。
+12. **等幅フォントのフォールバック (M8 決定 2)** — **2 OS で測った。字形は 1 つも欠けなかった**
+    【実測 2026-08-17】。ブラウザゲートが**対象由来の非 ASCII 178 種**
+    (`benchmarks/tools/mono-charset.json`、`mono-charset.py` で再生成可) を等幅スタックで
+    実際に描き、**macOS も CI の `ubuntu-latest` も欠け 0**。
+    **等幅スタック単独では覆えていない**のも数字で出た — 実際に描いたフォントは
+    macOS が `Menlo:140 / Apple Symbols:20 / STIX Two Math:7 / .SF NS:4 / Osaka:7`、
+    ubuntu が `DejaVu Sans Mono:157 / DejaVu Sans:13 / DejaVu Math TeX Gyre:7 / Liberation Mono:1`。
+    **字幅は崩れる** (等幅の送り幅と違う字が macOS 34 種 / ubuntu 22 種) が、
+    **決定 2 はそれを受け入れている**ので判定には使わない
+    (→ [`docs/plans/ui-redesign.md`](docs/plans/ui-redesign.md) 決定 2)。
+    **JuliaMono を vendor する UI-V1 は発火しない。**
+    **残っているのは Windows** — `Consolas` を持つ機材がここに無いので測っていない。
 13. **実ブラウザで見ていないのは「見た目そのもの」。** **動作は見ている** —
     [`tools/browser-gate.sh`](tools/browser-gate.sh) が CI で本物の Chrome を回し、
     **9 検査すべて緑・375 px の overflow 0 px**【実測 2026-08-16 →
     [`docs/plans/quality-gates.md`](docs/plans/quality-gates.md) Q8。`ui-redesign.md` の
-    **UI-3「未判定」はこれで決着した**】。**ゲートが見ないのは 3 つ**:
-    **フォントの字形** (上の 12 と同じ穴)、**ダークモードの実際の色**
-    (見ているのは `data-theme` が動くことだけで、色ではない)、**スクリーンリーダー**。
-    CSS を読んで正しいはずだ、以上のことが言えないのはこの 3 つに縮んだ。
+    **UI-3「未判定」はこれで決着した**】。**ゲートが見ないのは 2 つ**:
+    **ダークモードの実際の色** (見ているのは `data-theme` が動くことだけで、色ではない)、
+    **スクリーンリーダー**。CSS を読んで正しいはずだ、以上のことが言えないのはこの 2 つに縮んだ
+    — **フォントの字形は 2026-08-17 に検査 8 として入り、上の 12 が持つ**。
 14. **md4c FFI に残っているのは「リークを見ていない」と「1 機材でしか探していない」**。
     **fuzz も `cargo-deny` も回っている** — corpus 全通しのゲートは毎 push
     (`crates/lean-doc-md/tests/fuzz_corpus.rs`)、`cargo-deny` は CI ジョブ `supply-chain`
