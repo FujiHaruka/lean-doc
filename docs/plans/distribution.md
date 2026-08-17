@@ -56,13 +56,27 @@ extractor を「ビルドする」のか「ダウンロードする」のかを�
 **問い**: `extract` は「対象の toolchain だけ」で決まるのか、それとも対象の依存セットにも
 依るのか。答えが「toolchain だけ」なら、toolchain ごとに 1 つプリビルドを配れる。
 
-| | 検証 | 機材 | ディスク |
+| | 検証 | 機材 | 状態 |
 |---|---|---|---|
-| **X1** | 同一 toolchain・**異なる依存セット**でビルドした `extract` が byte 一致するか (`e2e/micro` / `micro-dep` / `lean-projects`) | 手元 (macOS arm64) | **追加ゼロ** |
-| **X2** | **交差実走** — A の環境でビルドした `extract` を B に対して走らせ、B でビルドしたものと IR が byte 一致するか | 手元 | 追加ゼロ (IR は数十 MB、都度消す) |
-| **X3** | X1 を Linux で再現 | CI (`e2e-micro` を拡張) | 手元ゼロ |
-| **X4** | **可搬性** — CI の job A でビルドした `extract` を artifact 経由で job B (別 runner) に渡し、動くか | CI | 手元ゼロ |
-| **X5** | **不一致の壊れ方** — 別 toolchain の環境で走らせると何が起きるか (静かに壊れるか、落ちるか) | CI | 手元ゼロ |
+| **X1** | 同一 toolchain・**異なる依存セット**でビルドした `extract` が byte 一致するか (`e2e/micro` / `micro-dep` / `lean-projects`) | 手元 (macOS arm64) | **真**【実測 2026-08-18】 |
+| **X2** | ~~交差実走 — IR が byte 一致するか~~ | — | **不要になった** (下記) |
+| **X3** | X1 を Linux で再現 | CI (`workflow_dispatch`) | 未 |
+| **X4** | **可搬性** — job A でビルドした `extract` を artifact 経由で job B (別 runner) に渡し、動くか | CI | macOS 側は**真**、Linux 未 |
+| **X5** | **不一致の壊れ方** — 別 toolchain の環境で走らせると何が起きるか (静かに壊れるか、落ちるか) | CI | 未 |
+
+**X1 の結果**【実測 2026-08-18 → [`../../benchmarks/results/extractor-uniqueness-2026-08-18.txt`](../../benchmarks/results/extractor-uniqueness-2026-08-18.txt)】:
+依存パッケージ **0 個 / path 依存 / 15 個 (Mathlib 全体)** の 3 環境と、**昨日別セッションで
+ビルドしたもの**の計 4 本が **byte 一致** (`226d49ab…`)。生成される C も一致。
+
+**X2 が不要になった理由**: X1 が真なので「A でビルドしたものを B で走らせる」は
+「**同じバイナリ**を B で走らせる」と同義になった。残る問いは出力の同一性ではなく**可搬性**
+(X4) — そちらは `otool -L` が答えを出した: 動的リンクは `libc++` / `libSystem` の 2 つだけで
+**Lean ランタイムは静的リンク**、`LC_RPATH` 無し、埋め込みの絶対パスは実行に使われない
+`lean.h` の 1 件のみ。**macOS ではバイナリは可搬**。
+
+**残る問いは Linux に移った** — `leanc` の既定が違えば `libleanshared` に動的リンクする
+可能性があり、そこが X3 / X4 / X5 の実体。**手元に別 toolchain を入れない** (ディスク) ので
+CI で測る。
 
 **X1 が偽なら D4 は無い** (プリビルドは配れない)。**X4 が偽でも D4 は無い** (byte が同じでも
 持ち運べないなら配れない)。**X5 が「静かに壊れる」なら D4 は危険** — 配る前に版検査が要る。
@@ -79,6 +93,10 @@ X2 で比べるのは「バイナリの byte」ではなく「**出てくる IR 
   2. `aarch64-apple-darwin` — ローカル開発の主戦場
   3. `aarch64-unknown-linux-gnu` — arm runner 向け。余裕があれば
 - **`checksums.txt`** を同梱。
+- **書庫の中身は `lean-doc` + `LICENSE` + `NOTICE`**【ライセンス上の要件、2026-08-18 に判定 →
+  `provenance.md` §4】。バイナリ配布は Apache-2.0 §4 の **Object form** に当たるので (a) が
+  発動し、**md4c の MIT は「参照」では運べない** — `NOTICE` は全文を `vendor/` に指していただけで、
+  書庫に vendor/ は入らない。**同日 `NOTICE` に md4c の MIT 全文を入れて塞いだ**。
 - **検証**: musl 静的リンク + **vendored md4c (C)** が通るかは未検証。`.tar.gz` を作って
   終わりにせず、**そのバイナリで e2e を 1 本回す** (`--version` が出ることは動く証拠ではない)。
 
