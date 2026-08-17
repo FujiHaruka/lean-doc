@@ -21,8 +21,15 @@ NOTICE : MD4Lean
 NOTICE : Unicode Basic
 NOTICE : V8
 NOTICE : Böving
-# §4(b) at the level of the work, not just the file (provenance.md §1.1)
-README.md : 派生物
+# §4(b) at the level of the work, not just the file (provenance.md §1.1).
+#
+# The string is English because README.md was rewritten for users on 2026-08-17
+# and the notice moved language with it ("lean-doc is a derivative work of
+# doc-gen4"). **The notice itself never went away** — this line is not being
+# relaxed to make the gate pass, it is being pointed at the same sentence in the
+# language that sentence is now written in. The gate was red for four commits
+# because nothing tied the two together.
+README.md : derivative work
 NOTICE : has been changed
 
 # --- doc-gen4 (Apache-2.0): the files §4(b)(c) names -----------------------
