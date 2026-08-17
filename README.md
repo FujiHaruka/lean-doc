@@ -1,19 +1,21 @@
 # lean-doc
 
-**Fast HTML documentation for Lean 4 packages that depend on Mathlib.**
+**Fast HTML documentation for Lean 4 packages — built for the ones standing on Mathlib.**
 
-lean-doc documents **your** package only. Declarations from Mathlib, Batteries or Lean core are
-never regenerated — every reference to them links to that dependency's **version-pinned source
-on GitHub**, read from your `lake-manifest.json`. The output is a self-contained static site.
+lean-doc documents **your** package only. Declarations from your dependencies — Mathlib,
+Batteries, Lean core, whatever your `lake-manifest.json` pins — are never regenerated: every
+reference to them links to that dependency's **version-pinned source on GitHub**. The output is a
+self-contained static site.
 
 Live example: <https://fujiharuka.github.io/information-theory/> — 422 modules, one command,
 **24.5 s**.
 
 ## Is this for you?
 
-**Yes**, if you depend on Mathlib, doc-gen4 is too slow for your CI, and your package uses
-`lakefile.toml`, lives on GitHub, and is on Lean 4.31.x. You get a module tree, search, instance
-lists, "Imported by", hyperlinked signatures, and a dark theme.
+**Yes**, if doc-gen4 is too slow for your CI and your package uses `lakefile.toml`, lives on
+GitHub, and is on Lean 4.31.x. Any Lean 4 package works — the payoff just scales with how large
+your dependencies are next to your own code, and Mathlib is as large as that gets. You get a
+module tree, search, instance lists, "Imported by", hyperlinked signatures, and a dark theme.
 
 **No**, if:
 
@@ -78,7 +80,7 @@ jobs:
           key: cargo-${{ hashFiles('lean-doc/Cargo.lock') }}
       - uses: actions/cache@v4                     # last run's state — what makes it incremental
         with: { path: docs-out, key: "leandoc-docs-${{ github.sha }}", restore-keys: leandoc-docs- }
-      - run: |
+      - run: |                                     # no Mathlib? drop --cache-get
           lean-doc/tools/ci-build.sh --root package \
             --out "$GITHUB_WORKSPACE/docs-out" --cache-get --jobs 4
       - uses: actions/upload-artifact@v4
