@@ -1,0 +1,202 @@
+# Can a prebuilt Lean extractor be shipped?  (docs/plans/distribution.md, D1)
+#
+# Three questions, one per job, none of which can be answered on the machine
+# this was written on:
+#
+#   X3  uniqueness  — on Linux, is `extract` decided by the toolchain alone?
+#                     (macOS says yes: 4 builds, 0 to 15 dependency packages,
+#                     one SHA-256 — benchmarks/results/extractor-uniqueness-
+#                     2026-08-18.txt. Linux may link differently.)
+#   X4  portable    — does a binary built in one job still work in another job,
+#                     on another runner, reached only through an artifact?
+#   X5  mismatch    — run against a toolchain it was NOT built for, does it fail
+#                     loudly or write a wrong IR quietly?
+#
+# `workflow_dispatch` only: this is a measurement, not a gate, and it costs an
+# elan download per job. CLAUDE.md's rule for taking CI numbers without turning
+# main red.
+#
+# The commands live in tools/extractor-uniqueness.sh and tools/extractor-
+# mismatch.sh, which run on a laptop too. What is only here is the part that
+# genuinely needs Actions: handing a binary from one runner to another.
+name: extractor portability (X3/X4/X5)
+
+on:
+  workflow_dispatch:
+    inputs:
+      other-toolchain:
+        description: "toolchain for the X5 mismatch job (must differ from e2e/micro's)"
+        default: "leanprover/lean4:v4.30.0"
+        required: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ------------------------------------------------------------------- X3
+  uniqueness:
+    name: X3 — one toolchain, different dependency sets
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Cache elan
+        id: elan-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.elan
+          key: elan-${{ runner.os }}-${{ hashFiles('e2e/micro/lean-toolchain') }}
+
+      - name: Install elan at the fixture's toolchain
+        if: steps.elan-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -sSfL https://github.com/leanprover/elan/releases/latest/download/elan-x86_64-unknown-linux-gnu.tar.gz \
+            | tar xz
+          ./elan-init -y --default-toolchain "$(cat e2e/micro/lean-toolchain)"
+
+      - name: Put elan on PATH
+        run: echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      # Two packages that are not copies of each other: one with no dependency
+      # packages at all, one with a path dependency. Mathlib is not available
+      # here (several GB) — that end of the range is covered on the laptop.
+      - name: Build the extractor once per package and compare
+        run: |
+          tools/extractor-uniqueness.sh \
+            e2e/micro e2e/micro-dep \
+            --keep-binary "$RUNNER_TEMP/extract" \
+            --json "$RUNNER_TEMP/uniqueness.json"
+
+      - name: Upload the extractor for the other jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: extract-linux-x86_64
+          path: ${{ runner.temp }}/extract
+          retention-days: 1
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: uniqueness-json
+          path: ${{ runner.temp }}/uniqueness.json
+          if-no-files-found: warn
+
+  # ------------------------------------------------------------------- X4
+  #
+  # The question is not "does the file survive a round trip" but "does a binary
+  # that never met this runner produce a site here". So it runs the whole e2e,
+  # not a --version check: e2e-micro.sh builds the fixture, generates, and
+  # checks one command / idempotence / determinism.
+  portable:
+    name: X4 — same binary, another runner
+    needs: uniqueness
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install the toolchain rust-toolchain.toml asks for
+        run: rustup show
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Cache elan
+        id: elan-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.elan
+          key: elan-${{ runner.os }}-${{ hashFiles('e2e/micro/lean-toolchain') }}
+
+      - name: Install elan at the fixture's toolchain
+        if: steps.elan-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -sSfL https://github.com/leanprover/elan/releases/latest/download/elan-x86_64-unknown-linux-gnu.tar.gz \
+            | tar xz
+          ./elan-init -y --default-toolchain "$(cat e2e/micro/lean-toolchain)"
+
+      - name: Put elan on PATH
+        run: echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: extract-linux-x86_64
+          path: ${{ runner.temp }}/downloaded
+
+      # The permission bit does not survive an artifact round trip. That is a
+      # fact about the distribution channel, so it is stated here rather than
+      # hidden: a release tarball keeps the bit, a bare artifact does not.
+      - name: Make it executable again, and say what it links against
+        run: |
+          chmod +x "$RUNNER_TEMP/downloaded/extract"
+          ls -l "$RUNNER_TEMP/downloaded/extract"
+          ldd "$RUNNER_TEMP/downloaded/extract" || true
+          sha256sum "$RUNNER_TEMP/downloaded/extract"
+
+      - name: Build the CLI
+        run: cargo build --bin lean-doc
+
+      - name: End to end, with a binary this runner never built
+        run: |
+          tools/e2e-micro.sh \
+            --extractor "$RUNNER_TEMP/downloaded/extract" \
+            --out "$RUNNER_TEMP/e2e" --keep
+
+  # ------------------------------------------------------------------- X5
+  mismatch:
+    name: X5 — wrong toolchain, loud or quiet?
+    needs: uniqueness
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install elan with BOTH toolchains
+        run: |
+          curl -sSfL https://github.com/leanprover/elan/releases/latest/download/elan-x86_64-unknown-linux-gnu.tar.gz \
+            | tar xz
+          ./elan-init -y --default-toolchain "$(cat e2e/micro/lean-toolchain)"
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+          "$HOME/.elan/bin/elan" toolchain install "${{ inputs.other-toolchain }}"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: extract-linux-x86_64
+          path: ${{ runner.temp }}/downloaded
+
+      # A copy of the fixture with one line changed. Nothing is built in it —
+      # the module list names `Init`, which comes from the toolchain.
+      - name: A package pinning the other toolchain
+        run: |
+          cp -r e2e/micro "$RUNNER_TEMP/other-pkg"
+          rm -rf "$RUNNER_TEMP/other-pkg/.lake"
+          echo "${{ inputs.other-toolchain }}" > "$RUNNER_TEMP/other-pkg/lean-toolchain"
+          cat "$RUNNER_TEMP/other-pkg/lean-toolchain"
+
+      - name: Run the v4.31.0 extractor against it
+        run: |
+          chmod +x "$RUNNER_TEMP/downloaded/extract"
+          tools/extractor-mismatch.sh \
+            --extractor "$RUNNER_TEMP/downloaded/extract" \
+            --package "$RUNNER_TEMP/other-pkg" \
+            --built-for "$(cat e2e/micro/lean-toolchain)" \
+            --json "$RUNNER_TEMP/mismatch.json"
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mismatch-json
+          path: ${{ runner.temp }}/mismatch.json
+          if-no-files-found: warn
