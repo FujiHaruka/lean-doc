@@ -78,11 +78,19 @@ jobs:
       - name: Put elan on PATH
         run: echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
+      # `full: true` so this job does not depend on what the state cache happens
+      # to hold. Without it the first call can legitimately render 0 pages —
+      # a previous run's state gets restored and there is nothing left to do —
+      # and then "the first run rendered nothing" is a property of the cache,
+      # not of the action. Measured: that is exactly how this check first failed.
+      # It also skips the state restore, so the pair below is first=everything,
+      # second=nothing, every time.
       - id: docs
         uses: ./
         with:
           root: e2e/micro
           jobs: "2"
+          full: "true"
 
       - name: The outputs point at something real
         run: |
