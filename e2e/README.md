@@ -15,8 +15,9 @@ tools/e2e-micro.sh
 ## なぜ Mathlib に依存しないのか
 
 **計測対象は CI の判定には使えない** — import closure が数 GB あり、無料枠の外。
-`micro/` は **Lean core だけ**に依存するので `lake build` が約 1 秒、抽出器のビルドが
-約 17 秒【実測 2026-08-16、warm】で、無料のランナーで回る。
+`micro/` が依存するのは **Lean core と、このリポジトリの中にある `micro-dep/` だけ**なので
+`lake build` が約 1 秒、抽出器のビルドが約 17 秒【実測 2026-08-16、warm】で、無料のランナーで回る。
+**ネットワークは要らない** — `micro-dep/` は path で require している。
 
 抽出器が Mathlib 無しで立つのは `import Lean` しか書いていないから
 (→ `extractor/Extract.lean`)。`lake env` で借りる環境は**このフィクスチャのもの**でよい。
@@ -40,6 +41,7 @@ curated な単体テストは**手で書いた IR** でこれらの分岐に到�
 | `Micro/Notation.lean` | **`scoped notation`** — doc-gen4 が出せない唯一のもの (approach.md §10)。署名が `⟦n⟧` と印字されなくなったらここで出る |
 | `Micro/Unicode.lean` | **U1 / U2 の罠** — `𝒜` (U+1D49C) は BMP 外なので、UTF-16 順ソートと UTF-8 順ソートが食い違う唯一の領域。docstring 内の markdown (heading / code span / リスト) も |
 | `Micro/Shapes.lean` | **`class` / `class inductive` / 非 `mk` constructor / `extends` の継承 field / field の implicit binder** |
+| `Micro/Dep.lean` + `../micro-dep/` | **版固定できない依存** — path require なので manifest entry に `url` も `rev` も無い。モジュール名は **`«Dep-Aux»`** (ギュメが要る形)。README「未検証項目」の #10 と #4 がここを通る (下記) |
 
 ## 初回に出たもの【実測 2026-08-16】
 
@@ -56,6 +58,49 @@ curated な単体テストは**手で書いた IR** でこれらの分岐に到�
 
 回帰は `crates/lean-doc-render/src/decl.rs` の
 `an_inductives_constructors_are_rendered_with_their_own_anchors` が持つ。
+
+## path 依存を足して出たもの【実測 2026-08-17】
+
+**2 件目も、フィクスチャを足した初回に出た。** `micro-dep/` を path で require した瞬間、
+`tools/site-gate.sh` が **DEAD internal links 3 (1 distinct destination)** を出して落ちた。
+
+**壊れていたのは相対リンクへのフォールバックそのもの。** `lean-doc` は依存のモジュールに
+ページを書かず版固定 blob URL でリンクする (M7)。`ExternalLinks::href` は
+「マップに root が無いモジュール」を**自パッケージのモジュール**とみなして相対ページリンクに
+落としていたが、**版固定できない依存も同じ枝に落ちる** — 結果、**このサイトが決して書かない
+ページへのリンク**が出る。死んだ 3 本は 3 経路とも別物だった:
+
+| 経路 | 出ていたもの |
+|---|---|
+| ページ枠の import リスト | `<li><a href=".././Dep-Aux/Basic.html">«Dep-Aux».Basic</a></li>` |
+| docstring 中の名前参照 | `<code><a href=".././Dep-Aux/Basic.html#DepAux.marker">DepAux.marker</a></code>` |
+| 署名・equation 中の定数リンク | 同じ href |
+
+**直した方針は「版固定できない依存にはリンクを張らない」** (名前はテキストで残す)。根拠は
+このリポジトリが既に書いている原則 — `autolink.rs` の `module_for_source_path`:
+「A link to the wrong page is worse than no link」。404 する相対リンクは、リンクが無い状態より
+厳密に悪い。実装は `ExternalLinks` が **空 base の root** を持てるようにし、`href` を
+`Option<String>` にしたもの。**自パッケージのリンクと、解決できた依存リンクはバイト不動。**
+
+**単体テストでは出なかった。** `packages.rs` には「40 桁 hex でない rev は落ちる」テストが
+以前からあり、それは**通っていた** — 落ちること自体は正しく、**落ちた後に何が描かれるか**を
+見るものが 1 つも無かった。ページまで作らないと出ない形だった、というのがこの段の収穫。
+
+### ギュメ付きモジュール名 — `.lidx` の綴り差は実在した【実測 2026-08-17】
+
+`.lidx` はモジュール名を**非エスケープ**で書く (`Dep-Aux.Basic`)。IR と import リストは
+**エスケープ済み** (`«Dep-Aux».Basic`)。`Micro/Dep.lean` の docstring が同じモジュールを
+3 通りに綴っていて、**修正前**の解決結果は次のとおり割れた:
+
+| docstring の綴り | 解決したか |
+|---|---|
+| `«Dep-Aux».Basic` (IR の綴り) | **する** |
+| `Dep-Aux.Basic` (`.lidx` の綴り) | **しない** |
+| `Dep-Aux/Basic.lean` (source path) | **する** — `module_for_source_path` が escape してから引くので |
+
+**修正後は 3 綴りとも「リンクを張らない」に落ちる** (依存であって版固定できないので、それが正しい)。
+つまり**この綴り差が出力に出るのは、版固定できる依存がギュメ付きモジュールを持つときだけ**で、
+その実物はまだ無い → README「未検証項目」に残してある。
 
 ## ゲート
 
@@ -93,5 +138,8 @@ curated な単体テストは**手で書いた IR** でこれらの分岐に到�
 
 - **`micro/` の宣言を消さない。** 1 つ 1 つが「対象が持たない形」を担当している。
   足すのは歓迎 (担当を上の表に書くこと)
+- **`micro-dep/` を git 依存に変えない。** path であること (= manifest に `url` も `rev` も
+  無いこと) がこのフィクスチャの担当。GitHub にすると**そのまま版固定リンクが組めてしまい**、
+  上の 3 経路を守るものが消える
 - **Mathlib を足さない。** 足した瞬間にこれは CI で回らなくなる
 - `micro/.lake/` は gitignored。`lake build` で作り直せる

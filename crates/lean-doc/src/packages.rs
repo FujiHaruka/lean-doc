@@ -44,6 +44,24 @@
 //! the site v0.1 already ships, while a site missing *mathlib's* links is a
 //! regression worth stopping for. Nothing here can panic on a shape of the
 //! world.
+//!
+//! # A dropped entry still contributes its roots — with **no** base 【実測 2026-08-17】
+//!
+//! Dropping an entry that cannot be version-pinned used to drop its module roots
+//! with it, and that was a dead link rather than a missing one: a root the map
+//! does not hold is read by [`ExternalLinks::href`] as *the package being
+//! documented*, so every link into that dependency became a relative link to a
+//! page this site never writes. Measured on a fixture whose manifest declares
+//! `{"type": "path", "name": "dep", "dir": "../micro-dep"}`: three dead internal
+//! links, one per shape (the import list, a docstring's name reference, a
+//! signature's constant).
+//!
+//! So the entry is still dropped as a *link target* — there is no `/blob/<rev>`
+//! and never will be one from this input — and its directory is still scanned,
+//! and its roots go into the map **with an empty base**, which is the value
+//! [`ExternalLinks::href`] answers `None` to. The problem line is unchanged: the
+//! entry did not resolve, and saying otherwise would be the report drifting from
+//! the map.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -75,8 +93,16 @@ const DEFAULT_PACKAGES_DIR: &str = ".lake/packages";
 pub struct Packages {
     /// The map, core first (see [`ExternalLinks::new`]: first wins).
     pub links: ExternalLinks,
-    /// Manifest entries that contributed at least one root.
+    /// Manifest entries that contributed at least one root **with a URL**.
     pub resolved: usize,
+    /// Module roots carried with an empty base: known to belong to a dependency,
+    /// with no version-pinned URL to link them at (see the heading).
+    ///
+    /// Counted rather than folded into [`Packages::resolved`] because it is the
+    /// opposite answer — these are the roots whose links the pages *lose*, and a
+    /// run that silently swapped one count for the other would report a map that
+    /// links more than it does.
+    pub unpinned_roots: usize,
     /// Manifest entries in total, whether or not they contributed.
     pub declared: usize,
     /// One line per thing that could not be resolved, in the order it was met.
@@ -117,6 +143,7 @@ pub fn external_links(root: &Path, lake: &Path) -> Packages {
     let manifest_path = root.join("lake-manifest.json");
     let mut declared = 0;
     let mut resolved = 0;
+    let mut unpinned_roots = 0;
     match read_manifest(&manifest_path) {
         Err(problem) => problems.push(problem),
         Ok(manifest) => {
@@ -124,35 +151,63 @@ pub fn external_links(root: &Path, lake: &Path) -> Packages {
             declared = manifest.listed;
             problems.extend(manifest.problems.iter().cloned());
             for package in &manifest.packages {
-                let dir = packages_dir.join(&package.name);
-                match module_roots(&dir) {
-                    Err(problem) => problems.push(problem),
-                    Ok(roots) if roots.is_empty() => problems.push(format!(
-                        "{}: no top-level .lean file, so no module root could be resolved for \
-                         package `{}`",
-                        dir.display(),
-                        package.name,
-                    )),
-                    Ok(roots) => {
-                        resolved += 1;
-                        for name in roots {
-                            // A root two packages both claim is reported rather
-                            // than resolved silently: on the measurement target
-                            // it is `Main`, which doc-gen4 and MD4Lean both ship
-                            // and nothing imports, but a real collision would be
-                            // links pointing into the wrong repository.
-                            if let Some((_, base)) = entries.iter().find(|(seen, _)| *seen == name)
-                            {
-                                collisions.push(format!(
-                                    "module root `{name}` is claimed by package `{}` and by \
-                                     {base} — keeping the first",
-                                    package.name,
-                                ));
-                                continue;
-                            }
-                            entries.push((name, package.blob_base.clone()));
-                        }
+                // A `path` dependency is not under `packagesDir` at all — Lake
+                // leaves it where the manifest's `dir` says, relative to the
+                // package being documented — so the two are resolved apart.
+                let dir = match &package.dir {
+                    Some(relative) => root.join(relative),
+                    None => packages_dir.join(&package.name),
+                };
+                // An unpinnable package is already reported, by `read_manifest`,
+                // with the reason it cannot be linked. A second line saying its
+                // directory could not be read as well would be the same failure
+                // counted twice, and this scan is best-effort by construction:
+                // what it buys is *not* linking, so failing it costs the roots
+                // their `None` and nothing else.
+                let unpinnable = package.blob_base.is_empty();
+                let scanned = match module_roots(&dir) {
+                    Ok(roots) if !roots.is_empty() => roots,
+                    _ if unpinnable => continue,
+                    Err(problem) => {
+                        problems.push(problem);
+                        continue;
                     }
+                    Ok(_) => {
+                        problems.push(format!(
+                            "{}: no top-level .lean file, so no module root could be resolved for \
+                             package `{}`",
+                            dir.display(),
+                            package.name,
+                        ));
+                        continue;
+                    }
+                };
+                if !unpinnable {
+                    resolved += 1;
+                }
+                for name in scanned {
+                    // A root two packages both claim is reported rather than
+                    // resolved silently: on the measurement target it is `Main`,
+                    // which doc-gen4 and MD4Lean both ship and nothing imports,
+                    // but a real collision would be links pointing into the
+                    // wrong repository.
+                    if let Some((_, base)) = entries.iter().find(|(seen, _)| *seen == name) {
+                        collisions.push(format!(
+                            "module root `{name}` is claimed by package `{}` and by {} — keeping \
+                             the first",
+                            package.name,
+                            if base.is_empty() {
+                                "a package with no version-pinned URL"
+                            } else {
+                                base
+                            },
+                        ));
+                        continue;
+                    }
+                    if unpinnable {
+                        unpinned_roots += 1;
+                    }
+                    entries.push((name, package.blob_base.clone()));
                 }
             }
         }
@@ -161,6 +216,7 @@ pub fn external_links(root: &Path, lake: &Path) -> Packages {
     Packages {
         links: ExternalLinks::new(entries),
         resolved,
+        unpinned_roots,
         declared,
         problems,
         collisions,
@@ -169,13 +225,20 @@ pub fn external_links(root: &Path, lake: &Path) -> Packages {
 
 // --------------------------------------------------------------- the manifest
 
-/// One `packages` entry, reduced to what a blob URL needs.
+/// One `packages` entry, reduced to what a link needs.
 #[derive(Debug)]
 struct Package {
     /// Unquoted, so it is also the directory name under `packagesDir`.
     name: String,
-    /// `<url>/blob/<rev>`.
+    /// `<url>/blob/<rev>`, or **empty** when the entry carries no version-pinned
+    /// URL — see the module heading. The empty string reaches
+    /// [`ExternalLinks`] as-is and is what makes the root unlinkable rather
+    /// than absent.
     blob_base: String,
+    /// Where the package's sources are, **relative to the target root**, for the
+    /// entries that say so themselves. `None` is the usual case:
+    /// `<packagesDir>/<name>`, which is where Lake puts a fetched dependency.
+    dir: Option<String>,
 }
 
 #[derive(Debug)]
@@ -183,9 +246,12 @@ struct Manifest {
     packages_dir: String,
     /// How many entries the `packages` array had, dropped ones included.
     listed: usize,
+    /// Every entry that has a directory to scan, **in manifest order**, whether
+    /// or not it has a URL. The ones without carry an empty
+    /// [`Package::blob_base`].
     packages: Vec<Package>,
-    /// One line per `packages` entry that was dropped. The manifest still
-    /// resolved; that one entry did not.
+    /// One line per `packages` entry that was dropped **as a link target**. The
+    /// manifest still resolved; that one entry has no `/blob/<rev>`.
     problems: Vec<String>,
 }
 
@@ -202,6 +268,15 @@ struct Manifest {
 /// push to that branch, which is the whole failure M7 exists to fix, and
 /// [`crate::build`]'s `--source-url` derivation refuses the same shape for the
 /// same reason.
+///
+/// **"Dropped" means dropped as a *URL*, not as a package** (2026-08-17, see the
+/// module heading). Such an entry is still returned, with an empty
+/// [`Package::blob_base`], so that its module roots reach the map and the pages
+/// stop linking into it. What that costs is knowing where the sources are, and
+/// the one place the answer is not obvious is a `path` dependency, which lives
+/// wherever its own `dir` says rather than under `packagesDir` — an entry with
+/// neither is the only shape that is really dropped, because there is nothing
+/// left to scan.
 fn read_manifest(path: &Path) -> Result<Manifest, String> {
     let text = fs::read_to_string(path).map_err(|source| {
         format!(
@@ -236,27 +311,57 @@ fn read_manifest(path: &Path) -> Result<Manifest, String> {
             continue;
         };
         let name = unquote(name);
+        // What every branch below hands back when it has no URL: the package,
+        // with the directory it can still be scanned for roots.
+        let unpinned = |problem: String, problems: &mut Vec<String>| {
+            problems.push(problem);
+            Package {
+                name: name.clone(),
+                blob_base: String::new(),
+                dir: None,
+            }
+        };
         let kind = field("type").unwrap_or_default();
         if kind != "git" {
-            problems.push(format!(
-                "{}: package `{name}` is type `{kind}`, not `git` — only a git package has a \
-                 /blob/<rev> to link into",
-                path.display(),
-            ));
+            let mut package = unpinned(
+                format!(
+                    "{}: package `{name}` is type `{kind}`, not `git` — only a git package has a \
+                     /blob/<rev> to link into",
+                    path.display(),
+                ),
+                &mut problems,
+            );
+            if kind == "path" {
+                // Lake did not fetch this one, so `<packagesDir>/<name>` is not
+                // where it is — `dir` is, relative to the package being
+                // documented. Without it there is nothing to scan, and the entry
+                // really is dropped.
+                let Some(dir) = field("dir") else {
+                    continue;
+                };
+                package.dir = Some(dir.to_owned());
+            }
+            packages.push(package);
             continue;
         }
         let (Some(url), Some(rev)) = (field("url"), field("rev")) else {
-            problems.push(format!(
-                "{}: package `{name}` has no `url` or no `rev`",
-                path.display(),
+            packages.push(unpinned(
+                format!(
+                    "{}: package `{name}` has no `url` or no `rev`",
+                    path.display(),
+                ),
+                &mut problems,
             ));
             continue;
         };
         if !is_revision(rev) {
-            problems.push(format!(
-                "{}: package `{name}` is pinned at `{rev}`, which is not 40 hex digits — a tag or \
-                 a branch is not a version-pinned link",
-                path.display(),
+            packages.push(unpinned(
+                format!(
+                    "{}: package `{name}` is pinned at `{rev}`, which is not 40 hex digits — a \
+                     tag or a branch is not a version-pinned link",
+                    path.display(),
+                ),
+                &mut problems,
             ));
             continue;
         }
@@ -268,6 +373,7 @@ fn read_manifest(path: &Path) -> Result<Manifest, String> {
         packages.push(Package {
             name,
             blob_base: format!("{url}/blob/{rev}"),
+            dir: None,
         });
     }
     Ok(Manifest {
@@ -488,9 +594,16 @@ mod tests {
         );
     }
 
-    /// A bad entry costs that entry, and the fourteen beside it still resolve.
+    /// A bad entry costs that entry **its URL**, and the fourteen beside it
+    /// still resolve.
+    ///
+    /// The entry is still returned, with an empty `blob_base`, because its
+    /// module roots are what stop the pages linking into it (2026-08-17, see the
+    /// module heading). The one shape that is really dropped is the `path` entry
+    /// with no `dir`: there is no directory to scan and therefore no root to
+    /// learn.
     #[test]
-    fn a_revision_that_is_not_forty_hex_drops_only_its_own_package() {
+    fn a_revision_that_is_not_forty_hex_costs_only_its_own_packages_url() {
         let dir = TempDir::new("tag");
         let path = dir.path.join("lake-manifest.json");
         fs::write(
@@ -510,9 +623,11 @@ mod tests {
             manifest
                 .packages
                 .iter()
-                .map(|p| &p.name)
+                .map(|p| (p.name.as_str(), p.blob_base.is_empty(), p.dir.clone()))
                 .collect::<Vec<_>>(),
-            ["pinned"]
+            [("tagged", true, None), ("pinned", false, None),],
+            "the tagged package keeps its directory and loses its URL; the `path` entry has \
+             neither a URL nor a `dir`, so it is the only one dropped"
         );
         assert_eq!(manifest.problems.len(), 3);
         assert!(manifest.problems[0].contains("not 40 hex digits"));
@@ -561,6 +676,126 @@ mod tests {
         let dir = TempDir::new("absent");
         let problem = module_roots(&dir.path.join("nowhere")).expect_err("it is not there");
         assert!(problem.contains("not on disk"), "{problem}");
+    }
+
+    /// **The 2026-08-17 fix, end to end**: a dependency that cannot be
+    /// version-pinned is in the map with an empty base, so links into it are
+    /// `None` instead of relative links to pages this site never writes.
+    ///
+    /// Both shapes of unpinnable entry are here, because they are found in
+    /// different places on disk: a `path` dependency by its own `dir`, relative
+    /// to the package being documented, and a git dependency pinned at a tag
+    /// under `packagesDir` like any other. The pinned package beside them is
+    /// what says the map still links what it can.
+    #[test]
+    fn a_dependency_that_cannot_be_pinned_contributes_roots_with_no_base() {
+        let tmp = TempDir::new("unpinned");
+        let root = tmp.path.join("pkg");
+        let dep = tmp.path.join("dep");
+        for (dir, file) in [
+            (dep.clone(), "DepAux.lean"),
+            (root.join(".lake/packages/tagged"), "Tagged.lean"),
+            (root.join(".lake/packages/pinned"), "Pinned.lean"),
+        ] {
+            fs::create_dir_all(&dir).expect("the temporary tree is writable");
+            fs::write(dir.join(file), "").expect("the temporary tree is writable");
+        }
+        fs::write(
+            root.join("lake-manifest.json"),
+            r#"{"packagesDir": ".lake/packages", "packages":
+               [{"type": "path", "name": "dep", "dir": "../dep"},
+                {"url": "https://github.com/o/tagged", "type": "git",
+                 "rev": "v4.31.0", "name": "tagged"},
+                {"url": "https://github.com/o/pinned", "type": "git",
+                 "rev": "fabf563a7c95a166b8d7b6efca11c8b4dc9d911f", "name": "pinned"}]}"#,
+        )
+        .expect("the temporary tree is writable");
+
+        let resolved = external_links(&root, Path::new("lake-that-does-not-exist"));
+        // Core did not resolve either, so the map is the three packages' roots
+        // alone, in manifest order.
+        assert_eq!(
+            resolved.links.iter().collect::<Vec<_>>(),
+            [
+                ("DepAux", ""),
+                ("Tagged", ""),
+                (
+                    "Pinned",
+                    "https://github.com/o/pinned/blob/\
+                            fabf563a7c95a166b8d7b6efca11c8b4dc9d911f"
+                ),
+            ],
+        );
+        assert_eq!(resolved.declared, 3);
+        assert_eq!(resolved.resolved, 1, "only one of the three has a URL");
+        assert_eq!(resolved.unpinned_roots, 2);
+        // The link a page would draw, which is the whole point: nothing for the
+        // two, the blob URL for the third.
+        assert_eq!(
+            resolved
+                .links
+                .href("../", "DepAux.Basic", Some("DepAux.marker"), None),
+            None,
+        );
+        assert_eq!(resolved.links.href("../", "Tagged", None, None), None);
+        assert_eq!(
+            resolved
+                .links
+                .href("../", "Pinned.M", None, None)
+                .as_deref(),
+            Some(
+                "https://github.com/o/pinned/blob/fabf563a7c95a166b8d7b6efca11c8b4dc9d911f/\
+                 Pinned/M.lean"
+            ),
+        );
+        // …and a module of the package being documented is still not in the map
+        // at all, so it still gets its page link.
+        assert_eq!(
+            resolved
+                .links
+                .href("../", "Pkg.Two", Some("Pkg.Two.a"), None)
+                .as_deref(),
+            Some("../Pkg/Two.html#Pkg.Two.a"),
+        );
+        // One line for `lake`, one per unpinnable entry — the same lines as
+        // before the fix, because the report is about what did not resolve.
+        assert_eq!(resolved.problems.len(), 3, "{:?}", resolved.problems);
+        let report = resolved.problems.join("\n");
+        assert!(report.contains("is type `path`, not `git`"), "{report}");
+        assert!(report.contains("not 40 hex digits"), "{report}");
+        assert!(resolved.collisions.is_empty());
+    }
+
+    /// The scan is best-effort: an unpinnable entry whose directory is not there
+    /// costs its roots and nothing else — no second problem line for the same
+    /// entry, and no panic.
+    #[test]
+    fn an_unpinnable_entry_with_no_directory_to_scan_is_the_one_line_it_already_had() {
+        let tmp = TempDir::new("unpinned-absent");
+        let root = tmp.path.join("pkg");
+        fs::create_dir_all(&root).expect("the temporary tree is writable");
+        fs::write(
+            root.join("lake-manifest.json"),
+            r#"{"packages":
+               [{"type": "path", "name": "nodir"},
+                {"type": "path", "name": "gone", "dir": "../nowhere"},
+                {"url": "https://github.com/o/tagged", "type": "git",
+                 "rev": "v4.31.0", "name": "tagged"}]}"#,
+        )
+        .expect("the temporary tree is writable");
+
+        let resolved = external_links(&root, Path::new("lake-that-does-not-exist"));
+        assert!(resolved.links.is_empty());
+        assert_eq!(resolved.unpinned_roots, 0);
+        assert_eq!(resolved.resolved, 0);
+        assert_eq!(resolved.declared, 3);
+        assert_eq!(
+            resolved.problems.len(),
+            4,
+            "one for `lake` and one per entry — not two for an entry that was \
+             scanned and not found: {:?}",
+            resolved.problems,
+        );
     }
 
     /// The whole resolution against a package that has neither a manifest nor a

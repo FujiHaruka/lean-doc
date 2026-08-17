@@ -247,13 +247,19 @@ impl<'a> CodeRenderer<'a> {
     /// source rather than at a page this site never wrote. **Which name the
     /// anchor is taken from is not always `name`**: branch 2 links the *parent*,
     /// and it is the parent's source range that belongs on that URL.
+    ///
+    /// A branch that resolves the name to an **unpinnable** dependency returns
+    /// that branch's `None` rather than trying the next one (2026-08-17): the
+    /// caller's answer to `None` is branch 4's, a `span.fn` with the name in it,
+    /// which is exactly right here — the constant is named, and nothing claims
+    /// to know where to read it.
     #[must_use]
     pub fn const_link(&self, name: &str, root: &str, refs: &Refs<'_>) -> Option<String> {
         let is_private = name.starts_with(PRIVATE_PREFIX);
         if !is_private
             && let Some(module) = refs.get(name).copied().or_else(|| self.names.known(name))
         {
-            return Some(self.names.link_to(root, module, Some(name)));
+            return self.names.link_to(root, module, Some(name));
         }
         // Step 1: auxiliary name removal.
         let search = if is_private {
@@ -266,11 +272,11 @@ impl<'a> CodeRenderer<'a> {
                 .names
                 .known(parent)
                 .expect("find_linkable_parent only returns names the index knows");
-            return Some(self.names.link_to(root, module, Some(parent)));
+            return self.names.link_to(root, module, Some(parent));
         }
         // Step 2: the module link a private name still has.
         if is_private && let Some(module) = module_from_private_prefix(name) {
-            return Some(self.names.link_to(root, module, None));
+            return self.names.link_to(root, module, None);
         }
         None
     }
@@ -706,6 +712,43 @@ mod tests {
             out.html,
             "<a href=\"https://github.com/leanprover/lean4/blob/dead/src/Init/Prelude.lean\">h</a>"
         );
+    }
+
+    /// **2026-08-17**, the signature half of the fix: a constant defined in a
+    /// dependency with no version-pinned URL renders as branch 4's `span.fn` —
+    /// the name is on the page and nothing links out of it.
+    ///
+    /// The three branches are asserted separately because each of them resolved
+    /// the name a different way, and each used to hand back a relative link to a
+    /// page this site never wrote.
+    #[test]
+    fn a_constant_from_a_dependency_that_cannot_be_pinned_is_not_a_link() {
+        let mut builder = NameIndex::builder();
+        for (name, module) in [
+            ("Dep.f", "Dep.Aux"),
+            ("Dep.rec", "Dep.Aux"),
+            ("Pkg.f", "Pkg.A"),
+        ] {
+            builder.declaration(name, module);
+        }
+        let names = builder.build(
+            LinkIndex::parse("Dep.Aux\n\tDep.f\t26\t27\n"),
+            ExternalLinks::new([("Dep", "")]),
+        );
+
+        // Branch 1: a direct hit.
+        let out = render("f", &[konst(0, 1, "Dep.f")], "./", &names);
+        assert_eq!(out.html, "<span class=\"fn\">f</span>");
+        assert!(!out.has_anchor, "nothing on this page anchors anywhere");
+        // Branch 2: through the parent.
+        let out = render("h", &[konst(0, 1, "Dep.rec._eq_2")], "./", &names);
+        assert_eq!(out.html, "<span class=\"fn\">h</span>");
+        // Branch 3: a private name's module.
+        let out = render("h", &[konst(0, 1, "_private.Dep.Aux.0.Foo")], "./", &names);
+        assert_eq!(out.html, "<span class=\"fn\">h</span>");
+        // …and the package being documented is untouched, as always.
+        let out = render("f", &[konst(0, 1, "Pkg.f")], "./", &names);
+        assert_eq!(out.html, "<a href=\"./Pkg/A.html#Pkg.f\">f</a>");
     }
 
     #[test]

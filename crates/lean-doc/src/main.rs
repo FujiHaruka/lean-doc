@@ -354,6 +354,17 @@ fn resolve_external_links(
         resolved.resolved,
         resolved.declared,
     );
+    // The roots in that count that carry no URL: they are in the map so that the
+    // pages stop linking into them, which is the opposite of what the line above
+    // reads like on its own (M7, 2026-08-17). Printed only when there are any,
+    // because on the measurement target there are none.
+    if resolved.unpinned_roots > 0 {
+        println!(
+            "external  note: {} of those root(s) have no version-pinned URL, so names in them \
+             render without a link rather than linking at a page this site does not write",
+            resolved.unpinned_roots,
+        );
+    }
     // Counted and printed, not folded into the line above: a collision means the
     // map holds one of two candidates, which is a different answer from "a
     // package contributed nothing".

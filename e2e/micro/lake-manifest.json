@@ -1,6 +1,13 @@
 {"version": "1.2.0",
  "packagesDir": ".lake/packages",
- "packages": [],
+ "packages":
+ [{"type": "path",
+   "scope": "",
+   "name": "«micro-dep»",
+   "manifestFile": "lake-manifest.json",
+   "inherited": false,
+   "dir": "../micro-dep",
+   "configFile": "lakefile.toml"}],
  "name": "micro",
  "lakeDir": ".lake",
  "fixedToolchain": false}

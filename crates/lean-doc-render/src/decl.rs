@@ -87,12 +87,21 @@ impl std::error::Error for UnplaceableName {}
 /// [`NameIndex::link_to`]'s, so an inherited field of a structure declared in a
 /// dependency links at that dependency's pinned source. Inherited fields are the
 /// case where that matters most: the parent structure is very often mathlib's.
+///
+/// # The two failures are different and the return type says so
+///
+/// `Err` is doc-gen4's panic: **no module at all** knows the name, so the IR
+/// this run was handed disagrees with itself and the caller stops. `Ok(None)` is
+/// the 2026-08-17 case: the module is known and belongs to a dependency with no
+/// version-pinned URL, so there is a name to render and no page to point it at.
+/// Collapsing the second into the first would refuse to render a page over a
+/// missing link; collapsing it into `Ok(href)` is the dead link this changed.
 pub fn decl_name_to_link(
     name: &str,
     root: &str,
     refs: &Refs<'_>,
     names: &NameIndex,
-) -> Result<String, UnplaceableName> {
+) -> Result<Option<String>, UnplaceableName> {
     let module = refs
         .get(name)
         .copied()
@@ -514,11 +523,25 @@ impl<'a> DeclRenderer<'a> {
             } else {
                 out.push_str("<li class=\"field inherited\">");
             }
-            out.push_str("<div class=\"field-sig\"><a class=\"field-name\" href=\"");
-            escape_html_into(out, &link);
-            out.push_str("\">");
-            escape_html_into(out, short);
-            out.push_str("</a>");
+            // No href: the field keeps its name and its `field-name` class and
+            // loses only the anchor — the same element the branch below writes
+            // for a field this structure declares itself. An `<a>` with no
+            // target, or a name dropped for want of one, would both be worse
+            // than the dead link this replaced.
+            match &link {
+                Some(link) => {
+                    out.push_str("<div class=\"field-sig\"><a class=\"field-name\" href=\"");
+                    escape_html_into(out, link);
+                    out.push_str("\">");
+                    escape_html_into(out, short);
+                    out.push_str("</a>");
+                }
+                None => {
+                    out.push_str("<div class=\"field-sig\"><span class=\"field-name\">");
+                    escape_html_into(out, short);
+                    out.push_str("</span>");
+                }
+            }
             out.push_str(&args);
             out.push_str("<span class=\"colon\"> : </span>");
             out.push_str(&body.html);
@@ -832,8 +855,8 @@ mod tests {
     fn an_unplaceable_name_is_an_error_and_not_a_guess() {
         let names = index(&[("known", "Pkg.M")]);
         assert_eq!(
-            decl_name_to_link("known", "./", &Refs::default(), &names).as_deref(),
-            Ok("./Pkg/M.html#known")
+            decl_name_to_link("known", "./", &Refs::default(), &names),
+            Ok(Some("./Pkg/M.html#known".to_owned()))
         );
         assert_eq!(
             decl_name_to_link("nowhere", "./", &Refs::default(), &names),
@@ -846,23 +869,35 @@ mod tests {
     /// **M7-c**: the same lookup, with the field's module in the dependency map.
     /// The refusal above is unchanged — a name in no module is still an error,
     /// not a blob URL to nowhere.
+    ///
+    /// **2026-08-17** added the third answer: `Ok(None)` for a field whose
+    /// module belongs to a dependency with no version-pinned URL. The two either
+    /// side of it are asserted here as bytes, because they must not move.
     #[test]
     fn an_inherited_field_of_a_dependencys_structure_links_at_its_source() {
         let mut builder = NameIndex::builder();
         builder.declaration("Mathlib.P.y", "Mathlib.Order.Basic");
         builder.declaration("Pkg.M.z", "Pkg.M");
+        builder.declaration("Dep.P.w", "Dep.Aux");
         let names = builder.build(
             LinkIndex::parse("Mathlib.Order.Basic\n\tMathlib.P.y\t67\t67\n"),
-            ExternalLinks::new([("Mathlib", "https://host/o/mathlib4/blob/abc")]),
+            ExternalLinks::new([("Mathlib", "https://host/o/mathlib4/blob/abc"), ("Dep", "")]),
         );
         assert_eq!(
-            decl_name_to_link("Mathlib.P.y", ".././", &Refs::default(), &names).as_deref(),
-            Ok("https://host/o/mathlib4/blob/abc/Mathlib/Order/Basic.lean#L67-L67")
+            decl_name_to_link("Mathlib.P.y", ".././", &Refs::default(), &names),
+            Ok(Some(
+                "https://host/o/mathlib4/blob/abc/Mathlib/Order/Basic.lean#L67-L67".to_owned()
+            ))
         );
         assert_eq!(
-            decl_name_to_link("Pkg.M.z", ".././", &Refs::default(), &names).as_deref(),
-            Ok(".././Pkg/M.html#Pkg.M.z"),
+            decl_name_to_link("Pkg.M.z", ".././", &Refs::default(), &names),
+            Ok(Some(".././Pkg/M.html#Pkg.M.z".to_owned())),
             "the package being documented is not in the map"
+        );
+        assert_eq!(
+            decl_name_to_link("Dep.P.w", ".././", &Refs::default(), &names),
+            Ok(None),
+            "the module is known and unlinkable, which is neither an error nor a page link"
         );
         assert!(decl_name_to_link("nowhere", "./", &Refs::default(), &names).is_err());
     }

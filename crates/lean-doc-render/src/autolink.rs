@@ -323,8 +323,15 @@ impl NameIndex {
     /// one. Every call site in this crate that builds a link to *another*
     /// module goes through here; the one that does not is a declaration's own
     /// self-link, which is on this page by construction.
+    ///
+    /// **`None` means "render the name, draw no link"** (2026-08-17): the name
+    /// was resolved — to a module of a dependency this run could not
+    /// version-pin — and there is nowhere to point at. Every caller below turns
+    /// that into text, and none of them falls through to a later branch: a
+    /// resolved name that happens to be unlinkable must not be re-resolved to
+    /// some *other* declaration that happens to have a page.
     #[must_use]
-    pub fn link_to(&self, root: &str, module: &str, anchor: Option<&str>) -> String {
+    pub fn link_to(&self, root: &str, module: &str, anchor: Option<&str>) -> Option<String> {
         self.external.href(
             root,
             module,
@@ -538,6 +545,12 @@ impl LinkResolver for PageLinks<'_> {
     /// dependency, so all three go through [`NameIndex::link_to`] (M7-c). The
     /// second branch is where most of them are: it is the one the `.lidx`
     /// answers, and the `.lidx` *is* the dependency closure.
+    ///
+    /// **A branch that answers returns its answer, `None` included**: when the
+    /// module is an unpinnable dependency's the word stays a code span, and the
+    /// scan does *not* continue into the branches below it. Continuing would
+    /// let branch 4 link `Nat.succ` to whatever declaration of *this* page ends
+    /// in `succ`, which is a wrong link where there was going to be none.
     fn name_to_link(&self, s: &str) -> Option<String> {
         if !is_name_lit(s) {
             return None;
@@ -545,10 +558,10 @@ impl LinkResolver for PageLinks<'_> {
         if !s.starts_with(PRIVATE_PREFIX)
             && let Some(module) = self.index.module_of(s)
         {
-            return Some(self.index.link_to(self.root, module, Some(s)));
+            return self.index.link_to(self.root, module, Some(s));
         }
         if self.index.is_known_module(s) {
-            return Some(self.index.link_to(self.root, s, None));
+            return self.index.link_to(self.root, s, None);
         }
         // "find a similar name in the same module": compare components from the
         // end, over as many as the shorter of the two has. `succ` matches
@@ -564,7 +577,7 @@ impl LinkResolver for PageLinks<'_> {
                     .index
                     .known(name)
                     .expect("a declaration of this page is in the name index");
-                return Some(self.index.link_to(self.root, module, Some(name)));
+                return self.index.link_to(self.root, module, Some(name));
             }
         }
         None
@@ -581,7 +594,7 @@ impl LinkResolver for PageLinks<'_> {
     /// trait's index-free default answer at all.
     fn source_path_to_link(&self, root: &str, path: &str) -> Option<String> {
         let module = self.index.module_for_source_path(path)?;
-        Some(self.index.link_to(root, module, None))
+        self.index.link_to(root, module, None)
     }
 }
 
@@ -828,6 +841,55 @@ mod tests {
         assert_eq!(
             resolve(&no_range, &[], "Dep.bare").as_deref(),
             Some("https://host/o/dep/blob/abc/Dep/M.lean")
+        );
+    }
+
+    /// **2026-08-17**, the docstring half of the fix: a name that resolves into
+    /// a dependency with no version-pinned URL stays a code span.
+    ///
+    /// The bytes are asserted through the renderer, not just the resolver,
+    /// because the failure mode this replaced is invisible at the resolver: a
+    /// `<a href>` that renders perfectly and 404s. `Dep.only_in_lidx` is
+    /// load-bearing in the other direction too — it is a name this page's own
+    /// declarations *end* with nothing like, so branch 4 cannot quietly answer
+    /// for it, and `a` right after it is the one that could.
+    #[test]
+    fn a_docstring_name_in_a_dependency_that_cannot_be_pinned_stays_text() {
+        let mut builder = NameIndex::builder();
+        builder.module(&module());
+        let index = builder.build(
+            LinkIndex::parse(LIDX),
+            ExternalLinks::new([("Dep", ""), ("Lidx", "")]),
+        );
+        let names = ["Pkg.Two.a", "Pkg.Two.b"];
+
+        // 2, through the .lidx; 3, a module. Both known, neither linkable.
+        assert_eq!(resolve(&index, &names, "Dep.only_in_lidx"), None);
+        assert_eq!(resolve(&index, &names, "Lidx.Only"), None);
+        // 2 and 4 into this package: unchanged.
+        assert_eq!(
+            resolve(&index, &names, "Pkg.Two.a").as_deref(),
+            Some("../Pkg/Two.html#Pkg.Two.a")
+        );
+        assert_eq!(
+            resolve(&index, &names, "a").as_deref(),
+            Some("../Pkg/Two.html#Pkg.Two.a")
+        );
+
+        // The bytes: the name is still there, and there is no anchor around it.
+        let render = |md: &str| {
+            PageLinks::new(&index, "../", &names)
+                .renderer()
+                .docstring(md)
+        };
+        assert_eq!(
+            render("`Dep.only_in_lidx`\n"),
+            "<p><code>Dep.only_in_lidx</code></p>"
+        );
+        assert_eq!(render("`Lidx.Only`\n"), "<p><code>Lidx.Only</code></p>");
+        assert_eq!(
+            render("`Pkg.Two.a`\n"),
+            "<p><code><a href=\"../Pkg/Two.html#Pkg.Two.a\">Pkg.Two.a</a></code></p>"
         );
     }
 

@@ -1,4 +1,4 @@
-# The e2e fixture package: Lean core only, no Mathlib, no dependencies at all.
+# The e2e fixture package: Lean core, and one dependency reached by path.
 #
 # `lean-doc modules --root --lib` reads this file, so the shape matters: a
 # `[[lean_lib]]` block with a `name` key is the one shape `crates/lean-doc/src/
@@ -9,3 +9,11 @@ defaultTargets = ["Micro"]
 
 [[lean_lib]]
 name = "Micro"
+
+# Still no Mathlib and still nothing off the network: `../micro-dep` is in this
+# repository. What it adds is a manifest entry that has no `url` and no `rev`,
+# which is the one thing the measurement target cannot provide — see
+# `../micro-dep/lakefile.toml` and `../README.md`.
+[[require]]
+name = "«micro-dep»"
+path = "../micro-dep"

@@ -245,6 +245,12 @@ pub fn module_head_html(module: &str, module_source_url: &str) -> String {
 /// pinned source; an import of the package's own modules is not in the map and
 /// keeps its page link.
 ///
+/// **An import of a dependency that could not be version-pinned is neither**: it
+/// is listed by name, inside its `<li>`, with no `<a>` at all (2026-08-17). The
+/// import is a fact about the module and stays on the page; where to read it is
+/// a fact this run does not have, and writing the relative link anyway put the
+/// pre-M7 404 back one dependency at a time.
+///
 /// "Imported by" is empty markup and starts `hidden`: it is a fact about the
 /// whole site, `app.js` fills it from `modules.json`, and a module nothing
 /// imports has the block removed rather than shown empty.
@@ -260,11 +266,20 @@ pub fn module_meta_html(root: &str, imports: &[String], external: &ExternalLinks
     }
     out.push_str("</summary><ul>");
     for import in sorted {
-        out.push_str("<li><a href=\"");
-        escape_html_into(&mut out, &external.href(root, import, None, None));
-        out.push_str("\">");
-        escape_html_into(&mut out, import);
-        out.push_str("</a></li>");
+        match external.href(root, import, None, None) {
+            Some(href) => {
+                out.push_str("<li><a href=\"");
+                escape_html_into(&mut out, &href);
+                out.push_str("\">");
+                escape_html_into(&mut out, import);
+                out.push_str("</a></li>");
+            }
+            None => {
+                out.push_str("<li>");
+                escape_html_into(&mut out, import);
+                out.push_str("</li>");
+            }
+        }
     }
     out.push_str(
         "</ul></details>\
@@ -444,5 +459,26 @@ mod tests {
             ),
             "{meta}"
         );
+    }
+
+    /// **2026-08-17**: an import of a dependency with no version-pinned URL is
+    /// the module's name and nothing else — the `<li>` stays, the `<a>` goes.
+    ///
+    /// The count and the sort are over the imports, not the links, so both are
+    /// unchanged; `B.C` beside it still gets its page link, which is what says
+    /// the loss is confined to the root that could not be resolved.
+    #[test]
+    fn an_import_that_cannot_be_version_pinned_is_listed_without_a_link() {
+        let imports = vec!["B.C".to_owned(), "A".to_owned()];
+        let meta = module_meta_html(".././", &imports, &ExternalLinks::new([("A", "")]));
+        assert!(
+            meta.contains("<ul><li>A</li><li><a href=\".././B/C.html\">B.C</a></li></ul>"),
+            "{meta}"
+        );
+        assert!(
+            meta.contains("<summary>Imports <span class=\"count\">2</span></summary>"),
+            "an unlinkable import is still an import: {meta}"
+        );
+        assert!(!meta.contains("<a href=\".././A.html\">"), "{meta}");
     }
 }
