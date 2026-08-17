@@ -228,14 +228,34 @@ jobs:
           sha256sum *.tar.gz > checksums.txt
           cat checksums.txt
 
+      # `--repo` on every call: this runs from $RUNNER_TEMP/dl, which is not a
+      # git repository, and `gh` works out the repository from the checkout it
+      # is standing in. Without it the step dies with "fatal: not a git
+      # repository" after everything else has already succeeded.
       - name: Create or update the release
         env:
           GH_TOKEN: ${{ github.token }}
+          R: ${{ github.repository }}
         run: |
           cd "$RUNNER_TEMP/dl"
-          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" ./*.tar.gz checksums.txt --clobber
+          if gh release view "$GITHUB_REF_NAME" --repo "$R" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" ./*.tar.gz checksums.txt --clobber --repo "$R"
           else
             gh release create "$GITHUB_REF_NAME" ./*.tar.gz checksums.txt \
-              --title "$GITHUB_REF_NAME" --generate-notes
+              --title "$GITHUB_REF_NAME" --generate-notes --repo "$R"
           fi
+
+      # "The command exited 0" is not "the assets are on the release". Ask.
+      - name: The release actually carries the assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          R: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          NAMES="$(gh release view "$GITHUB_REF_NAME" --repo "$R" --json assets --jq '.assets[].name' | sort)"
+          echo "$NAMES"
+          for want in lean-doc-x86_64-unknown-linux-musl.tar.gz \
+                      lean-doc-aarch64-apple-darwin.tar.gz \
+                      checksums.txt; do
+            echo "$NAMES" | grep -qx "$want" || { echo "::error::missing asset: $want"; exit 1; }
+          done
