@@ -175,21 +175,26 @@ jobs:
           name: extract-linux-x86_64
           path: ${{ runner.temp }}/downloaded
 
-      # A copy of the fixture with one line changed. Nothing is built in it —
-      # the module list names `Init`, which comes from the toolchain.
+      # **The whole e2e/ directory, not just micro.** `e2e/micro` requires
+      # `../micro-dep` by path, so copying the one directory produces a package
+      # that lake cannot resolve — and the first run of this job read that
+      # failure as "the toolchain mismatch was refused" while the extractor had
+      # never started. Both fixtures move together and both get the new pin.
       - name: A package pinning the other toolchain
         run: |
-          cp -r e2e/micro "$RUNNER_TEMP/other-pkg"
-          rm -rf "$RUNNER_TEMP/other-pkg/.lake"
-          echo "${{ inputs.other-toolchain }}" > "$RUNNER_TEMP/other-pkg/lean-toolchain"
-          cat "$RUNNER_TEMP/other-pkg/lean-toolchain"
+          cp -r e2e "$RUNNER_TEMP/other-e2e"
+          rm -rf "$RUNNER_TEMP/other-e2e"/*/.lake
+          for f in "$RUNNER_TEMP/other-e2e"/*/lean-toolchain; do
+            echo "${{ inputs.other-toolchain }}" > "$f"
+          done
+          grep -r . "$RUNNER_TEMP/other-e2e"/*/lean-toolchain
 
       - name: Run the v4.31.0 extractor against it
         run: |
           chmod +x "$RUNNER_TEMP/downloaded/extract"
           tools/extractor-mismatch.sh \
             --extractor "$RUNNER_TEMP/downloaded/extract" \
-            --package "$RUNNER_TEMP/other-pkg" \
+            --package "$RUNNER_TEMP/other-e2e/micro" \
             --built-for "$(cat e2e/micro/lean-toolchain)" \
             --json "$RUNNER_TEMP/mismatch.json"
 
@@ -200,3 +205,64 @@ jobs:
           name: mismatch-json
           path: ${{ runner.temp }}/mismatch.json
           if-no-files-found: warn
+
+  # ------------------------------------------------------------------- X6
+  #
+  # X4 moves the binary between runners that all have the same `/home/runner`
+  # and the same `~/.elan`, so it cannot see a path baked in at build time —
+  # and the Linux binary carries 17 strings starting with the builder's home.
+  # A user downloading a release has neither. This job puts the toolchain
+  # somewhere else entirely (ELAN_HOME) and runs the same binary there: if any
+  # of those 17 paths is read at run time, this is where it shows.
+  elsewhere:
+    name: X6 — the toolchain somewhere else entirely
+    needs: uniqueness
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: elan in a non-default location
+        run: |
+          export ELAN_HOME="$RUNNER_TEMP/alt/elan"
+          mkdir -p "$ELAN_HOME"
+          curl -sSfL https://github.com/leanprover/elan/releases/latest/download/elan-x86_64-unknown-linux-gnu.tar.gz \
+            | tar xz
+          ELAN_HOME="$ELAN_HOME" ./elan-init -y --default-toolchain "$(cat e2e/micro/lean-toolchain)"
+          echo "ELAN_HOME=$ELAN_HOME" >> "$GITHUB_ENV"
+          echo "$ELAN_HOME/bin" >> "$GITHUB_PATH"
+          # Proof it is not the default one: the default would be ~/.elan
+          test ! -d "$HOME/.elan" || { echo "a default elan exists too — this job would not prove anything" >&2; exit 1; }
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: extract-linux-x86_64
+          path: ${{ runner.temp }}/downloaded
+
+      # `--expect any`: a clean run is the *good* outcome here (same toolchain,
+      # different location), so success must not be reported as the failure the
+      # mismatch job looks for. What is being tested is that it runs at all.
+      - name: The same binary, a toolchain it has never seen the path of
+        run: |
+          chmod +x "$RUNNER_TEMP/downloaded/extract"
+          ldd "$RUNNER_TEMP/downloaded/extract" || true
+          tools/extractor-mismatch.sh \
+            --extractor "$RUNNER_TEMP/downloaded/extract" \
+            --package e2e/micro \
+            --expect any \
+            --json "$RUNNER_TEMP/elsewhere.json"
+          cat "$RUNNER_TEMP/elsewhere.json"
+
+      # Running is half of it. This is the other half: the IR it writes there
+      # must be the IR the e2e gates expect, so the whole fixture is generated.
+      - name: Install the toolchain rust-toolchain.toml asks for
+        run: rustup show
+
+      - name: Build the CLI
+        run: cargo build --bin lean-doc
+
+      - name: End to end, with the toolchain in an unusual place
+        run: |
+          tools/e2e-micro.sh \
+            --extractor "$RUNNER_TEMP/downloaded/extract" \
+            --out "$RUNNER_TEMP/e2e" --keep

@@ -59,6 +59,8 @@ done
 
 BUILT="$REPO/extractor/build/extract"
 GENC="$REPO/extractor/build/Extract.c"
+WORKLIST="$(mktemp)"
+trap 'rm -f "$WORKLIST"' EXIT
 
 # ---------------------------------------------------------------- toolchains
 #
@@ -140,8 +142,13 @@ if command -v readelf > /dev/null 2>&1; then
   echo "--- RPATH/RUNPATH"
   readelf -d "$BUILT" 2>/dev/null | grep -E "RPATH|RUNPATH" || echo "(none)"
 fi
+# Not a curiosity: a path from the build machine that the binary *reads* at run
+# time is the difference between "shippable" and "works only where it was
+# built". The count alone cannot tell those apart, so print samples.
 echo "--- absolute paths from this machine's home baked in"
-strings -a "$BUILT" 2>/dev/null | grep -c "^$HOME" || true
+strings -a "$BUILT" 2>/dev/null | grep "^$HOME" | sort -u > "$WORKLIST" || true
+echo "count: $(wc -l < "$WORKLIST" | tr -d ' ')"
+head -8 "$WORKLIST" || true
 
 if [ -n "$KEEP_BINARY" ]; then
   mkdir -p "$(dirname "$KEEP_BINARY")"

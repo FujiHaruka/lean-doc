@@ -82,6 +82,23 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 echo "Init" > "$WORK/modules.txt"
 
+# ---------------------------------------------------------------- precondition
+#
+# **`lake env` must be able to build an environment here before the result of
+# running anything in it means a thing.** The first CI run of this script came
+# back "REFUSED — the mismatch is visible as a failure" for a package whose path
+# dependency did not exist at the copied location: lake failed during package
+# resolution, the extractor never started, and a non-zero exit was read as
+# evidence about toolchains. Same failure shape as CLAUDE.md's `skip` that
+# returns green — so the environment is proved first, separately, and a failure
+# here is an error (exit 2) rather than a pass.
+if ! ( cd "$PACKAGE" && "$LAKE" env true ) > "$WORK/env.txt" 2>&1; then
+  echo "DID NOT RUN: \`lake env\` cannot build an environment in $PACKAGE." >&2
+  echo "The package does not resolve, so nothing here is about the toolchain:" >&2
+  head -5 "$WORK/env.txt" >&2
+  exit 2
+fi
+
 set +e
 ( cd "$PACKAGE" && "$LAKE" env "$EXTRACTOR" "$WORK/modules.txt" "$WORK/out.jsonl" ) \
   > "$WORK/stdout.txt" 2> "$WORK/stderr.txt"
