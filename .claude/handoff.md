@@ -2,7 +2,8 @@
 
 ## State
 
-- Branch: main / **clean** / push 済み (HEAD `9a05d05`)
+- Branch: main / **clean** / push 済み (HEAD `117e928`)。
+  **tag `v0.1.0` を打って push 済み** (2026-08-17)
 - leg 4 で **29 commit**。`cargo test --workspace` **346 passed / 0 failed / 21 ignored**、
   clippy 無警告、`tools/e2e-micro.sh` 緑、`tools/target2-gate.sh all` = **all checks passed**、
   CI (run `31978156708`) 緑
@@ -70,8 +71,13 @@ ownership                                  0.309 s    L3-1 の正しさの規則
 
 候補は 3 つ、**どれも自明ではないのでユーザー判断を仰ぐ側**:
 
-1. **v0.1 を締めるか** — M0〜M8 完遂、ゲート B は `all checks passed`。
-   tag を打つ / README の版表記を決めるのは**方針の判断**
+1. ~~v0.1 を締めるか~~ → **締めた** (2026-08-17、tag **`v0.1.0`**、commit `117e928`)
+   【決定、ユーザー判断】。根拠は**ゲート A / B の決着だけ**で、未検証項目は片付いていない
+   (18 件のまま)。**GitHub Release は作らない**と決めた — バイナリを配布できない
+   (抽出器は対象の toolchain に対して作るので使い回せない) ので実質ノートだけになり、
+   未検証 18 件を抱えた状態で「ダウンロードして使える製品」と読まれるため。
+   **判定の SoT は `docs/implementation-plan.md` §1 末尾**、この日の実測は
+   `docs/milestone-log.md` の末尾節
 2. **残る未検証項目** (README §未検証項目) — `push:` トリガと利用者リポジトリの checkout。
    検証用ワークフローが `workflow_dispatch` のみなのは**意図的** (push 毎に数 GB 落ちる)
    なので、**このリポジトリでは安く試せない**
