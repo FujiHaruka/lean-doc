@@ -114,10 +114,10 @@ doc-gen4 を失って消えたのは**外部オラクル** — 「正しい出�
 | **Q3** | 自己整合性ゲート `tools/site-gate.sh` (決定 3) | 404 = 0 / 外部リソース = 0 / 索引 ⟷ ページが双方向 | **通過** — `check-site-closure.py` を新設。**初回に本物の不整合を検出** (下記) |
 | **Q4** | **E1 — マイクロパッケージ e2e** (`e2e/micro` + `tools/e2e-micro.sh`) | CI で緑。Q3 を E1 の出力に回す | **通過** — CI で **success**。4 ゲート (1 コマンド / 冪等 / 決定性 / `--jobs` 不変) |
 | **Q5** | 仕事量カウンタ (決定 4) | 増分で再抽出 0 / 描画 0 が**数で**出る | **通過** — `lean-doc-build.json` の `work` + e2e の **GATE 5**。**docs の主張を 3 つ訂正させた** (下記) |
-| **Q6** | md4c FFI の fuzz (決定 5) | seed corpus 全通しで 0 crash | 未 |
+| **Q6** | md4c FFI の fuzz (決定 5) | seed corpus 全通しで 0 crash | **通過** — ゲートは `crates/lean-doc-md/tests/fuzz_corpus.rs` (**12 入力 + 固定 seed の生成 4,000 本**、安定版・機材ゼロ)。**探索も実走した**【実測 2026-08-17 → [`fuzz/README.md`](../../fuzz/README.md)】 — ASan + libFuzzer で **1,534,477 execs / crash 0**。下記 |
 | **Q7** | サイズ予算 | 上限超過で理由付きで落ちる | **通過** — 静的資産に絞った【判断、下記】。`assets.rs` のテスト |
 | **Q8** | **E3 — ブラウザゲート** (`tools/browser-gate.sh`) | コンソールエラー 0、**UI-3 が「未判定」でなくなる** | **通過** — 9 検査すべて緑。**375 px の overflow 0 px【実測】= UI-3 決着** |
-| **Q9** | provenance ゲート | 帰属表示の実在 | **通過** — `tools/provenance-gate.sh`、**27 claims**。`cargo-deny` は未 |
+| **Q9** | provenance ゲート | 帰属表示の実在 | **通過** — `tools/provenance-gate.sh`、**27 claims**。**`cargo-deny` も済んでいた** — CI ジョブ `supply-chain` (`deny.toml`) が緑【実測 2026-08-17、[run 32012152635](https://github.com/FujiHaruka/lean-doc/actions/runs/32012152635)】。**この行が「未」のまま 1 日残っていた** |
 | **Q10** | mutation 探索 — **ゲートにしない** | 拾えた穴だけテストに落とす | **実施** — 今回の diff **9/9 caught**、`decl.rs` 全体 **74 中 1 missed** → 塞いで **74/74**。ワークスペース全体は **1,602 mutant** で未実施 |
 
 **Q0 で分かったこと — 「静かな skip」は既に腐っていた【実測】。**
@@ -130,6 +130,33 @@ doc-gen4 を失って消えたのは**外部オラクル** — 「正しい出�
 (tag `experiments-frozen`)。`tools/corpus-tests.txt` に **`## frozen` 区分**を設けて
 ゲートの実行対象から外し、**外したことを毎回出力する**形にした
 (**永久に赤いゲートは誰も読まない**。黙って外すのはもっと悪い)。
+
+### Q6 — 探索を回して分かったのは「何を検査していないか」だった【すべて実測 2026-08-17】
+
+**`cargo-fuzz` の `-Zsanitizer=address` は Rust にしか届かない。**
+`RUSTFLAGS` は Rust のコンパイルにしか渡らないので、**`build.rs` が `cc` で焼く md4c の C は
+計装されない** — libFuzzer はパーサの中からのフィードバックを一切もらえず、ASan も
+そこのメモリアクセスを見ない。**この状態で「100 万回回して落ちなかった」と書けてしまう。**
+実際に見えていた差 (同じ seed corpus / `-seed=1` / `-runs=20000`):
+
+| md4c | libFuzzer の `cov:` |
+|---|---|
+| 未計装 (`RUSTFLAGS` だけ) | **1023** |
+| 計装 (`CFLAGS` に `-fsanitize=address -fsanitize=fuzzer-no-link`) | **2487** |
+
+**これは §6 の「ゲートは走った本数を数える」と同型**で、今度は本数ではなく**被計装範囲**。
+どちらも**出力は「合っている」ように見える**。捕まえたのは、
+**計装したときとしないときで数字が動くかを見た**ことだけ。
+
+ゲート側 (`fuzz_corpus.rs`) の負検査も取り直した: **`#[test]` の中で SIGSEGV を起こすと
+`cargo test` は `exit=101`** で赤くなる【実測】。crash がテスト失敗として出ないなら
+この corpus 全通しは何も主張していないので、そこを先に確かめた。
+
+**探索は `fuzz/` に置いた** (`cargo-fuzz`、nightly、ワークスペース外)。**ゲートは安定版のまま**
+— 決定 5 のとおり「時間で回す」ものを CI に入れない。**crash が出たら corpus に足す**という
+一方向だけが CI に繋がっている。
+
+**LeakSanitizer は macOS で走らない**ので、md4c が確保して解放しないバッファはここに出ない。
 
 ### Q5 が訂正させたもの — 数えたら docs が 3 つ間違っていた【すべて実測 2026-08-16】
 
@@ -269,7 +296,7 @@ gate2 / gate4 のバイト比較も含め**このスクリプトの比較はす�
 | **QV3** | `--jobs` を変えても site がバイト一致するか (IR では実測済、**サイト側は未確認**) | Q2 | 並列化が出力を汚している |
 | **QV4** | Mathlib 無しで抽出器がビルドでき、マイクロパッケージから IR が出るか | **成立【実測 2026-08-16】** — 抽出器は `import Lean` だけなので Lean core の環境で立つ。`lake build` (5 モジュール) **約 1 秒**、抽出器のビルド **17.1 秒** (`lean` 13.9 + `leanc` 3.2)、`lean-doc build` **1.16 秒** → site 15 ファイル。すべて warm | (否定されていたら CI では E1 を諦め E2 を nightly にしていた) |
 | **QV5** | CI の 1 回あたり実行時間 (無料枠に収まるか) | Q1 / Q4 | 重い段を nightly へ |
-| **QV6** | fuzz が **MD4Lean が死ぬ 2 入力** (fenced code 中の NUL / 本文行の無い GFM テーブル) を自力で見つけるか | Q6 | seed に入れる (見つけないこと自体は fuzz の失敗ではない) |
+| **QV6** | fuzz が **MD4Lean が死ぬ 2 入力** (fenced code 中の NUL / 本文行の無い GFM テーブル) を自力で見つけるか | **成立【実測 2026-08-17】** — **空の corpus から** 600 秒 / **7,404,720 execs** で**両方出た**。生成 corpus 7,988 本のうち **fenced code 中に NUL が 200 本**、**本文行の無い GFM テーブルが 43 本**。seed から始めると子孫かどうか言えないので、この 1 本だけ seed 無しで回した | (見つけなくても fuzz の失敗ではない、という逃げ道は使わずに済んだ) |
 | **QV7** | 実ブラウザで 375 px のレイアウトが崩れないか (**UI-3 の積み残し**) | Q8 | CSS を直す。ui-redesign.md 決定 1 (フレームワークに戻らない) は守る |
 
 ---

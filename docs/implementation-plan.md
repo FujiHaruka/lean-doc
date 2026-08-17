@@ -74,7 +74,11 @@
   死にリンクだった」)】。特に **実在の公開パッケージでの実走**
   (**v0.1 を締めたので「範囲外」ではなくなり、単に未実施**)、
   **`push:` トリガと利用者リポジトリの checkout**
-- **品質ゲートの Q6 (md4c FFI の fuzz) と Q9 の `cargo-deny`** は未 (→ [`plans/quality-gates.md`](plans/quality-gates.md) §5)
+- **品質ゲートの Q6 / Q9 は決着した**【実測 2026-08-17】 — `cargo-deny` は**この行を書いた時点で
+  既に CI で緑**だった (ジョブ `supply-chain`)、Q6 の corpus 全通しゲートも既に毎 push で走っていて、
+  **残っていた「探索」も回した** (ASan + libFuzzer、**8,939,197 execs / crash 0**)。
+  **残るのはリーク検査 (macOS で LSan が走らない) と、探索が 1 機材でしかないこと**
+  (→ [`plans/quality-gates.md`](plans/quality-gates.md) Q6 / Q9、[`../fuzz/README.md`](../fuzz/README.md))
 - **性能の次の一手は構造変更で、この計画の外**【実測 2026-08-17】 — 残り 4.35 s のうち
   約 2.4 s が Lean の環境ロード (approach.md §3 が「床」と結論)、約 1.14 s が
   `lake env` + `LEAN_PATH` の構築 (**自前で組むのは Lake のレイアウトの再実装なのでやらない**)。

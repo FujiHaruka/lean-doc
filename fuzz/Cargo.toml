@@ -1,0 +1,34 @@
+# Out-of-band exploration, deliberately not a workspace member.
+#
+# `rust-toolchain.toml` pins stable for everyone including CI, and libFuzzer plus
+# `-Zsanitizer=address` need nightly. Rather than put a second toolchain on the
+# critical path of every push, this lives outside the workspace: the gate that
+# has to stay green is `crates/lean-doc-md/tests/fuzz_corpus.rs`, which runs the
+# committed corpus on stable. This directory is how new corpus entries are
+# *found* (docs/plans/quality-gates.md 決定 5).
+#
+# The empty `[workspace]` table below is what keeps `cargo build` at the repo
+# root from trying to adopt this package.
+[package]
+name = "lean-doc-md-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.lean-doc-md]
+path = "../crates/lean-doc-md"
+
+[[bin]]
+name = "docstring"
+path = "fuzz_targets/docstring.rs"
+test = false
+doc = false
+bench = false
+
+[workspace]

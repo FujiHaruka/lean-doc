@@ -338,11 +338,15 @@ doc-gen4 が読んでいた CDN 4 本 (Lato / JuliaMono / polyfill / MathJax) �
     **フォントの字形** (上の 12 と同じ穴)、**ダークモードの実際の色**
     (見ているのは `data-theme` が動くことだけで、色ではない)、**スクリーンリーダー**。
     CSS を読んで正しいはずだ、以上のことが言えないのはこの 3 つに縮んだ。
-14. **md4c FFI の fuzz と `cargo-deny` を回していない** — 品質ゲート計画の Q6 と Q9 の残り
-    (→ [`docs/plans/quality-gates.md`](docs/plans/quality-gates.md) §5)。CommonMark は
-    **vendor した C を FFI で呼んでいる**のに、**落ちる入力を探す手段がゲートに無い**。
-    既知の 2 入力 (fenced code 中の NUL / 本文行の無い GFM テーブル) は回帰テストにあるが、
-    **それは見つけたものであって探した結果ではない。**
+14. **md4c FFI に残っているのは「リークを見ていない」と「1 機材でしか探していない」**。
+    **fuzz も `cargo-deny` も回っている** — corpus 全通しのゲートは毎 push
+    (`crates/lean-doc-md/tests/fuzz_corpus.rs`)、`cargo-deny` は CI ジョブ `supply-chain`
+    (→ [`docs/plans/quality-gates.md`](docs/plans/quality-gates.md) Q6 / Q9)。
+    **探索も実走した** — ASan + libFuzzer で **md4c まで計装して 8,939,197 execs / crash 0**
+    【実測 2026-08-17 → [`fuzz/README.md`](fuzz/README.md)】。うち 1 本は**空 corpus** から回し、
+    **MD4Lean を殺す 2 入力を自力で再発見した** (QV6)。**残っているのは 2 つ**:
+    **LeakSanitizer は macOS で走らない**ので、md4c が確保して解放しないバッファは見えていない。
+    **探索は 1 機材・1 ビルド・1 入力分布**の話で、CI には乗っていない (乗せない — 決定 5)。
     ワークスペース全体の mutation (**1,602 mutant、未実施**【実測 → 同 Q10。1 個約 3 秒 =
     約 80 分】) は**ゲートにしないと決めてある**ので、これは積み残しではなく判断。
 
