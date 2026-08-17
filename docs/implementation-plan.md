@@ -72,8 +72,13 @@
   15 → 13 件** — こちらは**実際に潰した 2 件**で、**どちらも未検証ではなく壊れていた**:
   #10 (版固定できない依存のフォールバック) と #1 (実在の公開パッケージでの実走)
   (→ §M7「訂正 —『マップに root が無い ⇒ 相対ページリンク』は死にリンクだった」)】。
-  残っているのは特に **`push:` トリガと利用者リポジトリの checkout**、
-  **Windows の等幅フォント**、**md4c のリーク検査**
+  残っているのは特に **Windows の等幅フォント**、**md4c のリーク検査**。
+  **`push:` トリガと利用者リポジトリの checkout は 2026-08-18 に前進した**が
+  **消えてはいない** — `.github/workflows/ci-action.yml` が `push:` で走り、
+  `uses: FujiHaruka/lean-doc@main` が `_actions/` への展開という実配布経路を通って緑
+  【実測】。**ただし呼び出し側はこのリポジトリ自身**で、対象も `e2e/micro`。
+  「**他人のリポジトリから使われる**」はまだ一度も起きていない
+  (→ [`plans/distribution.md`](plans/distribution.md) D3)
 - **実在の公開パッケージで実走した**【実測 2026-08-17 →
   [`../benchmarks/results/batteries-2026-08-17.txt`](../benchmarks/results/batteries-2026-08-17.txt)】 —
   **`batteries`** (`fa08db58…`、**Mathlib 非依存**、176 モジュール / 3,030 宣言)。

@@ -101,6 +101,21 @@ X2 で比べるのは「バイナリの byte」ではなく「**出てくる IR 
 - **検証**: musl 静的リンク + **vendored md4c (C)** が通るかは未検証。`.tar.gz` を作って
   終わりにせず、**そのバイナリで e2e を 1 本回す** (`--version` が出ることは動く証拠ではない)。
 
+> **結果 — 完遂**【2026-08-18】。`v0.1.1` / `v0.1.2` を公開。
+> - **musl は通った**。静的リンクは実測で確認 (`ldd` が共有オブジェクトを 1 つも解決しない)。
+>   **この検査自体が最初に落ちた** — `ldd` の文言 (`not a dynamic executable` /
+>   `statically linked`) で判定していたため。いまは `=>` の有無で見る
+> - 書庫: **Linux musl 1,146,144 B / macOS arm 961,119 B**【実測】。中身は
+>   `lean-doc` + `LICENSE` + `NOTICE` (ライセンス上の要件、上記)
+> - **smoke が本物**: 書庫を展開して `tools/e2e-micro.sh` を完走 (one command /
+>   idempotence / determinism)。さらに **README の手順を手元でそのまま実行**して
+>   `latest/download` → 展開 → `--version` まで確認
+> - **Intel macOS は落とした** — `macos-13` runner が 15 分以上 queued のまま起動せず、
+>   arm からのクロスビルドは「**誰も実行していないバイナリを配る**」ことになる。
+>   `aarch64-unknown-linux-*` も同じ理由 (テストする arm Linux runner が無い)
+> - **publish は 1 度落ちた**: `cd $RUNNER_TEMP/dl` してから `gh` を叩いたので
+>   git 木の外になった。`--repo` を渡し、**アセットが実際に付いたかを問い直す段**を足した
+
 ### D3 — composite action を出す
 
 - **ルートに `action.yml`** (Marketplace 掲載にはルート必須。掲載自体は後で良く、
@@ -115,7 +130,23 @@ X2 で比べるのは「バイナリの byte」ではなく「**出てくる IR 
   - composite の中から `uses:` は呼べる。その post ステップ (cache の save) も走る
   - **`lake build` を含めるかは input で選ばせる** (`lake-build`, 既定 `true`)。
     `leanprover/lean-action` を既に使っている利用者と組み合わせられるように
-- **バージョン運用**: `v0.1.1` を固定用、可動 `v0` を「最新の 0.x」として付け替える。
+- **バージョン運用**: `v0.1.2` を固定用。可動 `v0` はまだ作っていない (作るなら
+  「最新の 0.x」として付け替える)。
+
+> **結果 — 完遂**【2026-08-18】。`action.yml` (ルート) + `.github/workflows/ci-action.yml`
+> の 5 ジョブ。**`hashFiles()` が workspace 外を読めない**件は `keys` 段で自前に
+> `sha256sum` して回避 (`github.action_ref` は `@main` で鍵が凍るので使わない)。
+> - **自己テストが実欠陥を 1 件出した**: 同じ job で 2 回呼ぶと、**2 回目の
+>   `actions/cache` restore が 1 回目の出力を古い commit の状態で上書き**していた
+>   (2 回目が全 6 ページ再描画。product は無傷で、手元の 2 回は 0)。
+>   sentinel で **初回だけ restore する**形に直し、4 つの cache すべてに同じガードを入れた
+>   (一般形に引き上げ — CLAUDE.md「欠陥を直すとき」)
+> - **わざと落とす経路**が緑: 存在しない `root` で action は失敗する
+> - **`uses: FujiHaruka/lean-doc@main`** が緑 = `_actions/` への展開という実配布経路が動く。
+>   これで README の未検証項目「利用者リポジトリの checkout」も実質潰れた
+> - **Release からバイナリを取る経路**だけは `@main` では通らない (Release が無いので
+>   常に cargo にフォールバックする)。`binary-source` output を足し、
+>   `released` ジョブ (`workflow_dispatch` 専用) が `= release` を assert する
 
 ### D4 — extractor のプリビルド配布 → **配れる。しかし配らない**【決定 2026-08-18】
 
