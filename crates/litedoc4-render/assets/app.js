@@ -116,10 +116,15 @@ function readIndex(bytes) {
     folds: new Map(),
     // The previous query and what it matched — see `search`.
     narrow: null,
-    // Scored in place, once per page rather than once per keystroke.
-    score: new Int32Array(count),
-    length: new Int32Array(count),
-    id: new Int32Array(count),
+    // Scored in place, allocated once per page rather than once per keystroke.
+    // Sized to what they hold rather than to a machine word: a score is at most
+    // 3000, a name's UTF-16 length is at most the 64 KiB the encoder allows,
+    // and a subscript is a subscript. Three `Int32Array`s cost **55 KiB of the
+    // 156 KiB** the index took in Chrome【実測 2026-08-19】, against a file of
+    // 106 KiB — overhead worth more than a third of the data.
+    score: new Uint16Array(count),
+    length: new Uint16Array(count),
+    id: count < 65536 ? new Uint16Array(count) : new Uint32Array(count),
   };
 
   const labelsAt = u32(28);

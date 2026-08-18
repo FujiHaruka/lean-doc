@@ -1,0 +1,80 @@
+# 形式 v2 のブラウザ実測 — 2026-08-19
+
+docs/plans/search-v2.md §12 の撤退ライン (「ブラウザ実測でピークが 5 倍以上
+下がらなければ P1 は入れない」) を判定するための計測。設計時の Deno/V8 の数字は
+benchmarks/results/search-design-2026-08-19.txt。
+
+## 計測条件
+機材      : Apple M1 / RAM 16 GB / Darwin 25.6.0 arm64
+ブラウザ  : Google Chrome 151.0.7922.138 
+計測       : benchmarks/tools/measure-index-memory.ts (puppeteer-core 24 / CDP)
+            JSHeapUsedSize を HeapProfiler.collectGarbage の前後で読む。5 回。
+            page.setCacheEnabled(false) — 切らないと app.js を差し替えても
+            数字が動かない (実際に踏んだ)。
+
+## 対象の作り方
+実対象 (432 モジュール / 4,584 宣言) のサイトを Mathlib 無しで得るために、公開サイトの
+modules.json + search-index.json から IR を合成し、litedoc4 global を通した:
+
+  deno run --allow-read --allow-write benchmarks/tools/synth-ir.ts modules.json search-index.json ir
+  litedoc4 global --ir ir --out site
+
+合成が忠実であることの傍証: 出てきた modules.json は公開サイトのものと同じ 61,236 B。
+宣言は名前・kind・モジュールだけを持つ (→ ツールの冒頭)。検索索引はその 3 つで出来ている
+ので索引については本物、ページについては何も言えない。
+
+旧側は同じサイトの search-index.bin を消して公開サイトの search-index.json を置き、
+app.js を P0 時点のもの (commit bfaf537) に差し替えたもの。
+
+## 1. 大きさ
+  旧 search-index.json     405402 B   gzip   47959 B
+  新 search-index.bin      108500 B   gzip   39763 B
+  modules.json (不動)        61236 B   gzip    8224 B
+
+  gzip は Deno の CompressionStream で揃えてある (GitHub Pages のものとは設定が違う)。
+
+## 2. JS ヒープ
+
+  chrome  /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+  query   "zzqq"   runs 5
+  
+  /private/tmp/claude-502/-Users-haruka-dev-lean-doc/21cd753a-ac68-4bea-bfc1-4175c285f341/scratchpad/old
+    search.html, no query      732 KiB   (731 731 731 731 731)
+    search.html?q=zzqq       1501 KiB   (1501 1501 1501 1501 1501)
+    the index costs            769 KiB retained
+    before collecting         1030 KiB
+    the page reported       No matching declaration.
+  
+  /private/tmp/claude-502/-Users-haruka-dev-lean-doc/21cd753a-ac68-4bea-bfc1-4175c285f341/scratchpad/new
+    search.html, no query      745 KiB   (745 745 745 745 745)
+    search.html?q=zzqq        902 KiB   (901 901 901 901 901)
+    the index costs            156 KiB retained
+    before collecting          245 KiB
+    the page reported       No matching declaration.
+
+## 3. JSHeapUsedSize が数えていないもの
+
+同じページの中で確かめた (scratch の probe、ツール化していない):
+  new Uint8Array(108500) を保持       +0 KiB
+  Int32Array(4584) を 3 本保持        +0 KiB
+  fetch(.bin) -> ArrayBuffer を保持   +4 KiB
+  fetch(modules.json) -> parse       +85 KiB
+
+**TypedArray の実体は JS ヒープに数えられていない。** つまり上の 156 KiB に
+108,500 B のファイル自身は入っていない。総メモリで並べるなら新側は 156 + 106 = 262 KiB。
+
+## 4. 撤退ラインの判定
+
+| 読み方 | 旧 | 新 | 倍率 |
+|---|---:|---:|---:|
+| 保持 (GC 後) | 769 KiB | 156 KiB | **4.9×** |
+| GC 前 (ピークの近似) | 1,030 KiB | 245 KiB | **4.2×** |
+| 保持 + ファイル実体 | 769 KiB | 262 KiB | **2.9×** |
+
+**どの読み方でも 5 倍に届かない。** §12 の撤退ラインは「5 倍以上下がらなければ P1 は
+入れない」なので、**判定は「入れない」側**。差そのものは 613 KiB 一定 (下の注)。
+
+注: 同じ計測を「ページを読んでから同一ページ内で検索させる」形でも取った:
+旧 +868 KiB / 新 +255 KiB。**どちらの取り方でも差は 613 KiB で一致し、倍率だけが
+3.4× と 4.9× に動く。** 倍率は分母の取り方に依存するので、判定に使うなら
+どの分母かを書かないと意味がない。
