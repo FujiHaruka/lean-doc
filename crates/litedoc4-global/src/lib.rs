@@ -61,6 +61,7 @@ pub mod artifacts;
 pub mod delta;
 pub mod entry;
 pub mod facts;
+pub mod search_index;
 mod site;
 pub mod state;
 pub mod v8_gc;

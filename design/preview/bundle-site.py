@@ -23,12 +23,22 @@ import sys
 SHIM = """<script>
 (() => {
   const canned = window.__litedoc4Canned;
+  const binary = window.__litedoc4Binary;
   const real = window.fetch.bind(window);
   window.fetch = (input, init) => {
     const name = String(input && input.url ? input.url : input).split("/").pop();
     if (Object.hasOwn(canned, name)) {
       return Promise.resolve(new Response(JSON.stringify(canned[name]),
         { headers: { "content-type": "application/json" } }));
+    }
+    // `search-index.bin` is read with `arrayBuffer()`, so it has to arrive as
+    // bytes rather than as text that happens to look like them.
+    if (Object.hasOwn(binary, name)) {
+      const raw = atob(binary[name]);
+      const bytes = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+      return Promise.resolve(new Response(bytes,
+        { headers: { "content-type": "application/octet-stream" } }));
     }
     return real(input, init);
   };
@@ -49,7 +59,12 @@ def bundle(site: pathlib.Path, page: str) -> str:
     icon = base64.b64encode((site / "favicon.svg").read_bytes()).decode()
     canned = {
         name: json.loads((site / name).read_text(encoding="utf-8"))
-        for name in ("modules.json", "search-index.json", "instances.json")
+        for name in ("modules.json", "instances.json")
+        if (site / name).exists()
+    }
+    binary = {
+        name: base64.b64encode((site / name).read_bytes()).decode()
+        for name in ("search-index.bin",)
         if (site / name).exists()
     }
 
@@ -57,7 +72,8 @@ def bundle(site: pathlib.Path, page: str) -> str:
     html = html.replace(f'href="{root}favicon.svg"', f'href="data:image/svg+xml;base64,{icon}"')
     html = html.replace(
         f'<script type="module" src="{root}app.js"></script>',
-        f"<script>window.__litedoc4Canned = {json.dumps(canned)};</script>\n{SHIM}\n"
+        f"<script>window.__litedoc4Canned = {json.dumps(canned)};"
+        f"window.__litedoc4Binary = {json.dumps(binary)};</script>\n{SHIM}\n"
         f'<script type="module">\n{js}\n</script>',
     )
     if f'src="{root}app.js"' in html or f'href="{root}style.css"' in html:

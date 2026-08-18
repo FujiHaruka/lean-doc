@@ -182,17 +182,25 @@ async function main() {
     // A page that actually carries declarations. The root module of a package
     // is usually nothing but imports, and judging "is the prose there" against
     // a page with no prose on it is a test that fails for the wrong reason.
-    const searchIndex = JSON.parse(
-      await Deno.readTextFile(`${site}/search-index.json`),
-    );
-    // The module array lives in `modules.json` and only there
-    // (`docs/plans/search-v2.md` P0); a declaration names its module by
-    // subscript into it, which is exactly what the page's script does.
-    const moduleList = JSON.parse(
-      await Deno.readTextFile(`${site}/modules.json`),
-    ).modules as { n: string; p: string }[];
-    const firstDecl: [string, number, number] | undefined = searchIndex.decls?.[0];
-    const first = firstDecl ? moduleList[firstDecl[2]].p : modulePages[0];
+    //
+    // The page is picked by looking at the pages rather than at the index
+    // (`docs/plans/search-v2.md` P1 made the index bytes, and a gate that
+    // decoded them would be a fourth reader of a format it is here to
+    // distrust). A `class="decl"` section is the renderer's own statement that
+    // the page carries a declaration.
+    let first = modulePages[0];
+    let declName = "";
+    for (const page of modulePages) {
+      const found = /<section\b[^>]*\bclass="decl"[^>]*\bid="([^"]*)"/.exec(
+        await Deno.readTextFile(`${site}/${page}`),
+      );
+      if (found) {
+        first = page;
+        declName = found[1].replaceAll("&amp;", "&").replaceAll("&lt;", "<")
+          .replaceAll("&gt;", ">").replaceAll("&quot;", '"');
+        break;
+      }
+    }
 
     // 2 — the module tree is drawn from modules.json rather than shipped.
     {
@@ -217,7 +225,7 @@ async function main() {
       ["dropdown", first, "#search-results"],
       ["search page", "search.html", "#page-results"],
     ] as const) {
-      const wanted: string = firstDecl?.[0] ?? "";
+      const wanted: string = declName;
       const term = wanted.split(".").pop() ?? "";
       const page = await browser.newPage();
       await page.goto(`${base}/${from}`, { waitUntil: "networkidle0" });
@@ -255,6 +263,140 @@ async function main() {
         }
       }
       await page.close();
+    }
+
+    // 3b — the byte searcher ranks what the string one ranked.
+    //
+    // `docs/plans/search-v2.md` P1 replaced a scorer over JS strings with one
+    // over the bytes of `search-index.bin`, and the entire argument for the
+    // change was that it does not change the answer. So the oracle is the
+    // scorer it replaced, **frozen** below.
+    //
+    // Neither side of this comparison reads the index format: the expected list
+    // is computed from `declarations/name-map.json`, the actual one is read out
+    // of the rendered page. An encoder and a decoder that agreed with each
+    // other about the wrong thing still fail here.
+    {
+      const nameMap = JSON.parse(
+        await Deno.readTextFile(`${site}/declarations/name-map.json`),
+      ) as Record<string, string>;
+      const own = new Set(
+        (JSON.parse(await Deno.readTextFile(`${site}/modules.json`)).modules as { n: string }[])
+          .map((m) => m.n),
+      );
+      // `sort()` is UTF-16 code unit order, which is the order the index is
+      // written in and therefore the order equal scores fall back to.
+      const names = Object.keys(nameMap).filter((name) => own.has(nameMap[name])).sort();
+
+      // **FROZEN — the pre-P1 scorer from `assets/app.js`, verbatim.** Do not
+      // edit it to agree with a change in the searcher: catching that is the
+      // whole point.
+      const frozenScore = (name: string, query: string) => {
+        const lower = name.toLowerCase();
+        const last = lower.slice(lower.lastIndexOf(".") + 1);
+        if (last.startsWith(query)) return 3000 - last.length;
+        if (lower.startsWith(query)) return 2000 - lower.length;
+        const at = lower.indexOf(query);
+        if (at >= 0) return 1000 - at;
+        return -1;
+      };
+      const frozenSearch = (query: string) =>
+        names
+          .map((name, i) => [frozenScore(name, query), name, i] as [number, string, number])
+          .filter(([score]) => score > 0)
+          .sort((a, b) => b[0] - a[0] || a[1].length - b[1].length || a[2] - b[2])
+          .map(([, name]) => name);
+
+      // Queries taken from the corpus, so this says something on any package:
+      // a prefix of a last component (tier 1), a prefix of a whole name (tier
+      // 2), something from the middle of one (tier 3), and one that misses.
+      const queries: string[] = [];
+      for (const name of names.slice(0, 6)) {
+        const last = (name.split(".").pop() ?? "").toLowerCase();
+        if (last.length >= 2) queries.push(last.slice(0, Math.min(4, last.length)));
+        const whole = name.toLowerCase();
+        if (whole.length >= 3) queries.push(whole.slice(0, 3));
+        if (last.length >= 4) queries.push(last.slice(1, 4));
+      }
+      queries.push("zzqq");
+      const asked = [...new Set(queries)].filter((q) => q.length >= 2).slice(0, 12);
+
+      const disagreements: string[] = [];
+      let compared = 0;
+      let typed = 0;
+      const page = await browser.newPage();
+      for (const [i, query] of asked.entries()) {
+        // Two ways in, and they are different code paths. Loading `?q=` scores
+        // the whole index once; typing the query one character at a time makes
+        // every keystroke after the second narrow the previous keystroke's
+        // hits (`docs/plans/search-v2.md` P2). A narrowing that drops a hit it
+        // should have kept is only visible the second way.
+        const byTyping = i < 3;
+        if (byTyping) {
+          await page.goto(`${base}/search.html`, { waitUntil: "networkidle0" });
+          const box = await page.$("#search-input");
+          if (!box) {
+            disagreements.push(`${query}: no #search-input`);
+            continue;
+          }
+          await box.click();
+          // Slower than the 90 ms debounce, so that every character runs a
+          // search rather than being coalesced into one.
+          await box.type(query, { delay: 130 });
+          await new Promise((r) => setTimeout(r, 500));
+          typed++;
+        } else {
+          await page.goto(`${base}/search.html?q=${encodeURIComponent(query)}`, {
+            waitUntil: "networkidle0",
+          });
+        }
+        const settled = await page
+          .waitForFunction(
+            () => (document.querySelector("#page-note")?.textContent ?? "").length > 0,
+            { timeout: 8000 },
+          )
+          .then(() => true)
+          .catch(() => false);
+        if (!settled) {
+          disagreements.push(`${query}: the page never reported a result`);
+          continue;
+        }
+        const shown = (await page.$$eval(
+          "#page-results li a",
+          (rows) => rows.map((row) => row.children[1]?.textContent ?? ""),
+        )) as string[];
+        const note = await page.$eval("#page-note", (el) => el.textContent ?? "");
+        const want = frozenSearch(query);
+        compared++;
+        const top = Math.min(30, want.length, shown.length);
+        for (let i = 0; i < top; i++) {
+          if (shown[i] !== want[i]) {
+            disagreements.push(
+              `${query}: row ${i} is ${shown[i]}, the frozen scorer says ${want[i]}`,
+            );
+            break;
+          }
+        }
+        const counted = /^(\d+) match/.exec(note);
+        const total = counted ? Number(counted[1]) : /No matching/.test(note) ? 0 : want.length;
+        if (total !== want.length) {
+          disagreements.push(`${query}: the page counted ${total}, the frozen scorer ${want.length}`);
+        }
+      }
+      await page.close();
+      if (compared === 0) {
+        bad("the byte searcher ranks like the frozen one", "no query was compared");
+      } else if (disagreements.length) {
+        bad(
+          "the byte searcher ranks like the frozen one",
+          `${disagreements.length} of ${compared}: ${disagreements.slice(0, 3).join(" | ")}`,
+        );
+      } else {
+        ok(
+          "the byte searcher ranks like the frozen one",
+          `${compared} queries over ${names.length} declarations, ${typed} typed one character at a time`,
+        );
+      }
     }
 
     // 4 — Instances For fills in on open (M8-c changed where it reads from, and

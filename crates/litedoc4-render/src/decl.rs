@@ -134,7 +134,7 @@ pub fn decl_name_to_link(
 ///
 /// M8-c changed the contract rather than the shape: doc-gen4 keyed off the
 /// element `id` and read `declaration-data.bmp`; this keys off `data-name` and
-/// reads `search-index.json`, so the name no longer has to survive a round trip
+/// reads `search-index.bin`, so the name no longer has to survive a round trip
 /// through an HTML identifier. The two blocks below differ only in `data-fill`.
 #[must_use]
 pub fn instances_for_html(name: &str) -> String {

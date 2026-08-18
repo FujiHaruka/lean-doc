@@ -212,12 +212,7 @@ fn every_case_reproduces_the_prototypes_artifacts() {
             .collect();
         let mine: BTreeMap<String, String> = shared
             .iter()
-            .map(|path| {
-                let body = got
-                    .get(*path)
-                    .unwrap_or_else(|| panic!("{}: {path} was not written", case.what));
-                ((*path).to_owned(), body.clone())
-            })
+            .map(|path| ((*path).to_owned(), text(&got, path).to_owned()))
             .collect();
         if mine != want {
             failures.push(describe(&case.what, &want, &mine));
@@ -284,7 +279,7 @@ fn the_indexes_are_well_formed_in_every_case() {
         let work = TempDir::new(&case.what);
         let got = case.build(&work);
         let read = |path: &str| -> serde_json::Value {
-            serde_json::from_str(&got[path])
+            serde_json::from_str(text(&got, path))
                 .unwrap_or_else(|err| panic!("{}: {path}: {err}", case.what))
         };
 
@@ -307,37 +302,31 @@ fn the_indexes_are_well_formed_in_every_case() {
         }
 
         // P0 of `docs/plans/search-v2.md` took the module array out of the
-        // search index, so the check that the two agreed is now the check that
-        // the search index's third column indexes **this** array — the same
-        // invariant, one file later. It is the load-bearing one: a subscript
-        // into an array that is no longer beside it is a link to the wrong
-        // page, and nothing else would say so.
-        let index = read("search-index.json");
-        assert!(
-            index.get("modules").is_none(),
-            "{}: the search index is carrying a second module array",
-            case.what
-        );
-        let kinds = index["kinds"].as_array().expect("kinds");
-        for decl in index["decls"].as_array().expect("decls") {
-            let row = decl.as_array().expect("a triple");
-            assert_eq!(row.len(), 3, "{}", case.what);
-            assert!(row[0].is_string(), "{}", case.what);
-            let kind = usize::try_from(row[1].as_u64().expect("a kind index")).expect("fits");
-            let module = usize::try_from(row[2].as_u64().expect("a module index")).expect("fits");
-            assert!(kind < kinds.len() && module < list.len(), "{}", case.what);
+        // search index and P1 made the index bytes, so the check that the two
+        // module arrays agreed is now the check that the index's module
+        // subscript indexes **this** array — the same invariant, one file
+        // later. It is the load-bearing one: a subscript into an array that is
+        // no longer beside it is a link to the wrong page, and nothing else
+        // would say so.
+        let index = litedoc4_global::search_index::decode(&got["search-index.bin"])
+            .unwrap_or_else(|| panic!("{}: search-index.bin is not a v2 index", case.what));
+        assert_eq!(index.names.len(), index.kind_of.len(), "{}", case.what);
+        assert_eq!(index.names.len(), index.modules.len(), "{}", case.what);
+        for (kind, module) in index.kind_of.iter().zip(&index.modules) {
+            assert!(
+                *kind < index.labels.len() && *module < list.len(),
+                "{}",
+                case.what
+            );
         }
 
         // Every declared name is in the map that names its module, and the
         // subscript agrees with it. This is what the two files being one array
         // actually buys, checked rather than assumed.
         let name_map = read("declarations/name-map.json");
-        for decl in index["decls"].as_array().expect("decls") {
-            let name = decl[0].as_str().expect("a name");
-            let at = usize::try_from(decl[2].as_u64().expect("a module index")).expect("fits");
+        for (name, module) in index.names.iter().zip(&index.modules) {
             assert_eq!(
-                name_map[name],
-                list[at]["n"],
+                name_map[name], list[*module]["n"],
                 "{}: {name} is indexed under the wrong module",
                 case.what
             );
@@ -345,11 +334,6 @@ fn the_indexes_are_well_formed_in_every_case() {
 
         let instances = read("instances.json");
         for key in ["instances", "instancesFor"] {
-            assert!(
-                index.get(key).is_none(),
-                "{}: {key} is still in the search index",
-                case.what
-            );
             for (_, names) in instances[key].as_object().expect("a map of name lists") {
                 assert!(
                     names
@@ -722,16 +706,17 @@ fn the_new_artifacts_reach_every_shape() {
         let work = TempDir::new(&case.what);
         let got = case.build(&work);
         let modules: serde_json::Value =
-            serde_json::from_str(&got["modules.json"]).expect("modules.json is JSON");
-        let index: serde_json::Value =
-            serde_json::from_str(&got["search-index.json"]).expect("search-index.json is JSON");
+            serde_json::from_str(text(&got, "modules.json")).expect("modules.json is JSON");
+        // The index is bytes now; its names are UTF-8 inside it, which is all
+        // the two questions below ask about.
+        let index = String::from_utf8_lossy(&got["search-index.bin"]).into_owned();
         let names: Vec<&str> = modules["modules"]
             .as_array()
             .expect("modules")
             .iter()
             .map(|m| m["n"].as_str().expect("a name"))
             .collect();
-        let front = &got["index.html"];
+        let front = text(&got, "index.html");
 
         // U1: `𝒜` (U+1D49C) sorts *below* `ﬀ` (U+FB00) in UTF-16 and above it
         // by code point, in the array and on the page alike.
@@ -739,7 +724,7 @@ fn the_new_artifacts_reach_every_shape() {
             (Some(a), Some(b)) => Some(a < b),
             _ => None,
         };
-        for body in [&got["modules.json"], &got["search-index.json"], front] {
+        for body in [text(&got, "modules.json"), index.as_str(), front] {
             if let Some(first) = order(body) {
                 assert!(first, "a name above the BMP did not sort first: {body}");
                 astral += 1;
@@ -759,11 +744,17 @@ fn the_new_artifacts_reach_every_shape() {
                 front.contains("<ul class=\"modlist\"></ul>"),
                 "a package with no modules did not produce an empty list: {front}"
             );
-            assert_eq!(index["decls"], serde_json::json!([]));
+            assert!(
+                litedoc4_global::search_index::decode(&got["search-index.bin"])
+                    .expect("a v2 index")
+                    .names
+                    .is_empty(),
+                "a package with no modules indexed a declaration"
+            );
             empty += 1;
         }
         let instance_maps: serde_json::Value =
-            serde_json::from_str(&got["instances.json"]).expect("instances.json is JSON");
+            serde_json::from_str(text(&got, "instances.json")).expect("instances.json is JSON");
         if instance_maps["instances"]
             .as_object()
             .is_some_and(|map| !map.is_empty())
@@ -1005,7 +996,7 @@ impl Case {
     /// The whole tree rather than [`ARTIFACT_PATHS`]: a file this crate stopped
     /// writing has to be absent, and a list of the files it does write cannot
     /// tell the difference between "gone" and "never looked for".
-    fn build(&self, work: &TempDir) -> BTreeMap<String, String> {
+    fn build(&self, work: &TempDir) -> BTreeMap<String, Vec<u8>> {
         let ir = work.path.join("ir");
         for (name, text) in &self.ir {
             let path = ir.join(name);
@@ -1023,8 +1014,16 @@ impl Case {
     }
 }
 
+/// One artifact as text, for the seven that are.
+fn text<'a>(got: &'a BTreeMap<String, Vec<u8>>, path: &str) -> &'a str {
+    let body = got
+        .get(path)
+        .unwrap_or_else(|| panic!("{path} was not written"));
+    std::str::from_utf8(body).unwrap_or_else(|_| panic!("{path} is not UTF-8"))
+}
+
 /// Every file under `dir`, keyed by its `/`-separated path beneath it.
-fn read_tree(dir: &PathBuf, prefix: &str, out: &mut BTreeMap<String, String>) {
+fn read_tree(dir: &PathBuf, prefix: &str, out: &mut BTreeMap<String, Vec<u8>>) {
     for entry in fs::read_dir(dir)
         .expect("the site tree is readable")
         .flatten()
@@ -1038,9 +1037,12 @@ fn read_tree(dir: &PathBuf, prefix: &str, out: &mut BTreeMap<String, String>) {
         if entry.file_type().expect("a file type").is_dir() {
             read_tree(&entry.path(), &relative, out);
         } else {
+            // Bytes, not text: `search-index.bin` is not UTF-8 and reading it
+            // as a string would panic before any test could say anything about
+            // it (`docs/plans/search-v2.md` P1).
             out.insert(
                 relative,
-                fs::read_to_string(entry.path()).expect("the artifact is UTF-8"),
+                fs::read(entry.path()).expect("the artifact is readable"),
             );
         }
     }

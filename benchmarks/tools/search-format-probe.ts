@@ -85,9 +85,12 @@ function encodeV2(decls: Decl[]) {
 const FOLD = new Uint8Array(256);
 for (let i = 0; i < 256; i++) FOLD[i] = i >= 65 && i <= 90 ? i + 32 : i;
 
+// UTF-16 units, not code points: a character above the BMP is two of them, and
+// the score is `2000 - length`. The measured corpus has no astral names, which
+// is why this file cannot be what catches a mistake here — `e2e/micro` can.
 const utf16Len = (a: Uint8Array, from: number, to: number) => {
   let n = 0;
-  for (let i = from; i < to; i++) if ((a[i] & 0xc0) !== 0x80) n++;
+  for (let i = from; i < to; i++) if ((a[i] & 0xc0) !== 0x80) n += a[i] >= 0xf0 ? 2 : 1;
   return n;
 };
 

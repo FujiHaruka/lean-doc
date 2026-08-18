@@ -5,7 +5,7 @@
 # cannot tell whether the module tree draws, whether search returns anything,
 # whether Instances For fills in, or whether the layout survives a 375 px
 # viewport — and since M8-c all of those are decided at runtime, from
-# `modules.json`, `search-index.json` and `instances.json`, by `app.js`.
+# `modules.json`, `search-index.bin` and `instances.json`, by `app.js`.
 #
 # This also closes gate UI-3, which `docs/plans/ui-redesign.md` recorded as
 # **未判定**: the CSS was written for 375 px and nobody had looked at a browser.

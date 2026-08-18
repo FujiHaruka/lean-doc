@@ -7,7 +7,7 @@
 //! search.html                 where the top bar's form submits
 //! foundational_types.html     what every `Sort` in every signature links to
 //! modules.json                every module, its page, and what imports it
-//! search-index.json           every declaration, and the kind vocabulary
+//! search-index.bin            every declaration, and the kind vocabulary
 //! instances.json              the two instance maps
 //! ```
 //!
@@ -69,6 +69,7 @@ use serde_json::{Map, Value};
 
 use crate::entry;
 use crate::facts::ModuleFacts;
+use crate::search_index;
 
 /// The renderer's path rule: dots become directory separators.
 ///
@@ -102,7 +103,10 @@ pub struct Artifacts {
     /// (決定 5). Carries the declarations and the kind vocabulary and nothing
     /// else — module names come from [`Artifacts::modules_json`], which is
     /// already on the page.
-    pub search_index_json: String,
+    ///
+    /// Bytes rather than JSON since `docs/plans/search-v2.md` P1: see
+    /// [`crate::search_index`] for the layout and for why.
+    pub search_index_bin: Vec<u8>,
     /// The two instance maps, fetched only when a reader opens one of the two
     /// `<details>` blocks. Split from the search index in P0 of
     /// `docs/plans/search-v2.md`.
@@ -149,7 +153,7 @@ pub const ARTIFACT_PATHS: [&str; 8] = [
     "search.html",
     "foundational_types.html",
     "modules.json",
-    "search-index.json",
+    "search-index.bin",
     "instances.json",
 ];
 
@@ -297,19 +301,17 @@ impl Artifacts {
         // population `name-map.json` has and the same one doc-gen4's own
         // `declarations` had; narrowing it here would make the search index and
         // the map two different answers to "what does this package declare".
-        let decls = Value::Array(
-            sorted_names
-                .iter()
-                .map(|name| {
-                    let (module, kind) = name_map[name];
-                    Value::Array(vec![
-                        Value::String((*name).to_owned()),
-                        index_value(kind_at[css_kind(kind)]),
-                        index_value(at[module]),
-                    ])
-                })
-                .collect(),
-        );
+        let entries: Vec<search_index::Entry<'_>> = sorted_names
+            .iter()
+            .map(|name| {
+                let (module, kind) = name_map[name];
+                search_index::Entry {
+                    name,
+                    kind: kind_at[css_kind(kind)],
+                    module: at[module],
+                }
+            })
+            .collect();
 
         let instances_out = name_lists(&instances);
         let instances_for_out = name_lists(&instances_for);
@@ -325,10 +327,7 @@ impl Artifacts {
         // one `own_sorted` above, and `app.js` fetches that file on every page
         // for the module tree. A second copy is 12.8% of this file【実測
         // 2026-08-19: 51,975 of 405,402 B】and a second thing to disagree with.
-        let search_index_json = object([
-            ("kinds".to_owned(), strings(kinds.iter().copied())),
-            ("decls".to_owned(), decls),
-        ]);
+        let search_index_bin = search_index::encode(&entries, &kinds);
 
         // The instance maps leave with them. A search never reads either, so
         // carrying them here made every first keystroke pay for a block most
@@ -346,7 +345,7 @@ impl Artifacts {
             search_html: entry::search_html(&site),
             foundational_types_html: entry::foundational_types_html(&site),
             modules_json: to_json(&modules_json),
-            search_index_json: to_json(&search_index_json),
+            search_index_bin,
             instances_json: to_json(&instances_json),
             name_map: flat_map,
             counts,
@@ -356,16 +355,16 @@ impl Artifacts {
     /// The eight files paired with the paths they go to, in [`ARTIFACT_PATHS`]
     /// order.
     #[must_use]
-    pub fn files(&self) -> [(&'static str, &str); 8] {
+    pub fn files(&self) -> [(&'static str, &[u8]); 8] {
         [
-            (ARTIFACT_PATHS[0], self.name_map_json.as_str()),
-            (ARTIFACT_PATHS[1], self.index_html.as_str()),
-            (ARTIFACT_PATHS[2], self.not_found_html.as_str()),
-            (ARTIFACT_PATHS[3], self.search_html.as_str()),
-            (ARTIFACT_PATHS[4], self.foundational_types_html.as_str()),
-            (ARTIFACT_PATHS[5], self.modules_json.as_str()),
-            (ARTIFACT_PATHS[6], self.search_index_json.as_str()),
-            (ARTIFACT_PATHS[7], self.instances_json.as_str()),
+            (ARTIFACT_PATHS[0], self.name_map_json.as_bytes()),
+            (ARTIFACT_PATHS[1], self.index_html.as_bytes()),
+            (ARTIFACT_PATHS[2], self.not_found_html.as_bytes()),
+            (ARTIFACT_PATHS[3], self.search_html.as_bytes()),
+            (ARTIFACT_PATHS[4], self.foundational_types_html.as_bytes()),
+            (ARTIFACT_PATHS[5], self.modules_json.as_bytes()),
+            (ARTIFACT_PATHS[6], self.search_index_bin.as_slice()),
+            (ARTIFACT_PATHS[7], self.instances_json.as_bytes()),
         ]
     }
 }
@@ -532,56 +531,36 @@ mod tests {
         assert_eq!(importers(2), Vec::<&str>::new());
     }
 
-    /// The shape `assets/app.js` reads, key by key.
+    /// The shape `assets/app.js` reads, field by field.
     #[test]
     fn the_search_index_is_the_shape_the_script_reads() {
         let artifacts = Artifacts::derive(&chain(), &[]);
-        let json = parsed(&artifacts.search_index_json);
+        let index = search_index::decode(&artifacts.search_index_bin).expect("a file this crate just wrote");
         // The module array is `modules.json`'s, and only its. The subscripts
         // below index into it from the other file.
         let modules_json = parsed(&artifacts.modules_json);
         let modules = modules_json["modules"].as_array().expect("modules");
         assert_eq!(modules.len(), 3);
-        for key in ["modules", "instances", "instancesFor"] {
-            assert!(
-                json.get(key).is_none(),
-                "the search index is still carrying `{key}`"
-            );
-        }
 
-        let kinds: Vec<&str> = json["kinds"]
-            .as_array()
-            .expect("kinds")
-            .iter()
-            .map(|k| k.as_str().expect("a kind"))
-            .collect();
         assert_eq!(
-            kinds,
+            index.labels,
             ["def", "instance", "theorem"],
             "the IR's `definition` reaches the index as the badge the page shows"
         );
-
-        for decl in json["decls"].as_array().expect("decls") {
-            let row = decl.as_array().expect("a triple");
-            assert_eq!(row.len(), 3);
-            assert!(row[0].is_string() && row[1].is_u64() && row[2].is_u64());
-            assert!(
-                usize::try_from(row[1].as_u64().expect("a kind index")).expect("fits")
-                    < kinds.len()
-            );
-            assert!(
-                usize::try_from(row[2].as_u64().expect("a module index")).expect("fits")
-                    < modules.len()
-            );
+        assert_eq!(index.names.len(), index.kind_of.len());
+        assert_eq!(index.names.len(), index.modules.len());
+        for (kind, module) in index.kind_of.iter().zip(&index.modules) {
+            assert!(*kind < index.labels.len());
+            assert!(*module < modules.len());
         }
         // `Pkg.B.inst` lives in `Pkg.B`, which is module 1.
-        let inst = json["decls"]
-            .as_array()
-            .expect("decls")
+        let at = index
+            .names
             .iter()
-            .find(|d| d[0] == "Pkg.B.inst")
+            .position(|name| name == "Pkg.B.inst")
             .expect("the instance is indexed");
-        assert_eq!(inst[2], 1);
+        assert_eq!(index.modules[at], 1);
+        assert_eq!(index.labels[index.kind_of[at]], "instance");
 
         let instances = parsed(&artifacts.instances_json);
         assert_eq!(instances["instances"]["Cls"], serde_json::json!(["Pkg.B.inst"]));
@@ -597,11 +576,13 @@ mod tests {
     #[test]
     fn the_counts_are_what_the_files_hold() {
         let artifacts = Artifacts::derive(&chain(), &[]);
-        let json = parsed(&artifacts.search_index_json);
         let instances = parsed(&artifacts.instances_json);
         assert_eq!(
             artifacts.counts.declarations,
-            json["decls"].as_array().expect("decls").len()
+            search_index::decode(&artifacts.search_index_bin)
+                .expect("a file this crate just wrote")
+                .names
+                .len()
         );
         assert_eq!(
             artifacts.counts.instance_classes,
@@ -675,7 +656,10 @@ mod tests {
         let mut inside = facts("Pkg.\u{FB00}", &[]);
         inside.decls = vec![("Pkg.\u{FB00}.a".to_owned(), "definition".to_owned())];
         let artifacts = Artifacts::derive(&[inside, above], &[]);
-        for body in [&artifacts.modules_json, &artifacts.search_index_json] {
+        // The binary index carries its names as UTF-8, so the same search for
+        // the two characters answers the same question about it.
+        let index = String::from_utf8_lossy(&artifacts.search_index_bin).into_owned();
+        for body in [&artifacts.modules_json, &index] {
             let astral = body.find("1D49C").or_else(|| body.find('\u{1D49C}'));
             let ligature = body.find("FB00").or_else(|| body.find('\u{FB00}'));
             assert!(

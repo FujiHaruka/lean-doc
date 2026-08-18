@@ -63,7 +63,7 @@ pub const STATE_VERSION: u64 = 1;
 ///
 /// **v2 is M8-d**: [`ModuleFacts::instances_for`] joined the struct, and a v1
 /// entry reused for a module would leave that module's instances out of
-/// `search-index.json` — a wrong artifact nobody reports, which is precisely
+/// `search-index.bin` — a wrong artifact nobody reports, which is precisely
 /// what this string exists to prevent.
 pub const STATE_DERIVATION: &str = "litedoc4-global facts v2";
 

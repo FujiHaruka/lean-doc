@@ -51,7 +51,7 @@
 //! `index.html`, `404.html`, `search.html` and `foundational_types.html` — the
 //! site's front door, its not-found page, and the target of a link on all 432
 //! module pages. The other three artifacts are not `.html`
-//! (`declarations/name-map.json`, `modules.json`, `search-index.json`) and are
+//! (`declarations/name-map.json`, `modules.json`, `search-index.bin`) and are
 //! invisible to it, as are the static assets (`style.css`, `app.js`,
 //! `favicon.svg` since M8-a), which are **not in the byte-reproduction
 //! denominator at all** (432 pages + 7 artifacts = 439 since M8-d; 438 at M6).

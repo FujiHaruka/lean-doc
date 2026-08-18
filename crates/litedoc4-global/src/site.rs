@@ -235,7 +235,7 @@ pub fn build_global(options: &GlobalOptions<'_>) -> Result<GlobalSummary, Error>
         tactic_docs: run.facts.iter().map(|facts| facts.tactics).sum(),
         name_map_bytes: artifacts.name_map_json.len(),
         modules_json_bytes: artifacts.modules_json.len(),
-        search_index_bytes: artifacts.search_index_json.len(),
+        search_index_bytes: artifacts.search_index_bin.len(),
         cache_hits: run.cache_hits,
         cache_misses: run.cache_misses,
         state_bytes,

@@ -354,7 +354,7 @@ fn the_site_is_render_then_global_over_the_same_tree() {
         "search.html",
         "foundational_types.html",
         "modules.json",
-        "search-index.json",
+        "search-index.bin",
         "instances.json",
     ]
     .iter()

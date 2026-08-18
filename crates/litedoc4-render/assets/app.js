@@ -47,9 +47,12 @@ function modules() {
   return modulesPromise;
 }
 
-/** `search-index.json`, fetched at most once per page, on demand. */
+/** `search-index.bin`, fetched at most once per page, on demand. */
 function decls() {
-  declsPromise ??= fetchJson("search-index.json");
+  declsPromise ??= fetch(url("search-index.bin"))
+    .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+    .then((buffer) => readIndex(new Uint8Array(buffer)))
+    .catch(() => null);
   return declsPromise;
 }
 
@@ -60,19 +63,156 @@ function instanceMaps() {
 }
 
 /**
- * What every result row needs: the declarations, and the module array they
- * index into.
+ * What every result row needs: the index, and the module array it points into.
  *
  * The two live in different files because they are wanted at different times —
  * the tree draws from `modules.json` before a reader has typed anything — but
- * a result row needs both, so this is where they meet. Requesting both at once
+ * a result row needs both, so this is where they meet. Asking for both at once
  * costs nothing after the first: `modules()` has already resolved.
  */
 async function searchData() {
   const [tree, index] = await Promise.all([modules(), decls()]);
-  if (!tree?.modules || !index?.decls) return null;
-  return { modules: tree.modules, kinds: index.kinds, decls: index.decls };
+  if (!tree?.modules || !index) return null;
+  return { modules: tree.modules, index };
 }
+
+// --------------------------------------------------------- the index format
+//
+// `search-index.bin` is read in place: the page holds the file, not a parsed
+// copy of it. The layout is `crates/litedoc4-global/src/search_index.rs`, the
+// plan and the measurements are `docs/plans/search-v2.md`. In short, the JSON
+// this replaces cost 860 KiB of JS heap for a 405,402 B file【実測】; this
+// costs the file.
+//
+// **The ranking is unchanged** — three tiers, same order, same numbers as the
+// version that scored JS strings. That is deliberate: an index that also
+// ranked differently could not be held against the old one, and
+// `tools/search-gate.sh` is exactly that comparison.
+
+const MAGIC = 0x53_34_44_4c; // "LD4S" read little-endian
+const TEXT = new TextDecoder();
+const ENCODER = new TextEncoder();
+const DOT = 46;
+/** ASCII lowering. The names it is wrong for are carried in the file. */
+const FOLD = new Uint8Array(256);
+for (let i = 0; i < 256; i++) FOLD[i] = i >= 65 && i <= 90 ? i + 32 : i;
+
+/** Reads the header and the two small tables; the names stay in the buffer. */
+function readIndex(bytes) {
+  const u32 = (at) =>
+    (bytes[at] | (bytes[at + 1] << 8) | (bytes[at + 2] << 16)) + bytes[at + 3] * 0x1000000;
+  const u16 = (at) => bytes[at] | (bytes[at + 1] << 8);
+  if (bytes.length < 52 || u32(0) !== MAGIC || u32(4) !== 2) return null;
+  const count = u32(8);
+  const index = {
+    bytes,
+    count,
+    names: u32(16),
+    restarts: u32(24),
+    restart: u32(12),
+    kindOf: u32(36),
+    moduleOf: u32(40),
+    labels: [],
+    folds: new Map(),
+    // The previous query and what it matched — see `search`.
+    narrow: null,
+    // Scored in place, once per page rather than once per keystroke.
+    score: new Int32Array(count),
+    length: new Int32Array(count),
+    id: new Int32Array(count),
+  };
+
+  const labelsAt = u32(28);
+  let at = labelsAt + 4;
+  for (let i = 0, n = u32(labelsAt); i < n; i++) {
+    index.labels.push(TEXT.decode(bytes.subarray(at + 1, at + 1 + bytes[at])));
+    at += 1 + bytes[at];
+  }
+
+  // The names `toLowerCase()` does something to that adding 32 to `A`-`Z` does
+  // not — `Γ` and its like. Empty for every package measured so far, which is
+  // why the scan below asks whether the map is empty before consulting it.
+  const foldsAt = u32(44);
+  at = foldsAt + 4;
+  for (let i = 0, n = u32(foldsAt); i < n; i++) {
+    const len = u16(at + 4);
+    index.folds.set(u32(at), bytes.subarray(at + 6, at + 6 + len));
+    at += 6 + len;
+  }
+  return index;
+}
+
+// One name at a time, reused for the life of the page. Front coding means the
+// shared prefix of the previous name is already in place, so a step writes only
+// the suffix — which is why these cannot be allocated per declaration.
+let scratch = new Uint8Array(512);
+let folded = new Uint8Array(512);
+
+function room(need) {
+  if (need <= scratch.length) return;
+  let size = scratch.length;
+  while (size < need) size *= 2;
+  // Copied rather than replaced: the bytes already here are the prefix the
+  // next name shares.
+  const grownScratch = new Uint8Array(size);
+  grownScratch.set(scratch);
+  const grownFolded = new Uint8Array(size);
+  grownFolded.set(folded);
+  scratch = grownScratch;
+  folded = grownFolded;
+}
+
+/**
+ * UTF-16 length, which is what the scoring counts (`String.prototype.length`).
+ *
+ * **Not the code point count.** A character above the BMP is one code point and
+ * **two** UTF-16 units, so a 4-byte UTF-8 sequence counts twice — U1 again. The
+ * browser gate caught this ranking `Micro.script𝒜` above `Micro.usesDep`
+ * 【実測 2026-08-19】: both are prefix matches, and the score is
+ * `2000 - length`, so one unit of length is one place in the list.
+ */
+function utf16Length(bytes, from, to) {
+  let n = 0;
+  for (let i = from; i < to; i++) {
+    const byte = bytes[i];
+    if ((byte & 0xc0) !== 0x80) n += byte >= 0xf0 ? 2 : 1;
+  }
+  return n;
+}
+
+/** The declaration at `id`, decoded from the start of its restart block. */
+function nameAt(index, id) {
+  const bytes = index.bytes;
+  const block = Math.floor(id / index.restart);
+  const restartAt = index.restarts + block * 4;
+  let at =
+    index.names +
+    ((bytes[restartAt] | (bytes[restartAt + 1] << 8) | (bytes[restartAt + 2] << 16)) +
+      bytes[restartAt + 3] * 0x1000000);
+  let out = new Uint8Array(256);
+  let end = 0;
+  for (let i = block * index.restart; i <= id; i++) {
+    const shared = bytes[at++];
+    let len = bytes[at++];
+    if (len === 255) {
+      len = bytes[at] | (bytes[at + 1] << 8);
+      at += 2;
+    }
+    if (shared + len > out.length) {
+      const grown = new Uint8Array(Math.max(shared + len, out.length * 2));
+      grown.set(out);
+      out = grown;
+    }
+    out.set(bytes.subarray(at, at + len), shared);
+    at += len;
+    end = shared + len;
+  }
+  return TEXT.decode(out.subarray(0, end));
+}
+
+const kindAt = (index, id) => index.labels[index.bytes[index.kindOf + id]] ?? "";
+const moduleAt = (index, id) =>
+  index.bytes[index.moduleOf + id * 2] | (index.bytes[index.moduleOf + id * 2 + 1] << 8);
 
 // ------------------------------------------------------------------- theme
 
@@ -296,69 +436,264 @@ function initInstances() {
           ul.append(li);
           return;
         }
-        for (const name of names) ul.append(declItem(data, name));
+        // One pass over the index resolves every name in the block, rather
+        // than one pass per name.
+        const found = data ? findNames(data.index, names) : new Map();
+        for (const name of names) ul.append(declItem(data, name, found.get(name)));
       },
       { once: true },
     );
   }
 }
 
-function declItem(data, name) {
+function declItem(data, name, id) {
   const li = document.createElement("li");
-  const at = data?.decls?.find((d) => d[0] === name);
   const a = document.createElement("a");
   a.textContent = name;
-  a.href = at ? declHref(data, at) : `#${name}`;
+  // A name the index does not have is still worth a link: the page it is on is
+  // the page the reader is already looking at.
+  a.href =
+    id === undefined ? `#${name}` : `${url(data.modules[moduleAt(data.index, id)].p)}#${name}`;
   li.append(a);
   return li;
 }
 
-const declHref = (data, d) => `${url(data.modules[d[2]].p)}#${d[0]}`;
+/**
+ * Where each of `names` is, as one walk of the index.
+ *
+ * The names come from `instances.json` and are exact, so this is equality
+ * rather than scoring — but it is the same walk, for the same reason: front
+ * coding is read forwards, and a lookup per name would read the section once
+ * per name.
+ */
+function findNames(index, names) {
+  const wanted = new Set(names);
+  const found = new Map();
+  const bytes = index.bytes;
+  let at = index.names;
+  for (let i = 0; i < index.count && found.size < wanted.size; i++) {
+    const shared = bytes[at++];
+    let len = bytes[at++];
+    if (len === 255) {
+      len = bytes[at] | (bytes[at + 1] << 8);
+      at += 2;
+    }
+    room(shared + len);
+    scratch.set(bytes.subarray(at, at + len), shared);
+    at += len;
+    const name = TEXT.decode(scratch.subarray(0, shared + len));
+    if (wanted.has(name)) found.set(name, i);
+  }
+  return found;
+}
 
 // ------------------------------------------------------------------ search
 
 /**
- * Ranks a query against a name.
+ * Ranks a folded name against a folded query, in bytes.
  *
  * Three tiers, cheapest first: a prefix of the last component beats a prefix of
  * the full name, which beats a substring anywhere. Nothing else matches — a
  * subsequence matcher finds `Nat.add` for `nd` and buries the exact hit.
+ *
+ * The lengths are UTF-16 lengths because the version this replaces scored
+ * `String.prototype.length`, and a name with `β` in it would otherwise rank
+ * differently for no reason a reader could see.
  */
-function score(name, query) {
-  const lower = name.toLowerCase();
-  const last = lower.slice(lower.lastIndexOf(".") + 1);
-  if (last.startsWith(query)) return 3000 - last.length;
-  if (lower.startsWith(query)) return 2000 - lower.length;
-  const at = lower.indexOf(query);
-  if (at >= 0) return 1000 - at;
+function scoreBytes(name, end, lastStart, q, qn) {
+  if (end - lastStart >= qn) {
+    let ok = true;
+    for (let k = 0; k < qn; k++)
+      if (name[lastStart + k] !== q[k]) {
+        ok = false;
+        break;
+      }
+    if (ok) return 3000 - utf16Length(name, lastStart, end);
+  }
+  if (end < qn) return -1;
+  let ok = true;
+  for (let k = 0; k < qn; k++)
+    if (name[k] !== q[k]) {
+      ok = false;
+      break;
+    }
+  if (ok) return 2000 - utf16Length(name, 0, end);
+  for (let start = 1; start <= end - qn; start++) {
+    let hit = true;
+    for (let k = 0; k < qn; k++)
+      if (name[start + k] !== q[k]) {
+        hit = false;
+        break;
+      }
+    if (hit) return 1000 - utf16Length(name, 0, start);
+  }
   return -1;
 }
 
-/** Every hit for `query`, best first. */
-function search(data, query) {
-  const hits = [];
-  for (const d of data.decls) {
-    const s = score(d[0], query);
-    if (s > 0) hits.push([s, d]);
+/**
+ * How many hits are worth keeping for the next keystroke.
+ *
+ * Re-scoring a few hundred names is obviously cheaper than walking the whole
+ * section; keeping thousands would cost more to copy than the walk it saves.
+ */
+const NARROW_MAX = 512;
+
+/** The hits, best first — the one place the ranking order is decided. */
+function rank(index, hits) {
+  // Ties break by name length and then by position in the file, which is the
+  // order the JSON version's stable sort produced.
+  const order = Array.from({ length: hits }, (_, k) => k);
+  order.sort(
+    (a, b) =>
+      index.score[b] - index.score[a] ||
+      index.length[a] - index.length[b] ||
+      index.id[a] - index.id[b],
+  );
+  return order.map((k) => index.id[k]);
+}
+
+/**
+ * Every hit for `query`, best first, as subscripts into the index.
+ *
+ * Two ways in. The walk below decodes, folds and scores in one pass, into
+ * buffers that outlive the call — nothing is allocated per declaration, where
+ * the version this replaces allocated two strings each, 9,168 per keystroke on
+ * the measured package【実測】.
+ *
+ * The other way is [`searchNarrowed`]: **all three tiers require the query to
+ * occur in the folded name**, so typing one more character can only shrink the
+ * hit set, and a query that extends the previous one is answered from what the
+ * previous one matched. Typing five representative words costs 48.2% of the
+ * candidates it would rescanning【実測 2026-08-19】. The browser gate types a
+ * query one character at a time rather than pasting it, because a narrowing
+ * that is wrong is only wrong on the second keystroke.
+ */
+function search(index, query) {
+  const q = ENCODER.encode(query);
+  const qn = q.length;
+  const narrow = index.narrow;
+  if (narrow && query.startsWith(narrow.query)) return searchNarrowed(index, narrow, q, qn, query);
+
+  const bytes = index.bytes;
+  const hasFolds = index.folds.size > 0;
+  const kept = { names: [], starts: [], ids: [] };
+  let at = index.names;
+  let hits = 0;
+  let lastDot = -1;
+  for (let i = 0; i < index.count; i++) {
+    const shared = bytes[at++];
+    let len = bytes[at++];
+    if (len === 255) {
+      len = bytes[at] | (bytes[at + 1] << 8);
+      at += 2;
+    }
+    room(shared + len);
+    for (let k = 0; k < len; k++) {
+      const b = bytes[at + k];
+      scratch[shared + k] = b;
+      folded[shared + k] = FOLD[b];
+    }
+    at += len;
+    const end = shared + len;
+
+    // The last `.`, maintained rather than searched for: it is in the suffix,
+    // or it is the previous name's and still inside the shared prefix, or the
+    // prefix has to be walked back — which only happens when a name loses a
+    // component its predecessor had.
+    let dot = -1;
+    for (let k = end - 1; k >= shared; k--)
+      if (folded[k] === DOT) {
+        dot = k;
+        break;
+      }
+    if (dot < 0) {
+      if (lastDot < shared) dot = lastDot;
+      else
+        for (let k = shared - 1; k >= 0; k--)
+          if (folded[k] === DOT) {
+            dot = k;
+            break;
+          }
+    }
+    lastDot = dot;
+
+    // A name ASCII folding is wrong for is matched against its own bytes, and
+    // `folded` is left alone: the next name's shared prefix is in it.
+    let name = folded;
+    let nameEnd = end;
+    let lastStart = dot + 1;
+    if (hasFolds) {
+      const exception = index.folds.get(i);
+      if (exception) {
+        name = exception;
+        nameEnd = exception.length;
+        lastStart = 0;
+        for (let k = nameEnd - 1; k >= 0; k--)
+          if (name[k] === DOT) {
+            lastStart = k + 1;
+            break;
+          }
+      }
+    }
+
+    const s = scoreBytes(name, nameEnd, lastStart, q, qn);
+    if (s > 0) {
+      index.id[hits] = i;
+      index.score[hits] = s;
+      index.length[hits] = utf16Length(name, 0, nameEnd);
+      if (hits < NARROW_MAX) {
+        // `slice` copies: `folded` is about to be written over by the next
+        // name, and this has to outlive the walk.
+        kept.names.push(name.slice(0, nameEnd));
+        kept.starts.push(lastStart);
+        kept.ids.push(i);
+      }
+      hits++;
+    }
   }
-  hits.sort((a, b) => b[0] - a[0] || a[1][0].length - b[1][0].length);
-  return hits.map(([, d]) => d);
+  // In file order, so that the tie-break by position survives into the next
+  // keystroke. Dropped when the set is too big to be worth carrying.
+  index.narrow = hits <= NARROW_MAX ? { query, ...kept } : null;
+  return rank(index, hits);
+}
+
+/** The same scoring, over what the shorter query matched. */
+function searchNarrowed(index, narrow, q, qn, query) {
+  const kept = { names: [], starts: [], ids: [] };
+  let hits = 0;
+  for (let k = 0; k < narrow.ids.length; k++) {
+    const name = narrow.names[k];
+    const s = scoreBytes(name, name.length, narrow.starts[k], q, qn);
+    if (s > 0) {
+      index.id[hits] = narrow.ids[k];
+      index.score[hits] = s;
+      index.length[hits] = utf16Length(name, 0, name.length);
+      kept.names.push(name);
+      kept.starts.push(narrow.starts[k]);
+      kept.ids.push(narrow.ids[k]);
+      hits++;
+    }
+  }
+  index.narrow = { query, ...kept };
+  return rank(index, hits);
 }
 
 /** One result row — the same markup in the dropdown and on `search.html`. */
-function resultItem(data, d) {
+function resultItem(data, id) {
   const li = document.createElement("li");
   const a = document.createElement("a");
-  a.href = declHref(data, d);
+  const declared = nameAt(data.index, id);
+  const where = data.modules[moduleAt(data.index, id)];
+  a.href = `${url(where.p)}#${declared}`;
   const kind = document.createElement("span");
   kind.className = "kind";
-  kind.textContent = data.kinds[d[1]];
+  kind.textContent = kindAt(data.index, id);
   const name = document.createElement("span");
-  name.textContent = d[0];
-  const where = document.createElement("span");
-  where.className = "where";
-  where.textContent = data.modules[d[2]].n;
-  a.append(kind, name, where);
+  name.textContent = declared;
+  const module = document.createElement("span");
+  module.className = "where";
+  module.textContent = where.n;
+  a.append(kind, name, module);
   li.append(a);
   return li;
 }
@@ -385,7 +720,7 @@ function initSearch() {
     const data = await searchData();
     if (!data) return close();
 
-    const hits = search(data, query);
+    const hits = search(data.index, query);
     list.textContent = "";
     if (hits.length === 0) {
       const li = document.createElement("li");
@@ -395,8 +730,8 @@ function initSearch() {
       list.hidden = false;
       return;
     }
-    items = hits.slice(0, 30).map((d) => {
-      const li = resultItem(data, d);
+    items = hits.slice(0, 30).map((id) => {
+      const li = resultItem(data, id);
       list.append(li);
       return li;
     });
@@ -476,8 +811,8 @@ function initSearchPage() {
       if (note) note.textContent = "The search index could not be loaded.";
       return;
     }
-    const hits = search(data, query);
-    for (const d of hits.slice(0, 200)) list.append(resultItem(data, d));
+    const hits = search(data.index, query);
+    for (const id of hits.slice(0, 200)) list.append(resultItem(data, id));
     if (note) {
       note.textContent =
         hits.length === 0
@@ -531,9 +866,9 @@ async function initNotFound() {
   if (!data) return;
   // A prefix of the *last* component is what a moved declaration matches on, so
   // the plain scorer is already the right one.
-  const hits = search(data, query).slice(0, 20);
+  const hits = search(data.index, query).slice(0, 20);
   if (hits.length === 0) return;
-  for (const d of hits) list.append(resultItem(data, d));
+  for (const id of hits) list.append(resultItem(data, id));
   document.getElementById("how-about-heading")?.removeAttribute("hidden");
 }
 

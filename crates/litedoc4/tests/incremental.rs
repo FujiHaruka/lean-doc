@@ -71,7 +71,7 @@ const ARTIFACTS: [&str; 8] = [
     "search.html",
     "foundational_types.html",
     "modules.json",
-    "search-index.json",
+    "search-index.bin",
     "instances.json",
 ];
 

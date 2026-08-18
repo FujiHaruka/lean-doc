@@ -10,9 +10,10 @@ Seven questions, each printed with its 母数 so that a passing run says how muc
 it looked at rather than only that it was happy:
 
   1. modules.json      every module names a page that exists
-  2. search-index      every declaration's module subscript resolves
+  2. search-index      every declaration's module and kind subscript resolves
   3. search-index      every declaration is an anchor on its own module's page
   4. pages             every `class="decl"` anchor is in the search index
+  4b. search-index     is the same fact as `declarations/name-map.json`
   5. instances         every instance name is a declaration the index knows
   6. instancesFor      every key and every value is a declaration
   7. resources         no <script src> / <link href> points at another host
@@ -63,6 +64,69 @@ EXTERNAL = re.compile(r"^(?:[a-zA-Z][a-zA-Z0-9+.-]*:)?//")
 def read(path):
     with open(path, encoding="utf-8") as handle:
         return handle.read()
+
+
+def read_search_index(site, problems):
+    """`search-index.bin`, decoded — a third implementation on purpose.
+
+    The site's own reader is `assets/app.js` and the writer is
+    `crates/litedoc4-global/src/search_index.rs`. A checker that imported
+    either would agree with it about a format both had got wrong, so this
+    reads the bytes itself. The layout is documented in the writer.
+    """
+    path = os.path.join(site, "search-index.bin")
+    if not os.path.isfile(path):
+        problems.append("search-index.bin: missing — the site is not complete")
+        return None
+    with open(path, "rb") as handle:
+        data = handle.read()
+
+    def u32(at):
+        return int.from_bytes(data[at : at + 4], "little")
+
+    if len(data) < 52 or data[0:4] != b"LD4S" or u32(4) != 2:
+        problems.append("search-index.bin: not a version 2 index")
+        return None
+    count = u32(8)
+    names_off, restart_off, labels_off = u32(16), u32(24), u32(28)
+    kind_of_off, module_off = u32(36), u32(40)
+
+    names = []
+    at = names_off
+    previous = b""
+    try:
+        for _ in range(count):
+            shared = data[at]
+            at += 1
+            length = data[at]
+            if length == 255:
+                length = int.from_bytes(data[at + 1 : at + 3], "little")
+                at += 3
+            else:
+                at += 1
+            previous = previous[:shared] + data[at : at + length]
+            at += length
+            names.append(previous.decode("utf-8"))
+        labels = []
+        at = labels_off + 4
+        for _ in range(u32(labels_off)):
+            length = data[at]
+            labels.append(data[at + 1 : at + 1 + length].decode("utf-8"))
+            at += 1 + length
+    except (IndexError, UnicodeDecodeError) as error:
+        problems.append("search-index.bin: truncated or corrupt ({})".format(error))
+        return None
+    if len(names) != count:
+        problems.append("search-index.bin: {} names for a count of {}".format(len(names), count))
+        return None
+
+    kinds = [data[kind_of_off + i] for i in range(count)]
+    modules = [
+        int.from_bytes(data[module_off + i * 2 : module_off + i * 2 + 2], "little")
+        for i in range(count)
+    ]
+    del restart_off  # only a reader that seeks needs it
+    return {"names": names, "labels": labels, "kind_of": kinds, "modules": modules}
 
 
 def load_json(site, name, problems):
@@ -129,8 +193,9 @@ def main():
                 resources.append((page, url))
 
     modules_json = load_json(site, "modules.json", problems)
-    search_index = load_json(site, "search-index.json", problems)
+    search_index = read_search_index(site, problems)
     instance_maps = load_json(site, "instances.json", problems)
+    name_map = load_json(site, "declarations/name-map.json", problems)
     # The one module array. Both of the other files point into it.
     modules = (modules_json or {}).get("modules") or []
 
@@ -152,24 +217,27 @@ def main():
         fail("modules.json: module pages exist", missing, len(modules))
 
     if search_index:
-        decls = search_index.get("decls") or []
-        names = {entry[0] for entry in decls}
+        decls = list(zip(search_index["names"], search_index["kind_of"], search_index["modules"]))
+        names = set(search_index["names"])
 
-        # 2 — every declaration's third column lands in the module array that
-        # now lives in the other file.
+        # 2 — every declaration's module subscript lands in the module array
+        # that lives in the other file.
         out_of_range = {
-            f"{entry[0]} (module index {entry[2]})"
-            for entry in decls
-            if entry[2] >= len(modules)
+            f"{name} (module index {module})" for name, _, module in decls if module >= len(modules)
         }
         fail("search-index: module subscripts resolve", out_of_range, len(decls))
+
+        # 2b — and the kind subscript lands in the vocabulary the same file
+        # carries, because a badge is what a reader trusts a result row for.
+        labels = search_index["labels"]
+        bad_kind = {f"{name} (kind {kind})" for name, kind, _ in decls if kind >= len(labels)}
+        fail("search-index: kind subscripts resolve", bad_kind, len(decls))
 
         # 3 — every indexed declaration is an anchor on the page the index sends
         # a reader to. Anchors, not `class="decl"` anchors: a member is a real
         # destination and is not wrapped in a section of its own.
         missing = set()
-        for entry in decls:
-            name, _, module_index = entry[0], entry[1], entry[2]
+        for name, _, module_index in decls:
             if module_index >= len(modules):
                 missing.add(f"{name} (module index {module_index} out of range)")
                 continue
@@ -192,11 +260,32 @@ def main():
                     orphans.add(f"{anchor} (on {page})")
         fail("pages -> search-index", orphans, checked)
 
+    # 4b — the index and the name map are two serialisations of one fact, and
+    # the binary one is the only place the names are not readable text. This is
+    # what would catch an encoder that dropped, reordered or truncated a name:
+    # every own-package name in the map is in the index under the same module,
+    # and nothing else is.
+    if search_index and name_map and modules_json:
+        own = {entry.get("n") for entry in modules}
+        expected = {name: module for name, module in name_map.items() if module in own}
+        indexed = {
+            name: modules[module].get("n")
+            for name, _, module in decls
+            if module < len(modules)
+        }
+        disagree = {
+            f"{name}: index says {indexed.get(name)}, the map says {module}"
+            for name, module in expected.items()
+            if indexed.get(name) != module
+        }
+        extra = {f"{name} (not in the map)" for name in indexed if name not in expected}
+        fail("search-index == name-map", disagree | extra, len(expected))
+
     # 5 / 6 — the instance tables are name references too. They moved to their
     # own file in P0, but they still refer to declarations the search index has
     # to know, so this needs both files and says so if either is missing.
     if search_index and instance_maps:
-        names = {entry[0] for entry in search_index.get("decls") or []}
+        names = set(search_index["names"])
         instances = instance_maps.get("instances") or {}
         values = [name for group in instances.values() for name in group]
         fail(
