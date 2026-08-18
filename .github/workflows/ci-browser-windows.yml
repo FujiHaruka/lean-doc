@@ -113,11 +113,20 @@ jobs:
       # ran against Consolas" are different claims and only this step can tell
       # them apart. If Chrome is not at this path the gate says so and exits 2
       # rather than passing.
-      - name: What is on this runner
+      - name: Is Chrome where the gate will look
         shell: bash
+        run: ls -la "/c/Program Files/Google/Chrome/Application/chrome.exe"
+
+      # `System.Drawing` is not loaded in the runner's PowerShell by default —
+      # the first run of this workflow died here, before the gate, with
+      # "Cannot find type [System.Drawing.Text.InstalledFontCollection]".
+      - name: What monospace fonts are here
+        shell: pwsh
         run: |
-          ls -la "/c/Program Files/Google/Chrome/Application/chrome.exe" || echo "no Chrome at the expected path"
-          powershell -Command "(New-Object -TypeName System.Drawing.Text.InstalledFontCollection).Families | Where-Object { \$_.Name -match 'Consolas|Cascadia|Courier|Segoe UI Mono' } | ForEach-Object { \$_.Name }"
+          Add-Type -AssemblyName System.Drawing
+          (New-Object System.Drawing.Text.InstalledFontCollection).Families |
+            Where-Object { $_.Name -match 'Consolas|Cascadia|Courier|Mono' } |
+            ForEach-Object { $_.Name }
 
       - name: Browser gate
         shell: bash
