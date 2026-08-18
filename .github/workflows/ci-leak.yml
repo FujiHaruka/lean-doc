@@ -21,9 +21,18 @@ on:
   workflow_dispatch:
 
 env:
+  # **`cc` on ubuntu-latest is gcc**, and `-fsanitize=fuzzer-no-link` / `-mllvm`
+  # are clang's. The first run of this workflow died in `cc-rs` on exactly that
+  # ("unrecognized argument to '-fsanitize=' option: 'fuzzer-no-link'"), which is
+  # what the canary step is for: it reported "exited 1, but not because LSan
+  # reported a leak" rather than letting a build failure read as a clean run.
+  CC: clang
   # Q6: `RUSTFLAGS` reaches Rust only, so without this the md4c C is neither
   # instrumented nor watched. cov went 1023 -> 2487 when it was added.
-  CFLAGS: "-fsanitize=address -fsanitize=fuzzer-no-link -mllvm -asan-guard-against-version-mismatch=0 -fno-omit-frame-pointer -g"
+  # `-mllvm -asan-guard-against-version-mismatch=0` is in `fuzz/README.md` for
+  # the macOS toolchain and is left out here; the runner's clang and its
+  # sanitizer runtime come from the same install.
+  CFLAGS: "-fsanitize=address -fsanitize=fuzzer-no-link -fno-omit-frame-pointer -g"
   ASAN_OPTIONS: "detect_leaks=1"
 
 jobs:
@@ -38,6 +47,8 @@ jobs:
         run: |
           rustup toolchain install nightly --profile minimal
           cargo +nightly install cargo-fuzz --locked
+          echo "cc -> $(cc --version | head -1)"
+          echo "clang -> $(clang --version | head -1)"
 
       # The corpus is the gate's, not a fresh one: this job's claim is about the
       # inputs that already run on every push, now with a sanitizer watching.
