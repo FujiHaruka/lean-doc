@@ -535,7 +535,8 @@ mod tests {
     #[test]
     fn the_search_index_is_the_shape_the_script_reads() {
         let artifacts = Artifacts::derive(&chain(), &[]);
-        let index = search_index::decode(&artifacts.search_index_bin).expect("a file this crate just wrote");
+        let index = search_index::decode(&artifacts.search_index_bin)
+            .expect("a file this crate just wrote");
         // The module array is `modules.json`'s, and only its. The subscripts
         // below index into it from the other file.
         let modules_json = parsed(&artifacts.modules_json);
@@ -563,7 +564,10 @@ mod tests {
         assert_eq!(index.labels[index.kind_of[at]], "instance");
 
         let instances = parsed(&artifacts.instances_json);
-        assert_eq!(instances["instances"]["Cls"], serde_json::json!(["Pkg.B.inst"]));
+        assert_eq!(
+            instances["instances"]["Cls"],
+            serde_json::json!(["Pkg.B.inst"])
+        );
         assert_eq!(
             instances["instancesFor"]["Pkg.a"],
             serde_json::json!(["Pkg.B.inst"]),

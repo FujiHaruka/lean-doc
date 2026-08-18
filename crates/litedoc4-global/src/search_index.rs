@@ -102,7 +102,13 @@ fn put_len(out: &mut Vec<u8>, len: usize) {
 /// find the names it is wrong for.
 fn ascii_fold(name: &str) -> String {
     name.chars()
-        .map(|c| if c.is_ascii_uppercase() { c.to_ascii_lowercase() } else { c })
+        .map(|c| {
+            if c.is_ascii_uppercase() {
+                c.to_ascii_lowercase()
+            } else {
+                c
+            }
+        })
         .collect()
 }
 
@@ -164,7 +170,10 @@ pub fn encode(entries: &[Entry<'_>], kinds: &[&str]) -> Vec<u8> {
     }
 
     let mut labels: Vec<u8> = Vec::new();
-    put_u32(&mut labels, u32::try_from(kinds.len()).expect("checked above"));
+    put_u32(
+        &mut labels,
+        u32::try_from(kinds.len()).expect("checked above"),
+    );
     for kind in kinds {
         labels.push(u8::try_from(kind.len()).expect("a kind label under 256 bytes"));
         labels.extend_from_slice(kind.as_bytes());
@@ -192,7 +201,10 @@ pub fn encode(entries: &[Entry<'_>], kinds: &[&str]) -> Vec<u8> {
     let mut out: Vec<u8> = Vec::with_capacity(fold_off + folds.len() + 4);
     out.extend_from_slice(&MAGIC);
     put_u32(&mut out, VERSION);
-    put_u32(&mut out, u32::try_from(entries.len()).expect("fewer than 4 billion"));
+    put_u32(
+        &mut out,
+        u32::try_from(entries.len()).expect("fewer than 4 billion"),
+    );
     put_u32(&mut out, u32::try_from(RESTART).expect("small"));
     for value in [
         names_off,
@@ -204,7 +216,10 @@ pub fn encode(entries: &[Entry<'_>], kinds: &[&str]) -> Vec<u8> {
         module_off,
         fold_off,
     ] {
-        put_u32(&mut out, u32::try_from(value).expect("an index under 4 GiB"));
+        put_u32(
+            &mut out,
+            u32::try_from(value).expect("an index under 4 GiB"),
+        );
     }
     put_u32(&mut out, 4 + folds.len().try_into().unwrap_or(u32::MAX));
     debug_assert_eq!(out.len(), HEADER_BYTES);
@@ -244,7 +259,10 @@ pub struct Decoded {
 /// rather than panicking, because the callers that matter are checking whether
 /// a file is well-formed.
 #[must_use]
-#[expect(clippy::missing_panics_doc, reason = "the slice lengths are checked before every conversion")]
+#[expect(
+    clippy::missing_panics_doc,
+    reason = "the slice lengths are checked before every conversion"
+)]
 pub fn decode(bytes: &[u8]) -> Option<Decoded> {
     let u32_at = |at: usize| -> Option<usize> {
         let slice = bytes.get(at..at.checked_add(4)?)?;
@@ -345,7 +363,10 @@ mod tests {
         let back = decode(&bytes).expect("the encoder's own output");
         assert_eq!(back.names, names);
         assert_eq!(back.labels, ["def", "theorem"]);
-        assert_eq!(back.kind_of, (0..names.len()).map(|i| i % 2).collect::<Vec<_>>());
+        assert_eq!(
+            back.kind_of,
+            (0..names.len()).map(|i| i % 2).collect::<Vec<_>>()
+        );
         assert_eq!(back.modules, (0..names.len()).collect::<Vec<_>>());
     }
 
@@ -354,10 +375,15 @@ mod tests {
     /// out whole.
     #[test]
     fn every_restart_block_stands_alone() {
-        let names: Vec<String> = (0..40).map(|i| format!("Pkg.same.prefix.n{i:02}")).collect();
+        let names: Vec<String> = (0..40)
+            .map(|i| format!("Pkg.same.prefix.n{i:02}"))
+            .collect();
         let borrowed: Vec<&str> = names.iter().map(String::as_str).collect();
         let bytes = encode(&entries(&borrowed), &["def"]);
-        assert_eq!(decode(&bytes).expect("the encoder's own output").names, names);
+        assert_eq!(
+            decode(&bytes).expect("the encoder's own output").names,
+            names
+        );
         let restarts_off = u32::from_le_bytes(bytes[24..28].try_into().expect("four")) as usize;
         let first_of_block = bytes[restarts_off + 4] as usize;
         assert_eq!(
@@ -374,7 +400,10 @@ mod tests {
         let long = format!("Pkg.{}", "x".repeat(400));
         let names = vec!["Pkg.a", long.as_str(), "Pkg.b"];
         let bytes = encode(&entries(&names), &["def"]);
-        assert_eq!(decode(&bytes).expect("the encoder's own output").names, names);
+        assert_eq!(
+            decode(&bytes).expect("the encoder's own output").names,
+            names
+        );
     }
 
     /// The fold section, and the fact that it is empty for ASCII.
@@ -400,7 +429,10 @@ mod tests {
         let len = u16::from_le_bytes(greek[fold_off + 8..fold_off + 10].try_into().expect("two"));
         let folded = &greek[fold_off + 10..fold_off + 10 + usize::from(len)];
         assert_eq!(at, 0);
-        assert_eq!(std::str::from_utf8(folded).expect("UTF-8"), "pkg.\u{3B3}amma");
+        assert_eq!(
+            std::str::from_utf8(folded).expect("UTF-8"),
+            "pkg.\u{3B3}amma"
+        );
     }
 
     #[test]
