@@ -114,9 +114,24 @@ otherwise has to be written by hand.
 relative path resolves against the package directory, so `../mypkg-docs` is the shortest spelling
 that works.
 
-You still need the `lean-doc` binary itself. Put it on `PATH`, or point `LEAN_DOC_BIN` at it —
-the script says what it looked for when it cannot find one. Get it from the release download or
-the `cargo build` below.
+The `lean-doc` binary itself is fetched for you. The script looks, in order, at `$LEAN_DOC_BIN`,
+`${XDG_CACHE_HOME:-~/.cache}/lean-doc/v<version>/<target>/lean-doc`, the GitHub release matching
+the version in the revision you required, `lean-doc` on `PATH`, and finally `cargo build`. When
+none of them answers, it says what it looked for and where. A download announces its URL before
+the first request and is used only if its SHA-256 matches the `checksums.txt` published beside it
+— a mismatch, or no way to compute a SHA-256 at all, is a refusal rather than a warning, and
+leaves the cache empty.
+
+Releases carry `x86_64-unknown-linux-musl` and `aarch64-apple-darwin` only. On anything else —
+Intel macOS, arm Linux — the script says there is no asset for your target and falls through to
+`PATH` and `cargo build`; that is a normal path, not a failure.
+
+```sh
+LEAN_DOC_NO_DOWNLOAD=1 lake run docs -- --out ../mypkg-docs   # never reach the network
+```
+
+`LEAN_DOC_NO_DOWNLOAD` set to anything non-empty takes the same path, and still uses a binary
+that is already in the cache — turning downloads off does not throw away one you already have.
 
 There is deliberately no `lean-toolchain` in this package: one that named a *higher* version
 would make your `lake update` rewrite **your** `lean-toolchain`, and a *lower* one would be
