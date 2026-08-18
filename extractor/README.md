@@ -1,4 +1,4 @@
-# extractor — lean-doc の抽出器 (Lean のまま)
+# extractor — litedoc4 の抽出器 (Lean のまま)
 
 対象パッケージの olean を `importModules` で読み、モジュール単位の IR (schema 4) を書く。
 **これだけが Lean で、外側 (IR 消費・レンダリング・増分・検索索引) は Rust**
@@ -21,25 +21,25 @@ M4-a で**移設ではなく移動**した (Lean のまま)。移動中 `experim
 
 ```sh
 TARGET_REPO=/path/to/lean-project extractor/build.sh   # -> extractor/build/extract
-lean-doc extract --modules <list> --ir-dir <dir> --timings <file> \
+litedoc4 extract --modules <list> --ir-dir <dir> --timings <file> \
   --extractor-bin extractor/build/extract --target /path/to/lean-project --jobs 4
 ```
 
-`--link-index` は **`lean-doc extract --link-index <p>` から渡せる** (製品側の配線は M5-b 済み)。
+`--link-index` は **`litedoc4 extract --link-index <p>` から渡せる** (製品側の配線は M5-b 済み)。
 抽出を伴わずに写像だけ作る / 計測するときは直に叩く形:
 
 ```sh
-cd /path/to/lean-project && lake env /path/to/lean-doc/extractor/build/extract \
+cd /path/to/lean-project && lake env /path/to/litedoc4/extractor/build/extract \
   modules.txt events.jsonl --skip-analyze --link-index link-index.lidx
 ```
 
-lean-doc 側に toolchain も lakefile も Mathlib も置かない (CLAUDE.md)。環境は
+litedoc4 側に toolchain も lakefile も Mathlib も置かない (CLAUDE.md)。環境は
 `lake env` で対象から借りるので、**対象が `lake build` 済みであることがビルドの前提**。
 バイナリは対象の toolchain に対して作られるため、**別の対象には作り直しが要る**。
 
 直接叩く形 (`extract <modules.txt> <events.jsonl> [options]`) は `Extract.lean` の
-ヘッダにある。製品の呼び手は `lean-doc extract` (M4-b) で、その先は
-`lean-doc incremental --extractor` (M3-d2)。
+ヘッダにある。製品の呼び手は `litedoc4 extract` (M4-b) で、その先は
+`litedoc4 incremental --extractor` (M3-d2)。
 
 ## M5-a で足したもの — `--link-index <path>`
 
@@ -64,8 +64,8 @@ Mathlib** であることを前提にしていて、この対象では成り立�
 | `--link-index-omit <modules.txt>` | **段 C**。ここに名前がある モジュールの**宣言群を書かない** (`@` 節には残す)。レンダラは自パッケージの名前を IR 由来の索引で先に解決するので、この 3.6% は読まれない — **落としてもサイトは 429/429 バイト一致**。落とす理由は速度ではなく、**そこだけが 1 モジュール編集で動く**ため (動くと `renderKey` が動き全ページ再描画になる) |
 | `--link-index-key <token>` | **段 D**。地図の隣に `<path>.key` を置き、次回**トークン一致 + `#lidx2` マーカー一致 + `@` 節が現環境と一致**なら**走査ごと飛ばす**。トークンは呼び手が作る不透明文字列で、抽出器から見えないもの (依存 olean の同一性 = `extractKey`、omit 一覧の中身) を担う |
 
-製品側 (`lean-doc build` / `incremental --serve`) は**両方を自動で渡す**ので、
-利用者がこのフラグを意識することはない (`crates/lean-doc/src/resident.rs`)。
+製品側 (`litedoc4 build` / `incremental --serve`) は**両方を自動で渡す**ので、
+利用者がこのフラグを意識することはない (`crates/litedoc4/src/resident.rs`)。
 手で叩くときだけ意味がある。
 
 ## M7-a で変えたもの — `.lidx` の 1 行に**ソース行範囲**が乗る
@@ -77,7 +77,7 @@ Mathlib** であることを前提にしていて、この対象では成り立�
 
 **行範囲が取れない宣言は 1 フィールドのまま残す** — 落とすとリンクごと消えるが、
 範囲が無いだけならアンカーが落ちるだけ (doc-gen4 の `gh_nav_link` と同じ形)。
-読む側 (`crates/lean-doc-render/src/link_index.rs`) は `#lidx1` も読み続ける。
+読む側 (`crates/litedoc4-render/src/link_index.rs`) は `#lidx1` も読み続ける。
 
 | | 前 | 後 |
 |---|---:|---:|
@@ -123,11 +123,11 @@ Lean インタプリタでモジュール初期化子を走らせ、実行中の
 "Could not find native implementation of external declaration" で死ぬ。
 
 **まだ変えていないもの**: `--serve` (常駐) はバイナリに残っているが、製品側から配線するのは
-**M4-c**。`lean-doc extract` は `--serve*` を名指しで断る。
+**M4-c**。`litedoc4 extract` は `--serve*` を名指しで断る。
 
 ## ゲート — 凍結バイナリとの IR バイト一致
 
-同じモジュール一覧 (`lean-doc modules --root … --lib InformationTheory`、432 件、
+同じモジュール一覧 (`litedoc4 modules --root … --lib InformationTheory`、432 件、
 UTF-16 code unit 順) を**両側に同じファイルで**渡し、同じフラグ
 (`--equations --refs --write-ir --tagged-code --jobs 4 --ir-dir <dir>`) で走らせて、
 IR 木を全ファイル `cmp` する。

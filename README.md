@@ -1,8 +1,8 @@
-# lean-doc
+# litedoc4
 
 **Fast HTML documentation for Lean 4 packages — built for the ones standing on Mathlib.**
 
-lean-doc documents **your** package only. Declarations from your dependencies — Mathlib,
+litedoc4 documents **your** package only. Declarations from your dependencies — Mathlib,
 Batteries, Lean core, whatever your `lake-manifest.json` pins — are never regenerated: every
 reference to them links to that dependency's **version-pinned source on GitHub**. The output is a
 self-contained static site.
@@ -34,7 +34,7 @@ Already hosting doc-gen4 output? Page paths (`Foo/Bar.html`) and declaration anc
 
 432-module package on an Apple M1 / 16 GB, warm page cache, wall clock:
 
-| | doc-gen4 | lean-doc |
+| | doc-gen4 | litedoc4 |
 |---|---:|---:|
 | Extract all 432 modules, single-threaded | 1,076 s | **14.08 s** |
 | Full site from nothing, `--jobs 4` | — | **29.5 s** |
@@ -47,7 +47,7 @@ build has never been finished on this machine (aborted at 42%, memory-bound, aft
 CPU time, which extrapolates to ~9 h of CPU for the closure), so there is no wall-clock number to
 put next to 29.5 s.
 
-On a 4-core GitHub runner `lean-doc build` took **11.5–20.7 s** for 422 modules. A first run also
+On a 4-core GitHub runner `litedoc4 build` took **11.5–20.7 s** for 422 modules. A first run also
 builds the tools (~16 s extractor, ~24 s cargo, cached afterwards); the rest of the job is your
 usual `lake exe cache get` + `lake build`. Peak memory ≈3.3 GB. Raw logs: [`benchmarks/`](benchmarks/).
 
@@ -66,7 +66,7 @@ jobs:
     environment: { name: github-pages }
     steps:
       - uses: actions/checkout@v4
-      - uses: FujiHaruka/lean-doc@v0.1.3
+      - uses: FujiHaruka/litedoc4@v0.1.3
         id: docs
         with:
           cache-get: true             # `lake exe cache get` — drop it if you have no Mathlib
@@ -90,7 +90,7 @@ the `permissions` / `environment` lines.
 
 ## Running it locally
 
-You need `elan`/`lake` and a package that `lake build` passes. The `lean-doc` binary can be
+You need `elan`/`lake` and a package that `lake build` passes. The `litedoc4` binary can be
 downloaded; the Lean extractor is always built here, because it is compiled against **your**
 toolchain.
 
@@ -99,7 +99,7 @@ toolchain.
 Add it to your `lakefile.lean` (or the `[[require]]` equivalent in `lakefile.toml`):
 
 ```lean
-require «lean-doc» from git "https://github.com/FujiHaruka/lean-doc" @ "main"
+require «litedoc4» from git "https://github.com/FujiHaruka/litedoc4" @ "main"
 ```
 
 ```sh
@@ -110,13 +110,13 @@ Lake builds the extractor against your toolchain and the script fills in `--root
 `--extractor-bin` and `--lib` for you — including for a `lakefile.lean` package, where `--lib`
 otherwise has to be written by hand.
 
-`--out` is required and must be outside the package (`lean-doc build` refuses one inside), and a
+`--out` is required and must be outside the package (`litedoc4 build` refuses one inside), and a
 relative path resolves against the package directory, so `../mypkg-docs` is the shortest spelling
 that works.
 
-The `lean-doc` binary itself is fetched for you. The script looks, in order, at `$LEAN_DOC_BIN`,
-`${XDG_CACHE_HOME:-~/.cache}/lean-doc/v<version>/<target>/lean-doc`, the GitHub release matching
-the version in the revision you required, `lean-doc` on `PATH`, and finally `cargo build`. When
+The `litedoc4` binary itself is fetched for you. The script looks, in order, at `$LITEDOC4_BIN`,
+`${XDG_CACHE_HOME:-~/.cache}/litedoc4/v<version>/<target>/litedoc4`, the GitHub release matching
+the version in the revision you required, `litedoc4` on `PATH`, and finally `cargo build`. When
 none of them answers, it says what it looked for and where. A download announces its URL before
 the first request and is used only if its SHA-256 matches the `checksums.txt` published beside it
 — a mismatch, or no way to compute a SHA-256 at all, is a refusal rather than a warning, and
@@ -127,10 +127,10 @@ Intel macOS, arm Linux — the script says there is no asset for your target and
 `PATH` and `cargo build`; that is a normal path, not a failure.
 
 ```sh
-LEAN_DOC_NO_DOWNLOAD=1 lake run docs -- --out ../mypkg-docs   # never reach the network
+LITEDOC4_NO_DOWNLOAD=1 lake run docs -- --out ../mypkg-docs   # never reach the network
 ```
 
-`LEAN_DOC_NO_DOWNLOAD` set to anything non-empty takes the same path, and still uses a binary
+`LITEDOC4_NO_DOWNLOAD` set to anything non-empty takes the same path, and still uses a binary
 that is already in the cache — turning downloads off does not throw away one you already have.
 
 There is deliberately no `lean-toolchain` in this package: one that named a *higher* version
@@ -141,20 +141,20 @@ Without the file, Lake builds the extractor with your toolchain and says nothing
 ### From a checkout
 
 ```sh
-git clone https://github.com/FujiHaruka/lean-doc && cd lean-doc
+git clone https://github.com/FujiHaruka/litedoc4 && cd litedoc4
 
 # the extractor — always built here, against your package's toolchain (~16 s)
 TARGET_REPO=/path/to/your-package extractor/build.sh     # -> extractor/build/extract
 
 # the binary — download it (Linux/x86-64 shown; aarch64-apple-darwin is the
-# other one), which unpacks to lean-doc-<version>-<target>/lean-doc …
-curl -sSfL https://github.com/FujiHaruka/lean-doc/releases/latest/download/lean-doc-x86_64-unknown-linux-musl.tar.gz \
+# other one), which unpacks to litedoc4-<version>-<target>/litedoc4 …
+curl -sSfL https://github.com/FujiHaruka/litedoc4/releases/latest/download/litedoc4-x86_64-unknown-linux-musl.tar.gz \
   | tar xz
 # … or build it, which needs Rust (via rustup) and a C compiler
-cargo build --release                                    # -> target/release/lean-doc
+cargo build --release                                    # -> target/release/litedoc4
 
 # then, with whichever of the two you have:
-./target/release/lean-doc build --root /path/to/your-package --out /path/to/docs \
+./target/release/litedoc4 build --root /path/to/your-package --out /path/to/docs \
   --extractor-bin ./extractor/build/extract --jobs 4
 ```
 
@@ -162,7 +162,7 @@ The site is `<out>/site`; `--out` itself must live outside `--root`. Running the
 incremental, so keep `<out>` between runs; `--full` starts over. The extractor is built against
 your package's toolchain — rebuild it (~15 s) when that changes.
 
-Run `lean-doc` with no arguments for the full flag list. The two you may need:
+Run `litedoc4` with no arguments for the full flag list. The two you may need:
 `--lib <Name>` if your libraries are not in `lakefile.toml`, `--source-url <url>` if `origin` is
 not GitHub (another host is refused rather than guessed).
 
@@ -171,6 +171,14 @@ not GitHub (another host is refused rather than guessed).
 `v0.1.3` — the action and the released binaries. Tested on macOS (Apple Silicon) and
 `ubuntu-latest` with Lean/Mathlib v4.31.0. Pin the action to a tag (`@v0.1.3`); `@main` moves.
 
+**Renamed from `lean-doc` on 2026-08-18** — repository, crates, CLI, and Lake package name.
+Every release up to `v0.1.3` was published under the old name, so until the next release:
+the `curl` line above **404s** (the newest release carries `lean-doc-*.tar.gz`, not
+`litedoc4-*`), and `uses: FujiHaruka/litedoc4@v0.1.3` still resolves but pins a tree from
+before the rename. `require «litedoc4» … @ "main"` and building from source both work today.
+What was deliberately *not* renamed, and why, is in
+[`docs/plans/rename.md`](docs/plans/rename.md).
+
 The extractor is not distributed as a binary. It **could** be — it is decided by the toolchain
 alone, it is portable, and against the wrong toolchain it fails loudly rather than writing a
 wrong IR (all three measured, `benchmarks/results/extractor-uniqueness-2026-08-18.txt`). It is
@@ -178,5 +186,5 @@ not shipped because at 226 MB it is not worth replacing a 16 s build that CI cac
 
 ## License
 
-Apache-2.0 ([`LICENSE`](LICENSE)). lean-doc is a derivative work of **doc-gen4**
+Apache-2.0 ([`LICENSE`](LICENSE)). litedoc4 is a derivative work of **doc-gen4**
 (Apache-2.0, © 2021 Henrik Böving); attribution is in [`NOTICE`](NOTICE).

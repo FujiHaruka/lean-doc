@@ -95,7 +95,7 @@ for run in $declared; do
     continue
   fi
 
-  # The phase the placement claim is actually about. `lean-doc build` starts the
+  # The phase the placement claim is actually about. `litedoc4 build` starts the
   # extractor as a server and the server's `ready <ns>` line IS the environment
   # import 【実測 2026-08-17: ready 17366885792 ns against extractSeconds
   # 24.447 s, round phases 5.932 s】. A run whose log has no such line measured

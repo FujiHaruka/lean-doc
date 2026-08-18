@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# L2 — does `resolveLeanDoc` really fetch the Rust half from a GitHub Release?
+# L2 — does `resolveLitedoc4` really fetch the Rust half from a GitHub Release?
 #
 # `docs/plans/lake-package.md` §5 adds two sources to the lakefile's
-# `resolveLeanDoc`: a version-pinned cache and a checksum-verified download from
+# `resolveLitedoc4`: a version-pinned cache and a checksum-verified download from
 # the release that matches this tree's `Cargo.toml`. This gate is the only place
 # either of them is executed.
 #
 # WHY THIS GATE EXISTS SEPARATELY FROM tools/lake-package-gate.sh
-#   That gate sets `LEAN_DOC_BIN`, which is source 1, so it returns before
+#   That gate sets `LITEDOC4_BIN`, which is source 1, so it returns before
 #   sources 2..5 are reached — it has never run a single line of this code
-#   【実測 2026-08-18】. **This gate must therefore never set `LEAN_DOC_BIN`.**
+#   【実測 2026-08-18】. **This gate must therefore never set `LITEDOC4_BIN`.**
 #   Setting it would turn every item below into a check of nothing, and the
 #   output would look exactly the same.
 #
@@ -26,7 +26,7 @@
 #                checksums.txt: the run must fail, leave nothing in the cache
 #                and execute nothing it downloaded. Falls: verification is
 #                decorative.
-#   4 NO-DL      `LEAN_DOC_NO_DOWNLOAD=1` with an empty cache: source 3 is
+#   4 NO-DL      `LITEDOC4_NO_DOWNLOAD=1` with an empty cache: source 3 is
 #                skipped, out loud, and source 4 (PATH) answers. Falls: the
 #                opt-out does not opt out, or does it silently.
 #   5 NO ASSET   a target the releases do not carry: source 3 says so and falls
@@ -43,15 +43,15 @@
 # WHAT IS NEVER TOUCHED
 #   **The user's ~/.cache.** Every run sets XDG_CACHE_HOME to a directory under
 #   $OUT, so nothing outside $OUT is written or removed. Also not touched:
-#   /Users/haruka/dev/lean-projects, and `$LEAN_DOC_BIN` (see above).
+#   /Users/haruka/dev/lean-projects, and `$LITEDOC4_BIN` (see above).
 #
 # usage: lake-download-gate.sh [--out DIR] [--keep]
 #   --out   working directory (default: a temporary one, removed on success)
 #   --keep  do not remove a temporary --out
 #
-#   LEAN_DOC  a `lean-doc` executable to put **on PATH** for items 4 and 5,
+#   LITEDOC4  a `litedoc4` executable to put **on PATH** for items 4 and 5,
 #             where source 4 is the one that has to answer (default:
-#             target/debug/lean-doc). It is never exported as LEAN_DOC_BIN.
+#             target/debug/litedoc4). It is never exported as LITEDOC4_BIN.
 #   LAKE      the lake executable (default: ~/.elan/bin/lake)
 set -euo pipefail
 
@@ -59,7 +59,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 FIXTURE="$ROOT/e2e/consumer"
 LAKE="${LAKE:-$HOME/.elan/bin/lake}"
-LEAN_DOC="${LEAN_DOC:-$ROOT/target/debug/lean-doc}"
+LITEDOC4="${LITEDOC4:-$ROOT/target/debug/litedoc4}"
 
 OUT=""
 KEEP=0
@@ -76,7 +76,7 @@ done
 # skip: `skipping: offline` + exit 0 is the failure shape this project has
 # already paid for (CLAUDE.md 「skip で緑を返さない」).
 [ -x "$LAKE" ] || { echo "no lake at $LAKE — set LAKE" >&2; exit 2; }
-[ -x "$LEAN_DOC" ] || { echo "no lean-doc at $LEAN_DOC — cargo build --bin lean-doc" >&2; exit 2; }
+[ -x "$LITEDOC4" ] || { echo "no litedoc4 at $LITEDOC4 — cargo build --bin litedoc4" >&2; exit 2; }
 [ -f "$ROOT/lakefile.lean" ] || { echo "no $ROOT/lakefile.lean — nothing to check" >&2; exit 2; }
 [ -f "$FIXTURE/lakefile.toml" ] || { echo "no consumer fixture at $FIXTURE" >&2; exit 2; }
 command -v curl >/dev/null || { echo "no curl — this gate downloads a release" >&2; exit 2; }
@@ -103,8 +103,8 @@ case "$(uname -s)/$(uname -m)" in
      echo "run this gate on a machine the releases carry: see releaseTargets in lakefile.lean" >&2
      exit 2 ;;
 esac
-BASE="https://github.com/FujiHaruka/lean-doc/releases/download/v$VERSION"
-ASSET="lean-doc-$TRIPLE.tar.gz"
+BASE="https://github.com/FujiHaruka/litedoc4/releases/download/v$VERSION"
+ASSET="litedoc4-$TRIPLE.tar.gz"
 
 # The network, checked once and by name. Offline is a failure of this gate, not
 # a reason to report success.
@@ -143,7 +143,7 @@ echo "lake-download-gate: the network is disabled for this item" >&2
 exit 7
 EOF
 
-# A cargo that refuses. Source 5 of resolveLeanDoc is a release build of this
+# A cargo that refuses. Source 5 of resolveLitedoc4 is a release build of this
 # workspace; without this, an item that is *supposed* to end in failure would
 # instead spend minutes compiling and then succeed for the wrong reason.
 cat > "$OUT/nocargo/cargo" <<'EOF'
@@ -176,9 +176,9 @@ cp "\$src" "\$dest"
 EOF
 
 chmod +x "$OUT/nonet/curl" "$OUT/nocargo/cargo" "$OUT/shim3/curl"
-cp "$LEAN_DOC" "$OUT/pathbin/lean-doc"
+cp "$LITEDOC4" "$OUT/pathbin/litedoc4"
 
-# PATH with every directory that holds a `lean-doc` removed, so that items which
+# PATH with every directory that holds a `litedoc4` removed, so that items which
 # must fall all the way through cannot be rescued by whatever this machine
 # happens to have installed. Items 4 and 5 add $OUT/pathbin back on purpose.
 CLEAN_PATH="$(
@@ -186,7 +186,7 @@ CLEAN_PATH="$(
   first=1
   for dir in $PATH; do
     [ -n "$dir" ] || continue
-    if [ -x "$dir/lean-doc" ]; then continue; fi
+    if [ -x "$dir/litedoc4" ]; then continue; fi
     if [ "$first" = 1 ]; then printf '%s' "$dir"; first=0; else printf ':%s' "$dir"; fi
   done
 )"
@@ -205,9 +205,9 @@ run_docs () {
   local n="$1"; shift
   local rc=0
   # `env -u`: whatever the caller's shell already had set for these must not
-  # decide what an item measures. LEAN_DOC_BIN in particular would answer as
+  # decide what an item measures. LITEDOC4_BIN in particular would answer as
   # source 1 and every item below would grade nothing.
-  (cd "$FIXTURE" && env -u LEAN_DOC_BIN -u LEAN_DOC_NO_DOWNLOAD -u LEAN_DOC_TARGET_OVERRIDE \
+  (cd "$FIXTURE" && env -u LITEDOC4_BIN -u LITEDOC4_NO_DOWNLOAD -u LITEDOC4_TARGET_OVERRIDE \
      "$@" "$LAKE" run docs -- --out "$OUT/site$n") \
     >"$OUT/run$n.log" 2>&1 || rc=$?
   echo "$rc"
@@ -216,11 +216,11 @@ run_docs () {
 # ---------------------------------------------------------------------------
 say "1/5 an empty cache downloads the release and builds a site"
 # ---------------------------------------------------------------------------
-# Real curl, no `lean-doc` anywhere on PATH and no cargo: if the download does
+# Real curl, no `litedoc4` anywhere on PATH and no cargo: if the download does
 # not work there is nothing left to rescue the run, which is what makes this
 # item's exit code mean something.
 CACHE1="$OUT/cache1"
-CACHED1="$CACHE1/lean-doc/v$VERSION/$TRIPLE/lean-doc"
+CACHED1="$CACHE1/litedoc4/v$VERSION/$TRIPLE/litedoc4"
 rc1="$(run_docs 1 "PATH=$OUT/nocargo:$CLEAN_PATH" "XDG_CACHE_HOME=$CACHE1")"
 if [ "$rc1" -ne 0 ]; then
   fail 1 "lake run docs exited $rc1 with an empty cache — see $OUT/run1.log"
@@ -231,15 +231,15 @@ elif ! grep -qE "sha256 [0-9a-f]{64} matches $BASE/checksums.txt" "$OUT/run1.log
   fail 1 "the archive was fetched but no SHA-256 was reported as matching — see $OUT/run1.log"
 elif [ ! -x "$CACHED1" ]; then
   fail 1 "nothing at $CACHED1 — the download did not land in the version-pinned cache"
-elif ! grep -qF "lean-doc: $CACHED1 build --root" "$OUT/run1.log"; then
-  fail 1 "the site was built by something other than $CACHED1 — see the \`lean-doc: … build\` line in $OUT/run1.log"
+elif ! grep -qF "litedoc4: $CACHED1 build --root" "$OUT/run1.log"; then
+  fail 1 "the site was built by something other than $CACHED1 — see the \`litedoc4: … build\` line in $OUT/run1.log"
 elif [ ! -f "$OUT/site1/site/index.html" ]; then
   fail 1 "lake run docs exited 0 but wrote no site: $OUT/site1/site/index.html is missing"
-elif [ "$(sha256_of "$CACHED1")" = "$(sha256_of "$LEAN_DOC")" ]; then
+elif [ "$(sha256_of "$CACHED1")" = "$(sha256_of "$LITEDOC4")" ]; then
   # Not pedantry: if these ever match, this item is grading the local build
   # under a cache-shaped path and has stopped saying anything about releases.
-  fail 1 "$CACHED1 is byte-identical to $LEAN_DOC — that is the local build, not the release"
-elif [ -e "$CACHE1/lean-doc/v$VERSION/$TRIPLE/.download" ]; then
+  fail 1 "$CACHED1 is byte-identical to $LITEDOC4 — that is the local build, not the release"
+elif [ -e "$CACHE1/litedoc4/v$VERSION/$TRIPLE/.download" ]; then
   fail 1 "a .download directory was left behind in the cache"
 else
   pass 1 "v$VERSION $TRIPLE: $(sha256_of "$CACHED1" | cut -c1-12)… ($("$CACHED1" --version)), site at $OUT/site1/site"
@@ -259,7 +259,7 @@ elif [ "$rc2" -ne 0 ]; then
   tail -20 "$OUT/run2.log" >&2
 elif [ -s "$CURL_LOG" ]; then
   fail 2 "curl was invoked $(wc -l <"$CURL_LOG" | tr -d ' ') time(s) on a cache hit — see $CURL_LOG"
-elif ! grep -qF "lean-doc: $CACHED1 (cached, v$VERSION)" "$OUT/run2.log"; then
+elif ! grep -qF "litedoc4: $CACHED1 (cached, v$VERSION)" "$OUT/run2.log"; then
   fail 2 "the run did not report using $CACHED1 from the cache — see $OUT/run2.log"
 elif [ ! -f "$OUT/site2/site/index.html" ]; then
   fail 2 "lake run docs exited 0 but wrote no site: $OUT/site2/site/index.html is missing"
@@ -271,7 +271,7 @@ fi
 say "3/5 a checksum that does not match stops the run"
 # ---------------------------------------------------------------------------
 CACHE3="$OUT/cache3"
-CACHED3="$CACHE3/lean-doc/v$VERSION/$TRIPLE/lean-doc"
+CACHED3="$CACHE3/litedoc4/v$VERSION/$TRIPLE/litedoc4"
 rm -f "$OUT/shim3-calls.log"
 rc3="$(run_docs 3 "PATH=$OUT/shim3:$OUT/nocargo:$CLEAN_PATH" "XDG_CACHE_HOME=$CACHE3")"
 shim_calls=0
@@ -286,8 +286,8 @@ elif [ "$rc3" -eq 0 ]; then
   fail 3 "lake run docs exited 0 after a checksum mismatch — see $OUT/run3.log"
 elif [ -e "$CACHED3" ]; then
   fail 3 "an unverified binary was cached at $CACHED3"
-elif [ -e "$CACHE3/lean-doc/v$VERSION/$TRIPLE/.download" ]; then
-  fail 3 "the unverified archive was left in $CACHE3/lean-doc/v$VERSION/$TRIPLE/.download"
+elif [ -e "$CACHE3/litedoc4/v$VERSION/$TRIPLE/.download" ]; then
+  fail 3 "the unverified archive was left in $CACHE3/litedoc4/v$VERSION/$TRIPLE/.download"
 elif [ -f "$OUT/site3/site/index.html" ]; then
   fail 3 "a site was built even though no verified binary was ever obtained"
 else
@@ -295,22 +295,22 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-say "4/5 LEAN_DOC_NO_DOWNLOAD=1 skips the release, out loud"
+say "4/5 LITEDOC4_NO_DOWNLOAD=1 skips the release, out loud"
 # ---------------------------------------------------------------------------
 CACHE4="$OUT/cache4"
 rm -f "$CURL_LOG"
 rc4="$(run_docs 4 "PATH=$OUT/nonet:$OUT/pathbin:$CLEAN_PATH" "XDG_CACHE_HOME=$CACHE4" \
-        "LEAN_DOC_NO_DOWNLOAD=1")"
+        "LITEDOC4_NO_DOWNLOAD=1")"
 if [ "$rc4" -ne 0 ]; then
-  fail 4 "lake run docs exited $rc4 with LEAN_DOC_NO_DOWNLOAD=1 — see $OUT/run4.log"
+  fail 4 "lake run docs exited $rc4 with LITEDOC4_NO_DOWNLOAD=1 — see $OUT/run4.log"
   tail -20 "$OUT/run4.log" >&2
 elif [ -s "$CURL_LOG" ]; then
-  fail 4 "curl was invoked despite LEAN_DOC_NO_DOWNLOAD=1 — see $CURL_LOG"
-elif ! grep -q 'LEAN_DOC_NO_DOWNLOAD is set; not downloading' "$OUT/run4.log"; then
-  fail 4 "source 3 was skipped without saying so — nothing in $OUT/run4.log mentions LEAN_DOC_NO_DOWNLOAD"
-elif ! grep -qF "lean-doc: $OUT/pathbin/lean-doc build --root" "$OUT/run4.log"; then
-  fail 4 "the run did not fall through to the \`lean-doc\` on PATH — see $OUT/run4.log"
-elif [ -e "$CACHE4/lean-doc/v$VERSION/$TRIPLE/lean-doc" ]; then
+  fail 4 "curl was invoked despite LITEDOC4_NO_DOWNLOAD=1 — see $CURL_LOG"
+elif ! grep -q 'LITEDOC4_NO_DOWNLOAD is set; not downloading' "$OUT/run4.log"; then
+  fail 4 "source 3 was skipped without saying so — nothing in $OUT/run4.log mentions LITEDOC4_NO_DOWNLOAD"
+elif ! grep -qF "litedoc4: $OUT/pathbin/litedoc4 build --root" "$OUT/run4.log"; then
+  fail 4 "the run did not fall through to the \`litedoc4\` on PATH — see $OUT/run4.log"
+elif [ -e "$CACHE4/litedoc4/v$VERSION/$TRIPLE/litedoc4" ]; then
   fail 4 "something was written to the cache with downloads turned off"
 elif [ ! -f "$OUT/site4/site/index.html" ]; then
   fail 4 "lake run docs exited 0 but wrote no site: $OUT/site4/site/index.html is missing"
@@ -328,7 +328,7 @@ NO_ASSET=x86_64-apple-darwin
 CACHE5="$OUT/cache5"
 rm -f "$CURL_LOG"
 rc5="$(run_docs 5 "PATH=$OUT/nonet:$OUT/pathbin:$CLEAN_PATH" "XDG_CACHE_HOME=$CACHE5" \
-        "LEAN_DOC_TARGET_OVERRIDE=$NO_ASSET")"
+        "LITEDOC4_TARGET_OVERRIDE=$NO_ASSET")"
 if [ "$rc5" -ne 0 ]; then
   fail 5 "lake run docs exited $rc5 for a target with no asset — a machine the releases do not carry cannot build docs; see $OUT/run5.log"
   tail -20 "$OUT/run5.log" >&2
@@ -336,8 +336,8 @@ elif ! grep -qF "no release asset for $NO_ASSET" "$OUT/run5.log"; then
   fail 5 "source 3 went quiet on a target with no asset — nothing in $OUT/run5.log names $NO_ASSET"
 elif [ -s "$CURL_LOG" ]; then
   fail 5 "curl was invoked for a target that has no asset — see $CURL_LOG"
-elif ! grep -qF "lean-doc: $OUT/pathbin/lean-doc build --root" "$OUT/run5.log"; then
-  fail 5 "the run did not fall through to the \`lean-doc\` on PATH — see $OUT/run5.log"
+elif ! grep -qF "litedoc4: $OUT/pathbin/litedoc4 build --root" "$OUT/run5.log"; then
+  fail 5 "the run did not fall through to the \`litedoc4\` on PATH — see $OUT/run5.log"
 elif [ ! -f "$OUT/site5/site/index.html" ]; then
   fail 5 "lake run docs exited 0 but wrote no site: $OUT/site5/site/index.html is missing"
 else

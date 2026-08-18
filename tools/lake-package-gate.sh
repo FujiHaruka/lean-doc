@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# L1 — is lean-doc usable as a Lake dependency?
+# L1 — is litedoc4 usable as a Lake dependency?
 #
-# `docs/plans/lake-package.md` L1: a consumer writes `require «lean-doc»` and
+# `docs/plans/lake-package.md` L1: a consumer writes `require «litedoc4»` and
 # runs `lake run docs -- --out <dir>`. What that buys is two flags nobody can
 # supply by hand — `--extractor-bin` (Lake builds the extractor against the
 # consumer's toolchain) and `--lib` (read out of the elaborated workspace, which
@@ -9,7 +9,7 @@
 # claims are checked.
 #
 # THE FIVE ITEMS
-#   1 WIRED       `lake script list` in `e2e/consumer` offers `lean-doc/docs`.
+#   1 WIRED       `lake script list` in `e2e/consumer` offers `litedoc4/docs`.
 #                 Falls: the dependency's lakefile.lean is not being loaded.
 #   2 IT RUNS     `lake run docs -- --out <tmp>` writes a site. Falls: the
 #                 arguments the script assembles are wrong.
@@ -49,7 +49,7 @@
 #   --out   working directory (default: a temporary one, removed on success)
 #   --keep  do not remove a temporary --out
 #
-#   LEAN_DOC  the `lean-doc` executable under test (default: target/debug/lean-doc)
+#   LITEDOC4  the `litedoc4` executable under test (default: target/debug/litedoc4)
 #   LAKE      the lake executable (default: ~/.elan/bin/lake)
 set -euo pipefail
 
@@ -58,7 +58,7 @@ ROOT="$(cd "$HERE/.." && pwd)"
 FIXTURE="$ROOT/e2e/consumer"
 MICRO="$ROOT/e2e/micro"
 LAKE="${LAKE:-$HOME/.elan/bin/lake}"
-LEAN_DOC="${LEAN_DOC:-$ROOT/target/debug/lean-doc}"
+LITEDOC4="${LITEDOC4:-$ROOT/target/debug/litedoc4}"
 # `diff` is aliased to a colordiff that is not installed on this machine, and its
 # exit 127 reads as "differences found". Always the real one.
 DIFF=/usr/bin/diff
@@ -78,7 +78,7 @@ done
 # `return 0` here is the failure shape this project has already paid for —
 # `eprintln!("skipping: …")` does not reach the exit code (CLAUDE.md).
 [ -x "$LAKE" ] || { echo "no lake at $LAKE — set LAKE" >&2; exit 2; }
-[ -x "$LEAN_DOC" ] || { echo "no lean-doc at $LEAN_DOC — cargo build --bin lean-doc" >&2; exit 2; }
+[ -x "$LITEDOC4" ] || { echo "no litedoc4 at $LITEDOC4 — cargo build --bin litedoc4" >&2; exit 2; }
 [ -f "$ROOT/lakefile.lean" ] || { echo "no $ROOT/lakefile.lean — this gate has nothing to check" >&2; exit 2; }
 [ -f "$FIXTURE/lakefile.toml" ] || { echo "no consumer fixture at $FIXTURE" >&2; exit 2; }
 [ -f "$MICRO/lakefile.toml" ] || { echo "no micro fixture at $MICRO" >&2; exit 2; }
@@ -107,10 +107,10 @@ say  () { printf '\n=== %s\n' "$1"; }
 say "1/5 the script is wired up"
 # ---------------------------------------------------------------------------
 if (cd "$FIXTURE" && "$LAKE" script list) >"$OUT/script-list.txt" 2>"$OUT/script-list.err"; then
-  if grep -qx 'lean-doc/docs' "$OUT/script-list.txt"; then
-    pass 1 "lake script list offers lean-doc/docs"
+  if grep -qx 'litedoc4/docs' "$OUT/script-list.txt"; then
+    pass 1 "lake script list offers litedoc4/docs"
   else
-    fail 1 "lake script list in $FIXTURE does not offer \`lean-doc/docs\` — the dependency's lakefile.lean declares no such script, or is not being loaded"
+    fail 1 "lake script list in $FIXTURE does not offer \`litedoc4/docs\` — the dependency's lakefile.lean declares no such script, or is not being loaded"
     sed -n '1,20p' "$OUT/script-list.txt" >&2
   fi
 else
@@ -122,13 +122,13 @@ fi
 say "2/5 lake run docs writes a site"
 # ---------------------------------------------------------------------------
 # **No `--lib` and no `--extractor-bin`.** That is the whole point: the script
-# has to get both out of Lake. `LEAN_DOC_BIN` is source 1 of `resolveLeanDoc`
+# has to get both out of Lake. `LITEDOC4_BIN` is source 1 of `resolveLitedoc4`
 # and pins which Rust binary is under test — without it the gate would grade
 # whatever happens to be on PATH.
 SITE_OUT="$OUT/docs"
 rm -rf "$SITE_OUT"
 site_ok=0
-if (cd "$FIXTURE" && LEAN_DOC_BIN="$LEAN_DOC" "$LAKE" run docs -- --out "$SITE_OUT") \
+if (cd "$FIXTURE" && LITEDOC4_BIN="$LITEDOC4" "$LAKE" run docs -- --out "$SITE_OUT") \
     >"$OUT/docs.log" 2>&1; then
   if [ -f "$SITE_OUT/site/index.html" ] && [ -f "$SITE_OUT/site/modules.json" ]; then
     pass 2 "$(wc -l <"$OUT/docs.log" | tr -d ' ') line(s) of log, site at $SITE_OUT/site"
@@ -165,8 +165,8 @@ mkdir -p "$IR"
 
 # (a) the extractor Lake builds. Built here rather than taken from item 2 so
 #     that this item fails on its own terms when the target is gone.
-(cd "$FIXTURE" && "$LAKE" build lean-doc/extract) >"$OUT/lake-build.log" 2>&1 \
-  || { echo "lake build lean-doc/extract failed — see $OUT/lake-build.log" >&2; tail -20 "$OUT/lake-build.log" >&2; }
+(cd "$FIXTURE" && "$LAKE" build litedoc4/extract) >"$OUT/lake-build.log" 2>&1 \
+  || { echo "lake build litedoc4/extract failed — see $OUT/lake-build.log" >&2; tail -20 "$OUT/lake-build.log" >&2; }
 LAKE_EXTRACT="$ROOT/.lake/build/bin/extract"
 
 # (b) the extractor `extractor/build.sh` builds, in the two steps that script
@@ -188,7 +188,7 @@ fi
 # The extractor needs the fixture's own oleans (probe §3).
 (cd "$MICRO" && "$LAKE" build) >"$OUT/micro-build.log" 2>&1
 
-# The same six flags `crates/lean-doc/src/extract.rs` fixes, in the same order:
+# The same six flags `crates/litedoc4/src/extract.rs` fixes, in the same order:
 #   <bin> <modules> <events> --equations --refs --write-ir --tagged-code
 #         --jobs 1 --ir-dir <dir> --link-index <file>
 run_extractor () { # $1 binary  $2 label
@@ -210,7 +210,7 @@ else
     # extractor with itself.
     fail 4 "the two extractors are the same bytes ($lake_digest) — this item would compare one extractor with itself"
   else
-    "$LEAN_DOC" modules --root "$MICRO" --out "$IR/modules.txt" >"$IR/modules.log" 2>&1
+    "$LITEDOC4" modules --root "$MICRO" --out "$IR/modules.txt" >"$IR/modules.log" 2>&1
     modules="$(grep -cvE '^[[:space:]]*(#|$)' "$IR/modules.txt" || true)"
     if [ "${modules:-0}" -lt 1 ]; then
       fail 4 "no modules to extract from $MICRO — see $IR/modules.log"
@@ -243,7 +243,7 @@ say "5/5 --lib came from Lake, not from the caller"
 # tautology "the flag we passed came out again": nothing above passed `--lib`,
 # and a script that read `defaultTargets`, took the first library, or used the
 # package name would produce a *shorter* site — the exact failure shape
-# `crates/lean-doc/src/lakefile.rs` is built against.
+# `crates/litedoc4/src/lakefile.rs` is built against.
 #
 # Two assertions, cause and effect. The command line is the cause; the module
 # index is the effect, and it is the one that cannot be satisfied by printing.
@@ -253,13 +253,13 @@ if [ "$site_ok" -eq 1 ]; then
   got_libs="$(python3 - "$OUT/docs.log" <<'PY'
 import sys
 
-# The one line the script prints before spawning: `lean-doc: <bin> build …`.
+# The one line the script prints before spawning: `litedoc4: <bin> build …`.
 # Read out of the log rather than reconstructed, because what is being checked
 # is the command line that actually ran.
 line = ""
 with open(sys.argv[1], encoding="utf-8") as handle:
     for text in handle:
-        if text.startswith("lean-doc: ") and " build " in text:
+        if text.startswith("litedoc4: ") and " build " in text:
             line = text
 words = line.split()
 print(" ".join(word for before, word in zip(words, words[1:]) if before == "--lib"))

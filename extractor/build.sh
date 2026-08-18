@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds lean-doc's extractor (Extract.lean, IR schema 4) into a native binary
+# Builds litedoc4's extractor (Extract.lean, IR schema 4) into a native binary
 # under `build/`.
 #
 # Moved from `experiments/stage7d/build.sh` in M4-a. **The shape is unchanged**
@@ -8,7 +8,7 @@
 # steps below are still two steps and `leanc` is still called with `-rdynamic`;
 # see the comment there.
 #
-# lean-doc has no toolchain and no Mathlib of its own, so the Lean environment is
+# litedoc4 has no toolchain and no Mathlib of its own, so the Lean environment is
 # borrowed from the measurement target through `lake env` (CLAUDE.md).
 # `TARGET_REPO` selects it.
 #

@@ -2,7 +2,7 @@
 # Build a Lean package **and its documentation** in one job.
 #
 # Milestone **M6**. This is the body of the CI job; `.github/workflow-templates/
-# lean-doc-docs.yml` is a wrapper that checks things out and calls this file.
+# litedoc4-docs.yml` is a wrapper that checks things out and calls this file.
 #
 # ============================================================================
 # WHY THE COMMANDS ARE HERE AND NOT IN THE YAML
@@ -34,7 +34,7 @@
 #   7.75 GiB, not of the split.
 #
 #   The placement is still the point of this script — `lake build` first, then
-#   `lean-doc build`, one job, one runner, one page cache — but for the reason
+#   `litedoc4 build`, one job, one runner, one page cache — but for the reason
 #   the control gives, not the one the first measurement suggested: **the cold
 #   penalty is 5-12x, and whether a split job is cold depends on the runner's
 #   RAM against the package's working set.** One job does not have to ask.
@@ -61,7 +61,7 @@
 # WHEN THE EXTRACTOR IS BUILT
 # ============================================================================
 #   `extractor/build.sh` compiles Extract.lean against **the package's own
-#   toolchain** (`lake env` borrows it — lean-doc has no toolchain and no Mathlib
+#   toolchain** (`lake env` borrows it — litedoc4 has no toolchain and no Mathlib
 #   of its own, CLAUDE.md; the root `lakefile.lean` deliberately has no
 #   `lean-toolchain` beside it either). It therefore cannot be shipped as a
 #   binary and cannot be built before the package's toolchain exists. It also
@@ -86,7 +86,7 @@
 # WHAT THIS NEVER DOES
 # ============================================================================
 #   It never writes inside `--root` beyond what `lake build` itself writes:
-#   `--out` is refused by `lean-doc build` if it is under `--root`, and this
+#   `--out` is refused by `litedoc4 build` if it is under `--root`, and this
 #   script refuses it earlier so that the run stops before it has done anything.
 #   The documentation tree is `<out>/site`; a caller who wants it inside the
 #   repository copies it there.
@@ -104,11 +104,11 @@
 #   --lake <path>           the lake executable (default: $LAKE, else `lake`)
 #   --extractor-bin <path>  the Lean extractor (default: <repo>/extractor/build/
 #                           extract, built by extractor/build.sh if missing)
-#   --lean-doc-bin <path>   the lean-doc binary (default: <repo>/target/release/
-#                           lean-doc, built with cargo if missing)
+#   --litedoc4-bin <path>   the litedoc4 binary (default: <repo>/target/release/
+#                           litedoc4, built with cargo if missing)
 #   --timings <file>        phase timings as one JSON object
 #                           (default: <out>/ci-timings.json)
-#   -- <args>...            passed through to `lean-doc build` (e.g. --lib,
+#   -- <args>...            passed through to `litedoc4 build` (e.g. --lib,
 #                           --source-url, --full)
 set -euo pipefail
 
@@ -121,7 +121,7 @@ LAKE="${LAKE:-lake}"
 CACHE_GET=0
 LAKE_BUILD=1
 EXTRACTOR_BIN="${EXTRACT_BIN:-$REPO/extractor/build/extract}"
-LEAN_DOC_BIN="${LEAN_DOC_BIN:-$REPO/target/release/lean-doc}"
+LITEDOC4_BIN="${LITEDOC4_BIN:-$REPO/target/release/litedoc4}"
 TIMINGS=""
 BUILD_ARGS=()
 
@@ -134,7 +134,7 @@ while [ $# -gt 0 ]; do
     --jobs) JOBS="$2"; shift 2 ;;
     --lake) LAKE="$2"; shift 2 ;;
     --extractor-bin) EXTRACTOR_BIN="$2"; shift 2 ;;
-    --lean-doc-bin) LEAN_DOC_BIN="$2"; shift 2 ;;
+    --litedoc4-bin) LITEDOC4_BIN="$2"; shift 2 ;;
     --timings) TIMINGS="$2"; shift 2 ;;
     --) shift; BUILD_ARGS=("$@"); break ;;
     -h|--help) sed -n '/^# usage:/,/^set -euo/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//;$d'; exit 0 ;;
@@ -148,7 +148,7 @@ done
 
 ROOT="$(cd "$ROOT" && pwd)"
 
-# Stated against the paths rather than left to the later stage: `lean-doc build`
+# Stated against the paths rather than left to the later stage: `litedoc4 build`
 # refuses this too, but by then the run has already spent `lake build`.
 #
 # **Before `mkdir`, and twice.** Creating the directory is itself a write into
@@ -193,12 +193,12 @@ T0="$(now)"
 step "environment"
 echo "package     $ROOT"
 echo "output      $OUT"
-echo "lean-doc    $REPO"
+echo "litedoc4    $REPO"
 if [ -f "$ROOT/lean-toolchain" ]; then
   echo "toolchain   $(tr -d '\n' < "$ROOT/lean-toolchain")"
 fi
 # Asked from inside the package: `lake` is an elan shim that picks the
-# toolchain from the nearest `lean-toolchain`, and lean-doc has none of its own
+# toolchain from the nearest `lean-toolchain`, and litedoc4 has none of its own
 # (CLAUDE.md), so the same command run from this repository answers "not found".
 echo "lake        $( (cd "$ROOT" && "$LAKE" --version 2>&1 | head -1) || echo 'not found')"
 echo "uname       $(uname -srm)"
@@ -257,30 +257,30 @@ else
   exit 1
 fi
 
-# ------------------------------------------------------------------ 4 lean-doc
-step "4/5  the lean-doc binary (Rust)"
+# ------------------------------------------------------------------ 4 litedoc4
+step "4/5  the litedoc4 binary (Rust)"
 t="$(now)"
 # **Always ask cargo**, rather than skipping it because the file is there.
 #
-# The workflow's cache key for `target/` is `hashFiles('lean-doc/Cargo.lock')`,
-# which does not move when lean-doc's *sources* do — so "the binary exists" was
+# The workflow's cache key for `target/` is `hashFiles('litedoc4/Cargo.lock')`,
+# which does not move when litedoc4's *sources* do — so "the binary exists" was
 # true of a binary built from a different commit, and the run measured code
 # nobody had written yet【実測 2026-08-17, runs 31963079828 / 31963305864: both
-# built the current extractor and ran a `lean-doc` from before 段 C, and the
+# built the current extractor and ran a `litedoc4` from before 段 C, and the
 # one-module gate is what noticed】. Cargo is the tool that knows whether the
 # binary matches the sources; a shell `-x` test is not. A fresh tree costs ~0.2 s
 # here, which is the whole price of never asking that question wrong again.
 #
-# An explicit --lean-doc-bin is taken as given: the caller named a file outside
+# An explicit --litedoc4-bin is taken as given: the caller named a file outside
 # this checkout and this script has no standing to rebuild it.
-if [ "$LEAN_DOC_BIN" = "$REPO/target/release/lean-doc" ]; then
-  (cd "$REPO" && cargo build --release -p lean-doc)
+if [ "$LITEDOC4_BIN" = "$REPO/target/release/litedoc4" ]; then
+  (cd "$REPO" && cargo build --release -p litedoc4)
   record cargo "$(elapsed "$t" "$(now)")" "built"
-elif [ -x "$LEAN_DOC_BIN" ]; then
-  echo "given: $LEAN_DOC_BIN (--lean-doc-bin, taken as it is)"
+elif [ -x "$LITEDOC4_BIN" ]; then
+  echo "given: $LITEDOC4_BIN (--litedoc4-bin, taken as it is)"
   record cargo "$(elapsed "$t" "$(now)")" "given"
 else
-  echo "no lean-doc binary at $LEAN_DOC_BIN" >&2
+  echo "no litedoc4 binary at $LITEDOC4_BIN" >&2
   exit 1
 fi
 
@@ -290,15 +290,15 @@ fi
 # glob, --source-url from git, the dependency map from the environment the
 # extractor imports anyway, and the choice between full generation and the
 # incremental path from what is already under --out.
-step "5/5  lean-doc build"
+step "5/5  litedoc4 build"
 t="$(now)"
-"$LEAN_DOC_BIN" build \
+"$LITEDOC4_BIN" build \
   --root "$ROOT" \
   --out "$OUT" \
   --extractor-bin "$EXTRACTOR_BIN" \
   --lake "$LAKE" \
   --jobs "$JOBS" \
-  --timings "$OUT/lean-doc-timings.json" \
+  --timings "$OUT/litedoc4-timings.json" \
   "${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"}"
 record docs "$(elapsed "$t" "$(now)")" "ran"
 

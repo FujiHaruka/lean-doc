@@ -3,7 +3,7 @@
 # never seen doc-gen4, generated from scratch by this script.
 #
 # Milestone **M5-b**, and the subject of plan §1's gate B ("a Mathlib-dependent
-# package *other than* the measurement target, `lean-doc build` in one command,
+# package *other than* the measurement target, `litedoc4 build` in one command,
 # and the incremental path works there"). The measurement target cannot answer
 # that question on its own: it carries a 736 MB doc-gen4 output tree, so a
 # dependency map can always be handed to the renderer from outside. Here there
@@ -152,8 +152,8 @@ cp "$SRC/lake-manifest.json" "$OUT/lake-manifest.json"
 # ---------------------------------------------------------------- the lakefile
 #
 # **Two `[[lean_lib]]` blocks**, which is the shape the measurement target does
-# not have (it declares one). `lean-doc build` derives `--lib` from this file
-# (`crates/lean-doc/src/lakefile.rs`), and a recogniser that reads only the first
+# not have (it declares one). `litedoc4 build` derives `--lib` from this file
+# (`crates/litedoc4/src/lakefile.rs`), and a recogniser that reads only the first
 # block would document half the package and report success — the silent
 # under-read that file is written against. Here it has two to find.
 #
@@ -257,7 +257,7 @@ namespace Alpha.NulCode
 before@@NUL@@after
 ```
 
-MD4Lean dies on this input with SIGSEGV (`wrapper.c:558`); `lean-doc-md`
+MD4Lean dies on this input with SIGSEGV (`wrapper.c:558`); `litedoc4-md`
 substitutes U+FFFD for the byte and keeps going. See `Alpha.Basic.alphaConst`.
 -/
 def nulInCode : Nat := 1
@@ -277,7 +277,7 @@ namespace Alpha.EmptyTable
 |------|-------|
 
 MD4Lean dies on this input with SIGABRT (`wrapper.c:389`, an assert);
-`lean-doc-md` emits an empty `<tbody>` and keeps going.
+`litedoc4-md` emits an empty `<tbody>` and keeps going.
 -/
 def emptyTable : Nat := 2
 
@@ -398,7 +398,7 @@ LEAN
 # splits tokens on and UnicodeBasic does not (plan §8, V6 —
 # `benchmarks/results/m2b-v6-token-separators.json`). It is inside a code span
 # because that is the only place `ModuleFacts::tokens` looks
-# (`lean-doc-global/src/facts.rs`).
+# (`litedoc4-global/src/facts.rs`).
 cat > "$OUT/Beta/TokenSep.lean" <<'LEAN'
 import Alpha.Basic
 
@@ -463,7 +463,7 @@ fi
 
 # -------------------------------------------------------------------- the repo
 #
-# `lean-doc build` derives `--source-url` from git: `HEAD` has to be 40 hex
+# `litedoc4 build` derives `--source-url` from git: `HEAD` has to be 40 hex
 # digits (plan 決定 1 — the acceptance oracle normalises `/blob/[0-9a-f]{40}/`
 # and nothing else) and the remote has to be a github.com one, because the
 # `/blob/<rev>/<path>` shape is GitHub's and a guessed one 404s on every
@@ -480,9 +480,9 @@ IGNORE
 git -C "$OUT" init -q
 git -C "$OUT" add -A
 GIT_AUTHOR_DATE="2026-08-15T00:00:00+0000" GIT_COMMITTER_DATE="2026-08-15T00:00:00+0000" \
-  git -C "$OUT" -c user.name=lean-doc -c user.email=lean-doc@example.invalid \
+  git -C "$OUT" -c user.name=litedoc4 -c user.email=litedoc4@example.invalid \
   commit -q -m "target2: two libraries and six boundary values"
-git -C "$OUT" remote add origin https://github.com/lean-doc/target2.git
+git -C "$OUT" remote add origin https://github.com/litedoc4/target2.git
 
 echo "### target2 at $OUT"
 echo "    deps    $DEPS"

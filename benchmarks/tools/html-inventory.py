@@ -2,7 +2,7 @@
 #
 # Read-only inventory of doc-gen4's finished HTML against the stage-4 IR.
 #
-# Stage 4 asks whether lean-doc and doc-gen4 are doing *the same work*, which is
+# Stage 4 asks whether litedoc4 and doc-gen4 are doing *the same work*, which is
 # the precondition for any speed number to mean anything. This tool answers the
 # other half of that question: given the IR the extractor writes, what is still
 # missing before the HTML could be rebuilt from it? It counts, on the same 348
@@ -70,7 +70,7 @@ import time
 
 DEFAULT_TARGET_REPO = "/Users/haruka/dev/lean-projects"
 DEFAULT_IR = (
-    "/private/tmp/claude-502/-Users-haruka-dev-lean-doc/"
+    "/private/tmp/claude-502/-Users-haruka-dev-litedoc4/"
     "3db6b213-b50d-48cb-a16b-16df93b5f009/scratchpad/ir"
 )
 
@@ -920,7 +920,7 @@ def render(cond, s, ir_index, ir_names, ir_name_parts, census, head2head):
     say(f"`<a href=\"#top\">return to top</a>` は {n(s['pages_with_top_href'])}/{n(r['pages'])} ページにあるが、"
         f"`id=\"top\"` を持つページは {n(s['pages_with_top_id'])}。"
         "**348 ページ全部でこのリンクは死んでいる** (doc-gen4 側のバグ)。"
-        "lean-doc は真似しなくてよい、という意味で差分に数える。")
+        "litedoc4 は真似しなくてよい、という意味で差分に数える。")
     say("")
 
     return "\n".join(lines) + "\n"

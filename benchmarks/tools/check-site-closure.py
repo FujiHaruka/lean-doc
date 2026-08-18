@@ -114,7 +114,7 @@ def main():
         # **two** false failures per direction on `batteries`【実測 2026-08-17】,
         # in both directions at once, which is the signature of a comparison
         # done in the wrong alphabet rather than of a site that is inconsistent.
-        # `crates/lean-doc/src/packages.rs`'s oracle undoes the same escape for
+        # `crates/litedoc4/src/packages.rs`'s oracle undoes the same escape for
         # the same reason.
         decl_anchors[page] = {html.unescape(a) for a in DECL_ANCHOR.findall(text)}
         all_anchors[page] = {html.unescape(a) for a in ANY_ANCHOR.findall(text)}

@@ -36,7 +36,7 @@
 #   JOBS           extractor threads                      (default: nproc)
 #   DROP           1 = drop the page cache before each build (default 0)
 #   APPEND         1 = add to an existing inventory rather than start one
-#   LEAN_DOC_DIR   this repository                        (default ./lean-doc)
+#   LITEDOC4_DIR   this repository                        (default ./litedoc4)
 #   TARGET_DIR     the Lean package to document           (default ./target)
 #   RESULTS        where the results go                   (default ./results)
 #   WORK           where the builds go                    (default $RUNNER_TEMP)
@@ -48,7 +48,7 @@ REPS="${REPS:-2}"
 LIB="${LIB:-InformationTheory}"
 DROP="${DROP:-0}"
 APPEND="${APPEND:-0}"
-LEAN_DOC_DIR="${LEAN_DOC_DIR:-lean-doc}"
+LITEDOC4_DIR="${LITEDOC4_DIR:-litedoc4}"
 TARGET_DIR="${TARGET_DIR:-target}"
 RESULTS="${RESULTS:-results}"
 WORK="${WORK:-${RUNNER_TEMP:-/tmp}}"
@@ -58,10 +58,10 @@ case "$ARM" in
   same | split | cold) ;;
   *) echo "ARM must be same, split or cold, not '$ARM'" >&2; exit 2 ;;
 esac
-[ -d "$LEAN_DOC_DIR" ] || { echo "no lean-doc at $LEAN_DOC_DIR" >&2; exit 2; }
+[ -d "$LITEDOC4_DIR" ] || { echo "no litedoc4 at $LITEDOC4_DIR" >&2; exit 2; }
 [ -d "$TARGET_DIR" ] || { echo "no package at $TARGET_DIR" >&2; exit 2; }
 
-LEAN_DOC_DIR="$(cd "$LEAN_DOC_DIR" && pwd)"
+LITEDOC4_DIR="$(cd "$LITEDOC4_DIR" && pwd)"
 TARGET_DIR="$(cd "$TARGET_DIR" && pwd)"
 mkdir -p "$RESULTS" "$WORK"
 RESULTS="$(cd "$RESULTS" && pwd)"
@@ -103,7 +103,7 @@ for i in $(seq 1 "$REPS"); do
     echo "dropped the page cache before $id"
   fi
   # shellcheck disable=SC2086
-  $TIME_CMD "$LEAN_DOC_DIR/tools/ci-build.sh" \
+  $TIME_CMD "$LITEDOC4_DIR/tools/ci-build.sh" \
     --root "$TARGET_DIR" \
     --out "$out" \
     --no-lake-build \
@@ -121,7 +121,7 @@ for i in $(seq 1 "$REPS"); do
   # The extractor's own phase log is where `importModules` lives — the phase the
   # placement claim is actually about. The end-to-end number contains CPU work
   # that placement cannot move.
-  cp "$out/lean-doc-timings.json" "$RESULTS/leandoc-$id.json" 2> /dev/null || true
+  cp "$out/litedoc4-timings.json" "$RESULTS/litedoc4-$id.json" 2> /dev/null || true
 
   # Freed before the next run: a full documentation tree per rep does not fit on
   # a runner alongside Mathlib.

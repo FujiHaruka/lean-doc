@@ -5,16 +5,16 @@
 #   `docs/approach.md` §3 and §8 used to say a split job costs **8-34x**, citing
 #   `importModules` **alone** on a 2-core / 7.75 GiB runner (`ci-import-modules.yml`).
 #   This workflow measured the thing a user actually pays — the whole
-#   `lean-doc build` — under both placements, and **that ratio did not reproduce**:
+#   `litedoc4 build` — under both placements, and **that ratio did not reproduce**:
 #   **1.08-1.58x** on the 4-core / 15.6 GiB runner, n=5
 #   【run 31956756819, 2026-08-16 → docs/verification-log.md】. The mechanism
 #   survived; the premise that a split job starts cold did not.
 #
 # THE THREE ARMS
-#   same   cache get -> lake build -> lean-doc build, one runner, one page cache.
+#   same   cache get -> lake build -> litedoc4 build, one runner, one page cache.
 #   split  a fresh runner: cache get (Mathlib's oleans, downloaded and unpacked),
 #          the package's own oleans and the extractor **restored as bytes** from
-#          the `same` job of the same pair, then lean-doc build with
+#          the `same` job of the same pair, then litedoc4 build with
 #          `--no-lake-build`.
 #   cold   the `same` runner again, with `drop_caches` before each build. Not a
 #          placement — the **control**. The first run of this A/B came back at
@@ -84,10 +84,10 @@ jobs:
       matrix:
         pair: ${{ fromJSON(github.event.inputs.pairs || '[1]') }}
     steps:
-      - name: Check out lean-doc
+      - name: Check out litedoc4
         uses: actions/checkout@v5
         with:
-          path: lean-doc
+          path: litedoc4
 
       - name: Check out the measurement target (public), pinned
         uses: actions/checkout@v5
@@ -97,7 +97,7 @@ jobs:
           path: target
 
       - name: Record the machine, before anything is downloaded
-        run: lean-doc/benchmarks/tools/record-runner.sh env-before.txt target
+        run: litedoc4/benchmarks/tools/record-runner.sh env-before.txt target
 
       - name: Install elan at the target's pinned toolchain
         run: |
@@ -107,10 +107,10 @@ jobs:
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
       - name: Install the Rust toolchain rust-toolchain.toml asks for
-        working-directory: lean-doc
+        working-directory: litedoc4
         run: |
           rustup show
-          cargo build --release -p lean-doc
+          cargo build --release -p litedoc4
 
       - name: lake exe cache get
         working-directory: target
@@ -122,8 +122,8 @@ jobs:
         env:
           TARGET_REPO: ${{ github.workspace }}/target
         run: |
-          /usr/bin/time -v lean-doc/extractor/build.sh 2>&1 | tail -20
-          ls -l lean-doc/extractor/build/extract
+          /usr/bin/time -v litedoc4/extractor/build.sh 2>&1 | tail -20
+          ls -l litedoc4/extractor/build/extract
 
       - name: lake build (the placement itself)
         working-directory: target
@@ -138,7 +138,7 @@ jobs:
           PAIR: ${{ matrix.pair }}
           REPS: ${{ github.event.inputs.reps }}
           LIB: ${{ github.event.inputs.lib }}
-        run: lean-doc/benchmarks/tools/run-placement-arm.sh
+        run: litedoc4/benchmarks/tools/run-placement-arm.sh
 
       # The positive control, on the same runner instance, so it carries no
       # cross-machine confound. If `same` and `split` come out equal, this is
@@ -153,14 +153,14 @@ jobs:
           LIB: ${{ github.event.inputs.lib }}
           DROP: "1"
           APPEND: "1"
-        run: lean-doc/benchmarks/tools/run-placement-arm.sh
+        run: litedoc4/benchmarks/tools/run-placement-arm.sh
 
       # The bytes arm `split` will restore. Only the library outputs: the docs
       # job needs the oleans, not the C intermediates.
       - name: Pack the package's oleans and the extractor for the split arm
         run: |
           tar -C target/.lake/build -cf oleans.tar lib
-          cp lean-doc/extractor/build/extract extract-bin
+          cp litedoc4/extractor/build/extract extract-bin
           ls -l oleans.tar extract-bin
 
       - name: Upload them
@@ -174,7 +174,7 @@ jobs:
           compression-level: 1
 
       - name: Check this arm before anyone reads it
-        run: lean-doc/benchmarks/tools/check-placement.sh results
+        run: litedoc4/benchmarks/tools/check-placement.sh results
 
       - name: Upload the raw logs
         if: always()
@@ -196,10 +196,10 @@ jobs:
       matrix:
         pair: ${{ fromJSON(github.event.inputs.pairs || '[1]') }}
     steps:
-      - name: Check out lean-doc
+      - name: Check out litedoc4
         uses: actions/checkout@v5
         with:
-          path: lean-doc
+          path: litedoc4
 
       - name: Check out the measurement target (public), pinned
         uses: actions/checkout@v5
@@ -209,7 +209,7 @@ jobs:
           path: target
 
       - name: Record the machine, before anything is downloaded
-        run: lean-doc/benchmarks/tools/record-runner.sh env-before.txt target
+        run: litedoc4/benchmarks/tools/record-runner.sh env-before.txt target
 
       - name: Install elan at the target's pinned toolchain
         run: |
@@ -219,10 +219,10 @@ jobs:
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
       - name: Install the Rust toolchain rust-toolchain.toml asks for
-        working-directory: lean-doc
+        working-directory: litedoc4
         run: |
           rustup show
-          cargo build --release -p lean-doc
+          cargo build --release -p litedoc4
 
       # The dependencies' oleans, exactly as the same-job arm got them.
       - name: lake exe cache get
@@ -238,9 +238,9 @@ jobs:
 
       - name: Put them where a build would have left them
         run: |
-          mkdir -p target/.lake/build lean-doc/extractor/build
+          mkdir -p target/.lake/build litedoc4/extractor/build
           tar -C target/.lake/build -xf oleans.tar
-          install -m 755 extract-bin lean-doc/extractor/build/extract
+          install -m 755 extract-bin litedoc4/extractor/build/extract
           find target/.lake/build/lib -name '*.olean' | wc -l
 
       - name: Measure
@@ -249,10 +249,10 @@ jobs:
           PAIR: ${{ matrix.pair }}
           REPS: ${{ github.event.inputs.reps }}
           LIB: ${{ github.event.inputs.lib }}
-        run: lean-doc/benchmarks/tools/run-placement-arm.sh
+        run: litedoc4/benchmarks/tools/run-placement-arm.sh
 
       - name: Check this arm before anyone reads it
-        run: lean-doc/benchmarks/tools/check-placement.sh results
+        run: litedoc4/benchmarks/tools/check-placement.sh results
 
       - name: Upload the raw logs
         if: always()
@@ -273,7 +273,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          path: lean-doc
+          path: litedoc4
 
       - name: Collect every arm's results
         uses: actions/download-artifact@v4
@@ -295,14 +295,14 @@ jobs:
             # the import time, so leaving it behind would make the union check
             # fail on runs that did report one.
             cp "$d"/timings-*.json "$d"/site-*.sha256 "$d"/time-*.txt results/ 2>/dev/null || true
-            cp "$d"/leandoc-*.json results/ 2>/dev/null || true
+            cp "$d"/litedoc4-*.json results/ 2>/dev/null || true
           done
           sort -o results/runs.txt results/runs.txt
-          lean-doc/benchmarks/tools/check-placement.sh results
+          litedoc4/benchmarks/tools/check-placement.sh results
 
       - name: Summarise
         if: always()
-        run: lean-doc/benchmarks/tools/summarize-placement.sh results arms | tee results/placement-summary.txt
+        run: litedoc4/benchmarks/tools/summarize-placement.sh results arms | tee results/placement-summary.txt
 
       - name: Upload the summary
         if: always()

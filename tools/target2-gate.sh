@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# M5-b — the gate of plan §1's **gate B**: `lean-doc build`, one command, on a
+# M5-b — the gate of plan §1's **gate B**: `litedoc4 build`, one command, on a
 # Mathlib-dependent package that has never seen doc-gen4.
 #
 # **Gate 1's site comparison is live again, and every comparison here now shows
 # up in the exit code.** Two things were wrong with it:
 #
-#   - The reference was `lean-doc site` invoked **without `--root`**, so it wrote
+#   - The reference was `litedoc4 site` invoked **without `--root`**, so it wrote
 #     relative links into dependencies while `build`, which always resolves a
 #     package root, wrote M7-c's version-pinned blob URLs. The two differed **by
 #     design** and the gate reported a FAIL nobody was allowed to act on. `site`
@@ -41,13 +41,13 @@
 # ============================================================================
 # THE GATES
 # ============================================================================
-#   1  ONE COMMAND, NO MAP    `lean-doc build --root <target2> --out <dir>
+#   1  ONE COMMAND, NO MAP    `litedoc4 build --root <target2> --out <dir>
 #                             --extractor-bin <bin>` and nothing else. It has to
 #                             find both libraries in the lakefile, glob the
 #                             modules, derive --source-url from git, write its
 #                             own dependency map and produce a site — which is
 #                             then compared byte for byte with the tree
-#                             `lean-doc site --root <target2>` writes from the
+#                             `litedoc4 site --root <target2>` writes from the
 #                             same IR and the same map. A difference means
 #                             `build` does something to the site that the
 #                             stage-by-stage path does not.
@@ -83,7 +83,7 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RUST_BIN="$REPO/target/release/lean-doc"
+RUST_BIN="$REPO/target/release/litedoc4"
 EXTRACT_BIN="${EXTRACT_BIN:-$REPO/extractor/build/extract}"
 LAKE="${LAKE:-$HOME/.elan/bin/lake}"
 # `diff` is aliased to a colordiff that is not installed here; its exit 127
@@ -122,7 +122,7 @@ esac
 [ -d "$TARGET2" ] || { echo "missing target 2: $TARGET2 — run tools/make-target2.sh" >&2; exit 1; }
 [ -x "$EXTRACT_BIN" ] || { echo "missing extractor: $EXTRACT_BIN" >&2; exit 1; }
 [ -x "$RUST_BIN" ] || {
-  echo "missing: $RUST_BIN — run: cargo build --release -p lean-doc" >&2; exit 1; }
+  echo "missing: $RUST_BIN — run: cargo build --release -p litedoc4" >&2; exit 1; }
 
 WORK="$OUT/work"
 mkdir -p "$OUT" "$WORK"
@@ -234,7 +234,7 @@ phase_gate1 () {
   echo "  site files          $pages"
   echo "  link index          $(wc -c < "$OUT/base/link-index.lidx" | tr -d ' ') B (derived by this run)"
 
-  # The reference: `lean-doc site` over the IR this run wrote, with the map this
+  # The reference: `litedoc4 site` over the IR this run wrote, with the map this
   # run derived. It is the *other* code path to the same tree — full generation
   # through `site` rather than through `build` — so a difference means `build`
   # is doing something to the site that `site` does not.

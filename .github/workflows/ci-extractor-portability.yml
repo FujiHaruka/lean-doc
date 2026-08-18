@@ -145,7 +145,7 @@ jobs:
           sha256sum "$RUNNER_TEMP/downloaded/extract"
 
       - name: Build the CLI
-        run: cargo build --bin lean-doc
+        run: cargo build --bin litedoc4
 
       - name: End to end, with a binary this runner never built
         run: |
@@ -259,7 +259,7 @@ jobs:
         run: rustup show
 
       - name: Build the CLI
-        run: cargo build --bin lean-doc
+        run: cargo build --bin litedoc4
 
       # `LAKE` is explicit because e2e-micro.sh defaults to ~/.elan/bin/lake,
       # and the whole point of this job is that there is nothing in ~/.elan.

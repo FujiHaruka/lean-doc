@@ -17,7 +17,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./env.sh
 source "$HERE/env.sh"
 
-WORK="${WORK_DIR:-/private/tmp/lean-doc-m7a}"
+WORK="${WORK_DIR:-/private/tmp/litedoc4-m7a}"
 LIDX="${1:-$WORK/link-index.lidx}"
 ORACLE="${2:-$WORK/decl-source-urls.tsv}"
 OUT="$RESULTS_DIR/m7a-lidx-url-check.txt"
@@ -26,7 +26,7 @@ LAKE="${LAKE:-$HOME/.elan/bin/lake}"
 
 [ -f "$LIDX" ] || {
   echo "no .lidx at $LIDX — build one with:" >&2
-  echo "  lean-doc extract --modules <list> --ir-dir <dir> --timings <f> \\" >&2
+  echo "  litedoc4 extract --modules <list> --ir-dir <dir> --timings <f> \\" >&2
   echo "    --link-index $LIDX --extractor-bin extractor/build/extract \\" >&2
   echo "    --target $TARGET_REPO" >&2
   exit 1
@@ -52,16 +52,16 @@ print(next((p["rev"] for p in m["packages"] if p["name"] == "mathlib"), "?"))' \
   echo "oracle              : $ORACLE ($(wc -l < "$ORACLE" | tr -d ' ') entries, \
 $(stat -f '%z' "$ORACLE") B)"
   echo "link index          : $LIDX ($(stat -f '%z' "$LIDX") B, marker $(head -1 "$LIDX"))"
-  echo "extractor           : $LEAN_DOC_ROOT/extractor/build/extract \
-($(stat -f '%Sm' "$LEAN_DOC_ROOT/extractor/build/extract" 2>/dev/null))"
+  echo "extractor           : $LITEDOC4_ROOT/extractor/build/extract \
+($(stat -f '%Sm' "$LITEDOC4_ROOT/extractor/build/extract" 2>/dev/null))"
   echo "rustc               : $(rustc --version)"
   echo "page cache          : not controlled (this check is I/O over two files, not a timing)"
 } > "$ENV_OUT"
 cat "$ENV_OUT"
 
-LEAN_DOC_LINK_INDEX="$LIDX" LEAN_DOC_DECL_URLS="$ORACLE" LEAN_DOC_TARGET="$TARGET_REPO" \
-  cargo test --manifest-path "$LEAN_DOC_ROOT/Cargo.toml" --release -p lean-doc \
-  --bin lean-doc every_lidx_entry_matches_doc_gen4s_declaration_urls \
+LITEDOC4_LINK_INDEX="$LIDX" LITEDOC4_DECL_URLS="$ORACLE" LITEDOC4_TARGET="$TARGET_REPO" \
+  cargo test --manifest-path "$LITEDOC4_ROOT/Cargo.toml" --release -p litedoc4 \
+  --bin litedoc4 every_lidx_entry_matches_doc_gen4s_declaration_urls \
   -- --nocapture --exact packages::tests::every_lidx_entry_matches_doc_gen4s_declaration_urls \
   > "$OUT" 2>&1
 status=$?

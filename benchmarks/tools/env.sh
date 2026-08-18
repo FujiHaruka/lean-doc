@@ -9,11 +9,11 @@ set -u
 # replace the baseline one.
 TARGET_REPO="${TARGET_REPO:-/Users/haruka/dev/lean-projects}"
 
-# This repository (lean-doc), resolved from the script location.
-LEAN_DOC_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# This repository (litedoc4), resolved from the script location.
+LITEDOC4_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 # Where raw timing logs land. Committed, so keep them small.
-RESULTS_DIR="${RESULTS_DIR:-$LEAN_DOC_ROOT/benchmarks/results}"
+RESULTS_DIR="${RESULTS_DIR:-$LITEDOC4_ROOT/benchmarks/results}"
 
 # The instrumented doc-gen4 binary inside the target repo.
 DOCGEN_BIN="$TARGET_REPO/.lake/packages/doc-gen4/.lake/build/bin/doc-gen4"

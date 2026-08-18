@@ -35,10 +35,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - name: Check out lean-doc (the measurement tools)
+      - name: Check out litedoc4 (the measurement tools)
         uses: actions/checkout@v5
         with:
-          path: lean-doc
+          path: litedoc4
 
       - name: Check out the measurement target (public)
         uses: actions/checkout@v5
@@ -75,7 +75,7 @@ jobs:
 
       - name: Build the residency probe
         run: |
-          cc -O2 -o olean-residency lean-doc/benchmarks/tools/olean-residency.c
+          cc -O2 -o olean-residency litedoc4/benchmarks/tools/olean-residency.c
           ./olean-residency < /dev/null && echo "probe runs"
 
       - name: Snapshot residency BEFORE the cache is fetched (the zero point)
@@ -116,7 +116,7 @@ jobs:
 
       - name: Summarise with the same tool the macOS numbers were taken with
         run: |
-          S=lean-doc/benchmarks/tools/summarize-residency.ts
+          S=litedoc4/benchmarks/tools/summarize-residency.ts
           {
             echo "## residency straight after 'lake exe cache get'"
             deno run --allow-read "$S" residency-1.jsonl

@@ -6,15 +6,15 @@
 # TS prototype (`--impl ts` = `experiments/stage7h/incremental.sh`) so that the
 # two implementations could be compared. `experiments/` was removed, so **that
 # comparison can no longer be made from this tree** — the prototype exists only
-# at tag `experiments-frozen`. What remains is `lean-doc incremental`
-# (`crates/lean-doc/src/pipeline.rs`).
+# at tag `experiments-frozen`. What remains is `litedoc4 incremental`
+# (`crates/litedoc4/src/pipeline.rs`).
 #
-# **`--extractor` selects what runs behind `lean-doc incremental`'s `--extractor`
+# **`--extractor` selects what runs behind `litedoc4 incremental`'s `--extractor`
 # flag** (M4-b). Both spellings drive the same Lean extraction; what differs is
 # who spells the command line and who folds the events into the timings:
 #
-#   --extractor product   `lean-doc extract` + extractor/build/extract (default)
-#   --extractor resident  **no `--extractor` at all** (M4-c): `lean-doc
+#   --extractor product   `litedoc4 extract` + extractor/build/extract (default)
+#   --extractor resident  **no `--extractor` at all** (M4-c): `litedoc4
 #                         incremental --serve` starts one Lean environment per
 #                         run and asks it every round. The comparison this makes
 #                         possible is the M4-c gate — the same seven scenarios
@@ -59,13 +59,13 @@
 #    leave the tree a full run would have written".
 #
 # 2. **The module list is built here, once, under `LC_ALL=C`** 【実測, 確定】.
-#    `lean-doc modules` sorts in UTF-16 code-unit order; the prototype's
+#    `litedoc4 modules` sorts in UTF-16 code-unit order; the prototype's
 #    `find … | sort` sorted in the caller's locale, and on this machine's
 #    `en_US.UTF-8` **163 of the 432 lines land in a different position** — same
 #    set, same count. That order is not cosmetic: it is the order of the ledger's
 #    `modules` array *and* (M3-d2b) the order of the merged `index.json`'s
 #    `modules` array, i.e. it makes bytes. So this script builds the list once and
-#    **checks it against `lean-doc modules`, refusing to run if they differ** —
+#    **checks it against `litedoc4 modules`, refusing to run if they differ** —
 #    which is what documents the trap rather than merely avoiding it.
 #
 # 3. **The ledger and the global-derivation cache are seeded by the run itself.**
@@ -110,7 +110,7 @@
 #
 #   The module the last three turn on is `InformationTheory.Meta.EntryPoint`:
 #   **1 declaration, imports nothing itself, and is imported directly by 281 of
-#   the 432 modules** 【実測 2026-08-15, `lean-doc impact --census`】. It is not a
+#   the 432 modules** 【実測 2026-08-15, `litedoc4 impact --census`】. It is not a
 #   leaf. It is used here because its single declaration is an `initialize`, so
 #   removing it moves one entry of the global name map and (predicted, checked by
 #   the run) no other module's `refs`; with `--mode self` none of the 281
@@ -120,7 +120,7 @@
 # WHAT IS RECORDED PER SCENARIO — the denominator of the comparison
 # ============================================================================
 #   <s>-status.txt       the exit code
-#   <s>-stdout.txt       recorded, **not compared**: `lean-doc incremental` prints
+#   <s>-stdout.txt       recorded, **not compared**: `litedoc4 incremental` prints
 #                        a progress line per stage as well as the timings record
 #                        (pipeline.rs's heading says so), and only the timings
 #                        record is an answer. It is what <s>-counts.json is
@@ -144,7 +144,7 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PRODUCT_EXTRACT_BIN="$REPO/extractor/build/extract"
-RUST_BIN="$REPO/target/release/lean-doc"
+RUST_BIN="$REPO/target/release/litedoc4"
 
 EXTRACTOR_IMPL=product
 OUT=
@@ -156,7 +156,7 @@ REF_SITE=/private/tmp/lean-doc-relay/m2/gate/ref-site
 JOBS=4
 
 # The revision every stage-5 number was taken at. 40 lower-case hex digits,
-# because `lean-doc incremental` refuses anything else (plan 決定 1) and because
+# because `litedoc4 incremental` refuses anything else (plan 決定 1) and because
 # the acceptance oracle normalises exactly that shape.
 URL="https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec"
 # A *different* 40-hex revision, for the one scenario whose whole point is that
@@ -209,10 +209,10 @@ esac
 [ -f "$LIDX" ] || { echo "missing link index: $LIDX" >&2; exit 1; }
 [ -x "$EXTRACTOR" ] || { echo "missing extractor: $EXTRACTOR" >&2; exit 1; }
 command -v python3 >/dev/null || { echo "python3 is required" >&2; exit 1; }
-# The module-list check below is stated against `lean-doc modules`, which is the
+# The module-list check below is stated against `litedoc4 modules`, which is the
 # thing whose order the run depends on.
 [ -x "$RUST_BIN" ] || {
-  echo "missing: $RUST_BIN — run: cargo build --release -p lean-doc" >&2; exit 1; }
+  echo "missing: $RUST_BIN — run: cargo build --release -p litedoc4" >&2; exit 1; }
 
 # `added-one` starts from what `removed-one` left behind, so selecting it
 # selects that too.
@@ -388,7 +388,7 @@ mkdir -p "$FIX"
   | sed 's/\.lean$//; s#/#.#g' > "$OUT/modules-432.txt"
 "$RUST_BIN" modules --root "$TARGET" --lib "$LIB" > "$WORKROOT/modules-from-cli.txt"
 if ! /usr/bin/diff -q "$OUT/modules-432.txt" "$WORKROOT/modules-from-cli.txt" > /dev/null; then
-  echo "the LC_ALL=C source glob and \`lean-doc modules\` disagree — the run would" >&2
+  echo "the LC_ALL=C source glob and \`litedoc4 modules\` disagree — the run would" >&2
   echo "compare two different module orders, which makes two different ledgers and" >&2
   echo "two different index.json files. Refusing." >&2
   /usr/bin/diff "$OUT/modules-432.txt" "$WORKROOT/modules-from-cli.txt" | head -20 >&2
@@ -481,7 +481,7 @@ fi
 # 2. One module invalidated: the minimal edit. `ledger touch` is the honest fake
 #    the whole experiment rests on — the measurement target must not be modified,
 #    so "M changed" is injected by invalidating M's ledger entry and everything
-#    downstream is real (`lean-doc ledger touch`).
+#    downstream is real (`litedoc4 ledger touch`).
 if selected self-one; then
   setup_live self-one "$FIX/base-ir" "$FIX/base-site" "$FIX/base-ledger.json" "$FIX/base-state"
   ledger_touch "$WORKROOT/self-one/ledger.json" "$ONE" > "$WORKROOT/self-one/touch.log"

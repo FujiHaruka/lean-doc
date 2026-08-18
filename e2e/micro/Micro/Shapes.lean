@@ -5,7 +5,7 @@ import Micro.Basic
 
 **The declaration shapes the measurement target does not contain.**
 
-`crates/lean-doc-render/tests/page_parts.rs` records that nine of the renderer's
+`crates/litedoc4-render/tests/page_parts.rs` records that nine of the renderer's
 41 branches never fire over the whole 432-module package: there is no `class`,
 no `inductive` and no `class_inductive` declaration, no structure whose
 constructor is not `mk`, no structure without a `ctor` member, no inherited
@@ -73,7 +73,7 @@ which is what doc-gen4 uses — has nothing for it.
 
 **The measurement target never produced this shape and `batteries` did on the
 first page it was pointed at**【実測 2026-08-17】: `class LawfulLTCmp … extends
-Std.OrientedCmp` made `lean-doc build` stop with `no defining module for
+Std.OrientedCmp` made `litedoc4 build` stop with `no defining module for
 Std.OrientedCmp.eq_swap`, having rendered nothing. The name is in the `.lidx`
 all along — the whole environment is — so the fix was to let the lookup fall
 through to it. This declaration is what keeps that path exercised. -/

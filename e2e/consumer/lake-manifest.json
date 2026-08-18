@@ -3,7 +3,7 @@
  "packages":
  [{"type": "path",
    "scope": "",
-   "name": "«lean-doc»",
+   "name": "«litedoc4»",
    "manifestFile": "lake-manifest.json",
    "inherited": false,
    "dir": "../..",

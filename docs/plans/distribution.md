@@ -8,7 +8,7 @@ D4 は「配れると確認した上で配らない」判定。起票時点で�
 |---|---|
 | **D1** 検証 | X1/X3/X4/X5/X6 すべて実測。extractor は **toolchain だけで決まり、可搬で、不一致では静かに壊れない** |
 | **D2** Release | **`v0.1.3`** — Linux musl (静的) / macOS arm。書庫に `LICENSE` + `NOTICE` |
-| **D3** action | **`FujiHaruka/lean-doc@v0.1.3`** — 利用側は 5 行。self-test 5 ジョブ |
+| **D3** action | **`FujiHaruka/litedoc4@v0.1.3`** — 利用側は 5 行。self-test 5 ジョブ |
 | **D4** extractor | **配らない**。226 MB vs 16 s のビルド、しかも CI はキャッシュする |
 
 **この作業で見つけた欠陥は 11 件。product は 0 件で、全部が配布経路か検査自身**:
@@ -28,7 +28,7 @@ D4 は「配れると確認した上で配らない」判定。起票時点で�
 
 | 配るもの | サイズ | ビルド | 依存 |
 |---|---:|---:|---|
-| `lean-doc` (Rust) | **2.5 MB**【実測 2026-08-17】 | **~24 s**【実測 CI, run 31955883894】 | `serde_json` + vendored md4c。**自己完結** |
+| `litedoc4` (Rust) | **2.5 MB**【実測 2026-08-17】 | **~24 s**【実測 CI, run 31955883894】 | `serde_json` + vendored md4c。**自己完結** |
 | `extract` (Lean) | **171 MB** / gzip **45.9 MB**【実測 2026-08-18】 | **~16 s**【実測 2026-08-15】 | **対象の toolchain**。`lake env` で借りる |
 | 使い方 (CI) | — | — | README の 30 行 YAML をコピペ + `checkout` 2 回 |
 
@@ -38,7 +38,7 @@ D4 は「配れると確認した上で配らない」判定。起票時点で�
   数百 MB の cargo キャッシュを消す) が、**Lean 側は得かどうか自明でない**
   (45.9 MB のダウンロード vs 16 s のビルド、しかも toolchain × OS で掛け算になる)。
 
-`.github/workflow-templates/lean-doc-docs.yml` は**配布経路として機能していない** — GitHub の
+`.github/workflow-templates/litedoc4-docs.yml` は**配布経路として機能していない** — GitHub の
 starter workflow は org の `.github` リポジトリ専用で、個人リポジトリに置いても他人からは
 見えない。ファイル自身も "inert where it sits" と書いている。
 
@@ -113,7 +113,7 @@ X2 で比べるのは「バイナリの byte」ではなく「**出てくる IR 
   2. `aarch64-apple-darwin` — ローカル開発の主戦場
   3. `aarch64-unknown-linux-gnu` — arm runner 向け。余裕があれば
 - **`checksums.txt`** を同梱。
-- **書庫の中身は `lean-doc` + `LICENSE` + `NOTICE`**【ライセンス上の要件、2026-08-18 に判定 →
+- **書庫の中身は `litedoc4` + `LICENSE` + `NOTICE`**【ライセンス上の要件、2026-08-18 に判定 →
   `provenance.md` §4】。バイナリ配布は Apache-2.0 §4 の **Object form** に当たるので (a) が
   発動し、**md4c の MIT は「参照」では運べない** — `NOTICE` は全文を `vendor/` に指していただけで、
   書庫に vendor/ は入らない。**同日 `NOTICE` に md4c の MIT 全文を入れて塞いだ**。
@@ -125,7 +125,7 @@ X2 で比べるのは「バイナリの byte」ではなく「**出てくる IR 
 >   **この検査自体が最初に落ちた** — `ldd` の文言 (`not a dynamic executable` /
 >   `statically linked`) で判定していたため。いまは `=>` の有無で見る
 > - 書庫: **Linux musl 1,146,144 B / macOS arm 961,119 B**【実測】。中身は
->   `lean-doc` + `LICENSE` + `NOTICE` (ライセンス上の要件、上記)
+>   `litedoc4` + `LICENSE` + `NOTICE` (ライセンス上の要件、上記)
 > - **smoke が本物**: 書庫を展開して `tools/e2e-micro.sh` を完走 (one command /
 >   idempotence / determinism)。さらに **README の手順を手元でそのまま実行**して
 >   `latest/download` → 展開 → `--version` まで確認
@@ -138,7 +138,7 @@ X2 で比べるのは「バイナリの byte」ではなく「**出てくる IR 
 ### D3 — composite action を出す
 
 - **ルートに `action.yml`** (Marketplace 掲載にはルート必須。掲載自体は後で良く、
-  `uses: FujiHaruka/lean-doc@v0.1.3` は掲載と無関係に動く)。
+  `uses: FujiHaruka/litedoc4@v0.1.3` は掲載と無関係に動く)。
 - 中身は `tools/ci-build.sh` を呼ぶだけ。キャッシュ鍵 3 つを内側に隠す。
 - **Pages への publish は入れない** — 責務が別。`site` を output で返す。
 - **ハマりどころ (設計に織り込む)**:
@@ -161,7 +161,7 @@ X2 で比べるのは「バイナリの byte」ではなく「**出てくる IR 
 >   sentinel で **初回だけ restore する**形に直し、4 つの cache すべてに同じガードを入れた
 >   (一般形に引き上げ — CLAUDE.md「欠陥を直すとき」)
 > - **わざと落とす経路**が緑: 存在しない `root` で action は失敗する
-> - **`uses: FujiHaruka/lean-doc@main`** が緑 = `_actions/` への展開という実配布経路が動く。
+> - **`uses: FujiHaruka/litedoc4@main`** が緑 = `_actions/` への展開という実配布経路が動く。
 >   これで README の未検証項目「利用者リポジトリの checkout」も実質潰れた
 > - **Release からバイナリを取る経路も実走した** — `uses:@v0.1.3` で
 >   **`binary-source = release`**【実測】。`binary-source` output を足したのはこのため
@@ -170,7 +170,7 @@ X2 で比べるのは「バイナリの byte」ではなく「**出てくる IR 
 >   (`ref=''` と印字された。context 式 `github.action_ref` には来るので env で渡す)、
 >   (b) ref が tag かどうかだけで判定すると **`@main` が古い Release のバイナリを掴む** —
 >   いまは **ref がツリーの `Cargo.toml` の版と一致するときだけ**取る。
->   あわせて「`target/release/lean-doc` があれば使う」も**やめた**: そのファイルは
+>   あわせて「`target/release/litedoc4` があれば使う」も**やめた**: そのファイルは
 >   cargo キャッシュ由来かもしれず、鍵は `Cargo.lock` なので**ソースが動いても動かない**
 >   (`ci-build.sh` が一度払った失敗)
 > - **self-test 自身も 1 度直した**: 「1 回目は必ず描画する」が**状態キャッシュの中身に

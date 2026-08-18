@@ -66,10 +66,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 330
     steps:
-      - name: Check out lean-doc (the measurement tools)
+      - name: Check out litedoc4 (the measurement tools)
         uses: actions/checkout@v5
         with:
-          path: lean-doc
+          path: litedoc4
 
       - name: Check out the measurement target (public), pinned
         uses: actions/checkout@v5
@@ -107,7 +107,7 @@ jobs:
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
       - name: Build the residency probe
-        run: cc -O2 -o olean-residency lean-doc/benchmarks/tools/olean-residency.c
+        run: cc -O2 -o olean-residency litedoc4/benchmarks/tools/olean-residency.c
 
       - name: lake exe cache get
         working-directory: target
@@ -127,8 +127,8 @@ jobs:
         env:
           TARGET_REPO: ${{ github.workspace }}/target
         run: |
-          /usr/bin/time -v lean-doc/extractor/build.sh 2>&1 | tail -20
-          ls -l lean-doc/extractor/build/extract
+          /usr/bin/time -v litedoc4/extractor/build.sh 2>&1 | tail -20
+          ls -l litedoc4/extractor/build/extract
 
       - name: lake build (the target's own 432 modules)
         working-directory: target
@@ -149,22 +149,22 @@ jobs:
       - name: Run 1 — immediately after the build (what CI would actually pay)
         working-directory: target
         env:
-          MODULES: ${{ github.workspace }}/lean-doc/benchmarks/results/it-modules.txt
+          MODULES: ${{ github.workspace }}/litedoc4/benchmarks/results/it-modules.txt
         run: |
           lake env /usr/bin/time -v \
-            "$GITHUB_WORKSPACE/lean-doc/extractor/build/extract" \
+            "$GITHUB_WORKSPACE/litedoc4/extractor/build/extract" \
             "$MODULES" "$GITHUB_WORKSPACE/import-after-build.jsonl" \
             2>&1 | tee "$GITHUB_WORKSPACE/time-after-build.txt" | tail -25
 
       - name: Warm runs — the floor on this hardware
         working-directory: target
         env:
-          MODULES: ${{ github.workspace }}/lean-doc/benchmarks/results/it-modules.txt
+          MODULES: ${{ github.workspace }}/litedoc4/benchmarks/results/it-modules.txt
         run: |
           n='${{ github.event.inputs.warm_runs }}'; n=${n:-4}
           for i in $(seq 1 "$n"); do
             lake env /usr/bin/time -v \
-              "$GITHUB_WORKSPACE/lean-doc/extractor/build/extract" \
+              "$GITHUB_WORKSPACE/litedoc4/extractor/build/extract" \
               "$MODULES" "$GITHUB_WORKSPACE/import-warm-$i.jsonl" \
               2>&1 | tee "$GITHUB_WORKSPACE/time-warm-$i.txt" | grep -E 'Major|Maximum resident' || true
             echo "warm run $i done"
@@ -173,7 +173,7 @@ jobs:
       - name: Cold runs — the ceiling on this hardware (page cache dropped)
         working-directory: target
         env:
-          MODULES: ${{ github.workspace }}/lean-doc/benchmarks/results/it-modules.txt
+          MODULES: ${{ github.workspace }}/litedoc4/benchmarks/results/it-modules.txt
         run: |
           n='${{ github.event.inputs.cold_runs }}'; n=${n:-2}
           for i in $(seq 1 "$n"); do
@@ -183,7 +183,7 @@ jobs:
             "$GITHUB_WORKSPACE/olean-residency" < "$GITHUB_WORKSPACE/olean-paths.txt" \
               > "$GITHUB_WORKSPACE/residency-cold-$i.jsonl"
             lake env /usr/bin/time -v \
-              "$GITHUB_WORKSPACE/lean-doc/extractor/build/extract" \
+              "$GITHUB_WORKSPACE/litedoc4/extractor/build/extract" \
               "$MODULES" "$GITHUB_WORKSPACE/import-cold-$i.jsonl" \
               2>&1 | tee "$GITHUB_WORKSPACE/time-cold-$i.txt" | grep -E 'Major|Maximum resident' || true
             echo "cold run $i done"
@@ -196,7 +196,7 @@ jobs:
       - name: Summarise
         if: always()
         run: |
-          S=lean-doc/benchmarks/tools/summarize-residency.ts
+          S=litedoc4/benchmarks/tools/summarize-residency.ts
           {
             echo "## conditions"
             cat env-before.txt

@@ -1,4 +1,4 @@
-# The Lake-wiring fixture: a package that reaches lean-doc through `require`.
+# The Lake-wiring fixture: a package that reaches litedoc4 through `require`.
 #
 # `e2e/micro` is the *declaration shapes* fixture and this one is deliberately
 # not a second copy of it (see `../README.md`). What it exists to check is that
@@ -34,5 +34,5 @@ name = "Consumer"
 name = "ConsumerExtra"
 
 [[require]]
-name = "«lean-doc»"
+name = "«litedoc4»"
 path = "../.."

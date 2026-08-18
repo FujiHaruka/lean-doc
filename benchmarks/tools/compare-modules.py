@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare lean-doc's --dump-modules output with doc-gen4's database."""
+"""Compare litedoc4's --dump-modules output with doc-gen4's database."""
 import json, sqlite3, sys, collections
 
 dump, db = sys.argv[1], sys.argv[2]
@@ -13,11 +13,11 @@ cur = con.cursor()
 
 def report(label, ours, theirs):
     o, t = set(ours), set(theirs)
-    print(f"{label:28s} lean-doc {len(o):6d}   doc-gen4 {len(t):6d}   "
+    print(f"{label:28s} litedoc4 {len(o):6d}   doc-gen4 {len(t):6d}   "
           f"{'IDENTICAL' if o == t else 'DIFFER'}")
     if o != t:
         only_o, only_t = o - t, t - o
-        print(f"  only lean-doc ({len(only_o)}): {sorted(only_o)[:5]}")
+        print(f"  only litedoc4 ({len(only_o)}): {sorted(only_o)[:5]}")
         print(f"  only doc-gen4 ({len(only_t)}): {sorted(only_t)[:5]}")
 
 # modules
@@ -47,5 +47,5 @@ report("tactic_tags", ours,
        cur.execute("select module_name, internal_name, tag from tactic_tags"))
 
 n = sum(len(r["tactics"]) for r in mods.values())
-print(f"\ntactic-defining modules (lean-doc): "
+print(f"\ntactic-defining modules (litedoc4): "
       f"{sum(1 for r in mods.values() if r['tactics'])}, total tactics {n}")

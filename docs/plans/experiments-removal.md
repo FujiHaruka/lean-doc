@@ -86,13 +86,13 @@ README / 実装計画の原則: **「同じ言語・同じ設計で書き直す�
 | `tools/render-reference.sh` / `tools/render-compare.sh` | TS 専用。M1 のゲートは通過済で参照木は `/private/tmp` にしかない |
 | `tools/global-reference.sh` / `tools/global-compare.sh` | 同上 (M2) |
 | `tools/{merge,impact,ledger}-reference.sh` の `--impl ts` 経路 | フィクスチャは commit 済。`--impl rust` は残す |
-| `crates/lean-doc-render/tests/gen-ts-expected.ts` | `stage7d/render.ts` を叩く |
-| `crates/lean-doc-render/tests/oracle/gen-{pages,page-parts,autolink,fragment,docgen4-linked}-expected.ts` | 同上 (`docgen4-linked` は要確認 — doc-gen4 側なら残す) |
-| `crates/lean-doc-md/tests/oracle/gen-ts-docstring-expected.ts` | 同上 |
-| `crates/lean-doc-global/tests/oracle/gen-{global,delta}-expected.ts` | `stage7h/global.ts` を叩く |
-| `crates/lean-doc-incr/tests/oracle/gen-{ledger,merge,impact}-expected.ts` | `experiments/` を直接は読まないが `--impl ts` の出力を読む → 一緒に死ぬ |
+| `crates/litedoc4-render/tests/gen-ts-expected.ts` | `stage7d/render.ts` を叩く |
+| `crates/litedoc4-render/tests/oracle/gen-{pages,page-parts,autolink,fragment,docgen4-linked}-expected.ts` | 同上 (`docgen4-linked` は要確認 — doc-gen4 側なら残す) |
+| `crates/litedoc4-md/tests/oracle/gen-ts-docstring-expected.ts` | 同上 |
+| `crates/litedoc4-global/tests/oracle/gen-{global,delta}-expected.ts` | `stage7h/global.ts` を叩く |
+| `crates/litedoc4-incr/tests/oracle/gen-{ledger,merge,impact}-expected.ts` | `experiments/` を直接は読まないが `--impl ts` の出力を読む → 一緒に死ぬ |
 
-**残す生成器**: `crates/lean-doc-md/tests/oracle/gen-{docgen4,md4lean}-expected.ts` —
+**残す生成器**: `crates/litedoc4-md/tests/oracle/gen-{docgen4,md4lean}-expected.ts` —
 オラクルは doc-gen4 / MD4Lean であって `experiments/` ではない。
 
 ### (iii) 移設
@@ -116,7 +116,7 @@ README / 実装計画の原則: **「同じ言語・同じ設計で書き直す�
 | `docs/provenance.md` §8 | 1 | 「`experiments/` を配布物に含めた場合」の前提を確定 (**含まれない、HEAD から消えた**) |
 | `README.md` | 3 箇所 | 構成表から `experiments/` を落とす。`coverage.ts`「今も回す」を削除 |
 | `CLAUDE.md` | 数箇所 | 「`experiments/` は変更しない」規則を削除 |
-| `crates/lean-doc-{md,render}/tests/data/PROVENANCE.md` | 各 1 | 「生成器は tag `experiments-frozen` にある。**再生成手段は HEAD に無い**」 |
+| `crates/litedoc4-{md,render}/tests/data/PROVENANCE.md` | 各 1 | 「生成器は tag `experiments-frozen` にある。**再生成手段は HEAD に無い**」 |
 
 ## 4. ゲート (この作業の完了条件)
 

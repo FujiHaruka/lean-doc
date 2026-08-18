@@ -1,20 +1,28 @@
-# lean-doc プロジェクト規則
+# litedoc4 プロジェクト規則
 
 Mathlib に依存する Lean パッケージのための、高速ドキュメント生成基盤。
 **検証段階は全部完了** (`approach.md` §7 の 1〜8 + CI 軸)。**移設も完了** — 使い捨てプロトタイプ
 (TS + シェル) から Rust の製品ツリー `crates/` への移設は M1〜M8 で終わり、
 プロトタイプは **2026-08-16 に HEAD から撤去した** (→ 下の「撤去したプロトタイプ」)。
 **v0.1 は 2026-08-17 に締めた** — tag **`v0.1.0`**。締めた根拠はゲート A / B の決着だけで、
-**未検証項目 13 件が残っている** (判定の SoT は `docs/implementation-plan.md` §1 末尾。
+**未検証項目 14 件が残っている** (2026-08-18 の改名で L2 が 1 件戻った) (判定の SoT は `docs/implementation-plan.md` §1 末尾。
 締めた日は 18 件だったが 2026-08-17 に棚卸しし、**3 件は「持たないと決めた」ものなので別節に分け、
 1 件は古かった**ので現況に直した — **この 18 → 15 で減ったのは分類と鮮度であって、
 検証が進んだからではない**。**15 → 13 は実際に潰した 2 件**で、**どちらも未検証ではなく壊れていた**:
 版固定できない依存へのリンクが死んでいた件と、**実在の公開パッケージでの実走**
 (`batteries` — build が止まり、死にリンクが 10 本出て、ゲート側の偽陽性も 2 件出た →
-`benchmarks/results/batteries-2026-08-17.txt`)。**残り 13 件を「たぶん大丈夫」と読まない。**)
+`benchmarks/results/batteries-2026-08-17.txt`)。**残り 14 件を「たぶん大丈夫」と読まない。**)
 **「v0.1」を「完成」の意味で書かない。**
 アプローチの SoT は `docs/approach.md`、**実装の SoT は `docs/implementation-plan.md`**、
 数字の SoT は `docs/verification-log.md`。実装の**結果**は `docs/milestone-log.md`。
+
+**2026-08-18 に `lean-doc` から `litedoc4` へ改名した**【決定、ユーザー判断】 — GitHub リポジトリ・
+crate・CLI・Lake パッケージ名のすべて。`litedoc` を選ばなかったのは**実測の衝突**による
+(同カテゴリの Python ドキュメント生成器が PyPI と CLI 名 `litedoc` を占有、Rust の
+`litedoc-core` / `litedoc-cli` が crates.io に実在、153★ の PDF→Markdown コンバータが
+検索一位)。`litedoc4` は crates.io / npm / PyPI / GitHub 検索すべて空きだった。
+**旧名 `lean-doc` を意図的に残した箇所が 5 種ある** — 理由と一覧、および改名が生んだ
+過渡状態は `docs/plans/rename.md`。**「消し忘れ」と読んで直さない。**
 
 **このリポジトリは public** (2026-08-16 に private から変更【決定、ユーザー判断】 — 理由は
 GitHub Actions を無料枠で回すこと)。計測対象の `lean-projects` も public。
@@ -36,15 +44,15 @@ GitHub Actions を無料枠で回すこと)。計測対象の `lean-projects` �
 | `tools/*-gate.sh` | **ゲート** = 機材・対象・toolchain を要する判定。`cargo test` は機材ゼロ依存のものだけ |
 | `.claude/handoff.md` | セッション間の引き継ぎ (tracked、コミットする) |
 
-Lean 側のビルドは `lake env` で計測対象リポジトリの環境を借りる — **lean-doc 側に toolchain も
+Lean 側のビルドは `lake env` で計測対象リポジトリの環境を借りる — **litedoc4 側に toolchain も
 Mathlib も置かない**。**Rust 側は `cargo build` で完結する** (Rust 1.97.1 / rustup)。
 
 **`lakefile.lean` は置く** (2026-08-18、`docs/plans/lake-package.md`) — 利用者が
-`require «lean-doc»` で使えるようにするため。**`lean-toolchain` は置かない、が強化された**:
+`require «litedoc4»` で使えるようにするため。**`lean-toolchain` は置かない、が強化された**:
 依存側が root より高い版の `lean-toolchain` を持つと **`lake update` が利用者の
 `lean-toolchain` を書き換える**、低いと**警告すら出ずに黙殺される**【実測 →
 `benchmarks/results/lake-package-probe-2026-08-18.txt` §1】。**置かなければ Lake は何も言わず
-root の toolchain を使う。** 代償は「lean-doc 自身のディレクトリでは `lake` が動かない」ことで、
+root の toolchain を使う。** 代償は「litedoc4 自身のディレクトリでは `lake` が動かない」ことで、
 `lake-manifest.json` は手書き、ビルドは常に利用者のワークスペース側から。
 
 ### 撤去したプロトタイプ — tag `experiments-frozen`
@@ -101,7 +109,9 @@ git log experiments-frozen -- experiments/
   確認できたときだけ。
 - 長い計測はバックグラウンドで走らせる (foreground の `sleep` は使わない)。
 - **計測が終わったら作業ディレクトリを消す。掃除する主体を決めておく。**
-  ゲートは `/private/tmp/lean-doc-relay/<段>` を作業領域にし、どれも「再生成できる」前提で
+  ゲートは `/private/tmp/lean-doc-relay/<段>` を作業領域にする (**改名後もこのパスは旧名のまま** —
+  凍結フィクスチャに生成時のパスとして焼かれていて、テストの `DEFAULT_IR` がそれと一致している
+  必要がある → `docs/plans/rename.md`)。どれも「再生成できる」前提で
   書かれているが、**誰も消さないので溜まる**。2026-08-17 に 5 世代ぶん **24 GB** 溜まって
   ディスクが満杯になり、**中断された `lake build` が対象の olean を 1 つ欠落させた**
   【実測】。**ディスクが尽きると被害は計測の失敗では済まない** — 対象リポジトリの
@@ -202,7 +212,7 @@ Cargo.toml が決める。これは意図的で、**ローカルの `cargo check
   `allow_attributes` / `allow_attributes_without_reason` で機械的に強制している
   (両方 warn → CI で error。**理由なしの `#[allow]` 1 個で落ちることを確認済み**)。
   `#[expect]` は**lint が発火しなくなったときに警告する**のが要点 —
-  実際これで `lean-doc-md/src/ffi.rs` の `#![allow(non_camel_case_types)]` が
+  実際これで `litedoc4-md/src/ffi.rs` の `#![allow(non_camel_case_types)]` が
   **もう不要**だと分かって消えた【実測 2026-08-17】。`#[allow]` は黙って腐る
 - **`cargo clippy --fix` の結果を読まずに信じない。** 自動修正が
   `needless_collect` を落として**失敗時の診断を壊した** (両方のマップに在る
@@ -212,7 +222,7 @@ Cargo.toml が決める。これは意図的で、**ローカルの `cargo check
 lint と別に CI が持っているもの: **rustdoc のリンク**
 (`cargo doc` + `RUSTDOCFLAGS=-D warnings`。初回に **15 件**壊れていて、
 2 件は改名された型を指していた【実測】) と **未使用依存** (`cargo machete`。
-`lean-doc` が `lean-doc-md` を宣言だけしていた【実測】)。
+`litedoc4` が `litedoc4-md` を宣言だけしていた【実測】)。
 
 ## 欠陥を直すとき
 
@@ -251,7 +261,7 @@ lint と別に CI が持っているもの: **rustdoc のリンク**
   GIT_CONFIG_COUNT=2 \
   GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0='' \
   GIT_CONFIG_KEY_1=credential.helper GIT_CONFIG_VALUE_1='!gh auth git-credential' \
-  git push https://github.com/FujiHaruka/lean-doc.git main:main
+  git push https://github.com/FujiHaruka/litedoc4.git main:main
   ```
 - **`diff` は `colordiff` に alias されていて存在しない。`/usr/bin/diff` を使う。**
 - **`rg` の `-r` は `--replace`。`-rn` のように束ねない** (後続フラグが置換文字列に食われる)。

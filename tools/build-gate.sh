@@ -22,9 +22,9 @@
 # ============================================================================
 # THE FIVE GATES
 # ============================================================================
-#   1  ONE COMMAND       `lean-doc build` over a clean clone produces a site,
+#   1  ONE COMMAND       `litedoc4 build` over a clean clone produces a site,
 #                        and that site is byte-identical to the one
-#                        `lean-doc site` writes from the **independently
+#                        `litedoc4 site` writes from the **independently
 #                        extracted** base IR of M3-d4 (the frozen prototype's
 #                        `extract-once.sh` + stage 7d binary). Denominator 438
 #                        = 432 module pages + 6 whole-package artifacts.
@@ -74,7 +74,7 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RUST_BIN="$REPO/target/release/lean-doc"
+RUST_BIN="$REPO/target/release/litedoc4"
 EXTRACT_BIN="${EXTRACT_BIN:-$REPO/extractor/build/extract}"
 SETUP_CLONE="$REPO/tools/setup-clone.sh"
 LAKE="${LAKE:-$HOME/.elan/bin/lake}"
@@ -126,7 +126,7 @@ esac
 [ -f "$LIDX" ] || { echo "missing link index: $LIDX" >&2; exit 1; }
 [ -x "$EXTRACT_BIN" ] || { echo "missing extractor: $EXTRACT_BIN" >&2; exit 1; }
 [ -x "$RUST_BIN" ] || {
-  echo "missing: $RUST_BIN — run: cargo build --release -p lean-doc" >&2; exit 1; }
+  echo "missing: $RUST_BIN — run: cargo build --release -p litedoc4" >&2; exit 1; }
 
 WORK="$OUT/work"
 mkdir -p "$OUT" "$WORK"
@@ -187,7 +187,7 @@ require_baseline () { # require_baseline <tag>
   require_up_to_date "$1"
 }
 
-# `lean-doc build`, with **only** the flags a caller cannot derive: where the
+# `litedoc4 build`, with **only** the flags a caller cannot derive: where the
 # package is, where the output goes, the dependency map (M5 owns its supply) and
 # the extractor binary (171 MB, built against the target's toolchain, so it can
 # have no default — M4-a). Everything else — the library, the module list, the
@@ -252,7 +252,7 @@ phase_gate1 () {
 
   # **The site half of gate 1 cannot be judged any more, and pretending
   # otherwise is worse than not running it.** The reference below is
-  # `lean-doc site` invoked *without* `--root`, so it writes relative links into
+  # `litedoc4 site` invoked *without* `--root`, so it writes relative links into
   # dependencies; `build` always resolves a package root and writes M7-c's
   # version-pinned blob URLs. The two therefore differ **by design**, and this
   # comparison was left in place reporting a difference nobody was allowed to

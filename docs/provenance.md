@@ -1,6 +1,6 @@
 # 由来とライセンス
 
-lean-doc のコードのうち **第三者の著作物に由来するもの**の一覧と、そこから出る義務の判断。
+litedoc4 のコードのうち **第三者の著作物に由来するもの**の一覧と、そこから出る義務の判断。
 **この文書が由来判定の SoT。** 数字と引用はすべて【実測 2026-08-16】(ファイルを開いて確認した)。
 
 法的助言ではなく**エンジニアリング判断**。判断の根拠を全部書いてあるので、覆したければ
@@ -12,9 +12,9 @@ lean-doc のコードのうち **第三者の著作物に由来するもの**の
 
 | 問い | 答え | 根拠 |
 |---|---|---|
-| lean-doc は doc-gen4 の派生物か | **全体が派生物**として扱う。クリーンルームではなく、byte 一致を受け入れオラクルにして書いた | §1.1 |
+| litedoc4 は doc-gen4 の派生物か | **全体が派生物**として扱う。クリーンルームではなく、byte 一致を受け入れオラクルにして書いた | §1.1 |
 | どのファイルが特に濃いか | 逐字コピーが 20 箇所、転写が 10 ファイル | §2 |
-| lean-doc 自身のライセンスは | **Apache-2.0** (2026-08-16 決定)。`LICENSE` + `Cargo.toml` の `license` を設置済み | §4 (a) |
+| litedoc4 自身のライセンスは | **Apache-2.0** (2026-08-16 決定)。`LICENSE` + `Cargo.toml` の `license` を設置済み | §4 (a) |
 | `NOTICE` ファイルが要るか | **Apache 2.0 の義務としては不要** — doc-gen4 に NOTICE が無いから。ただし置いた (MIT の義務の置き場所として一箇所にまとまる) | §4 (d) |
 | 生成サイトのフッタに表記が要るか | **不要**。配布している doc-gen4 由来物は CSS 8 行だけで、その元ファイルには著作権表示が無い | §5 |
 | 抽出器 (`extractor/`) はどうか | **ここが一番濃い**。§4(b)(c) を履行済み | §2 A 表・§4 |
@@ -85,8 +85,8 @@ doc-gen4・計測対象リポジトリがすべて Apache-2.0 なので、揃え
 | パス | 規模 | doc-gen4 側 |
 |---|---|---|
 | `extractor/Extract.lean` の 15 箇所 (`isProjFn` `isBlackListed` `tagAttributes` `inlineAttrString` `externEntryString` `externAttrString` `deprecationString` `getTags` `getAllAttributes` `getInstanceTypes` `getInstPriority` `getDefaultInstanceAttr` `getFieldOrigin` `mkTacticOut` / `Core.Context` の 4 options) | **計 約 112 行** (ファイル 2,995 行の 3.7%) | `Process/{DocInfo,Attributes,InstanceInfo,StructureInfo,Analyze}.lean`, `Load.lean:30-42` |
-| `crates/lean-doc-render/assets/style.css:320-325` (`.fn`) / `:346-347` (`.break_within`) | **8 行** | `static/style.css:608-615` / `:664-670` |
-| `crates/lean-doc-md/tests/data/docgen4-expected.json`, `crates/lean-doc-render/tests/data/docgen4-linked-expected.json` | **371,488 B** | doc-gen4 の**出力**。ソースではない |
+| `crates/litedoc4-render/assets/style.css:320-325` (`.fn`) / `:346-347` (`.break_within`) | **8 行** | `static/style.css:608-615` / `:664-670` |
+| `crates/litedoc4-md/tests/data/docgen4-expected.json`, `crates/litedoc4-render/tests/data/docgen4-linked-expected.json` | **371,488 B** | doc-gen4 の**出力**。ソースではない |
 | `benchmarks/doc-gen4-instrumentation.patch` | 全 441 行のうち **context 187 行が doc-gen4 のソース逐語** (Apache ヘッダ行を含む) | `Load.lean` `Output.lean` `Process/Analyze.lean` `Main.lean` を改変 + `Timing.lean` 新設 |
 
 **Lean → Lean は「移設」ではなく「コピー」。** 同言語なので書き直しの余地が無く、実際に逐字一致する。
@@ -97,13 +97,13 @@ doc-gen4・計測対象リポジトリがすべて Apache-2.0 なので、揃え
 
 | ファイル | 行数 | 由来の度合い | doc-gen4 側 |
 |---|---|---|---|
-| `crates/lean-doc-md/src/html.rs` | 680 | **ほぼ全体**。全分岐が 1 対 1、出力バイトを保存する意図。冒頭が "`DocString.lean:112-402`, transcribed" | `Output/DocString.lean:112-402` |
-| `crates/lean-doc-render/src/code.rs` | 873 (テスト 366 を除き約 500) | **レンダリング本体**。§3 参照 | `Output/Base.lean:247-288, 327-395` |
-| `crates/lean-doc-render/src/autolink.rs` | 930 | 一部 (`nameToLink?` / `moduleNameToLink` / `getRoot`)。上流の写像構築は独自 | `Output/DocString.lean:39-80` |
-| `crates/lean-doc-render/src/whitespace.rs` | 203 | 全体。ただしオフセット形への作り直しで実装は別 | `Output/Base.lean:281-288` |
-| `crates/lean-doc-md/src/escape.rs` | 83 | 全体 (`Html.escape`)。アルゴリズムは別、出力集合は同一 | `Output/ToHtmlFormat.lean:35-55` |
-| `crates/lean-doc-render/src/decl.rs` | 1,053 | **判断のみ数十行相当**、マークアップは M8-b で自前に置換 | `Output/{Module,Definition,Structure,…}.lean` |
-| `crates/lean-doc-render/src/page.rs` | 401 | **判断のみ 2 つ** (抑止集合・並び順) | `Output/Module.lean:181-188` |
+| `crates/litedoc4-md/src/html.rs` | 680 | **ほぼ全体**。全分岐が 1 対 1、出力バイトを保存する意図。冒頭が "`DocString.lean:112-402`, transcribed" | `Output/DocString.lean:112-402` |
+| `crates/litedoc4-render/src/code.rs` | 873 (テスト 366 を除き約 500) | **レンダリング本体**。§3 参照 | `Output/Base.lean:247-288, 327-395` |
+| `crates/litedoc4-render/src/autolink.rs` | 930 | 一部 (`nameToLink?` / `moduleNameToLink` / `getRoot`)。上流の写像構築は独自 | `Output/DocString.lean:39-80` |
+| `crates/litedoc4-render/src/whitespace.rs` | 203 | 全体。ただしオフセット形への作り直しで実装は別 | `Output/Base.lean:281-288` |
+| `crates/litedoc4-md/src/escape.rs` | 83 | 全体 (`Html.escape`)。アルゴリズムは別、出力集合は同一 | `Output/ToHtmlFormat.lean:35-55` |
+| `crates/litedoc4-render/src/decl.rs` | 1,053 | **判断のみ数十行相当**、マークアップは M8-b で自前に置換 | `Output/{Module,Definition,Structure,…}.lean` |
+| `crates/litedoc4-render/src/page.rs` | 401 | **判断のみ 2 つ** (抑止集合・並び順) | `Output/Module.lean:181-188` |
 | `extractor/Extract.lean:706-777` (`collectSpans` 周辺) | 約 90 | `renderTagged` の walk を span 列に作り直し | `RenderedCode.lean:150-157, 240-274` |
 | `extractor/Extract.lean:1403-1447` (kind/modifiers) | 約 45 | `getKindDescription` を分解して IR に載せる | `Process/DocInfo.lean:211-246` |
 | `extractor/Extract.lean:1328-1400` (`structureMembers`) | 約 70 | `getFieldTypes` の計算内容 | `Process/StructureInfo.lean:49-` |
@@ -120,7 +120,7 @@ doc-gen4・計測対象リポジトリがすべて Apache-2.0 なので、揃え
 
 `style.css` が doc-gen4 と共有するセレクタは 7 個 (`.break_within` `.decl` `.fn` `.hover-link`
 `.imports` `.js` `.name`) だけで、宣言まで一致するのは A に挙げた 2 箇所のみ。
-`.decl` は doc-gen4 が `margin-top:20px;margin-bottom:20px`、lean-doc は
+`.decl` は doc-gen4 が `margin-top:20px;margin-bottom:20px`、litedoc4 は
 `padding-block:1.5rem;border-top:…` で**全く別物**。
 
 ### D — 無関係
@@ -140,7 +140,7 @@ Rust 側も依存しない。`import DocGen4` するのは**テストオラク�
 `code.rs` が出す要素は `span.fn` / `span.name` / `a[href]` の 3 つで、doc-gen4 の
 `renderedCodeToHtmlAux` が出す集合と一致する。
 
-| | doc-gen4 | lean-doc |
+| | doc-gen4 | litedoc4 |
 |---|---|---|
 | `.fn` ラッパ | `Base.lean:389` `#[<span class="fn">[html]</span>]` | `code.rs:199,221` |
 | sort のリンク先 | `Base.lean:375` `s!"{← getRoot}foundational_types.html"` | `code.rs:208-209` |
@@ -181,14 +181,14 @@ Released under Apache 2.0 license as described in the file LICENSE. / Authors: H
 
 | 配布物 | 状態 | doc-gen4 由来物 |
 |---|---|---|
-| **lean-doc リポジトリ** | **public = 配布中** (2026-08-16 に private から変更) | A の 20 箇所すべて。**§4 は発動した。義務は発動前に払ってあるので、新たな履行は無い** — (a) `LICENSE`・(b)(c) 各ファイルの帰属表示と README / NOTICE 冒頭の告知はすべて §6 で置いた (2026-08-16)、(d) は不発動 |
+| **litedoc4 リポジトリ** | **public = 配布中** (2026-08-16 に private から変更) | A の 20 箇所すべて。**§4 は発動した。義務は発動前に払ってあるので、新たな履行は無い** — (a) `LICENSE`・(b)(c) 各ファイルの帰属表示と README / NOTICE 冒頭の告知はすべて §6 で置いた (2026-08-16)、(d) は不発動 |
 | **生成サイト** (<https://fujiharuka.github.io/information-theory/>) | **public = 配布中** | **`style.css` の 8 行のみ**。HTML の class 名と URL 形は C (インタフェース)。ホスト先の `FujiHaruka/information-theory` は**既に Apache-2.0**【実測: `gh api`】 |
-| **Release のバイナリ** (`lean-doc`, `.tar.gz`) | **これから配布する** (→ `plans/distribution.md` D2) | **Object form**。§4 は "in Source **or Object** form" なので発動する。(a) **`LICENSE` を書庫に入れる**。(b) 著作物レベルの告知は `NOTICE` が持つ。**(c) は "in the Source form of any Derivative Works" と限定されているので Object 単体では不発動**。(d) 不発動。**新しく効くのは Apache ではなく MIT** — 下の枠 |
+| **Release のバイナリ** (`litedoc4`, `.tar.gz`) | **これから配布する** (→ `plans/distribution.md` D2) | **Object form**。§4 は "in Source **or Object** form" なので発動する。(a) **`LICENSE` を書庫に入れる**。(b) 著作物レベルの告知は `NOTICE` が持つ。**(c) は "in the Source form of any Derivative Works" と限定されているので Object 単体では不発動**。(d) 不発動。**新しく効くのは Apache ではなく MIT** — 下の枠 |
 
 > **配布形態が増えたとき、参照で済ませていた義務は崩れる**【2026-08-18】。
 > `NOTICE` は md4c について「全文は `vendor/md4c/LICENSE.md` にある」と**指していただけ**だった。
 > リポジトリ配布ではその通りだが、**バイナリの書庫には vendor/ が入らない** — md4c の MIT は
-> 許諾文を "all copies or substantial portions" に求めており、コンパイル済みの `lean-doc` は
+> 許諾文を "all copies or substantial portions" に求めており、コンパイル済みの `litedoc4` は
 > md4c を含む。指し先が同梱されない配布形態では、ポインタは義務を運ばない。
 > → **`NOTICE` に md4c の MIT 全文を入れた** (MD4Lean は最初からこの形だった)。
 > **書庫に入れるのは `LICENSE` と `NOTICE` の 2 つで足りる**、が結論。
@@ -234,14 +234,14 @@ Released under Apache 2.0 license as described in the file LICENSE. / Authors: H
 | 2 | `LICENSE` (canonical Apache-2.0 201 行) を置き、`[workspace.package]` に `license = "Apache-2.0"`、各 crate に `license.workspace = true` | `LICENSE`, `Cargo.toml`, `crates/*/Cargo.toml` |
 | 3 | `NOTICE` を置いた — doc-gen4 / md4c / MD4Lean / UnicodeBasic + Unicode® / V8 の 5 件 | `NOTICE` |
 | 4 | **§4(b)(c) の履行** — 下表。加えて **§4(b) を著作物レベルでも払った** (README 冒頭 / `NOTICE` 冒頭。→ §1.1) | 各ファイル + README + NOTICE |
-| 5 | **第三者コードの記録** — 生成フィクスチャに `PROVENANCE.md` を足した (`vendor/md4c/PROVENANCE.md` と同じ作法) | `crates/lean-doc-{md,render}/tests/data/PROVENANCE.md` |
+| 5 | **第三者コードの記録** — 生成フィクスチャに `PROVENANCE.md` を足した (`vendor/md4c/PROVENANCE.md` と同じ作法) | `crates/litedoc4-{md,render}/tests/data/PROVENANCE.md` |
 
 §4(b)(c) を書いた場所:
 
 | ファイル | 何を書いたか |
 |---|---|
 | `extractor/Extract.lean` | 冒頭に全体の告知 + **逐字コピー 6 箇所それぞれに** Apache ヘッダ (blacklist / attributes / InstanceInfo / `getFieldOrigin` / `mkTacticOut` / `Core.Context` の options) |
-| `crates/lean-doc-render/assets/style.css` | ファイル冒頭に Apache ヘッダ、`.fn` と `.break_within` の各規則に出典行 |
+| `crates/litedoc4-render/assets/style.css` | ファイル冒頭に Apache ヘッダ、`.fn` と `.break_within` の各規則に出典行 |
 | `html.rs` `escape.rs` `code.rs` `whitespace.rs` `autolink.rs` | 冒頭 2 行の告知 (移設だが安全側に倒した) |
 | `parse.rs` `ffi.rs` `gc.rs` `v8_gc.rs` | 同上 (MD4Lean / md4c / UnicodeBasic + Unicode® / V8) |
 | `benchmarks/doc-gen4-instrumentation.patch` | diff の前に前書き。**`git apply` は前書きを読み飛ばす** — `apply-instrumentation.sh --check` が `APPLIED` を返すことと、diff 本体が 1 バイトも変わっていないことを確認済【実測】 |
@@ -253,11 +253,11 @@ Released under Apache 2.0 license as described in the file LICENSE. / Authors: H
 
 | | ライセンス | 規模 | 由来ファイル |
 |---|---|---|---|
-| `crates/lean-doc-md/vendor/md4c/` (md4c 0.5.2) | MIT © 2016-2024 Martin Mitáš | 6,489 行の C | **有り** — `LICENSE.md` + `PROVENANCE.md`。**唯一の前例** |
-| `crates/lean-doc-md/src/parse.rs` (MD4Lean `wrapper/wrapper.c` の transliteration) | MD4Lean = MIT © Jz Pan | 743 行 | **無し** |
-| `crates/lean-doc-md/src/ffi.rs` (`md4c.h` の転写) | md4c = MIT | 342 行 | 無し (vendor の PROVENANCE が間接的に覆う) |
-| `crates/lean-doc-md/src/gc.rs` (UnicodeBasic の出力を列挙したデータ) | UnicodeBasic = Apache 2.0 | 1,691 行 | 無し (冒頭に rev `a2e430a4…` の記録のみ) |
-| `crates/lean-doc-global/src/v8_gc.rs` (V8 を総当たりした出力データ) | V8 = BSD-3 | 818 行 | 無し (deno 2.7.14 / V8 rev の記録のみ) |
+| `crates/litedoc4-md/vendor/md4c/` (md4c 0.5.2) | MIT © 2016-2024 Martin Mitáš | 6,489 行の C | **有り** — `LICENSE.md` + `PROVENANCE.md`。**唯一の前例** |
+| `crates/litedoc4-md/src/parse.rs` (MD4Lean `wrapper/wrapper.c` の transliteration) | MD4Lean = MIT © Jz Pan | 743 行 | **無し** |
+| `crates/litedoc4-md/src/ffi.rs` (`md4c.h` の転写) | md4c = MIT | 342 行 | 無し (vendor の PROVENANCE が間接的に覆う) |
+| `crates/litedoc4-md/src/gc.rs` (UnicodeBasic の出力を列挙したデータ) | UnicodeBasic = Apache 2.0 | 1,691 行 | 無し (冒頭に rev `a2e430a4…` の記録のみ) |
+| `crates/litedoc4-global/src/v8_gc.rs` (V8 を総当たりした出力データ) | V8 = BSD-3 | 818 行 | 無し (deno 2.7.14 / V8 rev の記録のみ) |
 
 `gc.rs` / `v8_gc.rs` は**プログラムの出力**であって元のソースではない。
 `tests/data/docgen4-*.json` も同じ性質。ソースの複製とは扱いが違うが、

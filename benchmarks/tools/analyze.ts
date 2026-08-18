@@ -35,7 +35,7 @@ const NESTED = new Set([
   "index.buildIndex",
   "index.writeIndex",
   "navbar.scanHtmlFiles",
-  // lean-doc's own extractor (experiments/stage1): everything below is inside `stage1.total`.
+  // litedoc4's own extractor (experiments/stage1): everything below is inside `stage1.total`.
   "stage1.initSearchPath",
   "stage1.importModules",
   "stage1.envStats",

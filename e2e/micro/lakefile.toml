@@ -1,7 +1,7 @@
 # The e2e fixture package: Lean core, and one dependency reached by path.
 #
-# `lean-doc modules --root --lib` reads this file, so the shape matters: a
-# `[[lean_lib]]` block with a `name` key is the one shape `crates/lean-doc/src/
+# `litedoc4 modules --root --lib` reads this file, so the shape matters: a
+# `[[lean_lib]]` block with a `name` key is the one shape `crates/litedoc4/src/
 # lakefile.rs` recognises, and this fixture is also what proves it recognises it.
 name = "micro"
 version = "0.1.0"

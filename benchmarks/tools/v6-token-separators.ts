@@ -19,8 +19,8 @@
 //      the target package's declaration docstrings.
 //
 // V8's answer is taken from this runtime. UnicodeBasic's is read out of
-// `crates/lean-doc-md/src/gc.rs`, which is generated from the build doc-gen4
-// links by `crates/lean-doc-md/tests/oracle/gen-gc-table.ts` — not a second copy
+// `crates/litedoc4-md/src/gc.rs`, which is generated from the build doc-gen4
+// links by `crates/litedoc4-md/tests/oracle/gen-gc-table.ts` — not a second copy
 // of the UCD.
 //
 // npm/node are broken in this environment; this must run under deno.
@@ -33,7 +33,7 @@
 const REPO = new URL("../..", import.meta.url).pathname;
 const DEFAULT_IR = "/private/tmp/lean-doc-relay/w7h/base-ir";
 const DEFAULT_OUT = `${REPO}benchmarks/results/m2b-v6-token-separators.json`;
-const GC_RS = `${REPO}crates/lean-doc-md/src/gc.rs`;
+const GC_RS = `${REPO}crates/litedoc4-md/src/gc.rs`;
 
 const args = Deno.args;
 const flag = (name: string, fallback: string) => {
@@ -153,7 +153,7 @@ const record = {
   date: new Date().toISOString().slice(0, 10),
   label: "実測",
   runtime: { deno: Deno.version.deno, v8: Deno.version.v8 },
-  unicodeBasicFrom: "crates/lean-doc-md/src/gc.rs (generated from the build doc-gen4 links)",
+  unicodeBasicFrom: "crates/litedoc4-md/src/gc.rs (generated from the build doc-gen4 links)",
   sets: {
     v8Members: v8Total,
     unicodeBasicMembers: unicodeBasicTotal,

@@ -30,7 +30,7 @@
 | | 事実 |
 |---|---|
 | テスト | **355 本 / 2 failed**。赤 2 件は `packages::every_root_matches_doc_gen4s_own_blob_urls` と `ledger::the_corpus_matches_the_prototype` |
-| その赤の原因 | **lean-doc 側ではない** — 計測対象が `lakefile.toml` → `lakefile.lean`、依存 15 → 9 に動いた (milestone-log M8)。**テストを弱めない**と決定済 |
+| その赤の原因 | **litedoc4 側ではない** — 計測対象が `lakefile.toml` → `lakefile.lean`、依存 15 → 9 に動いた (milestone-log M8)。**テストを弱めない**と決定済 |
 | corpus 依存 | 4 ファイル (`packages.rs` / `ledger.rs` / `pages.rs` / `base_ir.rs`)。**すべて既に skip 機構を持つ** — 対象が無ければ `eprintln!("skipping: …")` して緑 |
 | CI | `.github/workflows/` は **4 本とも計測用** (importModules / prefetch / residency)。**`cargo test` を回すワークフローが 1 本も無い** |
 | サイト検査 | `benchmarks/tools/check-dead-links.py` (UI-2 のゲート、**オフライン・オラクル不要**) と `check-site-links.py` (M7-c、**doc-gen4 の木がオラクル**) が**ある**。どちらも benchmarks 側 = 数字を取る道具で、ゲートとして回っていない |
@@ -113,11 +113,11 @@ doc-gen4 を失って消えたのは**外部オラクル** — 「正しい出�
 | **Q2** | 不変量 (決定性 / 冪等 / `--jobs` 不変) | すべて緑 | **通過** — **Q4 の GATE 2〜4 が本物の抽出器で見ている**ので fake extractor で二重に持たない【判断】。**「順序不変」は取り下げた** (下記) |
 | **Q3** | 自己整合性ゲート `tools/site-gate.sh` (決定 3) | 404 = 0 / 外部リソース = 0 / 索引 ⟷ ページが双方向 | **通過** — `check-site-closure.py` を新設。**初回に本物の不整合を検出** (下記) |
 | **Q4** | **E1 — マイクロパッケージ e2e** (`e2e/micro` + `tools/e2e-micro.sh`) | CI で緑。Q3 を E1 の出力に回す | **通過** — CI で **success**。4 ゲート (1 コマンド / 冪等 / 決定性 / `--jobs` 不変) |
-| **Q5** | 仕事量カウンタ (決定 4) | 増分で再抽出 0 / 描画 0 が**数で**出る | **通過** — `lean-doc-build.json` の `work` + e2e の **GATE 5**。**docs の主張を 3 つ訂正させた** (下記) |
-| **Q6** | md4c FFI の fuzz (決定 5) | seed corpus 全通しで 0 crash | **通過** — ゲートは `crates/lean-doc-md/tests/fuzz_corpus.rs` (**12 入力 + 固定 seed の生成 4,000 本**、安定版・機材ゼロ)。**探索も実走した**【実測 2026-08-17 → [`fuzz/README.md`](../../fuzz/README.md)】 — ASan + libFuzzer で **1,534,477 execs / crash 0**。下記 |
+| **Q5** | 仕事量カウンタ (決定 4) | 増分で再抽出 0 / 描画 0 が**数で**出る | **通過** — `litedoc4-build.json` の `work` + e2e の **GATE 5**。**docs の主張を 3 つ訂正させた** (下記) |
+| **Q6** | md4c FFI の fuzz (決定 5) | seed corpus 全通しで 0 crash | **通過** — ゲートは `crates/litedoc4-md/tests/fuzz_corpus.rs` (**12 入力 + 固定 seed の生成 4,000 本**、安定版・機材ゼロ)。**探索も実走した**【実測 2026-08-17 → [`fuzz/README.md`](../../fuzz/README.md)】 — ASan + libFuzzer で **1,534,477 execs / crash 0**。下記 |
 | **Q7** | サイズ予算 | 上限超過で理由付きで落ちる | **通過** — 静的資産に絞った【判断、下記】。`assets.rs` のテスト |
 | **Q8** | **E3 — ブラウザゲート** (`tools/browser-gate.sh`) | コンソールエラー 0、**UI-3 が「未判定」でなくなる** | **通過** — 9 検査すべて緑。**375 px の overflow 0 px【実測 2026-08-16】= UI-3 決着**。**2026-08-17 に検査 8 (等幅フォントの字形) を足して 10 検査**、`ubuntu-latest` でも緑 → **UI-V1 も決着** (下記) |
-| **Q9** | provenance ゲート | 帰属表示の実在 | **通過** — `tools/provenance-gate.sh`、**27 claims**。**`cargo-deny` も済んでいた** — CI ジョブ `supply-chain` (`deny.toml`) が緑【実測 2026-08-17、[run 32012152635](https://github.com/FujiHaruka/lean-doc/actions/runs/32012152635)】。**この行が「未」のまま 1 日残っていた** |
+| **Q9** | provenance ゲート | 帰属表示の実在 | **通過** — `tools/provenance-gate.sh`、**27 claims**。**`cargo-deny` も済んでいた** — CI ジョブ `supply-chain` (`deny.toml`) が緑【実測 2026-08-17、[run 32012152635](https://github.com/FujiHaruka/litedoc4/actions/runs/32012152635)】。**この行が「未」のまま 1 日残っていた** |
 | **Q10** | mutation 探索 — **ゲートにしない** | 拾えた穴だけテストに落とす | **実施** — 今回の diff **9/9 caught**、`decl.rs` 全体 **74 中 1 missed** → 塞いで **74/74**。ワークスペース全体は **1,602 mutant** で未実施 |
 
 **Q0 で分かったこと — 「静かな skip」は既に腐っていた【実測】。**
@@ -184,7 +184,7 @@ doc-gen4 を失って消えたのは**外部オラクル** — 「正しい出�
 | docs の主張 | 実測 | 直した場所 |
 |---|---|---|
 | 「残る IR 全読みは **5 回**」(approach.md §5.6) | **シナリオ 1 つの値**。回数は**ラウンド数で動く** — 無変更 **1 回** / 1 ラウンド **約 4 回** / 2 ラウンド **約 5 回** / フル生成 **2 回**。「5 回」は L3-1 の 2 ラウンド | approach.md §5.6 に表を追加 |
-| 「**IR へのアクセスを 1 つの抽象に集約する**」(実装計画 §3)、「every read of the IR is in this crate」(`reader.rs`) | **`index.json` を `lean_doc_ir` の外で読む経路が 3 つ** (`merge` / `extract_key` / `prune`)。**モジュールファイルについては真、index については偽** | 実装計画 §3 と `reader.rs` の見出し |
+| 「**IR へのアクセスを 1 つの抽象に集約する**」(実装計画 §3)、「every read of the IR is in this crate」(`reader.rs`) | **`index.json` を `litedoc4_ir` の外で読む経路が 3 つ** (`merge` / `extract_key` / `prune`)。**モジュールファイルについては真、index については偽** | 実装計画 §3 と `reader.rs` の見出し |
 | — (誰も書いていなかった) | **`pages_rendered` が既に「2 つ目の真実」だった** — 再生成集合の要素数で報告していて、**レンダラが実際に書いたページ数ではなかった**。集合が IR に無いモジュールを名指すと食い違う | `pipeline::Summary` |
 
 **`ownership` は 1 パスより高い (N+1 読み)** — 差分側が再抽出モジュールの新旧 2 本を読むため。
@@ -198,7 +198,7 @@ CLAUDE.md「予測と結果が食い違ったら結果が SoT」をそのまま�
 実装計画 §6 が記録しているとおり **`index.json` の `modules` 配列は「渡されたモジュール一覧の順」**
 (M3-d2b) なので、順序を変えれば**バイトが変わるのが仕様**。
 「不変量が破れた」ではなく「不変量ではないものを不変量と呼んでいた」ので、**実装しない。**
-モジュール一覧を作る側 (`lean-doc modules` の glob) が決定的であることは、
+モジュール一覧を作る側 (`litedoc4 modules` の glob) が決定的であることは、
 **決定性ゲート (GATE 3) が既に覆っている** — 2 回のフル生成がバイト一致する以上、
 一覧の順序も 2 回とも同じ。
 
@@ -252,7 +252,7 @@ ui-redesign.md 決定 1 (「大きくなったら削る。フレームワーク�
 ### `tools/build-gate.sh` の gate1-site を止めた【判断 2026-08-16】
 
 **期待値が「差分が出ること」に反転したまま残っていた** — M7-c で依存リンクが版固定 blob URL に
-移り、参照側 (`lean-doc site` を `--root` 無しで呼ぶ) は相対リンクのままなので、
+移り、参照側 (`litedoc4 site` を `--root` 無しで呼ぶ) は相対リンクのままなので、
 **設計上必ず食い違う**。それを毎回 FAIL と表示しては「無視してよい」と注記していた。
 **読者に無視させるゲートは、その後どの出力も読まれなくなる。**
 → **実行をやめ、理由と代替 (`tools/e2e-micro.sh` の GATE 1〜3) を出力に書く。**
@@ -261,7 +261,7 @@ ui-redesign.md 決定 1 (「大きくなったら削る。フレームワーク�
 
 ### 訂正 — gate1-site は「判定不能」ではなかった【実測 2026-08-16】
 
-**`lean-doc site` は `--root` を取る。** 上の判断は「参照側は構造上 `build` と同じリンクを
+**`litedoc4 site` は `--root` を取る。** 上の判断は「参照側は構造上 `build` と同じリンクを
 書けない」という前提に立っていたが、**その前提が誤り**。参照を `--root <target>` 付きで作れば
 `site` も M7-c の版固定 blob URL を書き、`tools/target2-gate.sh` の gate1-site は
 **20 ファイルがバイト一致して PASS に戻った**【実測】。**止めるべきだったのは比較ではなく、
@@ -313,7 +313,7 @@ gate2 / gate4 のバイト比較も含め**このスクリプトの比較はす�
 | **QV1** | corpus 不在の機材で `cargo test` が本当に 0 failed か (= 隠れたホスト依存が他に無いか) | Q0 | 見つかった分を同じ扱いに落とす |
 | **QV2** | 決定性は本当に成立するか (同じ入力 2 回で byte 一致) | Q2 | **成立しないなら不変量ではなくバグ**。HashMap 順・時刻・パスの混入を疑う |
 | **QV3** | `--jobs` を変えても site がバイト一致するか (IR では実測済、**サイト側は未確認**) | Q2 | 並列化が出力を汚している |
-| **QV4** | Mathlib 無しで抽出器がビルドでき、マイクロパッケージから IR が出るか | **成立【実測 2026-08-16】** — 抽出器は `import Lean` だけなので Lean core の環境で立つ。`lake build` (5 モジュール) **約 1 秒**、抽出器のビルド **17.1 秒** (`lean` 13.9 + `leanc` 3.2)、`lean-doc build` **1.16 秒** → site 15 ファイル。すべて warm | (否定されていたら CI では E1 を諦め E2 を nightly にしていた) |
+| **QV4** | Mathlib 無しで抽出器がビルドでき、マイクロパッケージから IR が出るか | **成立【実測 2026-08-16】** — 抽出器は `import Lean` だけなので Lean core の環境で立つ。`lake build` (5 モジュール) **約 1 秒**、抽出器のビルド **17.1 秒** (`lean` 13.9 + `leanc` 3.2)、`litedoc4 build` **1.16 秒** → site 15 ファイル。すべて warm | (否定されていたら CI では E1 を諦め E2 を nightly にしていた) |
 | **QV5** | CI の 1 回あたり実行時間 (無料枠に収まるか) | Q1 / Q4 | 重い段を nightly へ |
 | **QV6** | fuzz が **MD4Lean が死ぬ 2 入力** (fenced code 中の NUL / 本文行の無い GFM テーブル) を自力で見つけるか | **成立【実測 2026-08-17】** — **空の corpus から** 600 秒 / **7,404,720 execs** で**両方出た**。生成 corpus 7,988 本のうち **fenced code 中に NUL が 200 本**、**本文行の無い GFM テーブルが 43 本**。seed から始めると子孫かどうか言えないので、この 1 本だけ seed 無しで回した | (見つけなくても fuzz の失敗ではない、という逃げ道は使わずに済んだ) |
 | **QV7** | 実ブラウザで 375 px のレイアウトが崩れないか (**UI-3 の積み残し**) | Q8 | CSS を直す。ui-redesign.md 決定 1 (フレームワークに戻らない) は守る |

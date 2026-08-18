@@ -1,11 +1,11 @@
 # fuzz — the exploration behind the corpus gate
 
-`crates/lean-doc-md/tests/data/fuzz/` is the gate: every file in it goes through
+`crates/litedoc4-md/tests/data/fuzz/` is the gate: every file in it goes through
 `parse` and the HTML assembly on every push, on stable, with no extra toolchain
 (`docs/plans/quality-gates.md` 決定 5). **This directory is how entries get into
 that gate** — libFuzzer plus AddressSanitizer, run by hand, out of band.
 
-The subject is the C. `crates/lean-doc-md/vendor/md4c` is compiled by `build.rs`
+The subject is the C. `crates/litedoc4-md/vendor/md4c` is compiled by `build.rs`
 and called across FFI, so the failure being hunted is a memory-safety failure
 that no amount of Rust-side review would show.
 
@@ -19,12 +19,12 @@ export CXXFLAGS="-isystem $(xcrun --show-sdk-path)/usr/include/c++/v1"   # macOS
 export CFLAGS="-fsanitize=address -fsanitize=fuzzer-no-link -mllvm -asan-guard-against-version-mismatch=0 -fno-omit-frame-pointer -g"
 
 mkdir -p fuzz/corpus/docstring
-cp crates/lean-doc-md/tests/data/fuzz/*.md fuzz/corpus/docstring/
+cp crates/litedoc4-md/tests/data/fuzz/*.md fuzz/corpus/docstring/
 cargo +nightly fuzz run docstring -- -max_total_time=600 -max_len=16384
 ```
 
 A crash lands in `fuzz/artifacts/docstring/`. **It does not stay there**: copy
-the input to `crates/lean-doc-md/tests/data/fuzz/` with a name saying what shape
+the input to `crates/litedoc4-md/tests/data/fuzz/` with a name saying what shape
 it is, and raise the `seen >=` floor in `tests/fuzz_corpus.rs` so a corpus that
 silently empties still fails.
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Publish a site tree built by `lean-doc build` to a repository's Pages branch.
+# Publish a site tree built by `litedoc4 build` to a repository's Pages branch.
 #
 # The tree is published *as the whole branch*: the branch content is replaced,
 # not merged into. That is the only way a removed module's page stops being
@@ -14,7 +14,7 @@
 # usage:
 #   tools/publish-pages.sh --site <dir> --repo <path-or-url> [options]
 #
-#   --site <dir>       the site tree to publish (as `lean-doc build` wrote it)
+#   --site <dir>       the site tree to publish (as `litedoc4 build` wrote it)
 #   --repo <path|url>  the repository that owns the Pages branch
 #   --branch <name>    branch to replace (default: gh-pages)
 #   --message <text>   commit message (default: a generated one)
@@ -59,7 +59,7 @@ FILES=$(find "$SITE" -type f | wc -l | tr -d ' ')
 BYTES=$(du -sk "$SITE" | cut -f1)
 echo "site    $FILES file(s), $PAGES page(s), ${BYTES} KiB"
 
-WORK=$(mktemp -d "${TMPDIR:-/tmp}/lean-doc-pages.XXXXXX")
+WORK=$(mktemp -d "${TMPDIR:-/tmp}/litedoc4-pages.XXXXXX")
 cleanup() { [ "$KEEP" -eq 1 ] || rm -rf "$WORK"; }
 trap cleanup EXIT
 
@@ -100,6 +100,6 @@ if [ "$PUSH" -ne 1 ]; then
   exit 0
 fi
 
-git -C "$WORK/repo" commit --quiet -m "${MESSAGE:-lean-doc で生成した API ドキュメント}"
+git -C "$WORK/repo" commit --quiet -m "${MESSAGE:-litedoc4 で生成した API ドキュメント}"
 git -C "$WORK/repo" push --quiet origin "$BRANCH"
 echo "result  pushed $(git -C "$WORK/repo" rev-parse --short HEAD) to $BRANCH"

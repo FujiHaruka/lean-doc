@@ -1,10 +1,10 @@
 /-
-# lean-doc as a Lake package
+# litedoc4 as a Lake package
 
 A consumer requires this package and gets a `docs` script:
 
 ```lean
-require «lean-doc» from git "https://github.com/FujiHaruka/lean-doc" @ "main"
+require «litedoc4» from git "https://github.com/FujiHaruka/litedoc4" @ "main"
 ```
 
 A tag works too, but **only a tag whose tree contains this file** — `v0.1.3` and
@@ -22,12 +22,12 @@ being a dependency rather than a checkout:
   Lake against the *root* package's toolchain, so it cannot be built against the
   wrong Lean and nobody has to pass `--extractor-bin`;
 * **`--lib`** is read out of the elaborated workspace.
-  `crates/lean-doc/src/lakefile.rs` refuses a `lakefile.lean` by name — reading
+  `crates/litedoc4/src/lakefile.rs` refuses a `lakefile.lean` by name — reading
   one honestly means elaborating it with Lake — and this script *is* that
   elaboration, so a `lakefile.lean` package needs no `--lib` here. Mathlib and
   doc-gen4 are both `lakefile.lean` packages.
 
-The Rust half (`lean-doc`) is *not* built by Lake: see `resolveLeanDoc`.
+The Rust half (`litedoc4`) is *not* built by Lake: see `resolveLitedoc4`.
 
 ## There is deliberately no `lean-toolchain` next to this file
 
@@ -40,7 +40,7 @@ version — and it does so *before* elan tries to fetch that version, so the
 consumer's `lean-toolchain` is rewritten whether or not the version exists. A
 dependency naming a *lower* version is ignored with **no warning at all**, which
 means a stale toolchain here would be invisible to everyone. With no file at
-all, `Workspace.updateToolchain` skips lean-doc entirely (`ToolchainVer.ofDir?`
+all, `Workspace.updateToolchain` skips litedoc4 entirely (`ToolchainVer.ofDir?`
 returns `none`) and the root's toolchain builds the extractor — which is exactly
 what is wanted, and what `docs/approach.md` already required for other reasons.
 
@@ -53,7 +53,7 @@ open Lake DSL
 
 open System (FilePath)
 
-package «lean-doc» where
+package «litedoc4» where
   -- The Lean sources are all in `extractor/`; the rest of the tree is Rust,
   -- shell and docs.
   srcDir := "extractor"
@@ -75,7 +75,7 @@ lean_exe extract where
 
 /-! ## The `docs` script -/
 
-/-- What `lake run docs` accepts. Everything else `lean-doc build` offers is
+/-- What `lake run docs` accepts. Everything else `litedoc4 build` offers is
 deliberately not plumbed through: this script's job is to fill in the three
 flags a consumer cannot know (`--root`, `--lib`, `--extractor-bin`). -/
 structure DocsOptions where
@@ -88,7 +88,7 @@ structure DocsOptions where
 def docsUsage : String :=
 "usage: lake run docs -- --out <dir> [--jobs <n>] [--source-url <url>]
 
-  --out         where the documentation goes. Required, with no default: `lean-doc
+  --out         where the documentation goes. Required, with no default: `litedoc4
                 build` refuses an --out inside the package it documents, so no
                 path inside this workspace would be right. A relative path is
                 resolved against the package directory — `lake` only runs where
@@ -98,12 +98,12 @@ def docsUsage : String :=
   --source-url  https://host/owner/repo/blob/<40-hex-rev>; read from the
                 package's git HEAD when left out
 
-  LEAN_DOC_BIN          the `lean-doc` executable to run. Set it and nothing else
-                        below is consulted (see `resolveLeanDoc` for the whole order)
-  LEAN_DOC_NO_DOWNLOAD  set to anything non-empty to never fetch a release. An
+  LITEDOC4_BIN          the `litedoc4` executable to run. Set it and nothing else
+                        below is consulted (see `resolveLitedoc4` for the whole order)
+  LITEDOC4_NO_DOWNLOAD  set to anything non-empty to never fetch a release. An
                         already-downloaded one is still used
   XDG_CACHE_HOME        where a fetched release is kept
-                        (default ~/.cache; lean-doc/v<version>/<target>/lean-doc)"
+                        (default ~/.cache; litedoc4/v<version>/<target>/litedoc4)"
 
 /-- Parse the script's arguments. Structural recursion, and an unknown flag is an
 error rather than something skipped — a `docs` run that quietly ignored
@@ -138,7 +138,7 @@ def findOnPath (exe : String) : IO (Option FilePath) := do
 
 /-- An environment variable that is "set" only when it is set to something.
 `FOO=` in a wrapper script is how a shell spells "I did not set this", and
-`resolveLeanDoc` already reads `LEAN_DOC_BIN` that way. -/
+`resolveLitedoc4` already reads `LITEDOC4_BIN` that way. -/
 def envIsSet (name : String) : IO Bool := do
   match ← IO.getEnv name with
   | some raw => return !raw.isEmpty
@@ -171,7 +171,7 @@ def releaseTargets : List String :=
 version is in the directory the archive unpacks to (`release.yml`, "Work out
 the version"). -/
 def releaseBaseUrl (version : String) : String :=
-  s!"https://github.com/FujiHaruka/lean-doc/releases/download/v{version}"
+  s!"https://github.com/FujiHaruka/litedoc4/releases/download/v{version}"
 
 /--
 This machine's target triple, spelled the way `release.yml` spells it.
@@ -203,7 +203,7 @@ def hostTarget : IO String := do
   -- executed. It is not a supported knob and nothing in this file weakens
   -- because of it: it chooses which asset is looked for, and the release table,
   -- the download and the checksum all still run unchanged afterwards.
-  match ← IO.getEnv "LEAN_DOC_TARGET_OVERRIDE" with
+  match ← IO.getEnv "LITEDOC4_TARGET_OVERRIDE" with
   | some raw => if !raw.isEmpty then return raw
   | none => pure ()
   let arch := (System.Platform.target.splitOn "-").headD ""
@@ -239,8 +239,8 @@ def cargoWorkspaceVersion (manifest : FilePath) : IO (Option String) := do
   return none
 
 /--
-Where the downloaded binary is kept: `$XDG_CACHE_HOME/lean-doc`, else
-`~/.cache/lean-doc`, else nowhere.
+Where the downloaded binary is kept: `$XDG_CACHE_HOME/litedoc4`, else
+`~/.cache/litedoc4`, else nowhere.
 
 **Not under `.lake/`**: `lake update` removes that directory, so a cache there
 would be re-downloaded whenever a consumer updated any dependency. The caller
@@ -249,10 +249,10 @@ adds `v<version>/<target>/` under this, so two checkouts at different versions
 -/
 def cacheRoot : IO (Option FilePath) := do
   match ← IO.getEnv "XDG_CACHE_HOME" with
-  | some raw => if !raw.isEmpty then return some (FilePath.mk raw / "lean-doc")
+  | some raw => if !raw.isEmpty then return some (FilePath.mk raw / "litedoc4")
   | none => pure ()
   match ← IO.getEnv "HOME" with
-  | some home => if !home.isEmpty then return some (FilePath.mk home / ".cache" / "lean-doc")
+  | some home => if !home.isEmpty then return some (FilePath.mk home / ".cache" / "litedoc4")
   | none => pure ()
   return none
 
@@ -309,7 +309,7 @@ def curlTo (curl : FilePath) (url : String) (dest : FilePath) : IO (Except Strin
 
 /--
 Download the release archive into `work`, verify it, and — only then — put the
-executable at `targetDir/lean-doc`.
+executable at `targetDir/litedoc4`.
 
 `work` is a subdirectory of `targetDir` so that the final `IO.FS.rename` stays
 inside one filesystem, and so that a half-finished download is visibly beside
@@ -318,7 +318,7 @@ caller removes it on both paths.
 -/
 def fetchRelease (version triple : String) (targetDir work : FilePath) :
     IO (Except String FilePath) := do
-  let asset := s!"lean-doc-{triple}.tar.gz"
+  let asset := s!"litedoc4-{triple}.tar.gz"
   let base := releaseBaseUrl version
   let some curl ← findOnPath "curl"
     | return .error "no `curl` on PATH to download with"
@@ -331,7 +331,7 @@ def fetchRelease (version triple : String) (targetDir work : FilePath) :
   -- without saying so is the thing this line exists to prevent (plan §5 L2-e);
   -- the size cannot be printed here because it is not known until afterwards,
   -- so it goes on the line below, with the digest.
-  IO.println s!"lean-doc: downloading {base}/{asset}"
+  IO.println s!"litedoc4: downloading {base}/{asset}"
   match ← curlTo curl s!"{base}/{asset}" archive with
   | .error message => return .error message
   | .ok () => pure ()
@@ -345,7 +345,7 @@ def fetchRelease (version triple : String) (targetDir work : FilePath) :
     | return .error "no `shasum` and no `sha256sum` on PATH: the archive cannot be verified, so it is not used"
   if actual != expected then
     return .error s!"SHA-256 mismatch for {asset}: checksums.txt says {expected}, the download is {actual}"
-  IO.println s!"lean-doc: {(← archive.metadata).byteSize} bytes, sha256 {actual} matches {base}/checksums.txt"
+  IO.println s!"litedoc4: {(← archive.metadata).byteSize} bytes, sha256 {actual} matches {base}/checksums.txt"
   let untar ← IO.Process.output {
     cmd := tar.toString, args := #["xzf", archive.toString, "-C", work.toString]}
   if untar.exitCode != 0 then
@@ -353,16 +353,16 @@ def fetchRelease (version triple : String) (targetDir work : FilePath) :
   -- The archive unpacks to a **versioned** directory even though its own name
   -- is not versioned (`release.yml`, "Archive"), which is what keeps two
   -- versions from colliding on disk.
-  let unpacked := work / s!"lean-doc-{version}-{triple}" / "lean-doc"
+  let unpacked := work / s!"litedoc4-{version}-{triple}" / "litedoc4"
   unless ← isFileAt unpacked do
-    return .error s!"{asset} does not contain lean-doc-{version}-{triple}/lean-doc"
-  let bin := targetDir / "lean-doc"
+    return .error s!"{asset} does not contain litedoc4-{version}-{triple}/litedoc4"
+  let bin := targetDir / "litedoc4"
   IO.FS.rename unpacked bin
   return .ok bin
 
 /-- `fetchRelease` plus the cleanup that has to happen on **both** paths: an
 archive whose checksum did not match must not be left anywhere a later run
-could take it for a cache. (Only `targetDir/lean-doc` is ever read as one, so
+could take it for a cache. (Only `targetDir/litedoc4` is ever read as one, so
 this is belt and braces — but the belt is cheap and the alternative is a
 directory named after a version holding bytes nobody vouched for.) -/
 def downloadRelease (version triple : String) (targetDir : FilePath) :
@@ -375,17 +375,17 @@ def downloadRelease (version triple : String) (targetDir : FilePath) :
   return outcome
 
 /--
-Which `lean-doc` (the Rust half) this script runs, and in what order it is looked
+Which `litedoc4` (the Rust half) this script runs, and in what order it is looked
 for. **One function on purpose**: L2 fills in sources 2 and 3 and nothing else in
 the tree gets an opinion about where the binary comes from (CLAUDE.md 「判断は 1
 箇所に集める」).
 
 | | source | |
 |---:|---|---|
-| 1 | `$LEAN_DOC_BIN` | an error if it is not a file |
-| 2 | `$XDG_CACHE_HOME/lean-doc/v<version>/<target>/lean-doc` | version from this tree's `Cargo.toml` |
+| 1 | `$LITEDOC4_BIN` | an error if it is not a file |
+| 2 | `$XDG_CACHE_HOME/litedoc4/v<version>/<target>/litedoc4` | version from this tree's `Cargo.toml` |
 | 3 | the GitHub Release for that version | SHA-256 checked against `checksums.txt` |
-| 4 | `lean-doc` on `PATH` | its version is printed, with a warning |
+| 4 | `litedoc4` on `PATH` | its version is printed, with a warning |
 | 5 | `cargo build` in this package | slow, but cannot be out of step |
 | 6 | an error naming every source above | |
 
@@ -393,36 +393,36 @@ the tree gets an opinion about where the binary comes from (CLAUDE.md 「判断�
 write an IR schema older than this checkout's renderer reads. Sources 2 and 3
 know which version this tree is, so they cannot.
 
-`$LEAN_DOC_BIN` set to something that is not a file is an **error, not a
+`$LITEDOC4_BIN` set to something that is not a file is an **error, not a
 fallthrough**: a caller who named a binary and silently got a different one
 would never find out.
 
 Two things sources 2 and 3 will not do (plan §5 L2-e):
 
 * **reach the network without saying so** — the URL is printed before the first
-  request, and `LEAN_DOC_NO_DOWNLOAD=1` turns source 3 off entirely while
+  request, and `LITEDOC4_NO_DOWNLOAD=1` turns source 3 off entirely while
   leaving source 2 (a cache that is already on disk costs nothing and needs no
   network);
 * **run something unverified** — every way of failing to check the SHA-256 is a
   failure of source 3, not a reason to continue.
 -/
-def resolveLeanDoc (pkgDir : FilePath) : IO (Except String FilePath) := do
+def resolveLitedoc4 (pkgDir : FilePath) : IO (Except String FilePath) := do
   let mut tried : Array String := #[]
 
-  -- 1. $LEAN_DOC_BIN.
-  match ← IO.getEnv "LEAN_DOC_BIN" with
+  -- 1. $LITEDOC4_BIN.
+  match ← IO.getEnv "LITEDOC4_BIN" with
   | some raw =>
     if raw.isEmpty then
-      -- `LEAN_DOC_BIN=` in a wrapper script is how a shell spells "I did not set
-      -- this" (`crates/lean-doc/src/extract.rs` `or_env` reads it the same way).
-      tried := tried.push "$LEAN_DOC_BIN: set but empty"
+      -- `LITEDOC4_BIN=` in a wrapper script is how a shell spells "I did not set
+      -- this" (`crates/litedoc4/src/extract.rs` `or_env` reads it the same way).
+      tried := tried.push "$LITEDOC4_BIN: set but empty"
     else
       let bin : FilePath := raw
       if ← isFileAt bin then
         return .ok bin
       else
-        return .error s!"$LEAN_DOC_BIN is {raw}, which is not a file"
-  | none => tried := tried.push "$LEAN_DOC_BIN: unset"
+        return .error s!"$LITEDOC4_BIN is {raw}, which is not a file"
+  | none => tried := tried.push "$LITEDOC4_BIN: unset"
 
   -- 2 and 3 both hang off the same two answers — which version this tree is,
   -- and which target this machine is — so they are worked out once here. Not
@@ -436,13 +436,13 @@ def resolveLeanDoc (pkgDir : FilePath) : IO (Except String FilePath) := do
     tried := tried.push "cache and release: neither $XDG_CACHE_HOME nor $HOME is set"
   | some version, some cache =>
     let targetDir := cache / s!"v{version}" / triple
-    let cached := targetDir / "lean-doc"
+    let cached := targetDir / "litedoc4"
 
-    -- 2. The version-pinned cache (§5 L2-d). Checked before $LEAN_DOC_NO_DOWNLOAD
+    -- 2. The version-pinned cache (§5 L2-d). Checked before $LITEDOC4_NO_DOWNLOAD
     --    is consulted: an offline machine that downloaded this once should keep
     --    working.
     if ← isFileAt cached then
-      IO.println s!"lean-doc: {cached} (cached, v{version})"
+      IO.println s!"litedoc4: {cached} (cached, v{version})"
       return .ok cached
     tried := tried.push s!"cache: no {cached}"
 
@@ -452,34 +452,34 @@ def resolveLeanDoc (pkgDir : FilePath) : IO (Except String FilePath) := do
       -- (see `releaseTargets`), so this is the designed path for every other
       -- machine and it has to be legible rather than silent.
       let carried := String.intercalate " and " releaseTargets
-      IO.println s!"lean-doc: no release asset for {triple}; releases carry {carried}. \
+      IO.println s!"litedoc4: no release asset for {triple}; releases carry {carried}. \
         Trying PATH next."
       tried := tried.push s!"release v{version}: no asset for {triple}"
-    else if ← envIsSet "LEAN_DOC_NO_DOWNLOAD" then
-      IO.println "lean-doc: $LEAN_DOC_NO_DOWNLOAD is set; not downloading. Trying PATH next."
-      tried := tried.push s!"release v{version} {triple}: skipped ($LEAN_DOC_NO_DOWNLOAD)"
+    else if ← envIsSet "LITEDOC4_NO_DOWNLOAD" then
+      IO.println "litedoc4: $LITEDOC4_NO_DOWNLOAD is set; not downloading. Trying PATH next."
+      tried := tried.push s!"release v{version} {triple}: skipped ($LITEDOC4_NO_DOWNLOAD)"
     else
       match ← downloadRelease version triple targetDir with
       | .ok bin =>
-        IO.println s!"lean-doc: {bin} (downloaded, v{version})"
+        IO.println s!"litedoc4: {bin} (downloaded, v{version})"
         return .ok bin
       | .error message =>
         -- Printed as well as recorded: a download that failed and was recovered
         -- from by a later source is still the most interesting thing that
         -- happened, and source 6 never runs when a later source answers.
-        IO.println s!"lean-doc: release v{version} {triple} not used: {message}"
+        IO.println s!"litedoc4: release v{version} {triple} not used: {message}"
         tried := tried.push s!"release v{version} {triple}: {message}"
 
   -- 4. PATH.
-  match ← findOnPath "lean-doc" with
+  match ← findOnPath "litedoc4" with
   | some bin =>
     let probe ← IO.Process.output {cmd := bin.toString, args := #["--version"]}
     let version := probe.stdout.trimAscii.toString
-    IO.println s!"lean-doc: {bin} ({if version.isEmpty then "no --version" else version})"
-    IO.println "lean-doc: warning: that is whatever is on PATH. Nothing here checks that its \
-      IR schema matches this checkout's — set LEAN_DOC_BIN to pin one."
+    IO.println s!"litedoc4: {bin} ({if version.isEmpty then "no --version" else version})"
+    IO.println "litedoc4: warning: that is whatever is on PATH. Nothing here checks that its \
+      IR schema matches this checkout's — set LITEDOC4_BIN to pin one."
     return .ok bin
-  | none => tried := tried.push "PATH: no `lean-doc`"
+  | none => tried := tried.push "PATH: no `litedoc4`"
 
   -- 5. Build it from this package's own source, if this is a checkout with cargo
   --    available. Slow (a release build), and the last thing tried, but it is
@@ -488,32 +488,32 @@ def resolveLeanDoc (pkgDir : FilePath) : IO (Except String FilePath) := do
   if ← isFileAt manifest then
     match ← findOnPath "cargo" with
     | some cargo =>
-      IO.println s!"lean-doc: not found; building it from {manifest}"
+      IO.println s!"litedoc4: not found; building it from {manifest}"
       let child ← IO.Process.spawn {
         cmd := cargo.toString
-        args := #["build", "--release", "--bin", "lean-doc"]
+        args := #["build", "--release", "--bin", "litedoc4"]
         cwd := some pkgDir
       }
       let code ← child.wait
-      let built := pkgDir / "target" / "release" / "lean-doc"
+      let built := pkgDir / "target" / "release" / "litedoc4"
       if code == 0 && (← isFileAt built) then
         return .ok built
-      tried := tried.push s!"cargo build --release --bin lean-doc in {pkgDir}: exited {code}"
+      tried := tried.push s!"cargo build --release --bin litedoc4 in {pkgDir}: exited {code}"
     | none => tried := tried.push "PATH: no `cargo` to build it with"
   else
     tried := tried.push s!"no {manifest} to build from"
 
   -- 6. Say what was looked for and where.
   return .error <|
-    "no `lean-doc` executable (the Rust half of lean-doc). Looked, in order:\n"
+    "no `litedoc4` executable (the Rust half of litedoc4). Looked, in order:\n"
       ++ String.intercalate "\n" (tried.toList.map ("  - " ++ ·))
-      ++ "\n\nSet LEAN_DOC_BIN to one, or put `lean-doc` on PATH. README.md \
+      ++ "\n\nSet LITEDOC4_BIN to one, or put `litedoc4` on PATH. README.md \
           §Running it locally has both the release download and the cargo build."
 
 /--
 Generate this package's documentation.
 
-Fills in the three flags of `lean-doc build` a consumer cannot supply by hand —
+Fills in the three flags of `litedoc4 build` a consumer cannot supply by hand —
 `--root`, `--lib` (out of the elaborated workspace) and `--extractor-bin` (the
 executable Lake just built) — and passes the rest through.
 -/
@@ -534,8 +534,8 @@ script docs (args) do
     IO.println docsUsage
     return 0
   let some outRaw := opts.out
-    | IO.eprintln "lake run docs: --out <dir> is required and has no default: `lean-doc build` \
-        refuses an --out inside the package it documents (crates/lean-doc/src/build.rs), so no \
+    | IO.eprintln "lake run docs: --out <dir> is required and has no default: `litedoc4 build` \
+        refuses an --out inside the package it documents (crates/litedoc4/src/build.rs), so no \
         path inside this workspace would be right."
       IO.eprintln docsUsage
       return 2
@@ -548,12 +548,12 @@ script docs (args) do
   -- lakefile sets `roots` explicitly. Every library of the root package is
   -- documented — `defaultTargets` answers a different question (what `lake
   -- build` builds with no arguments, which may name executables), and
-  -- `crates/lean-doc/src/lakefile.rs` already made the same call for the TOML
+  -- `crates/litedoc4/src/lakefile.rs` already made the same call for the TOML
   -- path.
   let libs := root.leanLibs.foldl (fun acc lib => acc ++ lib.roots) #[]
   if libs.isEmpty then
     IO.eprintln s!"lake run docs: {root.prettyName} declares no `lean_lib`, so there is nothing to \
-      document. This script fills in `lean-doc build --lib` from the workspace, and the \
+      document. This script fills in `litedoc4 build --lib` from the workspace, and the \
       workspace has no library root to name."
     return 3
 
@@ -568,18 +568,18 @@ script docs (args) do
   -- (`Lake/CLI/Actions.lean:23-29`: `runBuild exe.fetch` and then `env`), so
   -- this is its first half with the `env` call dropped. `Workspace.runBuild` was
   -- the plan's first candidate and it works, so the fallback — `lake build
-  -- lean-doc/extract` as a subprocess — is not used: a subprocess would re-read
+  -- litedoc4/extract` as a subprocess — is not used: a subprocess would re-read
   -- the workspace this script is already holding, and would report failures as a
   -- shell exit code instead of as Lake's own build log.
   let extractBin ← runBuild extract.fetch
 
-  let leanDoc ← match ← resolveLeanDoc __dir__ with
+  let litedoc4 ← match ← resolveLitedoc4 __dir__ with
     | .ok bin => pure bin
     | .error message =>
       IO.eprintln s!"lake run docs: {message}"
       return 4
 
-  -- Resolved here rather than handed over relative: `lean-doc build` refuses an
+  -- Resolved here rather than handed over relative: `litedoc4 build` refuses an
   -- `--out` under `--root`, and it resolves a relative path against *its own*
   -- working directory. Printing the absolute path below is what makes a
   -- surprising answer visible.
@@ -587,7 +587,7 @@ script docs (args) do
   let outDir : FilePath := if (FilePath.mk outRaw).isAbsolute then outRaw else cwd / outRaw
 
   -- The toolchain's own `lake`, not the name `lake` on PATH: this is the one the
-  -- workspace was loaded with, and `lean-doc` looks for the `lean` that answers
+  -- workspace was loaded with, and `litedoc4` looks for the `lean` that answers
   -- `--githash` as its **sibling**.
   let lake := (← getLakeEnv).lake.lake
 
@@ -604,11 +604,11 @@ script docs (args) do
   if let some url := opts.sourceUrl then
     cmdArgs := cmdArgs ++ #["--source-url", url]
 
-  IO.println s!"lean-doc: {leanDoc} {String.intercalate " " cmdArgs.toList}"
+  IO.println s!"litedoc4: {litedoc4} {String.intercalate " " cmdArgs.toList}"
   -- No augmented environment: `lake run` does not put `LEAN_PATH` in the
-  -- script's environment 【実測, probe §4】 and `lean-doc build` does not want
+  -- script's environment 【実測, probe §4】 and `litedoc4 build` does not want
   -- one — it runs `lake env` inside `--root` itself for every extraction, which
-  -- is where the Lean environment comes from (`crates/lean-doc/src/extract.rs`).
+  -- is where the Lean environment comes from (`crates/litedoc4/src/extract.rs`).
   -- That is what `--lake` above is for.
-  let child ← IO.Process.spawn {cmd := leanDoc.toString, args := cmdArgs}
+  let child ← IO.Process.spawn {cmd := litedoc4.toString, args := cmdArgs}
   child.wait

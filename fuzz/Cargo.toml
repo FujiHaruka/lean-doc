@@ -3,14 +3,14 @@
 # `rust-toolchain.toml` pins stable for everyone including CI, and libFuzzer plus
 # `-Zsanitizer=address` need nightly. Rather than put a second toolchain on the
 # critical path of every push, this lives outside the workspace: the gate that
-# has to stay green is `crates/lean-doc-md/tests/fuzz_corpus.rs`, which runs the
+# has to stay green is `crates/litedoc4-md/tests/fuzz_corpus.rs`, which runs the
 # committed corpus on stable. This directory is how new corpus entries are
 # *found* (docs/plans/quality-gates.md 決定 5).
 #
 # The empty `[workspace]` table below is what keeps `cargo build` at the repo
 # root from trying to adopt this package.
 [package]
-name = "lean-doc-md-fuzz"
+name = "litedoc4-md-fuzz"
 version = "0.0.0"
 edition = "2024"
 publish = false
@@ -21,8 +21,8 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 
-[dependencies.lean-doc-md]
-path = "../crates/lean-doc-md"
+[dependencies.litedoc4-md]
+path = "../crates/litedoc4-md"
 
 [[bin]]
 name = "docstring"

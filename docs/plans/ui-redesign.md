@@ -1,4 +1,4 @@
-# lean-doc UI 刷新 — M8
+# litedoc4 UI 刷新 — M8
 
 **位置づけ**: [`../implementation-plan.md`](../implementation-plan.md) が**実装の SoT**。この文書はその
 **M8 の詳細** — doc-gen4 の HTML / CSS / JS を模倣するのをやめ、**IR はそのままで UI を自前にする**段の、
@@ -10,7 +10,7 @@
 
 ## 1. ゴールと完了条件
 
-**ゴール**: `lean-doc build` が出した木を**そのまま置けば動くサイト**にする。
+**ゴール**: `litedoc4 build` が出した木を**そのまま置けば動くサイト**にする。
 いまは置いても見た目が付かない (静的資産を 1 本も生成しない) し、入口 (`index.html`) も無い。
 
 | ゲート | 完了条件 | 判定 | 結果【実測 2026-08-16】 |
@@ -54,7 +54,7 @@ M1〜M7 で作った**データの層**は 1 バイトも変えない:
 ### 2.3 いま公開されているもの【実測 2026-08-16】
 
 `https://fujiharuka.github.io/information-theory/` (gh-pages ブランチ `8b1f5b0`、**手動 push**、
-`build_type: legacy`、`custom_404: true`)。中身は **lean-doc が出した 438 ファイル + doc-gen4 の
+`build_type: legacy`、`custom_404: true`)。中身は **litedoc4 が出した 438 ファイル + doc-gen4 の
 静的資産 17 本を手でコピーしたもの**。`search.html` は**コピーし忘れていて 404** —
 ページ右上の Search ボタンの飛び先がこれ。**デプロイのワークフローもスクリプトも存在しない。**
 
@@ -73,7 +73,7 @@ M1〜M7 で作った**データの層**は 1 バイトも変えない:
 
 **先にプロトタイプを書く。** CSS を Rust の文字列リテラルの中で試行錯誤するのは最悪なので、
 **手書きの静的 HTML で見た目を固めてから**、同じ構造を Rust に落とす。プロトタイプは
-`design/preview/` に置き、**CSS と JS の実体は最初から製品の置き場所** (`crates/lean-doc-render/assets/`)
+`design/preview/` に置き、**CSS と JS の実体は最初から製品の置き場所** (`crates/litedoc4-render/assets/`)
 に置いて、プロトタイプがそれを相対パスで参照する — **資産を 2 箇所に持たない**ため。
 
 **やらないこと**: IR の拡張。「この情報があれば良い UI になる」と気づいても、M8 では
@@ -95,7 +95,7 @@ M1〜M7 で作った**データの層**は 1 バイトも変えない:
 **目標は 1 ファイル 15 KB 未満**【目標値。実測は M8-b で】。
 参考: doc-gen4 の `style.css` は **18,677 B / 836 行**【実測】。
 
-**この決定が守っているもの**: **依存ゼロ**。site 木は `lean-doc build` の出力だけで完結し、
+**この決定が守っているもの**: **依存ゼロ**。site 木は `litedoc4 build` の出力だけで完結し、
 ネットワークもツールチェーンも要らない。CDN が死んでもサイトは死なない。
 **サイズは理由ではない** — 自前のほうが大きくなったとしても、この決定は変わらない。
 
@@ -152,20 +152,20 @@ doc-gen4 の `expand-nav.js` はそのためだけに存在している**【実�
 
 **この決定が捨てるもの**: `file://` で開いたときのツリー — `fetch` が同一オリジンで止まる。
 配布先は GitHub Pages (HTTP) なので v0.1 では許容する。**書いておくのは、これが「気づかなかった」
-ではなく「捨てた」だからで、`lean-doc serve` を作る日に戻ってくる。**
+ではなく「捨てた」だからで、`litedoc4 serve` を作る日に戻ってくる。**
 JS を切っても本文は読めるようにし、`<noscript>` にモジュール一覧 (`index.html`) へのリンクを置く。
 
 ### 決定 5 — 検索はクライアントで、索引は専用に出す
 
-doc-gen4 の `search.js` は `declaration-data.bmp` (**lean-doc 版で 1,216,017 B**【実測】) を
+doc-gen4 の `search.js` は `declaration-data.bmp` (**litedoc4 版で 1,216,017 B**【実測】) を
 **毎回まるごと fetch して線形走査する** (IndexedDB キャッシュは doc-gen4 側で無効化されている【実測】)。
 検索に要るのは (名前, kind, リンク) の 3 列だけなので、**それだけの索引を別に出す**。
 **4,750 宣言**【実測】で数百 KB、gzip 後はその 1/5〜1/6【外挿。GitHub Pages は gzip を掛ける】。
 
 ### 決定 6 — 静的資産は Rust バイナリに埋め込む
 
-`crates/lean-doc-render/assets/` に実体を置き、`include_str!` でバイナリに入れて、
-`lean-doc build` が site 木へ書き出す。**理由**: インストールが `cargo install` 1 本で済み、
+`crates/litedoc4-render/assets/` に実体を置き、`include_str!` でバイナリに入れて、
+`litedoc4 build` が site 木へ書き出す。**理由**: インストールが `cargo install` 1 本で済み、
 **資産の版とレンダラの版が構造的にずれない** — CSS が参照する class 名を変えたのに古い CSS が
 配られる、という壊れ方が起きない。
 
@@ -180,7 +180,7 @@ doc-gen4 の `search.js` は `declaration-data.bmp` (**lean-doc 版で 1,216,017
 
 | | やること | ゲート |
 |---|---|---|
-| **M8-a** | 静的資産を site 木へ書き出す土台 (決定 6) | 空ディレクトリに `lean-doc build` して、**`<head>` が参照する資産が全部そこにある**。**増分でも消えず、古くもならない** |
+| **M8-a** | 静的資産を site 木へ書き出す土台 (決定 6) | 空ディレクトリに `litedoc4 build` して、**`<head>` が参照する資産が全部そこにある**。**増分でも消えず、古くもならない** |
 | **M8-b** | ページの HTML 構造と CSS を刷新 | プロトタイプと Rust 出力が**同じ構造**。実ブラウザで 375 px / 1440 px。**壊れたテストを全部数えて記録する** |
 | **M8-c** | JS を自前に (ナビ・検索・テーマ・instances・importedBy) | **外部リクエスト 0 本**。**JS を切っても本文が読める** |
 | **M8-d** | 入口 (`index.html` / `404.html` / `search.html` / `foundational_types.html`) と索引 | **サイト内リンクの 404 が 0 本** |
@@ -260,7 +260,7 @@ doc-gen4 の `search.js` は `declaration-data.bmp` (**lean-doc 版で 1,216,017
 → **採用**。`ModuleFacts` に `instancesFor` を足したので `STATE_DERIVATION` は **v2**
 (facts.rs の契約どおり。v1 のキャッシュを再利用すると Instances For が空になる)。
 
-**やめる 5 本は `lean-doc-global` のテストを動かす。** バイト再現の母数 (432 ページ + 6 成果物 = 438)
+**やめる 5 本は `litedoc4-global` のテストを動かす。** バイト再現の母数 (432 ページ + 6 成果物 = 438)
 そのものが変わるので、**milestone-log の 438 を書き換えるのではなく、M8 の母数として別に記録する**
 (M8-d 後は 432 ページ + 7 成果物 = **439**、静的資産 3 本を足して木は **442 ファイル**【実測】)。
 

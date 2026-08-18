@@ -3,13 +3,13 @@
 // `--allow-write` is only used by `--mismatches`, `--allow-env` only to read
 // TARGET_REPO. Nothing is ever written to the measurement target.
 //
-// Diffs the constants lean-doc collects from a signature (stage 3, `--refs`)
+// Diffs the constants litedoc4 collects from a signature (stage 3, `--refs`)
 // against the links doc-gen4 actually put in its HTML, the same way
 // `compare-modules.py` diffs the per-module collection against doc-gen4's
 // database.
 //
 // The point of the comparison is stage 3's criterion (a): "links into Mathlib
-// are correct", i.e. lean-doc must reach the same targets doc-gen4 does. Note
+// are correct", i.e. litedoc4 must reach the same targets doc-gen4 does. Note
 // the direction: doc-gen4's HTML holds the *resolved* subset -- a constant whose
 // name is not in `name2ModIdx` renders as `<span class="fn">` with no `href` --
 // so the expected result is `html ⊆ refs`, not equality. A name in `html` that
@@ -186,7 +186,7 @@ let linksOutsideDecl = 0;
 const outsideExamples: string[] = [];
 // The self-links dropped above, kept as `decl id -> anchor`. They are not
 // references, but they *are* `<a href>`s, so a (declaration, reference) pair
-// that only exists as one of them must not be reported as "lean-doc has a link
+// that only exists as one of them must not be reported as "litedoc4 has a link
 // doc-gen4 does not" -- that would be this tool's own filter talking.
 const htmlSelfPairs = new Map<string, Set<string>>();
 
@@ -290,7 +290,7 @@ const pct = (a: number, b: number) => (b === 0 ? "-" : `${((100 * a) / b).toFixe
 const num = (n: number) => n.toLocaleString("en-US");
 
 console.log(`doc-gen4 HTML       ${DOC}`);
-console.log(`lean-doc refs       ${refsPath}`);
+console.log(`litedoc4 refs       ${refsPath}`);
 console.log();
 console.log(`module coverage     ${covered} of ${targetModules.size} target modules have a page (${pct(covered, targetModules.size)})`);
 if (covered < targetModules.size) {
@@ -299,10 +299,10 @@ if (covered < targetModules.size) {
 console.log();
 console.log(`HTML link targets   ${htmlNames.size} unique, ${occurrences} occurrences`);
 for (const [k, v] of perSource) console.log(`  ${k.padEnd(18)}${v.size} unique`);
-console.log(`lean-doc constants  ${refNames.size} unique (${refs.filter((r) => r.own).length} own, ${refs.filter((r) => !r.own).length} dependency)`);
+console.log(`litedoc4 constants  ${refNames.size} unique (${refs.filter((r) => r.own).length} own, ${refs.filter((r) => !r.own).length} dependency)`);
 console.log();
-console.log(`in HTML, missing from lean-doc   ${missing.length}   <- defects`);
-console.log(`in lean-doc, not linked in HTML  ${extra.length}   <- unresolved / not yet classified`);
+console.log(`in HTML, missing from litedoc4   ${missing.length}   <- defects`);
+console.log(`in litedoc4, not linked in HTML  ${extra.length}   <- unresolved / not yet classified`);
 console.log(`containment                      ${pct(htmlNames.size - missing.length, htmlNames.size)} of HTML targets are collected`);
 
 if (listMissing) {
@@ -352,7 +352,7 @@ console.log(`  link targets, per-decl union         ${num(perDeclNames.size)}   
 console.log(`  links in a signature block that is`);
 console.log(`    outside every div.decl             ${num(linksOutsideDecl)}`);
 for (const e of outsideExamples) console.log(`      e.g. ${e}`);
-console.log(`  in HTML, missing from lean-doc       ${perDeclMissing.length}`);
+console.log(`  in HTML, missing from litedoc4       ${perDeclMissing.length}`);
 if (lostNames.length) console.log(`  lost names: ${lostNames.slice(0, 10).join(" ")}`);
 
 // --- population ------------------------------------------------------------
@@ -435,18 +435,18 @@ for (const d of population) {
     }
   }
 }
-const leandocPairKeys = new Set<string>();
-for (const d of population) for (const r of new Set(d.refs)) leandocPairKeys.add(key(d.name, r));
+const litedoc4PairKeys = new Set<string>();
+for (const d of population) for (const r of new Set(d.refs)) litedoc4PairKeys.add(key(d.name, r));
 
-const common = [...htmlPairKeys].filter((k) => leandocPairKeys.has(k));
-const htmlOnlyPairs = [...htmlPairKeys].filter((k) => !leandocPairKeys.has(k));
-const leandocOnlyPairs = [...leandocPairKeys].filter((k) => !htmlPairKeys.has(k));
+const common = [...htmlPairKeys].filter((k) => litedoc4PairKeys.has(k));
+const htmlOnlyPairs = [...htmlPairKeys].filter((k) => !litedoc4PairKeys.has(k));
+const litedoc4OnlyPairs = [...litedoc4PairKeys].filter((k) => !htmlPairKeys.has(k));
 
 console.log();
 console.log("1. pairs");
 console.log(`  HTML       ${num(htmlPairKeys.size)} distinct (declaration, reference) pairs, ${num(htmlPairOccurrences)} <a> occurrences`);
-console.log(`  lean-doc   ${num(leandocPairKeys.size)} distinct pairs`);
-console.log(`  common     ${num(common.length)}   (${pct(common.length, htmlPairKeys.size)} of HTML, ${pct(common.length, leandocPairKeys.size)} of lean-doc)`);
+console.log(`  litedoc4   ${num(litedoc4PairKeys.size)} distinct pairs`);
+console.log(`  common     ${num(common.length)}   (${pct(common.length, htmlPairKeys.size)} of HTML, ${pct(common.length, litedoc4PairKeys.size)} of litedoc4)`);
 console.log(`  pairs whose <a> occurrences do not all share one href: ${multiHref}`);
 for (const e of multiHrefEx) console.log(`      ${e}`);
 // The `../` prefix is the only part of the rule that depends on the page, so
@@ -553,7 +553,7 @@ for (const [s, label] of [["A", "A. env  (refs.jsonl module + path rule)"], ["B"
   );
 }
 console.log(`  Read strategy A for what it is: doc-gen4's own name2ModIdx *is*`);
-console.log(`  env.const2ModIdx (DocGen4/Process/Analyze.lean:243), the map lean-doc read`);
+console.log(`  env.const2ModIdx (DocGen4/Process/Analyze.lean:243), the map litedoc4 read`);
 console.log(`  with getModuleIdxFor?. A therefore tests the path rule, not the module`);
 console.log(`  lookup -- the two sides share that input. B is the independent one.`);
 console.log();
@@ -568,7 +568,7 @@ for (const s of ["A", "B"] as const) {
   }
 }
 
-// --- 4. pairs the HTML has and lean-doc does not ---------------------------
+// --- 4. pairs the HTML has and litedoc4 does not ---------------------------
 // doc-gen4 does not always link the constant it was given: `findLinkableParent`
 // (DocGen4/Output/Base.lean) strips trailing components until the remainder is
 // in `name2ModIdx`, so the anchor can be an ancestor of the collected name.
@@ -580,8 +580,8 @@ for (const k of htmlOnlyPairs) {
   const declRefs = new Set(byName.get(decl)!.refs);
   let c: string;
   if ([...declRefs].some((r) => isAncestor(anchor, r))) c = "doc-gen4 linked an ancestor of a collected ref";
-  else if (refNames.has(anchor)) c = "collected by lean-doc, but on another declaration";
-  else c = "never collected by lean-doc (defect)";
+  else if (refNames.has(anchor)) c = "collected by litedoc4, but on another declaration";
+  else c = "never collected by litedoc4 (defect)";
   htmlOnlyClass.set(c, (htmlOnlyClass.get(c) ?? 0) + 1);
   const l = htmlOnlyEx.get(c) ?? [];
   if (l.length < 3) l.push(`${decl} -> ${anchor}   ${htmlPairs.get(decl)!.get(anchor)!.href}`);
@@ -589,13 +589,13 @@ for (const k of htmlOnlyPairs) {
   push({ cls: c, strategy: "html-only", decl, ref: anchor, actual: htmlPairs.get(decl)!.get(anchor)!.href, generated: null });
 }
 console.log();
-console.log(`4. in the HTML, not in lean-doc: ${num(htmlOnlyPairs.length)} pairs   <- defect candidates`);
+console.log(`4. in the HTML, not in litedoc4: ${num(htmlOnlyPairs.length)} pairs   <- defect candidates`);
 for (const [c, n] of [...htmlOnlyClass].sort((a, b) => b[1] - a[1])) {
   console.log(`      ${num(n).padStart(6)}  ${c}`);
   for (const e of htmlOnlyEx.get(c) ?? []) console.log(`        ${e}`);
 }
 
-// --- 5. pairs lean-doc has and the HTML does not ---------------------------
+// --- 5. pairs litedoc4 has and the HTML does not ---------------------------
 // Two independent questions are asked about these, and mixing them is how this
 // section would start lying:
 //
@@ -603,7 +603,7 @@ for (const [c, n] of [...htmlOnlyClass].sort((a, b) => b[1] - a[1])) {
 //        from the name or from what this tool itself dropped;
 //   (ii) *would it be a dead link* -- does the page the URL points at exist and
 //        does it carry that anchor. This is the retreat-line material, and it is
-//        reported over every pair lean-doc has, not just these.
+//        reported over every pair litedoc4 has, not just these.
 //
 // The tempting third class, "doc-gen4 linked an ancestor of it instead", is
 // deliberately not a class: an ancestor anchor being present in the same block
@@ -626,7 +626,7 @@ async function anchors(module: string): Promise<Set<string> | null> {
   return ids;
 }
 
-/** live | dead | unbuilt | no-module, for the URL lean-doc would emit. */
+/** live | dead | unbuilt | no-module, for the URL litedoc4 would emit. */
 type Fate = "live" | "dead" | "unbuilt" | "no-module";
 const fateCache = new Map<string, Fate>();
 async function fate(ref: string): Promise<Fate> {
@@ -649,7 +649,7 @@ const isAux = (n: string) =>
 const leanOnlyClass = new Map<string, number>();
 const leanOnlyEx = new Map<string, string[]>();
 let ancestorPresent = 0;
-for (const k of leandocOnlyPairs) {
+for (const k of litedoc4OnlyPairs) {
   const [decl, ref] = k.split(SEP);
   const per = htmlPairs.get(decl)!;
   const mod = refModule.get(ref) ?? null;
@@ -671,7 +671,7 @@ for (const k of leandocOnlyPairs) {
   leanOnlyEx.set(c, l);
   push({
     cls: c,
-    strategy: "leandoc-only",
+    strategy: "litedoc4-only",
     decl,
     ref,
     actual: "",
@@ -680,7 +680,7 @@ for (const k of leandocOnlyPairs) {
   });
 }
 console.log();
-console.log(`5. in lean-doc, not linked in the HTML: ${num(leandocOnlyPairs.length)} pairs`);
+console.log(`5. in litedoc4, not linked in the HTML: ${num(litedoc4OnlyPairs.length)} pairs`);
 for (const [c, n] of [...leanOnlyClass].sort((a, b) => b[1] - a[1])) {
   console.log(`      ${num(n).padStart(6)}  ${c}`);
   for (const e of leanOnlyEx.get(c) ?? []) console.log(`        ${e}`);
@@ -688,16 +688,16 @@ for (const [c, n] of [...leanOnlyClass].sort((a, b) => b[1] - a[1])) {
 console.log(`   note: of the "no <a> at all" pairs, ${num(ancestorPresent)} have an ancestor of the name`);
 console.log(`   anchored in the same block. Suggestive of findLinkableParent, not proof.`);
 
-// (ii) dead-link exposure: what happens if lean-doc emits every link it can.
+// (ii) dead-link exposure: what happens if litedoc4 emits every link it can.
 console.log();
-console.log("5b. dead-link exposure -- would the URL lean-doc emits resolve?");
+console.log("5b. dead-link exposure -- would the URL litedoc4 emits resolve?");
 console.log("    (anchor = any id= on the target page. Pages absent from this 42%-cut");
 console.log("    doc build are 'not built', which is a property of the build, not of the map.)");
 const buckets = ["live", "dead", "unbuilt", "no-module"] as const;
 for (const [label, keys] of [
-  ["all pairs lean-doc would emit (population)", [...leandocPairKeys]],
+  ["all pairs litedoc4 would emit (population)", [...litedoc4PairKeys]],
   ["  of those, the ones doc-gen4 also linked", common],
-  ["  of those, the ones doc-gen4 did not link", leandocOnlyPairs],
+  ["  of those, the ones doc-gen4 did not link", litedoc4OnlyPairs],
 ] as const) {
   const byFate = new Map<Fate, number>();
   const namesByFate = new Map<Fate, Set<string>>();
@@ -716,7 +716,7 @@ for (const [label, keys] of [
   }
 }
 const deadNames = new Set<string>();
-for (const k of leandocPairKeys) {
+for (const k of litedoc4PairKeys) {
   const ref = k.split(SEP)[1];
   if (await fate(ref) === "dead") deadNames.add(ref);
 }
@@ -727,7 +727,7 @@ for (const n of deadDep) console.log(`      ${n}   in .bmp: ${bmp.has(n) ? "yes"
 console.log(`  dead names, own package:     ${num(deadOwn.length)} (${deadOwn.filter((n) => n.startsWith("_private.")).length} private)`);
 for (const n of deadOwn.slice(0, 4)) console.log(`      ${n}`);
 const depNames = new Set(
-  [...leandocPairKeys].map((k) => k.split(SEP)[1]).filter((n) => !targetModules.has(refModule.get(n) ?? "")),
+  [...litedoc4PairKeys].map((k) => k.split(SEP)[1]).filter((n) => !targetModules.has(refModule.get(n) ?? "")),
 );
 const depNotInBmp = [...depNames].filter((n) => !bmp.has(n));
 console.log(`  dependency names referenced from the population: ${num(depNames.size)}`);

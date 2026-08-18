@@ -1,4 +1,4 @@
-# Build the `lean-doc` binary for each platform, prove it works, and attach it
+# Build the `litedoc4` binary for each platform, prove it works, and attach it
 # to a GitHub release.  (docs/plans/distribution.md, D2)
 #
 # ============================================================================
@@ -14,7 +14,7 @@
 # ============================================================================
 # WHAT IS IN THE ARCHIVE, AND WHY IT IS NOT JUST THE BINARY
 # ============================================================================
-#   `lean-doc` + `LICENSE` + `NOTICE`. A binary release is Apache-2.0 §4's
+#   `litedoc4` + `LICENSE` + `NOTICE`. A binary release is Apache-2.0 §4's
 #   "Object form", which triggers (a): recipients get the licence text. And md4c
 #   is compiled into the binary under MIT, whose permission notice must travel
 #   with "all copies" — NOTICE used to *point* at vendor/md4c/LICENSE.md, which
@@ -88,7 +88,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y musl-tools
 
       - name: Build
-        run: cargo build --release --locked --bin lean-doc --target ${{ matrix.target }}
+        run: cargo build --release --locked --bin litedoc4 --target ${{ matrix.target }}
         env:
           CC_x86_64_unknown_linux_musl: musl-gcc
 
@@ -97,7 +97,7 @@ jobs:
       # runs on a machine with a different libc. Assert it here.
       - name: It is what it claims to be
         run: |
-          BIN=target/${{ matrix.target }}/release/lean-doc
+          BIN=target/${{ matrix.target }}/release/litedoc4
           ls -l "$BIN"
           file "$BIN"
           if [ "${{ matrix.target }}" = "x86_64-unknown-linux-musl" ]; then
@@ -126,19 +126,19 @@ jobs:
           else V="$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)"; fi
           echo "version=$V" >> "$GITHUB_OUTPUT"
           # **The asset name carries no version.** That is what makes
-          #   releases/latest/download/lean-doc-<target>.tar.gz
+          #   releases/latest/download/litedoc4-<target>.tar.gz
           # a URL that keeps working, which is the whole install instruction in
           # README. The version is inside, in the directory it unpacks to, so
           # two downloads still do not collide on disk.
-          echo "asset=lean-doc-${{ matrix.target }}" >> "$GITHUB_OUTPUT"
-          echo "dir=lean-doc-$V-${{ matrix.target }}" >> "$GITHUB_OUTPUT"
+          echo "asset=litedoc4-${{ matrix.target }}" >> "$GITHUB_OUTPUT"
+          echo "dir=litedoc4-$V-${{ matrix.target }}" >> "$GITHUB_OUTPUT"
 
       - name: Archive
         shell: bash
         run: |
           DIR="${{ steps.v.outputs.dir }}"
           mkdir -p "dist/$DIR"
-          cp "target/${{ matrix.target }}/release/lean-doc" "dist/$DIR/"
+          cp "target/${{ matrix.target }}/release/litedoc4" "dist/$DIR/"
           cp LICENSE NOTICE "dist/$DIR/"
           tar -C dist -czf "dist/${{ steps.v.outputs.asset }}.tar.gz" "$DIR"
           rm -rf "dist/$DIR"
@@ -195,14 +195,14 @@ jobs:
       - name: Put elan on PATH
         run: echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
-      # LEAN_DOC points e2e-micro.sh at the unpacked binary instead of a cargo
+      # LITEDOC4 points e2e-micro.sh at the unpacked binary instead of a cargo
       # build, so what is measured is the artifact, not this checkout.
       - name: End to end with the downloaded binary
         run: |
-          BIN="$(find "$RUNNER_TEMP/dl" -name lean-doc -type f | head -1)"
+          BIN="$(find "$RUNNER_TEMP/dl" -name litedoc4 -type f | head -1)"
           chmod +x "$BIN"
           "$BIN" --version || true
-          LEAN_DOC="$BIN" tools/e2e-micro.sh --out "$RUNNER_TEMP/e2e" --keep
+          LITEDOC4="$BIN" tools/e2e-micro.sh --out "$RUNNER_TEMP/e2e" --keep
 
   # --------------------------------------------------------------------------
   publish:
@@ -254,8 +254,8 @@ jobs:
           set -euo pipefail
           NAMES="$(gh release view "$GITHUB_REF_NAME" --repo "$R" --json assets --jq '.assets[].name' | sort)"
           echo "$NAMES"
-          for want in lean-doc-x86_64-unknown-linux-musl.tar.gz \
-                      lean-doc-aarch64-apple-darwin.tar.gz \
+          for want in litedoc4-x86_64-unknown-linux-musl.tar.gz \
+                      litedoc4-aarch64-apple-darwin.tar.gz \
                       checksums.txt; do
             echo "$NAMES" | grep -qx "$want" || { echo "::error::missing asset: $want"; exit 1; }
           done

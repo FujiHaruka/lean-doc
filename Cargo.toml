@@ -9,10 +9,10 @@ rust-version = "1.97"
 # Portions are derived from doc-gen4, which is Apache-2.0; NOTICE lists every
 # third-party work and docs/provenance.md says which files are affected.
 license = "Apache-2.0"
-repository = "https://github.com/FujiHaruka/lean-doc"
+repository = "https://github.com/FujiHaruka/litedoc4"
 # None of these crates is a library anyone outside this repository consumes: the
 # boundaries exist so that a change to rendering cannot reach into the ledger,
-# not so that `lean-doc-render` can be depended on from crates.io. Saying so
+# not so that `litedoc4-render` can be depended on from crates.io. Saying so
 # makes `cargo publish` refuse rather than upload six half-crates by accident.
 publish = false
 
@@ -49,11 +49,11 @@ serde_json = { version = "1", features = ["preserve_order"] }
 #   Each `#[expect]` in the tree carries a reason, and `allow_attributes*` below
 #   is what keeps that true.
 [workspace.lints.rust]
-# The only `unsafe` is md4lean's FFI boundary (lean-doc-md, lean-doc-render).
+# The only `unsafe` is md4lean's FFI boundary (litedoc4-md, litedoc4-render).
 # Edition 2024 already denies this; naming it means a downgrade to an older
 # edition cannot quietly re-open the whole body of an `unsafe fn`.
 unsafe_op_in_unsafe_fn = "deny"
-# `lean-doc` is a binary: `pub` there is visible to nobody. Writing `pub(crate)`
+# `litedoc4` is a binary: `pub` there is visible to nobody. Writing `pub(crate)`
 # instead makes "this is the crate's surface" a true statement in the library
 # crates, where it is load-bearing.
 unreachable_pub = "warn"
@@ -63,7 +63,7 @@ explicit_outlives_requirements = "warn"
 trivial_casts = "warn"
 trivial_numeric_casts = "warn"
 # NOT `missing_debug_implementations`: it fires 16 times here and 12 of those are
-# md4c's structs written out in `lean-doc-md/src/ffi.rs`, which are never printed
+# md4c's structs written out in `litedoc4-md/src/ffi.rs`, which are never printed
 # as Rust values. Nothing was ever hard to assert against for want of a `Debug`,
 # so the lint would be 16 suppressions buying nothing.
 

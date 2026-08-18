@@ -9,7 +9,7 @@
 
 leg 2 は G2 を **「宣言単位の再解析キャッシュ — 意味解析を*速く*するのではなく*回数*を
 減らす」** と設定した。根拠は CI 実測で床が I/O から CPU に移ったこと:
-ランナー上の `lean-doc build` は **11.5〜20.7 s** で、うち環境ロードは **1.6〜2.7 s** しかなく
+ランナー上の `litedoc4 build` は **11.5〜20.7 s** で、うち環境ロードは **1.6〜2.7 s** しかなく
 **extract が 10.0〜18.2 s**【実測 2026-08-16、`benchmarks/results/ci-placement-5-summary.txt`
 の same/split 腕】。`approach.md` §6.1 末尾が名指ししている「変更のない宣言を再解析しない」が
 そのまま今の律速に当たる、という読み。
@@ -41,8 +41,8 @@ CI の extract 10〜18 s は**増分ではなくフル抽出**の値である。
 `.github/workflows/ci-template.yml` (利用者に配る雛形) がキャッシュしているのは 3 つだけ:
 
 - `~/.cache/mathlib` (Mathlib の olean、`lake exe cache get` 用)
-- `lean-doc/extractor/build` (Lean 抽出器のバイナリ)
-- `~/.cargo` + `lean-doc/target` (Rust ビルド)
+- `litedoc4/extractor/build` (Lean 抽出器のバイナリ)
+- `~/.cargo` + `litedoc4/target` (Rust ビルド)
 
 **IR ディレクトリと台帳 (`ledger.json`) はキャッシュしていない。** 対象パッケージ自身の
 `.lake/build` もキャッシュしていない。だから毎 run が初回ビルドで、L2 (モジュール単位ハッシュ)
@@ -116,7 +116,7 @@ olean を復元せず毎 run ビルドし直すので、台帳が当たること
   GitHub Actions 内では checkout 先が run 間で一定なので run 跨ぎでは問題にならない、
   というのは**仮定**。段 B の実走で確かめる。
 - `extractKey` は path 非依存である (`leanToolchain` / `manifestSha256` /
-  `EXTRACTOR_ID` / IR schema・generator)【コードで確認、`crates/lean-doc-incr/src/ledger.rs`】。
+  `EXTRACTOR_ID` / IR schema・generator)【コードで確認、`crates/litedoc4-incr/src/ledger.rs`】。
   `EXTRACTOR_ID` は定数なので抽出器を再ビルドしても鍵は動かない。
 
 ## 5. 段 B — 実行済み。**無変更なら 31.6 倍、本番の押下は 1.35 倍**【実測 2026-08-17】
@@ -182,9 +182,9 @@ leg 3 はこう設計した: **(C2)** 抽出器が自パッケージぶんと依
 | 自パッケージぶんだけ (371,905 B) — **陽性対照** | **差分 408 / 429** |
 
 理由はコードにある: `NameIndex::module_of` は **IR 由来の `known` を先に見る**
-(`crates/lean-doc-render/src/autolink.rs:258`)。`range_of` は全リンクで引かれるが
+(`crates/litedoc4-render/src/autolink.rs:258`)。`range_of` は全リンクで引かれるが
 (`autolink.rs:332`)、出力に出るのは `ExternalLinks` が**依存パッケージの** URL を
-解決したときだけ (`crates/lean-doc-render/src/external.rs:146-162`)。
+解決したときだけ (`crates/litedoc4-render/src/external.rs:146-162`)。
 自パッケージ内リンクでは引いた range は捨てられる。
 
 **つまり `.lidx` の中で毎回動いている 3.6% は、そもそも誰も読んでいない。**
@@ -217,7 +217,7 @@ leg 3 はこう設計した: **(C2)** 抽出器が自パッケージぶんと依
 #### C は実装済み【実測 2026-08-17 → `benchmarks/results/g3-stage-c-2026-08-17.txt`】
 
 `--link-index-omit <modules.txt>` を抽出器に足し、常駐サーバが起動時のモジュール一覧を
-そのまま渡す (`crates/lean-doc/src/resident.rs`)。結果:
+そのまま渡す (`crates/litedoc4/src/resident.rs`)。結果:
 
 | | before | after |
 |---|---:|---:|
@@ -298,7 +298,7 @@ baseline のログで exit 1 / 段 C のみのログでも exit 1 / 段 D のロ
 
 - **秒はもう全額割り当てられている**【実測 2026-08-17 →
   `benchmarks/results/g3-attribution-2026-08-17.txt`】。新しいコードは要らなかった —
-  `lean-doc incremental --timings` が 10 段を出す (`build --timings` は 4 段しか出さない)。
+  `litedoc4 incremental --timings` が 10 段を出す (`build --timings` は 4 段しか出さない)。
   warm 中央値:
 
   | | 秒 | 比例するもの |

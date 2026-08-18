@@ -13,12 +13,12 @@ concerned are marked in place with the doc-gen4 source path they came from —
 the `Core.Context` options, `collectSpans`, the kind/modifier split, and
 `structureMembers`. See `docs/provenance.md` for the full inventory.
 
-lean-doc as a whole is licensed separately; see this repository's LICENSE.
+litedoc4 as a whole is licensed separately; see this repository's LICENSE.
 This binary does **not** link doc-gen4 — it imports only `Lean`.
 
 ---
 
-**lean-doc's extractor.** Milestone M4-a **moved** this file — it did not port
+**litedoc4's extractor.** Milestone M4-a **moved** this file — it did not port
 it: the extractor is the one stage that has to run inside the target package's
 Lean environment (`importModules` over its oleans), so it stays Lean while
 everything outside it is Rust (`docs/implementation-plan.md` §5.6).
@@ -58,7 +58,7 @@ Everything below this paragraph is stage 4b's original header, still accurate
 except where the stage-7a / 7b / 7d notes above and in `irSchemaVersion` say
 otherwise.
 
-Stage 4b experiment for lean-doc (see `docs/approach.md` §5.4 / §5.5 / §6.1 and
+Stage 4b experiment for litedoc4 (see `docs/approach.md` §5.4 / §5.5 / §6.1 and
 `docs/plans/three-axes.md` leg 4).
 
 Started as a copy of `experiments/stage4/Extract.lean`, which was itself a copy of
@@ -101,7 +101,7 @@ index route:
 The blacklist is a transcription of doc-gen4's `DocInfo.isBlackListed`, because
 comparing times only means something if both tools keep the same declarations.
 
-Only `import Lean`: lean-doc does not depend on doc-gen4.
+Only `import Lean`: litedoc4 does not depend on doc-gen4.
 
 It also collects what doc-gen4's `getAllModuleDocs` collects (module docstrings,
 direct imports, tactic documentation) — but enumerating the tactic table *once*
@@ -339,7 +339,7 @@ The renderer resolves a docstring autolink the way doc-gen4's
 `Output/DocString.lean:nameToLink?` does: it looks the token up in a global
 `name -> module` map. doc-gen4 holds the whole environment and reads
 `env.name2ModIdx`; the renderer holds none of it, so for it the map is an input
-file — the `.lidx` read by `crates/lean-doc-render/src/link_index.rs`. It is not
+file — the `.lidx` read by `crates/litedoc4-render/src/link_index.rs`. It is not
 optional: with the same IR and the same `--source-url`, having it or not moves
 432 of 432 pages' worth of links and 150 pages' bytes (実装計画 決定 4).
 
@@ -402,12 +402,12 @@ is covered by the reader's unit tests only.
 ### 段 C — the package's own groups can be left out (`--link-index-omit`)
 
 **The renderer never reads them.** A docstring token is resolved by
-`NameIndex::module_of` (`crates/lean-doc-render/src/autolink.rs:258`), which
+`NameIndex::module_of` (`crates/litedoc4-render/src/autolink.rs:258`), which
 asks the IR-derived index *first* and only falls back to the `.lidx`, so a name
 the package itself declares is answered before this file is consulted at all.
 And the line range this file carries is spent only where
 `ExternalLinks::url_for` has a root for the module
-(`crates/lean-doc-render/src/external.rs:146-162`) — that is, only for a
+(`crates/litedoc4-render/src/external.rs:146-162`) — that is, only for a
 **dependency**: for an own-package module `href` takes the relative-page branch
 and drops the range it was handed. So every own-package group in the map is
 written, read past, and discarded.
@@ -427,7 +427,7 @@ the edits this pipeline exists to make cheap.
 
 **The `@` section stays complete — omitted modules included.** It is a different
 map answering a different question: `module_for_source_path`
-(`crates/lean-doc-render/src/autolink.rs:289-315`) scans `known_modules`
+(`crates/litedoc4-render/src/autolink.rs:289-315`) scans `known_modules`
 linearly for a docstring source path and answers `None` when **two** entries
 match, so taking an entry out can turn a `None` into a `Some` — a link that did
 not exist before, possibly to a page this run did not write. The measurement saw
@@ -841,7 +841,7 @@ def getAllAttributes (decl : Name) : MetaM (Array String) := do
   arguments. Those never reach a module page — the browser fills the
   "Instances" / "Instances For" lists from `declarations/declaration-data.bmp`
   (`approach.md` §5.5 L3-3), so this cannot move the byte reproduction rate by a
-  single byte. It is here because doc-gen4 computes it and lean-doc did not, and
+  single byte. It is here because doc-gen4 computes it and litedoc4 did not, and
   a comparison of two tools that are not doing the same work is not a
   comparison.
 -/
@@ -908,7 +908,7 @@ against `infos`, skipping `Widget.tagCodeInfos`: the only thing that step adds i
 change which names come out.
 
 Two deliberate choices, both "reproduce doc-gen4" rather than "be complete",
-because stage 3 asks whether lean-doc reaches *the same* link targets:
+because stage 3 asks whether litedoc4 reaches *the same* link targets:
 
 * `Elab.Info.ofFieldInfo` and `.ofDelabTermInfo` carry constants too, but
   `renderTagged` only matches `.ofTermInfo`, so those are not links in doc-gen4's
@@ -2249,8 +2249,8 @@ Both fallbacks are removed here, for the same reason and not for two:
 * **`IR_DIR` is the same hole with an extra way in.** It is the flag's value
   arriving from outside the command line, so an exported variable left over from
   another run silently redirects the IR of a run whose command line looks
-  complete. The two callers that exist (`lean-doc extract`, and through it
-  `lean-doc incremental --extractor`) always pass `--ir-dir`, so nothing is lost;
+  complete. The two callers that exist (`litedoc4 extract`, and through it
+  `litedoc4 incremental --extractor`) always pass `--ir-dir`, so nothing is lost;
   `benchmarks/tools/read-ir.ts` and `html-inventory.py` read `IR_DIR` to find a
   tree, which is the reading side and is unaffected.
 
@@ -2687,7 +2687,7 @@ def run (cfg : Cfg) (preEnv : Option Environment := none) : IO UInt32 := do
       pure env
     else do
       let act : CoreM Unit := cfg.openNamespaces.forM Lean.activateScoped
-      let (_, st) ← act.toIO { fileName := "<lean-doc/stage4b>", fileMap := default }
+      let (_, st) ← act.toIO { fileName := "<litedoc4/stage4b>", fileMap := default }
         { env := env }
       pure st.env
 
@@ -2722,7 +2722,7 @@ def run (cfg : Cfg) (preEnv : Option Environment := none) : IO UInt32 := do
   -- instead of `fun n =>`), so without it the two tools are not printing the same
   -- thing and the times are not comparable either.
   let coreCtx : Core.Context := {
-    fileName := "<lean-doc/stage4b>"
+    fileName := "<litedoc4/stage4b>"
     fileMap := default
     options := Options.empty
       |>.setBool `pp.tagAppFns true

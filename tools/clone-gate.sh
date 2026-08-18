@@ -73,7 +73,7 @@
 #           and produced **rounds 2, staleFound 1, globalStale 0**, gate 1 439/439
 #           identical. Real, and half the experiment.
 #           The default below is one of the 7 and has the widest reference set of
-#           them 【実測 census + `lean-doc global --before`】: declarations 25,
+#           them 【実測 census + `litedoc4 global --before`】: declarations 25,
 #           directImports 2, importedByDirect 6, importersTransitive 37,
 #           **referrersDirect 33**, and its names are documented by
 #           `…BroadcastChannel.Marton.Basic`, so the map delta reports 25 names
@@ -97,9 +97,9 @@
 # ============================================================================
 #   GATE 1 (recorded in `<s>-sitecheck.txt`)
 #     INCREMENTAL — the base {ir, pages, ledger, state} copied, then
-#     `lean-doc incremental` over the **post-edit** module list — is compared with
+#     `litedoc4 incremental` over the **post-edit** module list — is compared with
 #     `/usr/bin/diff -r` against FROM-SCRATCH: the same post-edit module list
-#     extracted from zero and put through `lean-doc site`. Bytes, whole tree, plus
+#     extracted from zero and put through `litedoc4 site`. Bytes, whole tree, plus
 #     the same comparison one layer down on the IR.
 #     This is a *within-implementation* question and it is the one that decides
 #     whether the pipeline is correct.
@@ -155,13 +155,13 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SETUP_CLONE="$REPO/tools/setup-clone.sh"
-RUST_BIN="$REPO/target/release/lean-doc"
+RUST_BIN="$REPO/target/release/litedoc4"
 # The Lean extractor (IR schema 4), built by extractor/build.sh. Its own CLI is
 # `extract <modules> <events> [flags]`; what turns that into the
 # `--modules --ir-dir --timings` contract the pipeline's `--extractor` speaks is
-# `lean-doc extract` — the job the frozen `stage7g/extract-once.sh` used to do.
-# `EXTRACT_BIN` is the same environment variable `lean-doc extract` reads, so
-# overriding it here and overriding it for a bare `lean-doc extract` mean the
+# `litedoc4 extract` — the job the frozen `stage7g/extract-once.sh` used to do.
+# `EXTRACT_BIN` is the same environment variable `litedoc4 extract` reads, so
+# overriding it here and overriding it for a bare `litedoc4 extract` mean the
 # same thing.
 EXTRACT_BIN="${EXTRACT_BIN:-$REPO/extractor/build/extract}"
 LAKE="${LAKE:-$HOME/.elan/bin/lake}"
@@ -215,15 +215,15 @@ esac
 [ -x "$EXTRACT_BIN" ] || {
   echo "missing extractor binary: $EXTRACT_BIN — run: extractor/build.sh" >&2; exit 1; }
 [ -x "$RUST_BIN" ] || {
-  echo "missing: $RUST_BIN — run: cargo build --release -p lean-doc" >&2; exit 1; }
+  echo "missing: $RUST_BIN — run: cargo build --release -p litedoc4" >&2; exit 1; }
 command -v python3 >/dev/null || { echo "python3 is required" >&2; exit 1; }
 
-# `lean-doc extract` runs the Lean binary through `lake env` inside $TARGET_REPO.
+# `litedoc4 extract` runs the Lean binary through `lake env` inside $TARGET_REPO.
 # Everything Lean-facing in this run has to look at the clone, and the pipeline
 # spawns the extractor as a child, so this is exported as well as passed.
 export TARGET_REPO="$CLONE"
 
-# The clone's own HEAD, 40 lower-case hex digits, because `lean-doc incremental`
+# The clone's own HEAD, 40 lower-case hex digits, because `litedoc4 incremental`
 # refuses anything else (plan 決定 1). Unquoted on every use below: a
 # `--source-url` that still carries its quotes renders into every page and turns
 # the whole site into a difference.
@@ -300,7 +300,7 @@ guard_writable () { # guard_writable <path>
 nlines () { grep -c . "$1" 2>/dev/null || true; }
 
 # One module list, built under LC_ALL=C from the clone's **sources**, checked
-# against `lean-doc modules`, and handed to both implementations. The check is
+# against `litedoc4 modules`, and handed to both implementations. The check is
 # what documents the trap (M3-d2) instead of merely avoiding it.
 modlist () { # modlist <out file>
   guard_writable "$1"
@@ -308,7 +308,7 @@ modlist () { # modlist <out file>
     | sed 's/\.lean$//; s#/#.#g' > "$1"
   "$RUST_BIN" modules --root "$CLONE" --lib "$LIB" > "$1.from-cli"
   if ! "$DIFF" -q "$1" "$1.from-cli" > /dev/null; then
-    echo "the LC_ALL=C source glob and \`lean-doc modules\` disagree — the run would" >&2
+    echo "the LC_ALL=C source glob and \`litedoc4 modules\` disagree — the run would" >&2
     echo "compare two different module orders, which makes two different ledgers and" >&2
     echo "two different index.json files. Refusing." >&2
     "$DIFF" "$1" "$1.from-cli" | head -20 >&2

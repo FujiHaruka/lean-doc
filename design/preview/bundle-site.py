@@ -2,7 +2,7 @@
 """Take one page out of a real site tree and make it work on its own.
 
 `bundle.py` inlines the hand-written preview; this one inlines a page
-`lean-doc` actually produced, which is the only way to look at the tree's own
+`litedoc4` actually produced, which is the only way to look at the tree's own
 output somewhere that serves a single file (a chat attachment, a published
 page).
 
@@ -22,7 +22,7 @@ import sys
 
 SHIM = """<script>
 (() => {
-  const canned = window.__leanDocCanned;
+  const canned = window.__litedoc4Canned;
   const real = window.fetch.bind(window);
   window.fetch = (input, init) => {
     const name = String(input && input.url ? input.url : input).split("/").pop();
@@ -57,7 +57,7 @@ def bundle(site: pathlib.Path, page: str) -> str:
     html = html.replace(f'href="{root}favicon.svg"', f'href="data:image/svg+xml;base64,{icon}"')
     html = html.replace(
         f'<script type="module" src="{root}app.js"></script>',
-        f"<script>window.__leanDocCanned = {json.dumps(canned)};</script>\n{SHIM}\n"
+        f"<script>window.__litedoc4Canned = {json.dumps(canned)};</script>\n{SHIM}\n"
         f'<script type="module">\n{js}\n</script>',
     )
     if f'src="{root}app.js"' in html or f'href="{root}style.css"' in html:

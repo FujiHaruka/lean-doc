@@ -11,7 +11,7 @@ set -uo pipefail
 
 . "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 
-PATCH="$LEAN_DOC_ROOT/benchmarks/doc-gen4-instrumentation.patch"
+PATCH="$LITEDOC4_ROOT/benchmarks/doc-gen4-instrumentation.patch"
 PKG="$TARGET_REPO/.lake/packages/doc-gen4"
 
 [ -f "$PATCH" ] || { echo "patch not found: $PATCH" >&2; exit 1; }

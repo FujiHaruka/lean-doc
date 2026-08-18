@@ -9,7 +9,7 @@
 # `incremental-reference.sh` is Rust-only, so the two trees a run produces now
 # differ in how the extraction was spelled, not in who computed the answers:
 #
-#   cargo build --release -p lean-doc
+#   cargo build --release -p litedoc4
 #   tools/incremental-reference.sh --extractor product  --out .../m3d3/product
 #   tools/incremental-reference.sh --extractor resident --out .../m3d3/resident
 #   tools/incremental-compare.sh /private/tmp/lean-doc-relay/m3d3/product \
@@ -26,7 +26,7 @@
 #                   *is* compared is *-complained.txt, which the harness derives
 #                   from it — whether the run complained at all is a fact about
 #                   the answer.
-#   *-stdout.txt    `lean-doc incremental` prints a progress line per stage
+#   *-stdout.txt    `litedoc4 incremental` prints a progress line per stage
 #                   (`pipeline.rs:339`, `:445`, `:477`, `:504`, `:543`) as well as
 #                   the timings JSON, and only the timings record is an answer.
 #                   The harness distils it into *-counts.json — which *is*

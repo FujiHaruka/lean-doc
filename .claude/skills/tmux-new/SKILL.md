@@ -25,7 +25,7 @@ tmux を経由するのは、**claude code 自身が「現セッションの子�
    ```
    - `<name>` は step 1 で決めた同一名。
    - `--permission-mode auto` 必須。素の `claude` は権限が弱すぎて作業にならない。
-   - `-c` は現在の作業プロジェクトdir（例 `/Users/haruka/dev/lean-doc`）。`/carryon` が `.claude/handoff.md` を相対参照するので、現セッションと同じ dir で起動する。
+   - `-c` は現在の作業プロジェクトdir（例 `/Users/haruka/dev/litedoc4`）。`/carryon` が `.claude/handoff.md` を相対参照するので、現セッションと同じ dir で起動する。
    - claude を `tmux new-session` の引数に含める形（claude 終了で tmux セッションも終わる）。
 
 3. **起動完了を待つ** — `tmux capture-pane -t <name> -p` を繰り返しポーリングし、**`⏵⏵ auto mode on`**（権限 auto）と **`/rc active`**（Remote Control 有効）の両方が出るまで待つ。両方出れば起動成功＆リモート登録済み（`remoteControlAtStartup: true` で自動登録される）。

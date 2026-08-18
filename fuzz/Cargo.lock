@@ -54,17 +54,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "lean-doc-md"
+name = "litedoc4-md"
 version = "0.1.0"
 dependencies = [
  "cc",
 ]
 
 [[package]]
-name = "lean-doc-md-fuzz"
+name = "litedoc4-md-fuzz"
 version = "0.0.0"
 dependencies = [
- "lean-doc-md",
+ "litedoc4-md",
  "libfuzzer-sys",
 ]
 

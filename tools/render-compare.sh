@@ -23,10 +23,10 @@
 # the candidate to, and say which one it was.
 #
 # The candidate tree comes from the Rust renderer; the whole loop is
-#   cargo build --release -p lean-doc && ./target/release/lean-doc render \
+#   cargo build --release -p litedoc4 && ./target/release/litedoc4 render \
 #     --ir /private/tmp/lean-doc-relay/w7h/base-ir --pages /tmp/rust-pages \
 #     --source-url "$URL" --link-index /private/tmp/lean-doc-relay/w7c/linkindex/link-index.lidx
-# `cargo test -p lean-doc-render --test pages` makes the same comparison in
+# `cargo test -p litedoc4-render --test pages` makes the same comparison in
 # process against a committed fixture, and pins the one page the prototype and
 # md4c disagree on so that a second divergence fails.
 

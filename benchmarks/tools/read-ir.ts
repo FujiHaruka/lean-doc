@@ -54,7 +54,7 @@ const opts = (name: string): string[] => {
 const has = (name: string) => args.includes(name);
 
 const DEFAULT_IR =
-  "/private/tmp/claude-502/-Users-haruka-dev-lean-doc/3db6b213-b50d-48cb-a16b-16df93b5f009/scratchpad/ir";
+  "/private/tmp/claude-502/-Users-haruka-dev-litedoc4/3db6b213-b50d-48cb-a16b-16df93b5f009/scratchpad/ir";
 
 let envIr = "";
 try {

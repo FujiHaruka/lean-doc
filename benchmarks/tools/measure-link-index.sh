@@ -25,7 +25,7 @@ LABEL="${1:?usage: measure-link-index.sh <label> [rounds]}"
 ROUNDS="${2:-5}"
 WORK="${WORK_DIR:?WORK_DIR is required: where the .lidx and the raw logs go}"
 MODULES="${MODULES:?MODULES is required: the module list to import}"
-EXTRACT_BIN="${EXTRACT_BIN:-$LEAN_DOC_ROOT/extractor/build/extract}"
+EXTRACT_BIN="${EXTRACT_BIN:-$LITEDOC4_ROOT/extractor/build/extract}"
 LAKE="${LAKE:-$HOME/.elan/bin/lake}"
 OUT="$RESULTS_DIR/m7a-linkindex-$LABEL.jsonl"
 

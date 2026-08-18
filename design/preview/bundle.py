@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Inline the shipped stylesheet, script and icon into one standalone preview.
 
-The preview pages reference `crates/lean-doc-render/assets/` directly — those
+The preview pages reference `crates/litedoc4-render/assets/` directly — those
 are the files that ship, and keeping a second copy here is how the two drift.
 This script exists only because the places a preview gets looked at (a chat
 attachment, a published page) serve a single file with no siblings.
@@ -14,8 +14,8 @@ import pathlib
 import sys
 
 HERE = pathlib.Path(__file__).parent
-ASSETS = HERE.parent.parent / "crates" / "lean-doc-render" / "assets"
-REF = "../../crates/lean-doc-render/assets"
+ASSETS = HERE.parent.parent / "crates" / "litedoc4-render" / "assets"
+REF = "../../crates/litedoc4-render/assets"
 
 
 def bundle(page: str = "module.html") -> str:

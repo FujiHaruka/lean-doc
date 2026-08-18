@@ -1,4 +1,4 @@
-# Does `uses: FujiHaruka/lean-doc@…` actually work?  (docs/plans/distribution.md, D3)
+# Does `uses: FujiHaruka/litedoc4@…` actually work?  (docs/plans/distribution.md, D3)
 #
 # ============================================================================
 # WHY THIS IS NOT PART OF ci.yml
@@ -18,7 +18,7 @@
 #   refused      a package that does not exist FAILS. A gate that cannot fail is
 #                not a gate — CLAUDE.md, and this repository has shipped two of
 #                those before
-#   published    `uses: FujiHaruka/lean-doc@main` goes through the real path
+#   published    `uses: FujiHaruka/litedoc4@main` goes through the real path
 #                (GitHub checks the action out into _actions/), which `uses: ./`
 #                never exercises. It is @main and not this commit because
 #                `uses:` cannot take an expression — so it tests the channel,
@@ -103,7 +103,7 @@ jobs:
           cat "${{ steps.docs.outputs.timings }}"
           # A first run that renders nothing would satisfy every check below,
           # so it is asserted here rather than assumed.
-          python3 - "${{ steps.docs.outputs.out }}/lean-doc-build.json" <<'PY'
+          python3 - "${{ steps.docs.outputs.out }}/litedoc4-build.json" <<'PY'
           import json, sys
           w = json.load(open(sys.argv[1]))["work"]
           if not w.get("pagesRendered"):
@@ -120,13 +120,13 @@ jobs:
           root: e2e/micro
           jobs: "2"
 
-      # `work` in lean-doc-build.json is the product's own count of what it did,
+      # `work` in litedoc4-build.json is the product's own count of what it did,
       # and it is integers rather than seconds — the thing CLAUDE.md says to
       # gate on, because wall clock moves 5x with the page cache.
       - name: The second run did no work
         run: |
           set -euo pipefail
-          J="${{ steps.again.outputs.out }}/lean-doc-build.json"
+          J="${{ steps.again.outputs.out }}/litedoc4-build.json"
           cat "$J"
           python3 - "$J" <<'PY'
           import json, sys
@@ -174,7 +174,7 @@ jobs:
           echo "refused, as it should"
 
   published:
-    name: uses:FujiHaruka/lean-doc@main (the real checkout path)
+    name: uses:FujiHaruka/litedoc4@main (the real checkout path)
     runs-on: ubuntu-latest
     timeout-minutes: 40
     # Only from this repository's own branches: a fork's PR would resolve @main
@@ -201,7 +201,7 @@ jobs:
         run: echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
       - id: docs
-        uses: FujiHaruka/lean-doc@main
+        uses: FujiHaruka/litedoc4@main
         with:
           root: e2e/micro
           jobs: "2"
@@ -241,7 +241,7 @@ jobs:
         run: echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
       - id: docs
-        uses: FujiHaruka/lean-doc@v0.1.3
+        uses: FujiHaruka/litedoc4@v0.1.3
         with:
           root: e2e/micro
           jobs: "2"

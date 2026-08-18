@@ -8,13 +8,13 @@
 # to be `tools/merge-reference.sh --impl ts`, the frozen prototype, and
 # `experiments/` was removed on 2026-08-16; it exists only at tag
 # `experiments-frozen`. What remains is a diff of two recordings of the Rust side:
-#   cargo build --release -p lean-doc
+#   cargo build --release -p litedoc4
 #   tools/merge-reference.sh --out /private/tmp/lean-doc-relay/m3b/before
 #   ...change something...
 #   tools/merge-reference.sh --out /private/tmp/lean-doc-relay/m3b/after
 #   tools/merge-compare.sh /private/tmp/lean-doc-relay/m3b/before \
 #                          /private/tmp/lean-doc-relay/m3b/after
-# `cargo test -p lean-doc-incr --test merge` makes the same comparison in process
+# `cargo test -p litedoc4-incr --test merge` makes the same comparison in process
 # when the base IR is on the machine.
 #
 # Four classes of file, compared four ways:

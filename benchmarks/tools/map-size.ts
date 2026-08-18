@@ -1,6 +1,6 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write --allow-env --allow-run
 //
-// Stage 3, increment 2: matches the demand side (the constants lean-doc collects
+// Stage 3, increment 2: matches the demand side (the constants litedoc4 collects
 // from a signature, `stage3-refs.jsonl`) against the supply side (doc-gen4's
 // `declarations/declaration-data.bmp`), and measures how big that map actually
 // is in three cuts: everything, the dependency side only, and just the
@@ -206,7 +206,7 @@ const shapedAndAbsent = misses.filter(
   (m) => m.cause === "blacklisted by name shape" && !modulesWithDecls.has(m.module),
 ).length;
 
-// Independent check of the join key. lean-doc gets the defining module from the
+// Independent check of the join key. litedoc4 gets the defining module from the
 // Lean environment (`const2ModIdx`); doc-gen4 gets it from whichever module it
 // rendered the declaration into. If the two disagree, the coverage number above
 // is measuring the wrong thing -- a name could "hit" while pointing at a page
@@ -217,7 +217,7 @@ for (const r of refs) {
   if (!decls[r.name]) continue;
   const m = declModule.get(r.name);
   if (m === r.module) moduleAgree.push(r.name);
-  else moduleDisagree.push(`${r.name}: lean-doc says ${r.module}, .bmp says ${m}`);
+  else moduleDisagree.push(`${r.name}: litedoc4 says ${r.module}, .bmp says ${m}`);
 }
 
 // Weight the misses by how many link sites they would actually break.
@@ -329,7 +329,7 @@ function shapes(names: string[]) {
   };
 }
 
-const workDir = WORK || (await Deno.makeTempDir({ prefix: "lean-doc-mapsize-" }));
+const workDir = WORK || (await Deno.makeTempDir({ prefix: "litedoc4-mapsize-" }));
 await Deno.mkdir(workDir, { recursive: true });
 
 type SizeRow = {
@@ -434,7 +434,7 @@ covRow("own package", ownRefs);
 say();
 say(`  own-flag cross-check          the refs file's \`own\` disagrees with the module list on ${ownFlagMismatches.length} of ${refs.length}`);
 say(`  dependency count, 2nd route   ${depRefs.length} constants whose defining module is not one of the ${targetModules.size}`);
-say(`  join-key cross-check          defining module agrees between lean-doc (const2ModIdx) and the .bmp`);
+say(`  join-key cross-check          defining module agrees between litedoc4 (const2ModIdx) and the .bmp`);
 say(`                                on ${num(moduleAgree.length)} of ${num(moduleAgree.length + moduleDisagree.length)} hits, ${moduleDisagree.length} disagreements`);
 for (const d of moduleDisagree.slice(0, 20)) say(`                                  ${d}`);
 say();

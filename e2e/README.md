@@ -1,6 +1,6 @@
 # e2e — 本物の Lean から本物のサイトまでを 1 本通す
 
-`crates/lean-doc/tests/` の統合テストは**抽出器を `/bin/sh` の偽物に差し替えている**。
+`crates/litedoc4/tests/` の統合テストは**抽出器を `/bin/sh` の偽物に差し替えている**。
 これは正しい判断で (Lean toolchain を要求したら誰も走らせない)、代償も 1 つだけ:
 **抽出器と Rust の間の契約を検査するものが 1 つも無くなる**。`Extract.lean` が書く形を変えても
 `cargo test` は全部緑のまま通る。ここはその穴を塞ぐ唯一の場所。
@@ -9,7 +9,7 @@
 (→ 下の「`consumer/` — なぜ micro と別なのか」)。
 
 ```
-cargo build --bin lean-doc
+cargo build --bin litedoc4
 tools/e2e-micro.sh          # micro/  — 宣言の形
 tools/lake-package-gate.sh  # consumer/ — Lake の配線
 tools/lake-download-gate.sh # consumer/ — Release からバイナリを取る経路 (要ネットワーク)
@@ -27,7 +27,7 @@ tools/lake-download-gate.sh # consumer/ — Release からバイナリを取る�
 
 ## フィクスチャが持っているもの — 「対象が持たない形」
 
-`crates/lean-doc-render/tests/page_parts.rs` が記録している事実:
+`crates/litedoc4-render/tests/page_parts.rs` が記録している事実:
 
 > **41 分岐のうち 9 つは、432 モジュール全部を通しても一度も発火しない** —
 > `class` も `inductive` も `class_inductive` も無い、constructor が `mk` でない structure も、
@@ -59,7 +59,7 @@ curated な単体テストは**手で書いた IR** でこれらの分岐に到�
 「全件バイト一致は分岐被覆の証明ではない」(→ `docs/milestone-log.md` M1) の一段強い形:
 **オラクルの入力に無い形は、何バイト一致しても見えない。**
 
-回帰は `crates/lean-doc-render/src/decl.rs` の
+回帰は `crates/litedoc4-render/src/decl.rs` の
 `an_inductives_constructors_are_rendered_with_their_own_anchors` が持つ。
 
 ## path 依存を足して出たもの【実測 2026-08-17】
@@ -67,7 +67,7 @@ curated な単体テストは**手で書いた IR** でこれらの分岐に到�
 **2 件目も、フィクスチャを足した初回に出た。** `micro-dep/` を path で require した瞬間、
 `tools/site-gate.sh` が **DEAD internal links 3 (1 distinct destination)** を出して落ちた。
 
-**壊れていたのは相対リンクへのフォールバックそのもの。** `lean-doc` は依存のモジュールに
+**壊れていたのは相対リンクへのフォールバックそのもの。** `litedoc4` は依存のモジュールに
 ページを書かず版固定 blob URL でリンクする (M7)。`ExternalLinks::href` は
 「マップに root が無いモジュール」を**自パッケージのモジュール**とみなして相対ページリンクに
 落としていたが、**版固定できない依存も同じ枝に落ちる** — 結果、**このサイトが決して書かない
@@ -112,15 +112,15 @@ curated な単体テストは**手で書いた IR** でこれらの分岐に到�
 | | 担当 | 走らせるもの |
 |---|---|---|
 | `micro/` (+ `micro-dep/`) | **宣言の形** — 対象が持たない 9 分岐と版固定できない依存 | `tools/e2e-micro.sh` |
-| `consumer/` | **Lake の配線** — lean-doc を `require` した利用者の経路 | `tools/lake-package-gate.sh` / `tools/lake-download-gate.sh` |
+| `consumer/` | **Lake の配線** — litedoc4 を `require` した利用者の経路 | `tools/lake-package-gate.sh` / `tools/lake-download-gate.sh` |
 
-`consumer/` は lean-doc を **path で `require`** する最小パッケージで、
+`consumer/` は litedoc4 を **path で `require`** する最小パッケージで、
 `lake run docs -- --out <dir>` が動くかだけを見る (計画は `docs/plans/lake-package.md` L1)。
 検査しているのは、利用者が手で書けない 2 つの引数を Lake から取れているか:
 
 - **`--extractor-bin`** — 抽出器を Lake が建てる (root の toolchain に対して建つので、
   版がずれようがない)
-- **`--lib`** — `crates/lean-doc/src/lakefile.rs` は `lakefile.lean` を**名前で拒否する**
+- **`--lib`** — `crates/litedoc4/src/lakefile.rs` は `lakefile.lean` を**名前で拒否する**
   (正直に読むには Lake で elaborate するしかないため)。`script docs` は
   **その elaborate の後に走る**ので Lake に聞ける
 
@@ -145,12 +145,12 @@ curated な単体テストは**手で書いた IR** でこれらの分岐に到�
 
 `tools/e2e-micro.sh` が順に見るもの:
 
-1. **1 コマンド** — `lean-doc build` がサイトを書き、`tools/site-gate.sh` が
+1. **1 コマンド** — `litedoc4 build` がサイトを書き、`tools/site-gate.sh` が
    **内部リンクの 404 = 0 / 外部リソース = 0 / 索引とページが双方向で一致**を確認する
 2. **冪等** — 同じコマンドをもう一度: **サイトのバイト不動**
 3. **決定性** — 別のディレクトリへのフル生成が **1 回目とバイト一致** (サイトも IR も)
 4. **`--jobs` 不変** — 抽出器の並列度を変えてもサイトも IR もバイト一致
-5. **仕事量** — 2 回目が実際に**何もしなかった**ことを `lean-doc-build.json` の
+5. **仕事量** — 2 回目が実際に**何もしなかった**ことを `litedoc4-build.json` の
    `work` から読む (再抽出 0 / 描画 0 / Lean 起動 0)
 
 **3 が外部オラクルの代わりになる**もの — 「何バイトであるべきか」を誰にも聞かずに、

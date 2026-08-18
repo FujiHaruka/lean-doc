@@ -1,4 +1,4 @@
-# Does `require «lean-doc»` actually work?  (docs/plans/lake-package.md, L1-e)
+# Does `require «litedoc4»` actually work?  (docs/plans/lake-package.md, L1-e)
 #
 # ============================================================================
 # WHY THIS IS NOT PART OF ci.yml
@@ -19,9 +19,9 @@
 #                is macOS/arm64, and `leanc`'s defaults differ per platform.
 #                This uses a **path** require, which is not the real channel.
 #   git-require  the real channel: a generated consumer that says
-#                `require «lean-doc» from git … @ "<this commit>"`, so Lake
+#                `require «litedoc4» from git … @ "<this commit>"`, so Lake
 #                clones this repository over the network into
-#                `.lake/packages/lean-doc` exactly as a user's would.
+#                `.lake/packages/litedoc4` exactly as a user's would.
 #
 #                Unlike ci-action.yml's `published` job — which has to say
 #                `@main` because `uses:` cannot take an expression — this one
@@ -38,7 +38,7 @@
 #                that cannot fail is not a gate (CLAUDE.md; this repository has
 #                shipped two of those).
 #   download     `tools/lake-download-gate.sh` — the release-fetch half of
-#                `resolveLeanDoc`. **This job is not a duplicate of the local
+#                `resolveLitedoc4`. **This job is not a duplicate of the local
 #                run**: the target triple is computed from `System.Platform`,
 #                and the Linux spelling is the one nobody has measured. Lean
 #                answers `-gnu` there while the release carries `-musl`, so the
@@ -104,8 +104,8 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Build lean-doc
-        run: cargo build --bin lean-doc
+      - name: Build litedoc4
+        run: cargo build --bin litedoc4
 
       - name: Gate
         run: tools/lake-package-gate.sh
@@ -146,8 +146,8 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Build lean-doc
-        run: cargo build --bin lean-doc
+      - name: Build litedoc4
+        run: cargo build --bin litedoc4
 
       # Written outside the checkout so that nothing here can accidentally
       # resolve to the working tree instead of the clone Lake makes.
@@ -161,8 +161,8 @@ jobs:
           import Lake
           open Lake DSL
 
-          require «lean-doc» from git
-            "https://github.com/FujiHaruka/lean-doc" @ "$REQUIRE_SHA"
+          require «litedoc4» from git
+            "https://github.com/FujiHaruka/litedoc4" @ "$REQUIRE_SHA"
 
           package widget
 
@@ -179,12 +179,12 @@ jobs:
           theorem widgetAnswer_eq : widgetAnswer = 42 := rfl
           LEAN
           # A real consumer is a git checkout with a GitHub `origin`, and
-          # `lean-doc build` derives --source-url from exactly that. The first
+          # `litedoc4 build` derives --source-url from exactly that. The first
           # version of this step skipped it and the job failed with
           # `git rev-parse HEAD … not a git repository` 【実測 2026-08-18】 — the
           # fixture, not the product, was the thing that did not look like a
           # user's package. `.lake/` is excluded because `lake update` clones
-          # lean-doc into it and a repository inside a repository is not what is
+          # litedoc4 into it and a repository inside a repository is not what is
           # being tested here.
           printf '.lake/\n' > "$CONSUMER/.gitignore"
           git -C "$CONSUMER" init -q
@@ -192,19 +192,19 @@ jobs:
           git -C "$CONSUMER" -c user.name=ci -c user.email=ci@example.invalid \
             commit -qm "the fixture"
           git -C "$CONSUMER" remote add origin \
-            https://github.com/FujiHaruka/lean-doc-consumer-fixture.git
+            https://github.com/FujiHaruka/litedoc4-consumer-fixture.git
           echo "CONSUMER=$CONSUMER" >> "$GITHUB_ENV"
 
-      # The real channel: this clones over https into .lake/packages/lean-doc.
+      # The real channel: this clones over https into .lake/packages/litedoc4.
       - name: lake update, then build the consumer
         working-directory: ${{ env.CONSUMER }}
         run: |
           set -euo pipefail
           lake update
-          test -d .lake/packages/lean-doc \
-            || { echo "::error::lake did not check lean-doc out into .lake/packages"; exit 1; }
+          test -d .lake/packages/litedoc4 \
+            || { echo "::error::lake did not check litedoc4 out into .lake/packages"; exit 1; }
           # The clone has to be *this* commit, not whatever main happens to be.
-          GOT="$(git -C .lake/packages/lean-doc rev-parse HEAD)"
+          GOT="$(git -C .lake/packages/litedoc4 rev-parse HEAD)"
           [ "$GOT" = "$REQUIRE_SHA" ] \
             || { echo "::error::cloned $GOT, wanted $REQUIRE_SHA"; exit 1; }
           lake build
@@ -212,7 +212,7 @@ jobs:
       - name: lake run docs
         working-directory: ${{ env.CONSUMER }}
         env:
-          LEAN_DOC_BIN: ${{ github.workspace }}/target/debug/lean-doc
+          LITEDOC4_BIN: ${{ github.workspace }}/target/debug/litedoc4
         run: |
           set -euo pipefail
           lake run docs -- --out "$RUNNER_TEMP/widget-docs" | tee "$RUNNER_TEMP/docs.log"
@@ -256,8 +256,8 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Build lean-doc
-        run: cargo build --bin lean-doc
+      - name: Build litedoc4
+        run: cargo build --bin litedoc4
 
       - name: A package with no lean_lib is refused, by name
         run: |
@@ -269,14 +269,14 @@ jobs:
           import Lake
           open Lake DSL
 
-          require «lean-doc» from "${{ github.workspace }}"
+          require «litedoc4» from "${{ github.workspace }}"
 
           package empty
           LAKEFILE
           cd "$CONSUMER"
           lake update
           set +e
-          LEAN_DOC_BIN="${{ github.workspace }}/target/debug/lean-doc" \
+          LITEDOC4_BIN="${{ github.workspace }}/target/debug/litedoc4" \
             lake run docs -- --out "$RUNNER_TEMP/empty-docs" >out.log 2>&1
           CODE=$?
           set -e
@@ -317,10 +317,10 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Build lean-doc
-        run: cargo build --bin lean-doc
+      - name: Build litedoc4
+        run: cargo build --bin litedoc4
 
-      # No LEAN_DOC_BIN here, and the gate strips one it inherits: source 1
+      # No LITEDOC4_BIN here, and the gate strips one it inherits: source 1
       # short-circuits the two sources this job exists to run.
       - name: Gate
         run: tools/lake-download-gate.sh

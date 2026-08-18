@@ -9,7 +9,7 @@
 #            move 【実測 2026-08-17: ready 17.367 s of a 24.447 s extract phase
 #            cold, 6.852 s of 13.784 s warm, same machine, same bytes】.
 #   extract  the whole extraction phase (import + analysis + writing the IR).
-#   docs     `lean-doc build` end to end, from ci-build.sh.
+#   docs     `litedoc4 build` end to end, from ci-build.sh.
 #   major    major page faults, from `/usr/bin/time -v` — how much of the import
 #            actually came off the disk.
 #
@@ -55,7 +55,7 @@ for t in "$DIR"/timings-*.json; do
   [ -e "$t" ] || continue
   run="$(basename "$t" .json)"; run="${run#timings-}"
   log="$DIR/time-$run.txt"
-  ld="$DIR/leandoc-$run.json"
+  ld="$DIR/litedoc4-$run.json"
   dg="$DIR/site-$run.sha256"
 
   ns="$( (grep -o 'ready [0-9]\{1,\}' "$log" 2> /dev/null || true) | head -1 | cut -d' ' -f2)"

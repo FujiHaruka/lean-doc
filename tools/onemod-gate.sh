@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # What a one-module edit is allowed to cost, as integers.
 #
-# usage: tools/onemod-gate.sh <lean-doc-build.json> <serve.out>
+# usage: tools/onemod-gate.sh <litedoc4-build.json> <serve.out>
 #
 # WHY THIS IS A FILE AND NOT TWO COPIES OF AN `if`
 #
@@ -50,7 +50,7 @@ BUILD_JSON="${1-}"
 SERVE_OUT="${2-}"
 
 [ -n "$BUILD_JSON" ] && [ -n "$SERVE_OUT" ] || {
-  echo "usage: $0 <lean-doc-build.json> <serve.out>" >&2
+  echo "usage: $0 <litedoc4-build.json> <serve.out>" >&2
   exit 2
 }
 [ -f "$BUILD_JSON" ] || { echo "onemod-gate: no such file: $BUILD_JSON" >&2; exit 1; }

@@ -2,7 +2,7 @@
 # End to end, on a machine that has never seen the measurement target.
 #
 # WHAT THIS COVERS THAT `cargo test` CANNOT
-#   Every test under `crates/lean-doc/tests/` fakes the extractor with a
+#   Every test under `crates/litedoc4/tests/` fakes the extractor with a
 #   `/bin/sh` script that copies a baked IR tree — deliberately, because needing
 #   a Lean toolchain would mean those tests were never run. The cost is that the
 #   **contract between the extractor and the Rust side is not checked by
@@ -19,13 +19,13 @@
 #   contain — `class`, `inductive`, `class inductive`, a non-`mk` constructor,
 #   an inherited field, an implicit binder on a field, an astral identifier
 #   (U+1D49C, the U1/U2 traps), scoped notation. Nine of the renderer's 41
-#   branches never fire over the real package (crates/lean-doc-render/tests/
+#   branches never fire over the real package (crates/litedoc4-render/tests/
 #   page_parts.rs), and the first run of this script found one of them silently
 #   rendering nothing: an inductive's constructors were missing from their page
 #   while the search index still linked to them.
 #
 # THE FIVE GATES
-#   1 ONE COMMAND    `lean-doc build` over the fixture writes a site, and
+#   1 ONE COMMAND    `litedoc4 build` over the fixture writes a site, and
 #                    `tools/site-gate.sh` finds it internally consistent:
 #                    0 dead links, 0 external resources, and the search index
 #                    and the pages agreeing in both directions.
@@ -40,7 +40,7 @@
 #   4 --jobs         the extractor's parallelism changes neither the IR nor the
 #                    site.
 #   5 WORK           how much the two runs *did*, read out of
-#                    `lean-doc-build.json`'s `work` record.
+#                    `litedoc4-build.json`'s `work` record.
 #
 # WHY GATE 5 EXISTS, AND WHY IT IS NOT A STOPWATCH
 #   This project's product is speed and it had no regression gate at all. It
@@ -72,7 +72,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 FIXTURE="$ROOT/e2e/micro"
 LAKE="${LAKE:-$HOME/.elan/bin/lake}"
-LEAN_DOC="${LEAN_DOC:-$ROOT/target/debug/lean-doc}"
+LITEDOC4="${LITEDOC4:-$ROOT/target/debug/litedoc4}"
 
 OUT=""
 EXTRACTOR=""
@@ -88,7 +88,7 @@ while [ $# -gt 0 ]; do
 done
 
 command -v "$LAKE" >/dev/null 2>&1 || { echo "no lake at $LAKE — set LAKE" >&2; exit 2; }
-[ -x "$LEAN_DOC" ] || { echo "no lean-doc at $LEAN_DOC — cargo build --bin lean-doc" >&2; exit 2; }
+[ -x "$LITEDOC4" ] || { echo "no litedoc4 at $LITEDOC4 — cargo build --bin litedoc4" >&2; exit 2; }
 
 if [ -z "$OUT" ]; then
   OUT="$(mktemp -d)"
@@ -130,7 +130,7 @@ fi
 
 say "3/8 GATE 1 — one command"
 rm -rf "$OUT/first"
-"$LEAN_DOC" build --root "$FIXTURE" --lib Micro --out "$OUT/first" \
+"$LITEDOC4" build --root "$FIXTURE" --lib Micro --out "$OUT/first" \
   --extractor-bin "$EXTRACTOR" | tee "$OUT/first.log"
 [ -f "$OUT/first/site/index.html" ] || { echo "no site was written" >&2; exit 1; }
 
@@ -145,10 +145,10 @@ cp -R "$OUT/first/site" "$OUT/first-snapshot"
 # The marker too: the second run overwrites it in place, and its `work` record is
 # half of GATE 5. Snapshotting it here is the same lesson the site snapshot above
 # was learned from — a copy taken afterwards is a copy of the wrong run.
-cp "$OUT/first/lean-doc-build.json" "$OUT/first-build.json"
+cp "$OUT/first/litedoc4-build.json" "$OUT/first-build.json"
 
 say "4/8 GATE 2 — the second run changes nothing"
-"$LEAN_DOC" build --root "$FIXTURE" --lib Micro --out "$OUT/first" \
+"$LITEDOC4" build --root "$FIXTURE" --lib Micro --out "$OUT/first" \
   --extractor-bin "$EXTRACTOR" | tee "$OUT/second.log"
 
 # Bytes only. What the run *did* is GATE 5, out of the marker — a diff has to be
@@ -165,7 +165,7 @@ fi
 
 say "5/8 GATE 3 — a second full build is byte identical"
 rm -rf "$OUT/again"
-"$LEAN_DOC" build --root "$FIXTURE" --lib Micro --out "$OUT/again" \
+"$LITEDOC4" build --root "$FIXTURE" --lib Micro --out "$OUT/again" \
   --extractor-bin "$EXTRACTOR" >"$OUT/again.log"
 if ! diff -r "$OUT/first/site" "$OUT/again/site"; then
   echo "two full builds of the same world disagree — determinism is broken" >&2
@@ -184,7 +184,7 @@ say "6/8 GATE 4 — --jobs does not change the output"
 # reorders its output is exactly the kind of thing that shows up as a diff on one
 # machine and not another.
 rm -rf "$OUT/jobs4"
-"$LEAN_DOC" build --root "$FIXTURE" --lib Micro --out "$OUT/jobs4" \
+"$LITEDOC4" build --root "$FIXTURE" --lib Micro --out "$OUT/jobs4" \
   --extractor-bin "$EXTRACTOR" --jobs 4 >"$OUT/jobs4.log"
 if ! diff -r "$OUT/first/ir" "$OUT/jobs4/ir"; then
   echo "--jobs 4 extracted a different IR than --jobs 1" >&2
@@ -202,9 +202,9 @@ say "7/8 GATE 5 — the work, as integers"
 # nested JSON record is not a thing to take apart with `sed`.
 python3 - \
   "$OUT/first-build.json" \
-  "$OUT/first/lean-doc-build.json" \
-  "$OUT/again/lean-doc-build.json" \
-  "$OUT/jobs4/lean-doc-build.json" <<'PY'
+  "$OUT/first/litedoc4-build.json" \
+  "$OUT/again/litedoc4-build.json" \
+  "$OUT/jobs4/litedoc4-build.json" <<'PY'
 import json
 import sys
 
@@ -215,7 +215,7 @@ problems = []
 def load(path):
     with open(path) as handle:
         marker = json.load(handle)
-    # `complete: false` writes `work: null` on purpose (crates/lean-doc/src/
+    # `complete: false` writes `work: null` on purpose (crates/litedoc4/src/
     # build.rs): a half-finished run's zeros are indistinguishable from a
     # successful incremental run's, so the marker refuses to look like one.
     if marker.get("complete") is not True:
@@ -314,9 +314,9 @@ say "8/9 GATE 6 — one edited module does not re-render the package"
 #
 #   the map does not move       `link-index.lidx` is byte-identical across the
 #                               edit. It is the *cause*: its SHA-256 is a
-#                               `renderKey` input (`lean-doc-incr/src/ledger.rs`
+#                               `renderKey` input (`litedoc4-incr/src/ledger.rs`
 #                               `render_key`), and a moved `renderKey` overrides
-#                               --mode to `all` (`lean-doc-incr/src/impact.rs`).
+#                               --mode to `all` (`litedoc4-incr/src/impact.rs`).
 #                               This fails on any extractor that writes the
 #                               package's own declarations into the map.
 #   fewer pages than modules    the *effect*. An inequality rather than a number:
@@ -345,7 +345,7 @@ cp "$OUT/first/link-index.lidx" "$OUT/lidx-before"
 printf '\n/-- A probe appended by GATE 6; removed before this script exits. -/\ndef e2eGate6Probe_ : Nat := 13\n' >> "$PROBE"
 (cd "$FIXTURE" && "$LAKE" build)
 
-"$LEAN_DOC" build --root "$FIXTURE" --lib Micro --out "$OUT/first" \
+"$LITEDOC4" build --root "$FIXTURE" --lib Micro --out "$OUT/first" \
   --extractor-bin "$EXTRACTOR" | tee "$OUT/edited.log"
 
 restore_probe
@@ -371,7 +371,7 @@ PY
 )"
 [ -n "$EDITED_URL" ] || { echo "GATE 6: no source URL in the edited run's log" >&2; exit 1; }
 rm -rf "$OUT/gate6-oracle" "$OUT/gate6-state"
-"$LEAN_DOC" site --ir "$OUT/first/ir" --out "$OUT/gate6-oracle" \
+"$LITEDOC4" site --ir "$OUT/first/ir" --out "$OUT/gate6-oracle" \
   --source-url "$EDITED_URL" --link-index "$OUT/first/link-index.lidx" \
   --state "$OUT/gate6-state" --root "$FIXTURE" >"$OUT/gate6-oracle.log"
 gate6_diff="$(/usr/bin/diff -r -q "$OUT/gate6-oracle" "$OUT/first/site" | grep -v '^Only in' || true)"
@@ -385,7 +385,7 @@ fi
 # Linux runner against the generated package (`ci-template.yml`), so what "a
 # one-module edit is allowed to cost" is written down once and both callers get
 # the same answer.
-"$HERE/onemod-gate.sh" "$OUT/first/lean-doc-build.json" "$OUT/first/work/serve.out"
+"$HERE/onemod-gate.sh" "$OUT/first/litedoc4-build.json" "$OUT/first/work/serve.out"
 
 say "9/9 summary"
 printf 'site files : %s\n' "$(find "$OUT/first/site" -type f | wc -l | tr -d ' ')"

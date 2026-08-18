@@ -26,7 +26,7 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RUST_BIN="$REPO/target/release/lean-doc"
+RUST_BIN="$REPO/target/release/litedoc4"
 
 OUT=
 BASE_IR=/private/tmp/lean-doc-relay/w7h/base-ir
@@ -45,7 +45,7 @@ OUT="${OUT:-/private/tmp/lean-doc-relay/m3b/rust}"
 command -v python3 >/dev/null || { echo "python3 is required" >&2; exit 1; }
 
 [ -x "$RUST_BIN" ] || {
-  echo "missing: $RUST_BIN — run: cargo build --release -p lean-doc" >&2; exit 1;
+  echo "missing: $RUST_BIN — run: cargo build --release -p litedoc4" >&2; exit 1;
 }
 ownership () { "$RUST_BIN" ownership "$@"; }
 merge ()     { "$RUST_BIN" merge "$@"; }
@@ -179,7 +179,7 @@ grown = {"schemaVersion": index["schemaVersion"], "module": added,
              "type": "True", "typeCode": [], "line": 1, "col": 0,
              "endLine": 1, "endCol": 20, "index": 0, "members": [],
              "doc": None, "equations": [], "equationCode": [],
-             "refs": [["Mathlib.Order.Basic", "Mathlib.LeanDocFixtureOnly"],
+             "refs": [["Mathlib.Order.Basic", "Mathlib.Litedoc4FixtureOnly"],
                       ["Init.Core", "trivial"]],
          }]}
 write_tree("inc-added", [(added, grown)])

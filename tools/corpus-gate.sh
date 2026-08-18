@@ -5,7 +5,7 @@
 #   A test owns its input. These do not: they read the 432-module package at
 #   /Users/haruka/dev/lean-projects, its doc-gen4 reference tree, generated IR
 #   trees and multi-megabyte `--full` recordings, none of which is in the
-#   repository. `crates/lean-doc/tests/resident.rs` already draws this line —
+#   repository. `crates/litedoc4/tests/resident.rs` already draws this line —
 #   "that needs a Lean toolchain, a built package and a 3 GB process, so it is a
 #   gate and not a test" — and this script is where the line is enforced.
 #
@@ -184,14 +184,14 @@ case "${1:-run}" in
     ;;
 
   run)
-    target="${LEAN_DOC_TARGET:-/Users/haruka/dev/lean-projects}"
+    target="${LITEDOC4_TARGET:-/Users/haruka/dev/lean-projects}"
     echo "== what this machine has"
     printf '  %-24s %s\n' "target" "$target $([ -d "$target" ] && echo '(present)' || echo '(MISSING)')"
-    for var in LEAN_DOC_IR LEAN_DOC_BASE_IR LEAN_DOC_DOCGEN4_TREE LEAN_DOC_LINK_INDEX \
-               LEAN_DOC_REF_PAGES LEAN_DOC_REFERENCE_PAGES LEAN_DOC_REFERENCE_GLOBAL \
-               LEAN_DOC_PAGES LEAN_DOC_SITE LEAN_DOC_PROTOTYPE_STATE LEAN_DOC_MERGE_FIXTURES \
-               LEAN_DOC_DECL_URLS LEAN_DOC_AUTOLINK_FULL LEAN_DOC_FRAGMENT_FULL \
-               LEAN_DOC_PAGE_PARTS_FULL LEAN_DOC_DOCGEN4_FULL LEAN_DOC_MD4LEAN_FULL; do
+    for var in LITEDOC4_IR LITEDOC4_BASE_IR LITEDOC4_DOCGEN4_TREE LITEDOC4_LINK_INDEX \
+               LITEDOC4_REF_PAGES LITEDOC4_REFERENCE_PAGES LITEDOC4_REFERENCE_GLOBAL \
+               LITEDOC4_PAGES LITEDOC4_SITE LITEDOC4_PROTOTYPE_STATE LITEDOC4_MERGE_FIXTURES \
+               LITEDOC4_DECL_URLS LITEDOC4_AUTOLINK_FULL LITEDOC4_FRAGMENT_FULL \
+               LITEDOC4_PAGE_PARTS_FULL LITEDOC4_DOCGEN4_FULL LITEDOC4_MD4LEAN_FULL; do
       value="${!var:-}"
       if [ -n "$value" ]; then
         printf '  %-24s %s %s\n' "$var" "$value" "$([ -e "$value" ] && echo '(present)' || echo '(MISSING)')"
@@ -216,7 +216,7 @@ case "${1:-run}" in
     # in three ways that each hid tests rather than failing:
     #
     #   1. `--exact` matches the whole path a binary prints, so entries of the
-    #      form `lean_doc::packages::tests::NAME` cut down to `NAME` matched
+    #      form `litedoc4::packages::tests::NAME` cut down to `NAME` matched
     #      nothing — and `cargo test` exits 0 when a filter selects no tests, so
     #      three tests were reported run, and green, without running.
     #   2. Without `--no-fail-fast`, cargo stopped at the first binary that

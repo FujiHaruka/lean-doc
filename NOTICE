@@ -1,4 +1,4 @@
-lean-doc
+litedoc4
 Copyright (c) 2026 FujiHaruka
 
 This product includes software developed by third parties, listed below.
@@ -14,9 +14,9 @@ doc-gen4 — https://github.com/leanprover/doc-gen4
     Authors: Henrik Böving
 
 Licensed under the Apache License, Version 2.0.
-doc-gen4 itself ships no NOTICE file; this entry is lean-doc's own attribution.
+doc-gen4 itself ships no NOTICE file; this entry is litedoc4's own attribution.
 
-**lean-doc is a derivative work of doc-gen4 and has been changed.** It is not a
+**litedoc4 is a derivative work of doc-gen4 and has been changed.** It is not a
 clean-room reimplementation: doc-gen4's sources were read, and byte-identical
 output was used as the acceptance oracle while the renderer and the extractor
 were written. What changed is the whole architecture around them — a Lean
@@ -25,7 +25,7 @@ dependency map that links out to pinned upstream sources instead of
 regenerating them, and a UI written from scratch. What did not change is the
 set of rendering and extraction decisions, which are doc-gen4's.
 
-lean-doc is not doc-gen4, is not endorsed by its authors, and its output is not
+litedoc4 is not doc-gen4, is not endorsed by its authors, and its output is not
 compatible with doc-gen4's as of milestone M7.
 
 The files below are where the reproduction is closest — some transcribed
@@ -33,23 +33,23 @@ verbatim, some rewritten in Rust to preserve the output byte for byte, some
 restructured to write an IR instead of HTML:
 
     extractor/Extract.lean
-    crates/lean-doc-md/src/html.rs
-    crates/lean-doc-md/src/escape.rs
-    crates/lean-doc-render/src/code.rs
-    crates/lean-doc-render/src/whitespace.rs
-    crates/lean-doc-render/src/autolink.rs
-    crates/lean-doc-render/assets/style.css   (the `.fn` and `.break_within` rules)
+    crates/litedoc4-md/src/html.rs
+    crates/litedoc4-md/src/escape.rs
+    crates/litedoc4-render/src/code.rs
+    crates/litedoc4-render/src/whitespace.rs
+    crates/litedoc4-render/src/autolink.rs
+    crates/litedoc4-render/assets/style.css   (the `.fn` and `.break_within` rules)
 
 Test fixtures produced by running doc-gen4:
 
-    crates/lean-doc-md/tests/data/docgen4-expected.json
-    crates/lean-doc-render/tests/data/docgen4-linked-expected.json
+    crates/litedoc4-md/tests/data/docgen4-expected.json
+    crates/litedoc4-render/tests/data/docgen4-linked-expected.json
 
 A patch against doc-gen4's own sources, quoting them as diff context:
 
     benchmarks/doc-gen4-instrumentation.patch
 
-lean-doc does not link doc-gen4. The extractor imports only `Lean`; the Rust
+litedoc4 does not link doc-gen4. The extractor imports only `Lean`; the Rust
 crates have no Lean dependency at all.
 
 ================================================================================
@@ -78,18 +78,18 @@ md4c — https://github.com/mity/md4c
     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
     IN THE SOFTWARE.
 
-The text above is reproduced from crates/lean-doc-md/vendor/md4c/LICENSE.md,
-where the same licence sits next to the sources; crates/lean-doc-md/vendor/
+The text above is reproduced from crates/litedoc4-md/vendor/md4c/LICENSE.md,
+where the same licence sits next to the sources; crates/litedoc4-md/vendor/
 md4c/PROVENANCE.md records where the copy came from.
 
 **Why the full text is here and not only in vendor/**: md4c's terms ask for the
 permission notice in "all copies or substantial portions of the Software", and a
-compiled `lean-doc` contains md4c. A binary release ships this NOTICE and not the
+compiled `litedoc4` contains md4c. A binary release ships this NOTICE and not the
 vendored tree, so a pointer to a file that is not in the archive would not carry
 the obligation. MD4Lean below has been in this form from the start.
 
-    crates/lean-doc-md/vendor/md4c/{md4c.c,md4c.h}   verbatim, unmodified
-    crates/lean-doc-md/src/ffi.rs                    transcribed from md4c.h
+    crates/litedoc4-md/vendor/md4c/{md4c.c,md4c.h}   verbatim, unmodified
+    crates/litedoc4-md/src/ffi.rs                    transcribed from md4c.h
 
 ================================================================================
 MD4Lean — https://github.com/acmepjz/md4lean
@@ -119,8 +119,8 @@ MD4Lean — https://github.com/acmepjz/md4lean
 Derived from MD4Lean's `wrapper/wrapper.c` and its AST, changed (transliterated
 into Rust):
 
-    crates/lean-doc-md/src/parse.rs
-    crates/lean-doc-md/src/ast.rs
+    crates/litedoc4-md/src/parse.rs
+    crates/litedoc4-md/src/ast.rs
 
 ================================================================================
 Lean 4 / Unicode Basic — https://github.com/fgdorais/lean4-unicode-basic
@@ -138,7 +138,7 @@ answers from is derived from Unicode's `UnicodeData.txt` / `PropList.txt`:
 The following file holds that library's answers, enumerated code point by code
 point rather than copied from its sources:
 
-    crates/lean-doc-md/src/gc.rs
+    crates/litedoc4-md/src/gc.rs
 
 ================================================================================
 V8 — https://v8.dev
@@ -150,4 +150,4 @@ V8 — https://v8.dev
 The following file holds V8's `\p{Z}\p{C}` answers, enumerated code point by
 code point rather than copied from its sources:
 
-    crates/lean-doc-global/src/v8_gc.rs
+    crates/litedoc4-global/src/v8_gc.rs

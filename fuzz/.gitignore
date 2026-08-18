@@ -1,6 +1,6 @@
 # Build output and the exploration's working set. The corpus here is an input
 # *pool*, not a claim — anything that turns out to matter is copied into
-# crates/lean-doc-md/tests/data/fuzz/ and committed there, where the gate reads it.
+# crates/litedoc4-md/tests/data/fuzz/ and committed there, where the gate reads it.
 target
 corpus
 artifacts

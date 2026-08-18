@@ -12,7 +12,7 @@
 #   and the second target is synthetic but still Mathlib-pinned, so both stay
 #   manual gates (tools/target2-gate.sh, tools/corpus-gate.sh). A check that
 #   cannot run on a fresh runner is a gate, not a test — the same line
-#   `crates/lean-doc/tests/resident.rs` already draws.
+#   `crates/litedoc4/tests/resident.rs` already draws.
 #
 # WHY THE CORPUS TESTS DO NOT SILENTLY VANISH HERE
 #   They are `#[ignore]`d, not skipped, so `cargo test` reports them by count,
@@ -91,8 +91,8 @@ jobs:
           RUSTDOCFLAGS: -D warnings -A rustdoc::private_intra_doc_links
 
       # A dependency nobody imports is still a crate to compile and still an entry
-      # in what `cargo deny` has to vouch for. `lean-doc` was declaring
-      # `lean-doc-md` without using it.
+      # in what `cargo deny` has to vouch for. `litedoc4` was declaring
+      # `litedoc4-md` without using it.
       - uses: taiki-e/install-action@cargo-machete
       - name: Unused dependencies
         run: cargo machete
@@ -170,7 +170,7 @@ jobs:
         run: echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
       - name: Build the CLI
-        run: cargo build --bin lean-doc
+        run: cargo build --bin litedoc4
 
       # Builds the fixture, builds the extractor inside the fixture's own Lean
       # environment, generates a site, and checks the three gates: one command,

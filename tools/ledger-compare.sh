@@ -8,13 +8,13 @@
 # to be `tools/ledger-reference.sh --impl ts`, the frozen prototype, and
 # `experiments/` was removed on 2026-08-16; it exists only at tag
 # `experiments-frozen`. What remains is a diff of two recordings of the Rust side:
-#   cargo build --release -p lean-doc
+#   cargo build --release -p litedoc4
 #   tools/ledger-reference.sh --out /private/tmp/lean-doc-relay/m3/before
 #   ...change something...
 #   tools/ledger-reference.sh --out /private/tmp/lean-doc-relay/m3/after
 #   tools/ledger-compare.sh /private/tmp/lean-doc-relay/m3/before \
 #                           /private/tmp/lean-doc-relay/m3/after
-# `cargo test -p lean-doc-incr --test ledger` makes the same comparison in
+# `cargo test -p litedoc4-incr --test ledger` makes the same comparison in
 # process when the target repository is on the machine.
 #
 # Three classes of file, compared three ways:
@@ -49,7 +49,7 @@ CAND="${2-}"
 # The port's own identity strings, read out of the source so that this script
 # cannot drift from them.
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-LEDGER_RS="$REPO/crates/lean-doc-incr/src/ledger.rs"
+LEDGER_RS="$REPO/crates/litedoc4-incr/src/ledger.rs"
 NEW_EXTRACTOR=$(sed -n 's/^pub const EXTRACTOR_ID: &str = "\(.*\)";$/\1/p' "$LEDGER_RS")
 NEW_RENDERER=$(sed -n 's/^pub const RENDERER_ID: &str = "\(.*\)";$/\1/p' "$LEDGER_RS")
 [ -n "$NEW_EXTRACTOR" ] && [ -n "$NEW_RENDERER" ] || {

@@ -30,7 +30,7 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RUST_BIN="$REPO/target/release/lean-doc"
+RUST_BIN="$REPO/target/release/litedoc4"
 
 OUT=
 BASE_IR=/private/tmp/lean-doc-relay/w7h/base-ir
@@ -54,7 +54,7 @@ for d in "$BASE_IR" "$PAGES_SRC" "$SITE_SRC"; do
 done
 
 [ -x "$RUST_BIN" ] || {
-  echo "missing: $RUST_BIN — run: cargo build --release -p lean-doc" >&2; exit 1;
+  echo "missing: $RUST_BIN — run: cargo build --release -p litedoc4" >&2; exit 1;
 }
 impact () { "$RUST_BIN" impact "$@"; }
 prune ()  { "$RUST_BIN" prune "$@"; }
@@ -63,7 +63,7 @@ rm -rf "$OUT"
 mkdir -p "$OUT/fixtures"
 
 # --- the module names the scenarios turn on --------------------------------
-# Every claim below is a column of `lean-doc impact --census` over w7h/base-ir
+# Every claim below is a column of `litedoc4 impact --census` over w7h/base-ir
 # 【実測 2026-08-15】, quoted as declarations / importedByDirect /
 # importersTransitive / referrersDirect.
 #

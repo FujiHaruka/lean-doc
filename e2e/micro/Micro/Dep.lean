@@ -9,7 +9,7 @@ is what the **renderer** does with a module it can neither give a page to nor
 pin a revision for.
 
 `../../micro-dep` is required by path, so its manifest entry has no `url` and no
-`rev`. `crates/lean-doc/src/packages.rs` drops such an entry, which means the
+`rev`. `crates/litedoc4/src/packages.rs` drops such an entry, which means the
 root `«Dep-Aux»` is not in the external-link map, which means every reference
 below is a dependency reference that cannot become a blob URL.
 -/

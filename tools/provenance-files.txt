@@ -24,7 +24,7 @@ NOTICE : Böving
 # §4(b) at the level of the work, not just the file (provenance.md §1.1).
 #
 # The string is English because README.md was rewritten for users on 2026-08-17
-# and the notice moved language with it ("lean-doc is a derivative work of
+# and the notice moved language with it ("litedoc4 is a derivative work of
 # doc-gen4"). **The notice itself never went away** — this line is not being
 # relaxed to make the gate pass, it is being pointed at the same sentence in the
 # language that sentence is now written in. The gate was red for four commits
@@ -35,24 +35,24 @@ NOTICE : has been changed
 # --- doc-gen4 (Apache-2.0): the files §4(b)(c) names -----------------------
 extractor/Extract.lean : Böving
 extractor/Extract.lean : Apache
-crates/lean-doc-render/assets/style.css : Böving
-crates/lean-doc-render/assets/style.css : Apache 2.0
-crates/lean-doc-md/src/html.rs : doc-gen4
-crates/lean-doc-md/src/escape.rs : doc-gen4
-crates/lean-doc-render/src/code.rs : doc-gen4
-crates/lean-doc-render/src/whitespace.rs : doc-gen4
-crates/lean-doc-render/src/autolink.rs : doc-gen4
+crates/litedoc4-render/assets/style.css : Böving
+crates/litedoc4-render/assets/style.css : Apache 2.0
+crates/litedoc4-md/src/html.rs : doc-gen4
+crates/litedoc4-md/src/escape.rs : doc-gen4
+crates/litedoc4-render/src/code.rs : doc-gen4
+crates/litedoc4-render/src/whitespace.rs : doc-gen4
+crates/litedoc4-render/src/autolink.rs : doc-gen4
 
 # --- the other third-party works (provenance.md §7) -----------------------
-crates/lean-doc-md/vendor/md4c/LICENSE.md : MIT
-crates/lean-doc-md/vendor/md4c/PROVENANCE.md : md4c
-crates/lean-doc-md/src/parse.rs : MD4Lean
-crates/lean-doc-md/src/ffi.rs : md4c
-crates/lean-doc-md/src/gc.rs : Unicode
-crates/lean-doc-global/src/v8_gc.rs : V8
+crates/litedoc4-md/vendor/md4c/LICENSE.md : MIT
+crates/litedoc4-md/vendor/md4c/PROVENANCE.md : md4c
+crates/litedoc4-md/src/parse.rs : MD4Lean
+crates/litedoc4-md/src/ffi.rs : md4c
+crates/litedoc4-md/src/gc.rs : Unicode
+crates/litedoc4-global/src/v8_gc.rs : V8
 
 # --- generated fixtures whose origin has to stay recoverable --------------
 # These are program output, not copied source, but "由来の記録は等しく要る —
 # 再生成の手順が分からなくなる方が実害が大きい" (provenance.md §7).
-crates/lean-doc-md/tests/data/PROVENANCE.md : doc-gen4
-crates/lean-doc-render/tests/data/PROVENANCE.md : experiments-frozen
+crates/litedoc4-md/tests/data/PROVENANCE.md : doc-gen4
+crates/litedoc4-render/tests/data/PROVENANCE.md : experiments-frozen

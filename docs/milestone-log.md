@@ -1,4 +1,4 @@
-# lean-doc 実装マイルストーンの結果 — M1〜M8 + 品質ゲート + v0.1.0
+# litedoc4 実装マイルストーンの結果 — M1〜M8 + 品質ゲート + v0.1.0
 
 **位置づけ**: [`implementation-plan.md`](implementation-plan.md) が**実装の SoT** (何をどの順で作り、
 各段の合否を何で判定するか)。この文書はその**結果**を持つ — 各段で何を移設し、どのオラクルに何を通し、
@@ -30,7 +30,7 @@
 | **M1** | IR リーダ + レンダラ (md4c を FFI で本物に) | ページ **431/432** byte 一致 (差分 1 = §5 の登録済み乖離のみ) |
 | **M2** | 全域成果物 6 本 + キャッシュ層 + delta | 6 成果物 **1,877,124 B バイト一致**、サイト **438 中 437** |
 | **M3** | 増分 4 本 + パイプライン (a / b / c / d1 / d2 / d2b / d3 / d4) | クローンで本物の移動 **439/439**、本物の削除 **437/437** |
-| **M4** | 抽出器の移動 + 常駐 + `lean-doc build` (a / b / c / d) | 1 コマンドで **438/438**、移動をまたいで増分 == フル生成が **439/439** |
+| **M4** | 抽出器の移動 + 常駐 + `litedoc4 build` (a / b / c / d) | 1 コマンドで **438/438**、移動をまたいで増分 == フル生成が **439/439** |
 | **M5** | 依存写像を生成側で作る (V1) + 第 2 の対象 (a / b) | 共有 255,205 名でモジュール食い違い **0**、第 2 の対象で **19/19** |
 | **M6** | CI テンプレ + README + ゲート A の再測定 | 再現率 **99.5062%** (21,919,956 / 22,028,728 B) を M1-d3 とバイト単位で再現 |
 | **M7** | 依存リンクを版固定 GitHub blob URL へ (a / b / c / d) | `.lidx` の **255,975 全件に行範囲**、doc-gen4 の URL と **一致 235,185 / 食い違い 0** |
@@ -40,7 +40,7 @@
 ## M1 の結果 — オラクルの所在【すべて実測 2026-08-11】
 
 移設元はすべて `stage7d/render.ts`。**オラクルは 2 種類しかない** — 「TS の関数を切り出したもの」と
-「doc-gen4 / MD4Lean 本体を対象環境で実走させたもの」。所在は `crates/lean-doc-{md,render}/tests/`、
+「doc-gen4 / MD4Lean 本体を対象環境で実走させたもの」。所在は `crates/litedoc4-{md,render}/tests/`、
 生成器は各 `tests/oracle/`。母数と結果【実測】: md4c AST **4,947/4,947**、AST → HTML **4,987/4,987**、
 autolink **4,857/4,857** (+ referee 139/139)、コード片 **55,514/55,514**、`declHeader` **4,750/4,750** /
 `declHtml` **4,560/4,560** / frame **432/432**、ページ **431/432** (差分 1 = §5 の登録済み乖離)。
@@ -56,7 +56,7 @@ autolink **4,857/4,857** (+ referee 139/139)、コード片 **55,514/55,514**、
 **Unicode 一般カテゴリの表は UnicodeBasic から吐かせた**【実測】 — Rust の crate を持ってくると**別の UCD 版**
 になり V8 の `\p{P}\p{Z}\p{C}` と **4,802 コードポイントで食い違う**。`dump-gc.lean` が同じビルドから範囲表を
 吐き `src/gc.rs` を生成する (`gen-gc-table.ts --check` が陳腐化を検出)。
-**crate 境界は 2 つ動かした**【判断】 — `escapeHtml` は `lean-doc-md` に置いて再エクスポート、
+**crate 境界は 2 つ動かした**【判断】 — `escapeHtml` は `litedoc4-md` に置いて再エクスポート、
 `nameToLink?` の**第 1 分岐 (ソースパス) だけは注入点の外** (向こうに置くと **4,987 件中 131 件が外れる**)。
 
 ### 全件バイト一致は分岐被覆の証明ではない — M1 で得た方法論【実測。M2 以降にそのまま効く】
@@ -79,7 +79,7 @@ autolink **4,857/4,857** (+ referee 139/139)、コード片 **55,514/55,514**、
 
 ## M2 の結果 — 全域成果物・キャッシュ層・delta・ゲート【すべて実測 2026-08-11 / 12】
 
-移設元は `stage7h/global.ts` → `crates/lean-doc-global`、ハーネス `tools/global-{reference,compare}.sh`。
+移設元は `stage7h/global.ts` → `crates/litedoc4-global`、ハーネス `tools/global-{reference,compare}.sh`。
 **6 成果物すべて TS 版とバイト一致 (計 1,877,124 B)**。**`global-state.json` もバイト一致**させた
 (Rust **841,947 B** / TS 841,949 B、差は `derivation` の 1 文字列 26 B ↔ 24 B のみ)。`ModuleFacts::tokens` は
 6 成果物のどのバイトにも届かないので**全件比較では原理的に見えなかった**が、state を合わせたことで
@@ -99,7 +99,7 @@ autolink **4,857/4,857** (+ referee 139/139)、コード片 **55,514/55,514**、
 
 ## M3-a の結果 — `detect` (olean ハッシュ台帳)【すべて実測 2026-08-12】
 
-`stage5/ledger.ts` → `lean-doc-incr/src/{ledger,detect}.rs`、ハーネス `tools/ledger-{reference,compare}.sh`。
+`stage5/ledger.ts` → `litedoc4-incr/src/{ledger,detect}.rs`、ハーネス `tools/ledger-{reference,compare}.sh`。
 **12 シナリオを 1 箇所で定義して両実装に回す**【判断、以降の段でも同じ】 — 一致すべきはファイルではなく
 **問いへの答え**なので、問いを両側で書くと誰も意図していない 2 つを比べることになる。**78 ファイルすべて一致**
 (台帳 8 本は**意図的に変えた 2 文字列 = 計 15 B** だけが違う。`--concurrency 8` の台帳は 1 と完全一致 =
@@ -112,7 +112,7 @@ SHA-256 に届いており、差の出所は読み取り経路 (peak RSS 147 MB 
 
 ## M3-b の結果 — `ownership` + `merge`【すべて実測 2026-08-12】
 
-`stage5/{ownership.ts,merge-ir.ts}` → `lean-doc-incr/src/{ownership,merge}.rs`、ハーネス
+`stage5/{ownership.ts,merge-ir.ts}` → `litedoc4-incr/src/{ownership,merge}.rs`、ハーネス
 `tools/merge-{reference,compare}.sh` (1 ラウンド = 抽出 → ownership → merge なので 2 段を 1 本で回す)。
 編集は**対象リポジトリではなく IR に注入**。**母数 4,051 / 一致 3,986 / REORDERED 65 / 差分 0 / 欠落 0**
 (REORDERED は下記の意図した乖離のみ = `deps/*.json` 48 + `index.json` 17)。
@@ -133,7 +133,7 @@ Lean 順 writer と同じことの両方**を assert する (片方だけだと�
 
 ## M3-c の結果 — `impact` + `prune`【すべて実測 2026-08-12】
 
-`stage5/{impact.ts,prune-pages.ts}` → `lean-doc-incr/src/{impact,prune}.rs`、CLI `lean-doc impact|prune`、
+`stage5/{impact.ts,prune-pages.ts}` → `litedoc4-incr/src/{impact,prune}.rs`、CLI `litedoc4 impact|prune`、
 ハーネス `tools/impact-{reference,compare}.sh` は**シナリオ 29 本 (impact 18 / prune 11) を 1 箇所で定義**。
 **母数 3,631 / 一致 3,631 / 差分 0 / 欠落 0**。**この 3,631 は 1 つの問いの答えではない** — 内訳は
 生き残ったページ **3,458** (`prune` を回した 8 本のページ木の残存ファイル =「どちらも消さなかった」の確認) +
@@ -150,7 +150,7 @@ Lean 順 writer と同じことの両方**を assert する (片方だけだと�
 ## M3-d1 の結果 — `site` (フル生成を 1 コマンドに)【すべて実測 2026-08-12】
 
 移設元は `stage7h/run.sh:78-80` の `render()` **3 行** (独立したスクリプトは存在しない)、移設先
-`lean-doc site`、ハーネス `tools/site-compare.sh`。**母数 438 / 一致 437 / 差分 1 (= §5 の登録済み乖離のみ)
+`litedoc4 site`、ハーネス `tools/site-compare.sh`。**母数 438 / 一致 437 / 差分 1 (= §5 の登録済み乖離のみ)
 / 欠落 0 / 余分 0**。**合成が何も足していない**ことも確かめた (`render` + `global` を別プロセスで回した木と
 **438/438 一致**)。
 **決定 4 を既定ではなくフラグの形で塞いだ**【判断】 — `--link-index` / `--no-link-index` の**どちらか必須**。
@@ -163,20 +163,20 @@ Lean 順 writer と同じことの両方**を assert する (片方だけだと�
 
 ## M3-d2 の結果 — `incremental` + `modules` (並べる人)【すべて実測 2026-08-12】
 
-`stage7h/incremental.sh` + `run.sh:82-86` の `modlist()` → `crates/lean-doc/src/pipeline.rs`、CLI
-`lean-doc incremental|modules`。**段はすべてライブラリ呼び出しで、外部プロセスは抽出器だけ**。
+`stage7h/incremental.sh` + `run.sh:82-86` の `modlist()` → `crates/litedoc4/src/pipeline.rs`、CLI
+`litedoc4 incremental|modules`。**段はすべてライブラリ呼び出しで、外部プロセスは抽出器だけ**。
 **`--extractor <program>` は必須で既定値なし**【判断】 — 起動形は `<program> [<extractor-arg>…] --modules
 --ir-dir --timings` = `stage7g/extract-once.sh:24,47` の必須引数そのもの。役目は ①**M4 の境界**
 (既定値を持たせると製品が凍結済み `experiments/` に依存する)、②**Lean 無しでパイプラインをテストできる形**
 (テストは偽抽出器を渡す。無いと全テストが Lean 依存になり事実上テストされない)。
-**ゲート = `oracle.sh` の 7 状態をパイプライン全体に回し、各状態でフル生成 (`lean-doc site`) と byte 比較**
+**ゲート = `oracle.sh` の 7 状態をパイプライン全体に回し、各状態でフル生成 (`litedoc4 site`) と byte 比較**
 【実測】。fixture は合成パッケージを source / olean / IR の 3 層で持ち、olean と IR を**独立に**動かせる
 (宣言の移動で referrer の olean が動かない = L3-1 が要る理由を fixture が含む)。
 **サイト 7 状態すべて全件一致 (83/83)、IR は 52/55 → M3-d2b で 55/55**。
 
 **負債 8 件の決着**: ①②③ **構造で消した** — 2 つの再生成集合の合流は**メモリ上の和集合**で、ファイルを
 経由しないので「無いファイル」という状態が存在しない (3 本は診断として同名で残すが**読み戻さない**)。
-④ **型で閉じた** (`prune_removed` に IR 木を名指す引数が無い)。⑤ `lean-doc modules --root --lib` を新設。
+④ **型で閉じた** (`prune_removed` に IR 木を名指す引数が無い)。⑤ `litedoc4 modules --root --lib` を新設。
 ⑥ ラウンド開始前に `--work` へ退避。⑦ **`incremental` でだけ 40 桁 hex を検査** (`render` / `site` の緩さは
 不変【判断】)。⑧ フル生成 (`site --state`) が書き、増分が毎回更新する。
 **プロトタイプと意図的に違えた点**: `--l3-1` / `--global` / `--count-reads` / `--module` / `--serve*` /
@@ -198,7 +198,7 @@ Lean 順 writer と同じことの両方**を assert する (片方だけだと�
 ## M3-d2b の結果 — `merge --modules` (index の並び)【すべて実測 2026-08-15】
 
 M3-d2 が残した「モジュールが増えると `index.json` だけ from-scratch と違う」を塞いだ。**`MergeOptions.modules`
-/ `lean-doc merge --modules <file>` を新設**し、パイプラインは `detect` に渡すのと**同じ一覧**を `merge` にも
+/ `litedoc4 merge --modules <file>` を新設**し、パイプラインは `detect` に渡すのと**同じ一覧**を `merge` にも
 渡す (渡さないときの挙動は不変 = base 順 + 末尾 push)。**プロトタイプが usage に出して一度も読まないフラグ**
 なので移設ではなく**こちらの設計**。前提は実測済み — **抽出器は渡されたリスト順をそのまま保つ**
 (`w7h/base-ir/index.json` の 432 件はロケール `sort` の出力と 432/432 一致)。
@@ -216,7 +216,7 @@ M3-d2 が残した「モジュールが増えると `index.json` だけ from-scr
 ## M3-d3 の結果 — 差分ハーネス (計測対象で両実装に同じ問いを回す)【すべて実測 2026-08-15】
 
 ハーネス `tools/incremental-{reference,compare}.sh` (558 / 219 行)。**7 シナリオを 1 箇所で定義**し、
-`lean-doc incremental` と `experiments/stage7h/incremental.sh --global new` に回す。抽出器は**両側とも**
+`litedoc4 incremental` と `experiments/stage7h/incremental.sh --global new` に回す。抽出器は**両側とも**
 `stage7g/extract-once.sh`。変化の注入は `ledger touch` (計測対象を編集しないため — `incremental.sh:82-87` の protocol)。
 **台帳と state は impl ごとに種を作る** — `extractKey.extractor` / `STATE_DERIVATION` は「別実装なら別文字列」が設計
 (§6) なので、TS の種を Rust に食わせると鍵不一致で 432 件全部が再抽出になり、パイプラインと無関係に落ちる。
@@ -241,7 +241,7 @@ M3-d2 が残した「モジュールが増えると `index.json` だけ from-scr
 `|| : > "$RENDERSET"` が再生成集合を空にする。**製品をプロトタイプに合わせて壊した箇所はゼロ。**
 
 **ページのバイトは両実装間で比べていない** (決定 4 — プロトタイプ step 7 は `--link-index` を渡さない)。
-代わりに **Rust 側だけ「増分の木 vs 同じ最終 IR からの `lean-doc site`」を 7 シナリオで比較し、全部 identical**
+代わりに **Rust 側だけ「増分の木 vs 同じ最終 IR からの `litedoc4 site`」を 7 シナリオで比較し、全部 identical**
 (438/438、`removed-one` は 437/437)。**`added-one` は自分で site を作り直して `/usr/bin/diff -r` 差分 0 を再現した**。
 種の検査は `m2/gate/ref-site` と **438 中 437 一致** (差分 1 = §5 の登録済み乖離)。
 
@@ -264,7 +264,7 @@ M3-d2 が残した「モジュールが増えると `index.json` だけ from-scr
 | **move** (`BroadcastChannel.Basic` → `…BasicCore`、shim 化 + `lake build`) | **439** | **439** | 0 | 0 | 0 |
 | **delete** (`Shannon.ArithmeticCoding` を消して root の import 1 行も消す + `lake build`) | **437** | **437** | 0 | 0 | 0 |
 
-from-scratch 側は**編集後のソースを独立に全抽出して `lean-doc site`**。M3-d3 の sitecheck (同じ IR を再レンダ) より
+from-scratch 側は**編集後のソースを独立に全抽出して `litedoc4 site`**。M3-d3 の sitecheck (同じ IR を再レンダ) より
 強く、merge が誤った IR を作れば打ち消せない。IR も別レイヤで一致 (437/437・435/435)。
 
 **ゲート 2 (両実装の一致)**: 母数 928 / 一致 920 / REORDERED 7 / ARRAY-REORDERED 1 / **差分 0** / 欠落 0。
@@ -295,7 +295,7 @@ from-scratch 側は**編集後のソースを独立に全抽出して `lean-doc 
 `stage5e/setup-clone.sh:18-25` は「A は referrer を持つものを選べ」と書いている。**必要だが十分ではない。**
 最初 `Shannon.Huffman.Length` (referrersDirect 4) で完走させたが **`globalStale` は 0 のまま**だった
 (ゲート 1 は **439/439 PASS**、rounds 2 / staleFound 1)。L3-2 が読むのは `ModuleFacts::tokens` =
-**宣言 docstring の code span と markdown link target だけ** (`lean-doc-global/src/facts.rs:94-108`) なので、
+**宣言 docstring の code span と markdown link target だけ** (`litedoc4-global/src/facts.rs:94-108`) なので、
 効くのは「自分の宣言名が**他モジュールの docstring に出てくる**」モジュールに限られる。
 **このパッケージでそれは 432 中 7 個だけ**【実測。base state の `tokens` × `name-map.json` の
 パッケージ内 4,750 名で独立に計算】 — `AEP.Basic.Core` 2 / `DifferentialEntropy` 2 /
@@ -316,7 +316,7 @@ from-scratch 側は**編集後のソースを独立に全抽出して `lean-doc 
 = 432 個の olean が sha256 レベルでベースラインと同一に戻った (2 度の move と 1 度の delete をまたいで)。
 孤児 olean 2 個 (`LengthCore` / `BasicCore`) は**意図して残した** — 削除シナリオが検証している現象そのもの。
 
-## M4-a / M4-b の結果 — 抽出器の移動と `lean-doc extract`【すべて実測 2026-08-15】
+## M4-a / M4-b の結果 — 抽出器の移動と `litedoc4 extract`【すべて実測 2026-08-15】
 
 **M4-a**: `stage7d/{Extract.lean,build.sh}` → `extractor/` (2,822 / 39 行 + `README.md` 85)。
 **ゲート = 凍結バイナリとの IR バイト一致** — `experiments/stage7d/build/extract` (**実行のみ。再ビルドしない**)
@@ -331,8 +331,8 @@ from-scratch 側は**編集後のソースを独立に全抽出して `lean-doc 
 成功を報告する。`IR_DIR` は同じ穴の入口違い (コマンドラインの外からフラグの値が来る) なので同時に塞いだ。
 書き出しは 20 秒の抽出の**最後**なので、使用箇所で落とすと全額払ってから usage エラーが届く。
 
-**M4-b**: `stage7g/extract-once.sh` (87) → `crates/lean-doc/src/extract.rs` (399) = `lean-doc extract`。
-**サブコマンドにしたので継ぎ目は閉じない**【判断】 — 製品は `--extractor lean-doc --extractor-arg extract` で
+**M4-b**: `stage7g/extract-once.sh` (87) → `crates/litedoc4/src/extract.rs` (399) = `litedoc4 extract`。
+**サブコマンドにしたので継ぎ目は閉じない**【判断】 — 製品は `--extractor litedoc4 --extractor-arg extract` で
 自分自身を抽出器にできる一方、パイプラインのテストは今も偽抽出器を渡せる (171 MB のバイナリは対象の
 toolchain に対して作られるのでリンクインは不可能)。抽出器と対象の場所は**フラグ + 環境変数、既定なし**
 (`defaultIrDir` と同じ穴)。`--ir-dir` が `--target` の下なら **exit 3**、しかも**ディレクトリを作る前に**判定する
@@ -349,7 +349,7 @@ IDENTICAL** (reordered 0 / array-reordered 0 / 差分 0)。**抽出器を製品�
 
 ## M4-c の結果 — 常駐抽出器【すべて実測 2026-08-15】
 
-`stage7g/serve-ctl.sh` (185) → `crates/lean-doc/src/resident.rs` (1,085) + `tests/resident.rs` (310)、
+`stage7g/serve-ctl.sh` (185) → `crates/litedoc4/src/resident.rs` (1,085) + `tests/resident.rs` (310)、
 `incremental --serve`。**これで `experiments/` からの未移設はゼロ。**
 
 **FIFO + holder ではなくパイプにした**【判断】 — 駆動側が 1 プロセスなので要求チャネルは子の stdin でよい。
@@ -380,7 +380,7 @@ SIGKILL** して (`trap` も `Drop` も走らない経路) `pgrep` **空**。④
 
 ### 実際に発火した穴 — 計測対象に書き込みが起きた【実測。M4-b の欠陥】
 
-**`lean-doc extract` は相対パスを対象リポジトリの中に解決していた。** 子の cwd が `--target` なので
+**`litedoc4 extract` は相対パスを対象リポジトリの中に解決していた。** 子の cwd が `--target` なので
 `--ir-dir out` は**「対象配下なら拒否」のガードを通り抜けて** `<target>/out` に書く — 「計測対象には決して
 書かない」と見出しに書いてある当のコマンドから。M4-c のゲート実行で発覚し、
 **`/Users/haruka/dev/lean-projects/oneshot-432-events.jsonl` (0 B) が実際に作られていた**。削除済み・対象の
@@ -399,15 +399,15 @@ SIGKILL** して (`trap` も `Drop` も走らない経路) `pgrep` **空**。④
 **M4-c は常駐の利得を測っていない** — ゲートのどのシナリオも `rounds` 1 で要求は 1 回きり。
 **常駐が効くのは 2 回目の要求から**なので、**分母のある倍率はまだ存在しない**。
 
-## M4-d の結果 — `lean-doc build` (M4 の完了条件)【すべて実測 2026-08-15】
+## M4-d の結果 — `litedoc4 build` (M4 の完了条件)【すべて実測 2026-08-15】
 
-`crates/lean-doc/src/{build.rs,lakefile.rs}` (985 / 227) + `tests/build.rs` (1,194、偽抽出器で Lean 不要) +
+`crates/litedoc4/src/{build.rs,lakefile.rs}` (985 / 227) + `tests/build.rs` (1,194、偽抽出器で Lean 不要) +
 `tools/build-gate.sh` (370)。実行形:
-`lean-doc build --root <repo> --out <dir> --link-index <lidx> --extractor-bin <bin> [--jobs N]`。
+`litedoc4 build --root <repo> --out <dir> --link-index <lidx> --extractor-bin <bin> [--jobs N]`。
 **`--lib` / モジュール一覧 / `--source-url` / 初回か 2 回目か / state・台帳・work の場所は全部コマンド側。**
 
 **ゲート**【すべて実測。全部クローンで回した — 計測対象は読むだけ】:
-①clean なクローンで `build` 1 回 → **`lean-doc site` の木と 438/438 バイト一致**、IR も参照と 436/436。
+①clean なクローンで `build` 1 回 → **`litedoc4 site` の木と 438/438 バイト一致**、IR も参照と 436/436。
 ②何も変えずもう 1 回 → **0 changed / `nothing to render` / sha256 マニフェスト 438 行が完全一致 = 1 バイトも動かず**、0.30 s。
 ③本物の移動 (`BroadcastChannel.Basic` → `…BasicCore` + `lake build`) → `build` は
 **5 changed / rounds 2 / staleFound 30 / globalStale 1 / irChanged 35 / 36 ページ** (**M3-d4 の数字と完全一致**)、
@@ -434,7 +434,7 @@ SIGKILL** して (`trap` も `Drop` も走らない経路) `pgrep` **空**。④
 
 **`--out` は必須・既定なし。** 素直な既定 `<root>/.lake/build/doc` は **doc-gen4 の出力木** (対象では
 736 MB / 約 9 時間) で、他ツールの成果物を上書きする既定はデータ消失。`--out` が `--root` 配下なら **exit 3**。
-所有権は `lean-doc-build.json` マーカー (run の前に `complete:false`、台帳の後に `complete:true`) で見て、
+所有権は `litedoc4-build.json` マーカー (run の前に `complete:false`、台帳の後に `complete:true`) で見て、
 **マーカーの無い非空ディレクトリは exit 3**。**`--full` も所有権検査を飛ばさない** — フル生成は site と ir を
 **消す**経路なので、先に答えるとマーカーを一度も読まないディレクトリを削除できた (実装中に作って塞いだ穴)。
 **`--lib` は `lakefile.toml` の素の `[[lean_lib]]` + `name = "<Ident>"` だけ読む。** `lakefile.lean` を含む
@@ -500,7 +500,7 @@ rev だけ変更 (433 ページ再レンダ・Lean 起動 0 回) 0.65 s。
 段階 1 の「490,171 定数の走査 = 0.62 秒」は**やっている仕事が違う**ので外挿ではなく新しい実測
 (blacklist 判定と 8.5 MB の書き出し込み、走査した定数 490,613)。**IR は 1 バイトも動かない** (436/436)。
 
-**残っている配線**: `lean-doc extract` / `build` からはまだ `--link-index` を渡せない。
+**残っている配線**: `litedoc4 extract` / `build` からはまだ `--link-index` を渡せない。
 レンダラが読む形式は変わらないので**差し替えは供給側だけで閉じる**という決定 4 の前提は保たれている。
 
 ## M5-b の結果 — 第 2 の対象 (合成) でゲート B【すべて実測 2026-08-15】
@@ -513,7 +513,7 @@ rev だけ変更 (433 ページ再レンダ・Lean 起動 0 回) 0.65 s。
 
 **ゲート 1 = doc-gen4 の木ゼロで `build` 一発**【実測】 — `--lib` も `--source-url` も **`--link-index` も
 渡さない**。lakefile から 2 ライブラリを拾い、git から URL を導出し、**写像を自分で作り**
-(1,692,605 B / 宣言 57,039)、サイト 19 ファイルが `lean-doc site` の木と **19/19 バイト一致**。
+(1,692,605 B / 宣言 57,039)、サイト 19 ファイルが `litedoc4 site` の木と **19/19 バイト一致**。
 **これが V1 が本当に効いていることの唯一の証拠** — 対象 1 には 736 MB の doc-gen4 木があるので写像を外から
 渡せてしまう。ゲート 2 = 2 回作って **19/19・IR 15/15・`.lidx` バイト一致**。ゲート 3 = 無変更で
 **0.048 s / 1 バイトも動かず / サーバも起動しない**。ゲート 4 = 本物の移動 + `lake build` →
@@ -538,12 +538,12 @@ equation lemma を強制したが blacklist で IR に出ず、IR の 18 宣言�
 ### 欠陥 (A) — `«…»` モジュール名で抽出器が死ぬ。修正済み【実測】
 
 M5-a は「静かに壊れる」と書いたが**静かではなかった** — `import failed, trying to import module with anonymous
-name` で exit 1。機構: `lean-doc modules` はソースの glob なので `Alpha/Odd-Name.lean` → `Alpha.Odd-Name` を出すが、
+name` で exit 1。機構: `litedoc4 modules` はソースの glob なので `Alpha/Odd-Name.lean` → `Alpha.Odd-Name` を出すが、
 抽出器の `String.toName` は**パーサ**で、成分は識別子か `«…»` か数値でなければならない → **行全体が
 `Name.anonymous`** になる。**正しい綴りは 1 つではなく 2 つ**で、どちらが正典かは選択ではない:
 **名前** `Alpha.«Odd-Name»` (抽出器が `index.json` に書く綴り。`merge --modules` が食い違いを exit 3 で拒否する相手) と
 **パス** `Alpha/Odd-Name` (olean の位置であり doc-gen4 がページパスを組む形)。
-→ `crates/lean-doc-ir/src/name.rs` (258) に分け、パスを作る 6 箇所に通した。
+→ `crates/litedoc4-ir/src/name.rs` (258) に分け、パスを作る 6 箇所に通した。
 **対象 1 の 432 名はすべて素の識別子なので恒等** — `site` を `w7h/base-ir` に回して `m2/gate/ref-site` と
 **438 中 437 一致 (差分 1 = 登録済み乖離のみ)** = M2 のゲートの数字と完全に同じ。
 **残っている乖離 (未修正、登録)**: `.lidx` は今もモジュール名を**非エスケープ**で書く。href は同じパスに解決するので
@@ -579,19 +579,19 @@ identity は**写像ファイルの SHA-256** (パスでもサイズでもない
 ## M6 の結果 — CI テンプレ / README / ゲート A の再測定【すべて実測 2026-08-15】
 
 `README.md` (287) を v0.1 の顔として全面書き換え、`tools/ci-build.sh` (295) と
-`.github/workflow-templates/lean-doc-docs.yml` (135)。**テンプレは `workflows/` ではなく
+`.github/workflow-templates/litedoc4-docs.yml` (135)。**テンプレは `workflows/` ではなく
 `workflow-templates/` に置いた** — このリポジトリでは起動せず、利用者が自分のパッケージにコピーする物。
 
 **ゲート A の再測定 = M1-d3 (2026-08-11) をバイト単位で再現した**【実測。独立に 2 回スコアし直して確認】 —
 **再現できたバイト 21,919,956 / 22,028,728 = 99.5062%、byte 完全一致 304/348、不足 108,772 B は全部 rev、
 rev 以外の食い違いは 0 文字**。M2〜M5 で全域成果物・増分・写像・パス構築が全部乗ったあとでも**下がっていない**。
-採点したのは `lean-doc build` の出力 (`--link-index` を渡さない = **写像も製品が作る経路**)。
+採点したのは `litedoc4 build` の出力 (`--link-index` を渡さない = **写像も製品が作る経路**)。
 
 **CI は「実体をシェルに置き、YAML は薄いラッパー」にした**【判断】 — workflow に直接コマンドを書くと
 **誰も実行したことのないファイル**になる。実体がスクリプトなら **CI が走らせるのと同じコマンドをローカルで
 実際に回せる**。**V5 の実測** (第 2 の対象、clean n=4 / 無変更 n=5、Apple M1 / `--jobs 4`、**ローカル。
 GitHub Actions ではない**): 合計 **5.887 / 5.897 / 6.080 / 10.361 s** (clean)、**1.274〜1.286 s** (無変更、
-うち `lean-doc build` は 0.058〜0.062 s)。**1 回目だけ倍近いのはこのセッション最初の Lean 起動 = page cache**。
+うち `litedoc4 build` は 0.058〜0.062 s)。**1 回目だけ倍近いのはこのセッション最初の Lean 起動 = page cache**。
 出たサイト 19 ファイルは同じ IR からの `site` と差分 0。
 
 **この節の 2 つの留保は 2026-08-16 に両方とも解けた、片方は否定されて**【実測 → 検証ログ
@@ -599,7 +599,7 @@ GitHub Actions ではない**): 合計 **5.887 / 5.897 / 6.080 / 10.361 s** (cle
 
 - 「**workflow YAML は構文検証のみ / Actions では一度も走らせていない**」→ **走らせた。**
   `.github/workflows/ci-template.yml` がテンプレの手順を逐語で実走し全ステップ success
-  ([run 31955883894](https://github.com/FujiHaruka/lean-doc/actions/runs/31955883894))。
+  ([run 31955883894](https://github.com/FujiHaruka/litedoc4/actions/runs/31955883894))。
   テンプレ冒頭の `THIS FILE HAS NEVER BEEN RUN` は消した。
 - 「**CI ランナーは cold 側なのでこれは下限**」→ **成り立たなかった。** 別ジョブでも
   major fault は 3 桁以下で、環境ロードは同じジョブの **1.08〜1.58 倍**にしかならない
@@ -678,7 +678,7 @@ M7 は規則の発明ではなく「**その URL を別のページから指せ�
 - **自パッケージは不動**【実測】 — 435 ページを href 単位で比べ、動いた 96,331 本は**全部**
   「相対 → blob URL」、**自パッケージの href は 0 本**、`gh_link` / `gh_nav_link` の 4,992 本は同一列
 - **相対のまま残ったのは 7 本**【実測】 — docstring 中の `.lean` を含むパス風の語で、
-  名前解決に届く前に `lean-doc-md` 側が拾う経路。**所在が分かっている 7 本**として穴に記録する
+  名前解決に届く前に `litedoc4-md` 側が拾う経路。**所在が分かっている 7 本**として穴に記録する
 - 副作用: **`--root` を `site` / `render` / `incremental` / `ledger` に足した**。`build` は自分の
   `--root` から解決する。**`--root` 無しの `ledger check` は `build` と違う `renderKey` を出す**
   (全ページ再生成になるだけで誤りは出ない) → README 未検証 13
@@ -770,7 +770,7 @@ Instances For が全部空になる)。state は 841,947 → 861,999 B、**再�
 M8-d が塞いだ分は全部通った (`foundational_types.html` 7,354 参照・`index.html` 870 参照・
 資産 436×3 — **以前はこれが全部 404 だった**)。残る 160 本の原因は別で、
 **docstring 中の `` `EPI/Stam/ToBridge.lean` `` のようなコードスパン**:
-`lean-doc-md` の `resolve_link` が「`.lean` で終わり `/` を含む語」を**索引を引かずに**
+`litedoc4-md` の `resolve_link` が「`.lean` で終わり `/` を含む語」を**索引を引かずに**
 リンクへ変える (doc-gen4 の `nameToLink?` 第 1 分岐の移設)。doc-gen4 が想定したのは
 **リポジトリルート相対**、対象の docstring が書いているのは**モジュール内の相対パス**。
 
@@ -800,7 +800,7 @@ M8-d が塞いだ分は全部通った (`foundational_types.html` 7,354 参照�
 ### 計測対象が動いたので 2 テストが赤【環境要因、2026-08-16】
 
 `packages::every_root_matches_doc_gen4s_own_blob_urls` と
-`ledger::the_corpus_matches_the_prototype` が**赤のまま**。原因は lean-doc 側ではない —
+`ledger::the_corpus_matches_the_prototype` が**赤のまま**。原因は litedoc4 側ではない —
 計測対象 `/Users/haruka/dev/lean-projects` が**このセッション中に** `ca4fd931` → `c4f6af29`
 (「v1 配布準備: ビルド済み olean のリリース配布 + 開発ツールを条件付き依存へ」) へ進み、
 `lakefile.toml` → `lakefile.lean`、**依存パッケージが 15 → 9** に変わったため。
@@ -834,7 +834,7 @@ M8-d が塞いだ分は全部通った (`foundational_types.html` 7,354 参照�
 確認してから通した。
 
 **この過程で 3 件目の「走らずに緑」が出た**【実測】。`tools/corpus-gate.sh` は
-`sed 's/.*:://'` でテスト名を作っていたので、**`lean_doc::packages::tests::NAME` 形式の 3 本が
+`sed 's/.*:://'` でテスト名を作っていたので、**`litedoc4::packages::tests::NAME` 形式の 3 本が
 `NAME` に潰れて `--exact` に一致せず、cargo が「0 tests、exit 0」を返していた**。
 モジュールパスを残すよう直し、**「結果を報告したテスト数」が inventory の本数と一致するか**を
 ゲート自身が数えるようにした (7 本 → 2 本 → 3 本と、同じ形の欠陥が 3 度出ている)。
@@ -867,7 +867,7 @@ M8-d が塞いだ分は全部通った (`foundational_types.html` 7,354 参照�
 
 | テスト | 欠けていた入力 | 処置 |
 |---|---|---|
-| `link_index_fixture::reads_the_dependency_closure_of_the_target_package` | `.lidx` | **再生成 → 緑**。`lean-doc build` が書く |
+| `link_index_fixture::reads_the_dependency_closure_of_the_target_package` | `.lidx` | **再生成 → 緑**。`litedoc4 build` が書く |
 | `packages::every_lidx_entry_matches_doc_gen4s_declaration_urls` | `.lidx` + 宣言 URL | **再生成 → 緑**。235,185 件が doc-gen4 の blob URL と一致、**mismatched 0** |
 | `docgen4::the_whole_corpus` | `--full` 録画 | **削除**【決定、ユーザー判断】 |
 | `md4lean::the_whole_corpus` | `--full` 録画 | **削除**【同上】 |
@@ -914,7 +914,7 @@ M8-d が塞いだ分は全部通った (`foundational_types.html` 7,354 参照�
 → **走査由来の地図を bmp 由来の集計に突き合わせるのは、そもそも同じ問いではなかった。**
 4 母数の比較を外し、**「書いたものを読めるか」の検査 (marker / 全エントリの解決 /
 テキストから読んだ最後のエントリと見出し) は残した**。既定パスも
-`lean-doc build` が書くものを置く場所に変えたので、**HEAD の道具だけで走る**。
+`litedoc4 build` が書くものを置く場所に変えたので、**HEAD の道具だけで走る**。
 
 **危なかったのはここ**: 既定パスに別物を置いた瞬間、テストは「母数を測った当のファイル」だと
 誤認した (環境変数で渡すと構造検査だけに落ちる設計だった)。**入力の同一性を「パス」で
@@ -933,7 +933,7 @@ M8-d が塞いだ分は全部通った (`foundational_types.html` 7,354 参照�
 既存の IR (rev 5e38aecd) を使うと**公開中の内容が後退する**ため。
 
 ```
-lean-doc build --root <target> --lib InformationTheory --out <dir>
+litedoc4 build --root <target> --lib InformationTheory --out <dir>
                --extractor-bin extractor/build/extract --jobs 4
 ```
 **24.51 s / 422 モジュール / 4,394 宣言** (抽出 23.43 s、常駐へのリクエスト 1 回)【実測、warm】。
@@ -992,7 +992,7 @@ GitHub Actions を無料枠で回すため。帰結として **Apache-2.0 §4 �
 
 **フィクスチャ `e2e/micro` は Lean core だけに依存する** (Mathlib 非依存)。
 `lake build` **約 1 秒**、抽出器のビルド **17.1 秒** (`lean` 13.9 + `leanc` 3.2)、
-`lean-doc build` **1.16 秒 / 5 モジュール** → **site 15 ファイル / IR 7 ファイル**。すべて warm。
+`litedoc4 build` **1.16 秒 / 5 モジュール** → **site 15 ファイル / IR 7 ファイル**。すべて warm。
 
 ゲートは 5 つ: **1 コマンド / 冪等 (2 回目は 0 抽出・0 描画、site バイト不動、0.053 秒) /
 決定性 (別ディレクトリへのフル生成が site も IR もバイト一致) / `--jobs` 不変 (j1 と j4 で
@@ -1029,7 +1029,7 @@ site も IR もバイト一致 = **V3 の site 側が初めて実測になった
 | これまでの記述 | 実測 |
 |---|---|
 | 「残る IR 全読みは **5 回**」(approach.md §5.6) | **シナリオ 1 つの値**。無変更 **1 回** / 1 ラウンド **約 4 回** / 2 ラウンド **約 5 回** / フル生成 **2 回**。**ラウンドが 1 つ増えるごとに +1** (各ラウンドが `merge` を持つ) |
-| 「IR へのアクセスを 1 つの抽象に集約する」(実装計画 §3) / 「every read of the IR is in this crate」(`reader.rs`) | **`index.json` は `lean_doc_ir` の外で 3 経路が読む** (`merge` / `ledger::extract_key` / `prune`)。**モジュールファイルについては真、index については偽** |
+| 「IR へのアクセスを 1 つの抽象に集約する」(実装計画 §3) / 「every read of the IR is in this crate」(`reader.rs`) | **`index.json` は `litedoc4_ir` の外で 3 経路が読む** (`merge` / `ledger::extract_key` / `prune`)。**モジュールファイルについては真、index については偽** |
 | — (誰も書いていなかった) | **`pages_rendered` が「2 つ目の真実」だった** — 再生成集合の要素数を報告していて、レンダラが実際に書いた数ではない。集合が IR に無いモジュールを名指すと食い違う |
 
 **`ownership` は N+1 読み**で、差分側 (再抽出モジュールの新旧 2 本の比較) は `contentHash` では
@@ -1130,7 +1130,7 @@ revision を運びページのバイトに届く**ので、これは表示上の
    終了コードに出ていなかった**。§「品質ゲート」の「skip で緑を返さない」と同じ形が、
    skip ではなく**戻り値の握り潰し**として残っていた。失敗を数えて非ゼロ終了にし、
    **故意に 1 バイト足して exit 1 を確認してから通した**
-2. **gate1-site の「判定不能」は誤診だった** — 参照を `lean-doc site` に `--root` **無しで**
+2. **gate1-site の「判定不能」は誤診だった** — 参照を `litedoc4 site` に `--root` **無しで**
    作っていたのが原因で、`site` は `--root` を取る。付ければ `build` と同じ版固定 blob URL を
    書き、**20 ファイルがバイト一致**する。残る差は `site` が静的資産 3 本を書かないことだけ
    (名指しで外し、**1 本でも欠ければ失敗**)。→ 計画側の記述を訂正 (`docs/plans/quality-gates.md`)

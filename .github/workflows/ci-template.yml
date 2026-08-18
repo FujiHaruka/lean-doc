@@ -1,4 +1,4 @@
-# Runs the workflow template — `.github/workflow-templates/lean-doc-docs.yml` —
+# Runs the workflow template — `.github/workflow-templates/litedoc4-docs.yml` —
 # so that its header stops saying it has never been run.
 #
 # WHAT THE TEMPLATE'S HEADER SAYS IS UNVERIFIED, AND WHAT THIS COVERS
@@ -11,11 +11,11 @@
 #   1. `on:` is `workflow_dispatch` only. The template also runs on push, which
 #      here would download several GB per commit of a repository that is not a
 #      Lean package.
-#   2. The package is **generated, not checked out**. lean-doc has no Lean
+#   2. The package is **generated, not checked out**. litedoc4 has no Lean
 #      package of its own and creating one outside this repository was ruled out,
 #      so `tools/make-target2.sh` builds the second target in the job. It is the
 #      right package for this: its `lakefile.toml` declares **two**
-#      `[[lean_lib]]` blocks, which is what `lean-doc build` has to read to
+#      `[[lean_lib]]` blocks, which is what `litedoc4 build` has to read to
 #      derive `--lib` — the step the template depends on and never states.
 #   3. elan is installed **before** the package exists, from the measurement
 #      target's `lean-toolchain` — the same bytes `make-target2.sh` then copies
@@ -51,13 +51,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
-      # lean-doc itself — the template's second checkout, with no token, which
+      # litedoc4 itself — the template's second checkout, with no token, which
       # is the line the public repository made possible.
-      - name: check out lean-doc
+      - name: check out litedoc4
         uses: actions/checkout@v4
         with:
-          repository: FujiHaruka/lean-doc
-          path: lean-doc
+          repository: FujiHaruka/litedoc4
+          path: litedoc4
 
       # Difference 2/3: the package does not exist yet, so what is checked out
       # here is only the source of its `lean-toolchain` and `lake-manifest.json`.
@@ -77,7 +77,7 @@ jobs:
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
       - name: record the machine
-        run: lean-doc/benchmarks/tools/record-runner.sh env-before.txt target-src
+        run: litedoc4/benchmarks/tools/record-runner.sh env-before.txt target-src
 
       # `--deps fetch` is the path this script has never taken: on a runner there
       # is no measurement target to clone `.lake/packages` from with APFS
@@ -87,7 +87,7 @@ jobs:
         env:
           TARGET_SRC: ${{ github.workspace }}/target-src
         run: |
-          lean-doc/tools/make-target2.sh --out "$GITHUB_WORKSPACE/package" --deps fetch
+          litedoc4/tools/make-target2.sh --out "$GITHUB_WORKSPACE/package" --deps fetch
           cat package/lakefile.toml
 
       - name: cache Mathlib's oleans
@@ -99,10 +99,10 @@ jobs:
       - name: cache the Lean extractor
         uses: actions/cache@v4
         with:
-          path: lean-doc/extractor/build
+          path: litedoc4/extractor/build
           key: >-
             extractor-${{ hashFiles('package/lean-toolchain',
-            'lean-doc/extractor/Extract.lean') }}
+            'litedoc4/extractor/Extract.lean') }}
 
       - name: cache the Rust build
         uses: actions/cache@v4
@@ -110,8 +110,8 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            lean-doc/target
-          key: cargo-${{ runner.os }}-${{ hashFiles('lean-doc/Cargo.lock') }}
+            litedoc4/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('litedoc4/Cargo.lock') }}
 
       # The template's fourth cache. `id:` is the one addition — the run has to
       # be able to say whether it restored anything, because "extract was fast"
@@ -122,9 +122,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: docs-out
-          key: leandoc-docs-${{ github.sha }}
+          key: litedoc4-docs-${{ github.sha }}
           restore-keys: |
-            leandoc-docs-
+            litedoc4-docs-
 
       # The template's one step, verbatim except for `tee`: the counts that say
       # how many modules were re-extracted are on stdout, and this is a
@@ -132,7 +132,7 @@ jobs:
       - name: build the package and its documentation
         run: |
           set -o pipefail
-          lean-doc/tools/ci-build.sh \
+          litedoc4/tools/ci-build.sh \
             --root package \
             --out "$GITHUB_WORKSPACE/docs-out" \
             --cache-get \
@@ -156,12 +156,12 @@ jobs:
       # sources do not have, which silently turns the no-change measurement above
       # into a second one-module measurement.
       # **Two edits, and the gate reads the second.** The restored state may have
-      # been written by a lean-doc from before 段 C — the cache's `restore-keys`
+      # been written by a litedoc4 from before 段 C — the cache's `restore-keys`
       # match on a prefix, so it usually was. Such a map still carries the
       # package's own declaration groups and has no `.key` sidecar, so the first
       # edit's build rewrites it into the current shape, its digest moves, and
       # every page re-renders. **That is a real cost and it is not a bug**: it is
-      # what upgrading lean-doc across 段 C costs, once, on a state built before
+      # what upgrading litedoc4 across 段 C costs, once, on a state built before
       # it【実測 2026-08-17, run 31963079828, where this step first ran and
       # failed exactly here】. It is also not what this gate asks. So the first
       # round takes the state to its steady shape and the second is the one
@@ -173,13 +173,13 @@ jobs:
           for round in 1 2; do
             printf '\n/-- Probe %s, appended by the one-module gate. -/\ndef ciOneModProbe%s_ : Nat := 13\n' \
               "$round" "$round" >> package/Alpha/Basic.lean
-            lean-doc/tools/ci-build.sh \
+            litedoc4/tools/ci-build.sh \
               --root package \
               --out "$GITHUB_WORKSPACE/docs-out-onemod" \
               --jobs 4 2>&1 | tee "onemod-log-$round.txt"
           done
-          lean-doc/tools/onemod-gate.sh \
-            docs-out-onemod/lean-doc-build.json \
+          litedoc4/tools/onemod-gate.sh \
+            docs-out-onemod/litedoc4-build.json \
             docs-out-onemod/work/serve.out
 
       # Not the template's: what makes the run readable afterwards. The template
@@ -199,8 +199,8 @@ jobs:
             echo "## ci-build.sh timings"
             cat docs-out/ci-timings.json 2> /dev/null || echo "(none)"
             echo
-            echo "## lean-doc build timings"
-            cat docs-out/lean-doc-timings.json 2> /dev/null || echo "(none)"
+            echo "## litedoc4 build timings"
+            cat docs-out/litedoc4-timings.json 2> /dev/null || echo "(none)"
             echo
             echo "## the format transition, if the restored state predates 段 C"
             cat onemod-log-1.txt 2> /dev/null || echo "(none)"
@@ -208,8 +208,8 @@ jobs:
             echo "## what a one-module edit cost in the steady state (段 C / 段 D)"
             cat onemod-log-2.txt 2> /dev/null || echo "(none)"
             echo
-            echo "## lean-doc build timings — the one-module run"
-            cat docs-out-onemod/lean-doc-timings.json 2> /dev/null || echo "(none)"
+            echo "## litedoc4 build timings — the one-module run"
+            cat docs-out-onemod/litedoc4-timings.json 2> /dev/null || echo "(none)"
             echo
             echo "## the extractor's own log — the one-module run"
             cat docs-out-onemod/work/serve.out 2> /dev/null || echo "(none)"
@@ -233,9 +233,9 @@ jobs:
             env-before.txt
             docs-out/site
             docs-out/ci-timings.json
-            docs-out/lean-doc-timings.json
+            docs-out/litedoc4-timings.json
             onemod-log-1.txt
             onemod-log-2.txt
             docs-out-onemod/ci-timings.json
-            docs-out-onemod/lean-doc-timings.json
+            docs-out-onemod/litedoc4-timings.json
             docs-out-onemod/work/serve.out

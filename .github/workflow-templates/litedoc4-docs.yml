@@ -1,0 +1,223 @@
+# Documentation for a Mathlib-dependent Lean package, built in the same job as
+# `lake build`.
+#
+# Copy this file into YOUR package's repository as `.github/workflows/docs.yml`.
+# It is inert where it sits: `.github/workflow-templates/` is not a directory
+# GitHub runs workflows from, and this repository has no Lean package to build.
+#
+# ============================================================================
+# WHAT HAS RUN, AND WHAT HAS NOT  【実測 2026-08-16】
+# ============================================================================
+#   These steps have run green on a real `ubuntu-latest` runner:
+#   https://github.com/FujiHaruka/litedoc4/actions/runs/31955883894
+#   `.github/workflows/ci-template.yml` is that run — it copies the steps below
+#   verbatim and points them at a package generated in the job, because litedoc4
+#   has no Lean package of its own and creating one elsewhere was ruled out.
+#
+#   Covered there, which is exactly the list this note used to call unverified:
+#   the actions' versions and inputs, all three cache keys, the elan install,
+#   `lake exe cache get`, and the single `ci-build.sh` call — 13 modules, 23
+#   files, `docs` 2.510 s inside a 52.647 s job (`cache-get` 5.312, `lake build`
+#   4.945, extractor built 15.882, cargo built 23.932).
+#
+#   Still not run **in this shape**: the `push:` trigger, and the first checkout
+#   — in a user's repository that is the caller's own repo, while the validation
+#   generates the package instead. Both are ordinary GitHub mechanics.
+#
+#   Treat the timings in README.md separately: they were measured on an Apple
+#   M1 laptop with a warm page cache, not on a runner.
+#
+# ============================================================================
+# THE ONE THING NOT TO CHANGE: ONE JOB  【実測 → docs/approach.md §3, §8】
+# ============================================================================
+#   `lake build` and the documentation build must stay in the SAME job. The
+#   extractor's floor is importing the environment, and that is I/O: what decides
+#   it is whether the oleans are in the page cache.
+#
+#   **How much a split costs depends on the runner's memory**, and that has
+#   already changed once 【実測】:
+#
+#     2 cores / 7.75 GiB (2026-08-10)  same job 2.61 s / split 20-89 s = 8-34x
+#     4 cores / 15.6 GiB (2026-08-16)  same job 2.4-2.6 s / split 2.5-2.9 s
+#                                      = 1.08-1.58x  (n=5, end to end)
+#     same runner, cache dropped       13.5-22.3 s = 5.2-11.9x  (the control)
+#
+#   So a separate docs job is NOT reliably cold — it writes the oleans itself
+#   (`lake exe cache get`, and whatever restores the build), and on a runner with
+#   room they stay resident. Keep one job anyway: the **cold** penalty is 5-12x,
+#   and whether your runner is cold depends on its RAM against your package's
+#   working set. One job does not have to ask that question.
+#
+# ============================================================================
+# THE FOUR CACHES, AND WHAT EACH IS KEYED ON
+# ============================================================================
+#   ~/.cache/mathlib   what `lake exe cache get` downloads. Keyed on
+#                      lake-manifest.json: the manifest pins the revisions, so
+#                      it changes exactly when the oleans do.
+#   extractor/build    the Lean extractor (171 MB). It is compiled against the
+#                      package's toolchain, so the key is `lean-toolchain` plus
+#                      the hash of Extract.lean — the two inputs that decide its
+#                      bytes. It does not depend on the package's own sources,
+#                      so it survives every ordinary commit. Building it costs
+#                      14.90 s on an M1 with a warm cache 【実測】; the reason to
+#                      cache it is that it never changes, not that it is slow.
+#   cargo + target     the Rust side. Keyed on Cargo.lock, which pins it.
+#   docs-out           **the documentation state** — the IR, the ledger and the
+#                      site of the previous run. This is the one that makes the
+#                      incremental path reachable at all: without it every run
+#                      starts with no ledger, so every module is re-extracted and
+#                      the extractor re-analyses every declaration. Keyed on the
+#                      commit with a rolling prefix, so a run restores the most
+#                      recent state it can find and writes its own.
+#
+#   The first three are not required for correctness and each is restored into
+#   the job that uses it; the one that decides the job's order of magnitude is
+#   Mathlib's, since without it the package builds Mathlib from source.
+#
+#   `docs-out` is different in kind and worth reading twice. What makes a
+#   restored state safe is not the cache but the ledger: the run compares the
+#   oleans it has now against the hashes the ledger recorded, and re-extracts
+#   what moved. A stale or partial restore therefore costs time, not
+#   correctness — a run that dies leaves `complete: false` in the marker and the
+#   next run redoes the work rather than trusting it.
+#
+#   IT DEPENDS ON ONE EMPIRICAL PROPERTY, AND IT IS NOT FREE TO ASSUME: the
+#   ledger's key is the SHA-256 of each `.olean`, so a rebuilt olean has to come
+#   out byte-identical or nothing matches and the cache buys nothing. Measured
+#   on 9 modules (3.6 KB - 1.2 MB oleans) on an M1: byte-identical after a
+#   delete-and-rebuild and again after an edit was reverted, with the edited
+#   build as the positive control 【実測 2026-08-17,
+#   benchmarks/results/olean-determinism-2026-08-17*.txt】. Measured again on a
+#   Linux runner by running `.github/workflows/ci-template.yml` twice on one
+#   commit: the second job restored the cache, rebuilt every olean with
+#   `lake build` all the same, and re-extracted **0 of 13 modules** — the
+#   ledger matched every hash 【実測 2026-08-17, runs 31959354738 / 31959511320】.
+#
+#   WHAT IT IS WORTH, WITH THE DENOMINATOR STATED 【実測 2026-08-17】
+#   Nothing changed: `litedoc4 build` 1.6741 s -> 0.0163 s on that 13-module
+#   package; on a 422-module package measured locally, 9.8848 s -> 0.313 s
+#   (31.6x), with no Lean process started at all.
+#   ONE MODULE CHANGED — the shape of a real push: 9.8848 s -> 7.3118 s, only
+#   **1.35x**. The cache removes the re-extraction (422 modules -> 1) but not
+#   the two costs that do not scale with the change: loading the environment
+#   (3.329 s) and rewriting the dependency map (1.461 s), whose whole-file
+#   digest then re-renders every page. Do not quote the 31.6x for a push.
+#   And the job is more than the docs: on the validation runs `lake build`
+#   (4.9-5.1 s) and `lake exe cache get` (5.1-5.2 s) dominated, so the job went
+#   12.427 s -> 10.790 s = 1.15x.
+name: docs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      # The package being documented.
+      - name: check out the package
+        uses: actions/checkout@v4
+        with:
+          path: package
+
+      # litedoc4 itself. The repository is public, so no token is needed: the
+      # `GITHUB_TOKEN` this workflow already runs with reads it. Pin `ref:` to a
+      # tag or a commit if you want the documentation build to stop moving under
+      # you.
+      - name: check out litedoc4
+        uses: actions/checkout@v4
+        with:
+          repository: FujiHaruka/litedoc4
+          path: litedoc4
+
+      # elan reads `package/lean-toolchain` and installs the toolchain the
+      # package pins; `--default-toolchain none` keeps it from guessing one.
+      - name: install elan
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: cache Mathlib's oleans
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mathlib
+          key: mathlib-${{ hashFiles('package/lake-manifest.json') }}
+
+      - name: cache the Lean extractor
+        uses: actions/cache@v4
+        with:
+          path: litedoc4/extractor/build
+          key: >-
+            extractor-${{ hashFiles('package/lean-toolchain',
+            'litedoc4/extractor/Extract.lean') }}
+
+      - name: cache the Rust build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            litedoc4/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('litedoc4/Cargo.lock') }}
+
+      # The previous run's documentation state. `key` is unique per commit so
+      # every run writes its own entry; `restore-keys` is the prefix, so a run
+      # restores the newest state that exists rather than only an exact match.
+      #
+      # The path has to be stable across runs, which is why it is in the
+      # workspace and not under `$RUNNER_TEMP` (a fresh directory every job).
+      # It also has to be outside `--root`: `litedoc4 build` refuses an `--out`
+      # inside the package it is documenting.
+      #
+      # `litedoc4 build` records the absolute `--root` in the state's marker and
+      # exits 3 if a later run points it at a different one. On a
+      # GitHub-hosted runner the workspace path is a function of the repository,
+      # so this holds; the refusal is the loud direction if it ever does not.
+      - name: cache the documentation state (IR + ledger + site)
+        uses: actions/cache@v4
+        with:
+          path: docs-out
+          key: litedoc4-docs-${{ github.sha }}
+          restore-keys: |
+            litedoc4-docs-
+
+      # ONE step: dependencies, `lake build`, the extractor, the Rust binary and
+      # the site, in that order and in this job. Everything the command needs
+      # beyond these two paths it derives itself — the libraries from the
+      # lakefile, the modules from the source glob, the source URL from git, and
+      # the dependency map from the environment the extractor imports anyway.
+      #
+      # ONE EXCEPTION, AND IT IS NOT OPTIONAL: `lakefile.lean`.  【実測 2026-08-17】
+      #   The libraries are derived from `lakefile.toml`. A package that uses
+      #   `lakefile.lean` instead gets a refusal, not a guess — `lean_lib` there
+      #   is a Lake DSL command whose argument can come from any Lean expression,
+      #   so reading it honestly means elaborating it. Add the libraries by hand:
+      #
+      #     --jobs 4 -- --lib YourLib --lib YourOtherLib
+      #
+      #   (everything after `--` is passed on to `litedoc4 build`).
+      - name: build the package and its documentation
+        run: |
+          litedoc4/tools/ci-build.sh \
+            --root package \
+            --out "$GITHUB_WORKSPACE/docs-out" \
+            --cache-get \
+            --jobs 4
+
+      - name: upload the site
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs
+          path: docs-out/site
+
+      # To publish instead of archiving, replace the step above with
+      # actions/upload-pages-artifact + actions/deploy-pages, add
+      # `pages: write` and `id-token: write` to `permissions:`, and keep
+      # everything else as it is: the site is a directory of static files with
+      # no server side.

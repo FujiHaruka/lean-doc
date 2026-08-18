@@ -40,7 +40,7 @@ type Index = {
   known: Set<string>; // the `@` section
 };
 
-/** The parser is the renderer's (`crates/lean-doc-render/src/link_index.rs`):
+/** The parser is the renderer's (`crates/litedoc4-render/src/link_index.rs`):
  * first byte decides, no error path, a repeated name takes the later module. */
 function parse(text: string): Index {
   const names = new Map<string, string>();

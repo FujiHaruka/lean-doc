@@ -23,7 +23,7 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RUST_BIN="$REPO/target/release/lean-doc"
+RUST_BIN="$REPO/target/release/litedoc4"
 
 OUT=
 TARGET=/Users/haruka/dev/lean-projects
@@ -66,7 +66,7 @@ for p in "$TARGET" "$IR" "$MODULES" "$MATHLIB_TARGET"; do
 done
 
 [ -x "$RUST_BIN" ] || {
-  echo "missing: $RUST_BIN — run: cargo build --release -p lean-doc" >&2; exit 1;
+  echo "missing: $RUST_BIN — run: cargo build --release -p litedoc4" >&2; exit 1;
 }
 ledger () { "$RUST_BIN" ledger "$@"; }
 

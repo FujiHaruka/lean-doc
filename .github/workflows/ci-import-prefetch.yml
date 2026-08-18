@@ -62,10 +62,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 330
     steps:
-      - name: Check out lean-doc (the measurement tools)
+      - name: Check out litedoc4 (the measurement tools)
         uses: actions/checkout@v5
         with:
-          path: lean-doc
+          path: litedoc4
 
       - name: Check out the measurement target (public), pinned
         uses: actions/checkout@v5
@@ -97,8 +97,8 @@ jobs:
 
       - name: Build the probes
         run: |
-          cc -O2 -o olean-residency lean-doc/benchmarks/tools/olean-residency.c
-          cc -O2 -pthread -o olean-prefetch lean-doc/benchmarks/tools/olean-prefetch.c
+          cc -O2 -o olean-residency litedoc4/benchmarks/tools/olean-residency.c
+          cc -O2 -pthread -o olean-prefetch litedoc4/benchmarks/tools/olean-prefetch.c
           : | ./olean-prefetch -j 2 -m read 2>&1 | head -3
 
       - name: lake exe cache get
@@ -108,7 +108,7 @@ jobs:
       - name: Build the extractor
         env:
           TARGET_REPO: ${{ github.workspace }}/target
-        run: lean-doc/extractor/build.sh 2>&1 | tail -5
+        run: litedoc4/extractor/build.sh 2>&1 | tail -5
 
       - name: lake build (the target's own 432 modules)
         working-directory: target
@@ -124,8 +124,8 @@ jobs:
           LEAN_TOOLCHAIN_DIR: /home/runner/.elan/toolchains/leanprover--lean4---v4.31.0
         run: |
           find target -name '*.olean*' | sort > set-blind.txt
-          if python3 lean-doc/benchmarks/tools/import-closure.py \
-               lean-doc/benchmarks/results/it-modules.txt \
+          if python3 litedoc4/benchmarks/tools/import-closure.py \
+               litedoc4/benchmarks/results/it-modules.txt \
                --olean-out set-closure.txt 2>closure.err; then
             echo "SET=closure" | tee set-kind.txt
             cp set-closure.txt set-prefetch.txt
@@ -140,11 +140,11 @@ jobs:
 
       - name: Measure
         env:
-          MODULES: ${{ github.workspace }}/lean-doc/benchmarks/results/it-modules.txt
+          MODULES: ${{ github.workspace }}/litedoc4/benchmarks/results/it-modules.txt
         run: |
           set -u
           W="$GITHUB_WORKSPACE"
-          EX="$W/lean-doc/extractor/build/extract"
+          EX="$W/litedoc4/extractor/build/extract"
           REPS='${{ github.event.inputs.reps }}'; REPS=${REPS:-2}
           J='${{ github.event.inputs.jobs }}';    J=${J:-16}
           drop() { sudo sh -c 'sync; echo 3 > /proc/sys/vm/drop_caches'; }
@@ -220,7 +220,7 @@ jobs:
             echo "## honesty check — residency of ALL oleans after a prefetch and nothing else"
             for M in read madvise; do
               echo "### $M"
-              deno run --allow-read lean-doc/benchmarks/tools/summarize-residency.ts \
+              deno run --allow-read litedoc4/benchmarks/tools/summarize-residency.ts \
                 "$W/residency-after-prefetch-$M.jsonl" 2>&1 | tail -12 || true
             done
           } | tee prefetch-summary.txt

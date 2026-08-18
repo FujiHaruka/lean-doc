@@ -1,0 +1,21 @@
+[package]
+name = "litedoc4"
+license.workspace = true
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+litedoc4-global = { path = "../litedoc4-global" }
+litedoc4-incr = { path = "../litedoc4-incr" }
+litedoc4-ir = { path = "../litedoc4-ir" }
+litedoc4-render = { path = "../litedoc4-render" }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

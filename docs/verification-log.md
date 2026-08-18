@@ -35,7 +35,7 @@ doc-gen4 に「複数モジュールを 1 プロセスで抽出する」コマ�
 - **実測**: 432 モジュールを 1 プロセスで 47.4 秒 (逐次プロセスは約 1,084 秒、23 倍)。
   ログ → `benchmarks/results/batch.jsonl`、レポート → `benchmarks/doc-gen4-report.md`
 
-これは **doc-gen4 の機構での実測**であって、lean-doc 自身の抽出器での再現ではない。
+これは **doc-gen4 の機構での実測**であって、litedoc4 自身の抽出器での再現ではない。
 段階 1 を満たすには (a) 自前の抽出器で同等の時間が出ること、
 (b) カスタム構文・`Notation`・独自属性を持つプロジェクトでも壊れないこと、の 2 つが要る。
 
@@ -79,7 +79,7 @@ warm 実行を 5 回連続で取ると `importModules` は 2.36–2.50 秒に収
 **壁時計 ≈ CPU 時間** (run7: 3.14s wall / 3.11s user+sys) になる。cold 寄りの実行では
 壁時計 14.67s に対し CPU は 4.01s しかなく、**差はすべて olean の mmap ページイン待ち**。
 
-これが lean-doc 側だけの現象でないことを確かめるため、**同じ warm 状態で doc-gen4 の
+これが litedoc4 側だけの現象でないことを確かめるため、**同じ warm 状態で doc-gen4 の
 `batch` を測り直した** (2 回、再現性あり):
 
 | phase | 初回計測 `batch.jsonl` | warm 再計測 `batch-rerun*.jsonl` |
@@ -92,7 +92,7 @@ warm 実行を 5 回連続で取ると `importModules` は 2.36–2.50 秒に収
 | **`batch.total`** | **45.93s** | **31.50s / 30.43s** |
 
 すべて**実測**。doc-gen4 の `importModules` も 2.6 秒に落ちた。
-lean-doc の 2.44 秒とほぼ同じで、**同じ API を同じ引数で呼んでいる以上これは当然**。
+litedoc4 の 2.44 秒とほぼ同じで、**同じ API を同じ引数で呼んでいる以上これは当然**。
 
 したがって:
 
@@ -166,7 +166,7 @@ lean-doc の 2.44 秒とほぼ同じで、**同じ API を同じ引数で呼ん�
 **(a) は満たした。(b) は未検証。段階 2 に進んでよいが、段階 1 は閉じない。**
 
 - (a) 自前の抽出器で同等の時間が出るか → **満たす**。同一 warm 条件で
-  lean-doc 2.44s / doc-gen4 2.60s。走査数 490,171・該当数 8,824 も完全一致しており、
+  litedoc4 2.44s / doc-gen4 2.60s。走査数 490,171・該当数 8,824 も完全一致しており、
   両者が同じ環境・同じワークロードを見ていることが確認できた。
 - (b) カスタム構文・`Notation`・独自属性で壊れないか → **未検証**。
   この最小抽出器は pretty print をしないので、カスタム構文が絡む経路を通っていない。
@@ -205,7 +205,7 @@ docstring・宣言種別・定義位置を取り出す。equation 生成はフ�
 doc-gen4 の blacklist を転写して適用し、同一 432 モジュールに対する doc-gen4 の DB と
 突き合わせた。すべて**実測**:
 
-| | lean-doc | doc-gen4 DB |
+| | litedoc4 | doc-gen4 DB |
 |---|---:|---:|
 | 宣言 | **4,750** | **4,750** |
 | 種別内訳 (theorem/def/instance/structure/ctor/opaque) | 3742/842/91/37/37/1 | 同一 |
@@ -215,12 +215,12 @@ doc-gen4 の blacklist を転写して適用し、同一 432 モジュールに�
 
 段階 1 の 5,123 は粗いフィルタ後の数で、doc-gen4 が実際に `DocInfo` を作るのは 4,750 件。
 
-#### 時間 (warm、lean-doc 5 回 / doc-gen4 3 回)
+#### 時間 (warm、litedoc4 5 回 / doc-gen4 3 回)
 
 **doc-gen4 側も同じ日・同じ warm 状態で測り直した。**段階 1 の 11.22 秒が
 equation 生成 ON の値だったか記録が無かったため、両側で ON/OFF を固定して測っている。
 
-| | lean-doc | doc-gen4 | 差 |
+| | litedoc4 | doc-gen4 | 差 |
 |---|---:|---:|---:|
 | 意味解析 (equations ON) | 9.30s | 10.51s | −11% |
 | 意味解析 (equations OFF) | 8.15s | 9.20s | −11% |
@@ -228,7 +228,7 @@ equation 生成 ON の値だったか記録が無かったため、両側で ON/
 | `importModules` | 2.49s | 2.49s | — |
 | peak RSS | 3.28–3.37 GB | — | |
 
-**この −11% を「速くなった」と読んではいけない。** lean-doc 側は属性収集・instance の
+**この −11% を「速くなった」と読んではいけない。** litedoc4 側は属性収集・instance の
 className/typeNames・`sorried`・`renderTagged` を省いている。省いた分の一部
 (`tagCodeInfos`) を戻すと差は −7% に縮む。**結論は「意味解析は本質的コストであり、
 再実装しても減らない」** — `approach.md` §6.6 の予測どおり。
@@ -258,7 +258,7 @@ klDivRV_def             : klDivRV μ X Y = ...           D(μ; X ∥ Y) = ...
   import しただけでは**未活性**。`Core.Context.openDecls` に入れるだけでは効かず、
   **`Lean.activateScoped` で環境側を活性化する必要がある**。doc-gen4 はどちらも
   やっていないので、**パッケージ自身の記法が doc に一切出ていない**。
-  lean-doc は出せる。コストは意味解析 +6% (8.15s → 8.67s)。4,750 件中 294 件が変わる。
+  litedoc4 は出せる。コストは意味解析 +6% (8.15s → 8.67s)。4,750 件中 294 件が変わる。
 - **実測**: `H(μ; X | Y)` は両モードとも出ない。notation が `Shannon.condEntropy`
   (`@[reducible]` な `MeasureFano.condEntropy` の別名) に対して定義されており、
   elaborate 後の項には `MeasureFano.condEntropy` しか残らないため delaborator が
@@ -348,7 +348,7 @@ doc-gen4 の `collectTactics` (`DocGen4/Process/Analyze.lean:140`) は
 
 #### 時間 (warm、5 回の中央値)
 
-| phase | lean-doc 実測 | §6.1 最適化後 |
+| phase | litedoc4 実測 | §6.1 最適化後 |
 |---|---:|---:|
 | `importModules` | 2.512s | 2.60s |
 | 索引 | 0.002s | ~0s |
@@ -376,7 +376,7 @@ peak RSS 3.29–3.30 GB (前増分から不変)。
 - 意味解析 11.22s → 9.261s (11.22 は doc-gen4 3 回の最大値。中央値 10.51s)
 - 環境ロード 2.60s → 2.512s
 
-**ただし lean-doc 側はまだ属性収集・instance 索引・`renderTagged`・本物の IR 永続化を
+**ただし litedoc4 側はまだ属性収集・instance 索引・`renderTagged`・本物の IR 永続化を
 出していない。** これらを入れると 13 秒前後になる見込みで、目標内には収まるが、
 **12.50 秒を「完成品の値」として引用しないこと。**
 
@@ -451,9 +451,9 @@ stage2 とバイト一致する (`"refs":[]` の追加を除く) ので、下の
 | | 増分 1 時点 | **訂正後 (増分 3)** |
 |---|---:|---:|
 | HTML のリンク先 ユニーク | 1,154 | **1,161** |
-| lean-doc の参照定数 ユニーク | 1,446 | 1,446 |
-| **HTML にあって lean-doc に無い** | **0** | **0** |
-| lean-doc にあって HTML でリンクになっていない | 292 | 285 |
+| litedoc4 の参照定数 ユニーク | 1,446 | 1,446 |
+| **HTML にあって litedoc4 に無い** | **0** | **0** |
+| litedoc4 にあって HTML でリンクになっていない | 292 | 285 |
 
 > **訂正 (増分 3 で判明)。** 増分 1 の `li.structure_field` の正規表現が
 > **属性順に依存していた** — doc-gen4 の `Output/Structure.lean:fieldToHtml` は
@@ -469,7 +469,7 @@ stage2 とバイト一致する (`"refs":[]` の追加を除く) ので、下の
 > 検算する** — でないと今回のように静かに 97% を取りこぼす。
 
 **取りこぼし 0。** doc-gen4 の HTML は解決できた分だけがリンクなので
-(`name2ModIdx` に無い名前は `<span class="fn">` になる)、包含 `HTML ⊆ lean-doc` が
+(`name2ModIdx` に無い名前は `<span class="fn">` になる)、包含 `HTML ⊆ litedoc4` が
 期待される向きで、それが成立している。逆向きの 285 件の分類は増分 3。
 
 **重大な制約 — 突き合わせ先が 432 モジュール中 348 しかない。**
@@ -521,7 +521,7 @@ doc-gen4 の `isBlackListed` (`isRec` / `isAuxRecursor`) が実ページを作�
 
 **別経路での裏取り** (有利な数字を疑うため):
 `own` フラグをモジュール表から再計算 → 1,446 件中不一致 0。
-定義モジュールが lean-doc の `const2ModIdx` と bmp で **1,309/1,309 一致**。
+定義モジュールが litedoc4 の `const2ModIdx` と bmp で **1,309/1,309 一致**。
 依存側ヒット **530 件全数**について `docLink` のファイル実在と `id="<name>"` アンカー実在を確認 → 530/530。
 
 **doc-gen4 は dead link を出している。** `name2ModIdx = env.const2ModIdx` (環境の全定数) を
@@ -613,8 +613,8 @@ href = "../" * (ページのモジュール成分数 - 1) + "./"
 | ペア (宣言, 参照定数) | 件数 |
 |---|---:|
 | HTML 側 | 39,298 (`<a>` 出現 76,318) |
-| lean-doc 側 | 40,936 |
-| **共通** | **39,298 (HTML の 100%、lean-doc の 96.0%)** |
+| litedoc4 側 | 40,936 |
+| **共通** | **39,298 (HTML の 100%、litedoc4 の 96.0%)** |
 
 #### href 文字列の完全一致 (実測、共通ペア)
 
@@ -624,7 +624,7 @@ href = "../" * (ページのモジュール成分数 - 1) + "./"
 | **B. 写像 (bmp `docLink`) 由来** | 39,295 / 39,298 = **99.992%** (未一致 3) |
 
 **A の 100% を独立な証拠として扱わない。** doc-gen4 の `name2ModIdx` は
-`env.const2ModIdx` そのもの (`DocGen4/Process/Analyze.lean:243`) で、lean-doc が
+`env.const2ModIdx` そのもの (`DocGen4/Process/Analyze.lean:243`) で、litedoc4 が
 `getModuleIdxFor?` で読んだ写像と**同一入力**。A が検証しているのはパス規則だけで、
 モジュール解決は両者で共有している。**主張は B で述べる。**
 
@@ -637,9 +637,9 @@ href = "../" * (ページのモジュール成分数 - 1) + "./"
 未一致 3 件は `Eq.rec` ×1 / `List.recOn` ×2 で、いずれも**再帰子で bmp に無い**。
 プレフィクス違い・パス違い・アンカー違いは A・B とも **0 件**。
 
-#### HTML にあって lean-doc に無いペア: **0 件**
+#### HTML にあって litedoc4 に無いペア: **0 件**
 
-#### lean-doc にあって HTML でリンクになっていないペア: 1,638 件 (分類)
+#### litedoc4 にあって HTML でリンクになっていないペア: 1,638 件 (分類)
 
 | 件数 | 分類 |
 |---:|---|
@@ -660,7 +660,7 @@ doc-gen4 側で `<a>` が出ない主因は `renderedCodeToHtmlAux` の `innerHa
 
 | 母集団 | live | dead |
 |---|---:|---:|
-| lean-doc が張りうる全ペア | 40,924 | **12 (11 名)** |
+| litedoc4 が張りうる全ペア | 40,924 | **12 (11 名)** |
 | うち doc-gen4 も張った分 | 39,295 | 3 (2 名) |
 | うち doc-gen4 が張らなかった分 | 1,629 | 9 (9 名) |
 
@@ -671,7 +671,7 @@ dead 11 名の内訳: **依存側 3 名 = `Eq.rec` / `List.recOn` / `Nat.rec`** 
 **`Eq.rec` と `List.recOn` は doc-gen4 自身が href を出しており、`Init/Prelude.html` は
 存在するが `id="Eq.rec"` が無い** (手で確認) — **doc-gen4 の既存の dead link**。
 doc-gen4 のソースにも `RenderedCode.lean:250` に `TODO replicate blacklist logic` がある。
-方式 B はこの 3 件について**リンクを出さない**ので、**lean-doc の方が正しい。**
+方式 B はこの 3 件について**リンクを出さない**ので、**litedoc4 の方が正しい。**
 
 #### 判断
 
@@ -680,7 +680,7 @@ doc-gen4 のソースにも `RenderedCode.lean:250` に `TODO replicate blacklis
 
 - 同一ペアでの URL 文字列一致 **99.992% (39,295/39,298)**。残り 3 は
   「解決に環境が要る」のではなく、**そもそもリンクしてはいけない先**
-- **HTML にあって lean-doc に無いペアは 0** — doc-gen4 が張ったリンクを取りこぼしていない
+- **HTML にあって litedoc4 に無いペアは 0** — doc-gen4 が張ったリンクを取りこぼしていない
 - 撤退ライン **「依存側の blacklist が写像から復元できない」は否定された。**
   bmp からの欠落が blacklist そのもの (ページを与えない名前は索引にも入らない)
 
@@ -688,7 +688,7 @@ doc-gen4 のソースにも `RenderedCode.lean:250` に `TODO replicate blacklis
 
 1. **範囲は 348/432 モジュール。** 残り 84 は未検証 (フルビルド 42% 打ち切りの影響)
 2. **方式 A の 100% は独立な検証ではない** (上記)。写像だけでやる主張なら B を引く
-3. **private 名 8 件は素朴に URL を出すと dead。** lean-doc 側に
+3. **private 名 8 件は素朴に URL を出すと dead。** litedoc4 側に
    「`_private.` を除外するか親に落とす」処理が要る — 小さいが実在する欠落
 4. **docstring 内のリンク** (`Output/DocString.lean` 経路) は増分 1 から一貫して範囲外
 
@@ -706,7 +706,7 @@ doc-gen4 のソースにも `RenderedCode.lean:250` に `TODO replicate blacklis
 
 | 撤退ライン | 判定 |
 |---|---|
-| 依存側の blacklist が写像から復元できない | **否定** (欠落 = blacklist そのもの。lean-doc の方が dead link を出さない) |
+| 依存側の blacklist が写像から復元できない | **否定** (欠落 = blacklist そのもの。litedoc4 の方が dead link を出さない) |
 | 参照定数の解決に環境が要る | **否定** (依存 533 中 530 が名前一致だけで解決) |
 | 写像のロード時間が環境ロードの床と同等以上 | **否定** (床の 8%、参照分なら 0.01%) |
 | 公開ドキュメントに bmp 相当が存在するか | **未検証** (ネットワーク不使用、事前決定 #5) |
@@ -773,7 +773,7 @@ doc-gen4 のソースにも `RenderedCode.lean:250` に `TODO replicate blacklis
 
 #### 比較可能な範囲 — 「解析結果の永続化」だけ。倍率は出さない
 
-| | doc-gen4 `updateModuleDb` | lean-doc の IR |
+| | doc-gen4 `updateModuleDb` | litedoc4 の IR |
 |---|---|---|
 | 書き先 | 既に 6,072 モジュールが入った 453 MB の SQLite に `deleteModule` + insert | 新規 JSON 436 ファイル |
 | 署名 | `RenderedCode = TaggedText Tag` のバイナリ blob。**位置つきで全タグを保持** | プレーンテキスト + `(モジュール, 名前)` の**集合** |
@@ -1069,7 +1069,7 @@ precision 100% は「出したものは当たる」であって「足りてい�
 
 `<a href="#top">return to top</a>` が **348/348 ページ**にあるが、`id="top"` を持つ要素は 0。
 全ページでこのリンクは死んでいる。段階 3 の `Eq.rec` 3 件と同じ扱い —
-**一致率が 100% にならない原因を「lean-doc の欠陥」と読まないための記録**。
+**一致率が 100% にならない原因を「litedoc4 の欠陥」と読まないための記録**。
 
 #### 判断
 
@@ -1459,7 +1459,7 @@ read IR ×4.72 / render hdr ×5.11 / render page ×4.07 / write ×4.31 / flatten
 **§6.2 の 44.52 秒と §4.6.3 の 46.25 秒は同じ 1 回目**で、単に内側と外側の計測。
 2 回目は 433 MB の DB を直前に読み切った後なので**構成上 warm**。
 **差 5.0% は §6.1 の olean mmap の 5 倍とは桁が違う** — このフェーズは page cache 感受性を
-持たない、と読める。lean-doc 側の同種ワークロードの cold/warm 差 13% も同じ桁で、これを支持する。
+持たない、と読める。litedoc4 側の同種ワークロードの cold/warm 差 13% も同じ桁で、これを支持する。
 **ただし n=2 で CPU 時間も page fault も記録が無いので、「5% 以内」以上のことは言えない。**
 warm 側を厳密に主張するには 5 run 以上の測り直しが要り、それは上の理由で今はできない。
 
@@ -1477,7 +1477,7 @@ warm 側を厳密に主張するには 5 run 以上の測り直しが要り、�
 
 **倍率は 3.8 倍** (3.17s ÷ 0.8239s)。ただし**両者の作業範囲は違う**:
 
-| | doc-gen4 | lean-doc (今回) |
+| | doc-gen4 | litedoc4 (今回) |
 |---|---|---|
 | モジュールページ | 6,072 (→432 に縮小) | 432 |
 | ページのバイト再現率 | 100% (定義上) | **63.6%** (増分 4 前半の実測) |
@@ -1812,7 +1812,7 @@ baseline / overlapped を交互配置 5 対 + warm 6 run 測ったが、**分離
 事実だけ**をハッシュ台帳の M のエントリを無効化して注入した。それ以外はすべて本物で、
 抽出器は実際に M の import closure を読み直して M を解析している。
 
-**したがって `lake build` はこの数字に含まれない。** lean-doc の外だが実際の
+**したがって `lake build` はこの数字に含まれない。** litedoc4 の外だが実際の
 編集 → プレビューの臨界パス上にある。測るには対象リポジトリの複製が要るので
 **この増分では測らない (未着手の検証項目)**。
 
@@ -2040,13 +2040,13 @@ IR 読み出し 0.135 + 名前写像 0.010 + deno 起動 0.026 ≒ **0.17s** で
 
 #### (j) doc-gen4 との比較 (分母を明示する)
 
-| | doc-gen4 (報告書 §4.5、実測) | lean-doc (実測) |
+| | doc-gen4 (報告書 §4.5、実測) | litedoc4 (実測) |
 |---|---|---|
 | 無変更 | 2.33s (Lake が全 job を replay、doc-gen4 は 1 プロセスも起動しない) | **0.080s** (台帳照合のみ) |
 | 1 モジュール変更 | 5.21s。**ただし HTML が再生成されていない** (stale)。`lake build` を含む | **3.30〜4.39s**。1〜415 ページを実際に書き直す。**`lake build` を含まない** |
 
 **この 2 列は同じ仕事ではないので倍率を書かない。** doc-gen4 側は `lake build` を含み
-HTML を更新しておらず、lean-doc 側は `lake build` を含まず HTML を更新している。
+HTML を更新しておらず、litedoc4 側は `lake build` を含まず HTML を更新している。
 無変更側の 2.33 対 0.080 も同様で、Lake の replay はビルドグラフ全体を検証し、
 台帳は olean 432 個を比べるだけ。**29 倍を単独で引用しないこと。**
 
@@ -2273,7 +2273,7 @@ M を import する側 (down) と しない側 (far) の 2 通り)。
 
 **これは「ハッシュ差分では原理的に捕まらない stale」ではなく、「グローバル入力が
 trace に入っていない stale」だった** (増分 1 の handoff での見立てを訂正する)。
-lean-doc 側は同じ入力を `--source-url` として持っているが `envKey` に入れていないので、
+litedoc4 側は同じ入力を `--source-url` として持っているが `envKey` に入れていないので、
 **同じ穴を、より広く (432/432 ページ) 開けている** ((c))。
 
 #### (i) 判断 — **判断点 3 は満たされない = 計画 §3 の outcome (B)**
@@ -3240,7 +3240,7 @@ macOS で出た否定 (常駐 4.7–20.2%) は**不利な側**なので移送で
 
 **計測条件。** `ubuntu-latest` (Linux 6.17.0-1020-azure x86_64 / ubuntu24 image 20260720.247.2)、
 **2 コア / MemTotal 8,128,888 kB = 7.75 GiB / page size 4096**。
-lean-doc (private) の Actions で回し、対象は public な `FujiHaruka/information-theory` を
+litedoc4 (private) の Actions で回し、対象は public な `FujiHaruka/information-theory` を
 fresh に checkout。**計測対象リポジトリには何も書いていない。** 道具は
 `benchmarks/tools/olean-residency.c` (mincore) を無改変で使用。
 生ログ `benchmarks/results/ci-residency-ubuntu-latest.{txt,jsonl.gz}` (51,278 レコード)、
@@ -3494,7 +3494,7 @@ byte 無改変のまま — 既にコミット済みの schema 2 の列を再現
 **残る 3.494% のうち到達不能は rev の 0.494 pt。** doc-gen4 の参照ツリー自身が
 **部分再ビルド**で、ソースリンク 3,285 本が rev `573793b2…`、540 本が `5e38aec…` を持つ。
 どんなレンダラ構成でも両方には一致しないので、**これはオラクル側の天井であって
-lean-doc の欠陥ではない。残る 3.494% を作業リストとして読まないこと。**
+litedoc4 の欠陥ではない。残る 3.494% を作業リストとして読まないこと。**
 
 ### CI 軸 — Linux で `importModules` そのものを測った / **「CI の床は 13 秒」は成り立たなかった** (2026-08-10)
 
@@ -3985,7 +3985,7 @@ j16 で 48.5 秒 > user+sys 28.2 秒)。**壁時計はフェーズの `us` だ�
 **§8 の「意味解析を減らせるか」は「壁時計としては減らせる、CPU 時間としては減らない」で決着。**
 筋は**並列化**であって、算法の改良でも生成物の削減でもなかった。
 **そしてこれは §5.1 の副次効果 (メモリ律速が消える) の取り分**でもある —
-lean-doc は 1 環境の中で 4 スレッドに割るので追加メモリがほぼ要らない。
+litedoc4 は 1 環境の中で 4 スレッドに割るので追加メモリがほぼ要らない。
 doc-gen4 の並列はプロセス並列で 1 プロセスあたり 2〜3 GB の環境を持つため、
 8 並列で RSS 21.7 GB に達してスワップする (実測、§5.1)。**同じ「4 並列」でも意味が違う。**
 
@@ -4570,7 +4570,7 @@ doc-gen4 の `declaration-data.bmp` (Mathlib 込み 258,760 宣言 / 37.48 MB) �
 実際は **2.14 倍**。機能は落ちない — `search.js` の `getMatches` が読むのは
 `name` / `kind` / `docLink` の 3 つだけ。
 
-**罠**: lean-doc の kind 語彙は doc-gen4 と違う (`definition`/`constructor` 対 `def`/`ctor`)。
+**罠**: litedoc4 の kind 語彙は doc-gen4 と違う (`definition`/`constructor` 対 `def`/`ctor`)。
 doc-gen4 の `search.html` を流用すると**種別フィルタが黙って全部外れる**。静的資産は byte 再現率
 の母数外なので、この経路は誰も踏んでいない。
 
@@ -4809,11 +4809,11 @@ macOS 機と同じ 15.6 GiB になったので、この問いは**ランナー�
 
 #### テンプレートは実走して緑になった【実測】
 
-`.github/workflow-templates/lean-doc-docs.yml` は 2026-08-16 まで冒頭に
+`.github/workflow-templates/litedoc4-docs.yml` は 2026-08-16 まで冒頭に
 `THIS FILE HAS NEVER BEEN RUN` と書いてあった。`.github/workflows/ci-template.yml` が
-**その手順を逐語で写して**実走し、[run 31955883894](https://github.com/FujiHaruka/lean-doc/actions/runs/31955883894)
+**その手順を逐語で写して**実走し、[run 31955883894](https://github.com/FujiHaruka/litedoc4/actions/runs/31955883894)
 で全ステップ success。**対象パッケージはジョブ内で `tools/make-target2.sh` が生成する**
-(lean-doc に Lean パッケージが無く、外部への新規リポジトリ作成はしないため)。
+(litedoc4 に Lean パッケージが無く、外部への新規リポジトリ作成はしないため)。
 
 | phase | 秒 |
 |---|---:|
@@ -4821,14 +4821,14 @@ macOS 機と同じ 15.6 GiB になったので、この問いは**ランナー�
 | `lake build` (13 モジュール) | 4.945 |
 | 抽出器のビルド | 15.882 |
 | `cargo build --release` | 23.932 |
-| **`lean-doc build`** | **2.510** (extract 1.730 / render 0.021 / global 0.002) |
+| **`litedoc4 build`** | **2.510** (extract 1.730 / render 0.021 / global 0.002) |
 | 合計 | 52.647、site 23 ファイル |
 
 **未検証として残るのは 2 つだけ**: `push:` トリガと、利用者リポジトリ自身の checkout。
 
 #### 落ちたことのほうが収穫だった — `--deps fetch` が暴いた欠陥【実測】
 
-1 回目の実走 ([run 31955697828](https://github.com/FujiHaruka/lean-doc/actions/runs/31955697828))
+1 回目の実走 ([run 31955697828](https://github.com/FujiHaruka/litedoc4/actions/runs/31955697828))
 は `error: dependency '«doc-gen4»' not in manifest` で落ちた。`tools/make-target2.sh` の
 `[[require]]` が **loogle / mathlib / doc-gen4 の 3 本ハードコード**で、計測対象が
 2026-08-16 (`c4f6af29`) に開発ツールを条件付き依存へ移して manifest から外した時点で
@@ -4856,11 +4856,11 @@ E2 の判定は動かない** (これらのソースは loogle も doc-gen4 も 
 **1.08〜1.58 倍**だった。ただし**機構のほうは生きている** — 対照でページキャッシュを
 落とすと **5.2〜11.9 倍**になる。壊れたのは機構ではなく「別ジョブは cold で始まる」という前提。
 
-計測: [run 31956756819](https://github.com/FujiHaruka/lean-doc/actions/runs/31956756819)、
+計測: [run 31956756819](https://github.com/FujiHaruka/litedoc4/actions/runs/31956756819)、
 `.github/workflows/ci-placement.yml`。対象 `FujiHaruka/information-theory` `c4f6af29`
 (422 モジュール)、`ubuntu24 20260810.271.1` / 4 vCPU / 15.6 GiB / AMD EPYC 7763、
 `--jobs 4`。**測っているのはプロトタイプではなく製品** — `tools/ci-build.sh` →
-`lean-doc build` の端から端で、環境ロードは常駐抽出器の `ready <ns>` 行から取る
+`litedoc4 build` の端から端で、環境ロードは常駐抽出器の `ready <ns>` 行から取る
 (§8 (c)「完全版の抽出器でも同じ差が出るか」への答えでもある)。
 生ログ `benchmarks/results/ci-placement-5-{summary.txt,phases.jsonl}`。
 
@@ -4868,7 +4868,7 @@ E2 の判定は動かない** (これらのソースは loogle も doc-gen4 も 
 
 | 腕 | 何をしたジョブか |
 |---|---|
-| `same` | `cache get` → `lake build` → `lean-doc build`。1 ランナー / 1 page cache |
+| `same` | `cache get` → `lake build` → `litedoc4 build`。1 ランナー / 1 page cache |
 | `split` | **別のランナー**。`cache get` で Mathlib を取り、対象自身の olean と抽出器を `same` から**バイトとして復元**して `--no-lake-build` |
 | `cold` | `same` と**同じランナー**で `drop_caches` 後。配置ではなく**陽性対照** |
 
@@ -4887,7 +4887,7 @@ E2 の判定は動かない** (これらのソースは loogle も doc-gen4 も 
 | 5 | 2.393 s | 2.730 s | **1.14x** | 14.031 s | 5.86x |
 
 major fault: `same` **126〜199** / `split` **1〜318** / `cold` **14,450〜37,240**。
-**端から端 (`lean-doc build` 全体) では差はさらに消える** — split/same は **0.83〜1.33 倍**で、
+**端から端 (`litedoc4 build` 全体) では差はさらに消える** — split/same は **0.83〜1.33 倍**で、
 5 対のうち 3 対は split のほうが速い。**50 本すべてが byte 一致の site を出した**
 (digest 1 種)。
 
@@ -4932,7 +4932,7 @@ olean をダウンロードして展開し、対象自身の olean は artifact 
 
 ### 再抽出の単位 — 「宣言単位の再解析キャッシュ」は増分では効かない (2026-08-17)
 
-**きっかけ**: CI 実測 (上節) で床が I/O から CPU に移り、ランナー上の `lean-doc build`
+**きっかけ**: CI 実測 (上節) で床が I/O から CPU に移り、ランナー上の `litedoc4 build`
 11.5〜20.7 s のうち **extract が 10.0〜18.2 s** を占めた。`approach.md` §6.1 末尾が名指しする
 「変更のない宣言を再解析しない」を次の目標に据えた。**実装に入る前に母数を測った。**
 
@@ -4967,7 +4967,7 @@ CI の extract 10〜18 s は 432 モジュール / 4,750 宣言の**全解析**�
 → **「回数を減らす」の単位は、いまのところ宣言ではなくモジュール。** 次に決めるべきは
 「モジュール単位のキャッシュが CI 跨ぎで当たるか」で、それは**再ビルドした olean が
 byte 一致するか**に還元される (L2 の既定鍵は olean バイトの SHA-256 —
-`crates/lean-doc-incr/src/ledger.rs`、`build.rs:808`)。設計と分岐は
+`crates/litedoc4-incr/src/ledger.rs`、`build.rs:808`)。設計と分岐は
 [`docs/plans/reextract-count.md`](plans/reextract-count.md)。
 
 ### IR キャッシュを CI 跨ぎで効かせた / **律速は宣言でも抽出でもなかった** (2026-08-17)
@@ -4992,7 +4992,7 @@ sha256 (olean のバイト、台帳の既定) と lake (`<file>.olean.hash`) の
 
 #### 段 B-1 — CI 跨ぎで当たった。**Linux 上の決定性も同時に取れた**【実測、n=2 run】
 
-`.github/workflow-templates/lean-doc-docs.yml` に 4 つ目のキャッシュ (`docs-out` =
+`.github/workflow-templates/litedoc4-docs.yml` に 4 つ目のキャッシュ (`docs-out` =
 IR + 台帳 + state + site) を足し、検証ワークフロー `ci-template.yml` を同一 commit で 2 回
 `workflow_dispatch` した。**母数は 13 モジュールの生成パッケージ** (この検証は 422 モジュールの
 本番対象ではない)。
@@ -5000,7 +5000,7 @@ IR + 台帳 + state + site) を足し、検証ワークフロー `ci-template.ym
 | | run 1 (31959354738) | run 2 (31959511320) |
 |---|---|---|
 | `docs-out` キャッシュ | miss | **cache-hit true** |
-| `lean-doc build` | full **1.6741 s** | incremental **0.0163 s** |
+| `litedoc4 build` | full **1.6741 s** | incremental **0.0163 s** |
 | 再抽出モジュール | **13** | **0** |
 | 再描画ページ | 13 | **0** |
 | 抽出器プロセス | 1 | **0** |
@@ -5070,7 +5070,7 @@ M1、`--jobs 4`、対象 `/Users/haruka/dev/lean-projects` (`c4f6af29`)。同一
 
 `served 1 module(s) from the resident environment in 5.764s` を要求単体の時間と読み、
 「1 モジュールの要求 (5.764 s) は 422 モジュール全部 (5.704 s) とほぼ同じ」と結論しかけた。
-**`Resident::extract` の計時は `self.server()?` を含む** (`crates/lean-doc/src/resident.rs:244`) —
+**`Resident::extract` の計時は `self.server()?` を含む** (`crates/litedoc4/src/resident.rs:244`) —
 サーバは遅延起動なので初回要求には**環境ロードが入る**し、末尾の `fold_timings` も入る。
 実際の要求時間はサーバ自身が返す `ok 0 1484368209` = **1.484 s**。
 **外側の計時器と内側の計時器で名前が同じでも範囲が違う。**
@@ -5092,7 +5092,7 @@ M1、`--jobs 4`、対象 `/Users/haruka/dev/lean-projects` (`c4f6af29`)。同一
 ### 依存写像の**自パッケージぶんは描画バイトに 0 効果**【実測 2026-08-17】
 
 生ログ `benchmarks/results/lidx-own-half-2026-08-17.txt`。
-切り分けは `tools/slice-link-index.py`、描画は `lean-doc site`
+切り分けは `tools/slice-link-index.py`、描画は `litedoc4 site`
 (同一 IR = 422 モジュール 4,584 宣言、同一 `--source-url` / `--root`)。
 
 | `.lidx` | 中身 | サイト 429 ファイルとの byte 比較 |
@@ -5105,9 +5105,9 @@ M1、`--jobs 4`、対象 `/Users/haruka/dev/lean-projects` (`c4f6af29`)。同一
 **陽性対照が 408/429 で落ちているので、比較器が差を見ていることは確認済み。**
 
 理由はコードにある: `NameIndex::module_of` は **IR 由来の `known` を先に見る**
-(`crates/lean-doc-render/src/autolink.rs:258`)。`range_of` は全リンクで引かれるが
+(`crates/litedoc4-render/src/autolink.rs:258`)。`range_of` は全リンクで引かれるが
 (`autolink.rs:332`)、出力に出るのは `ExternalLinks` が**依存パッケージ**の URL を
-解決したときだけ (`crates/lean-doc-render/src/external.rs:146-162`)。
+解決したときだけ (`crates/litedoc4-render/src/external.rs:146-162`)。
 自パッケージ内リンクでは引いた range は捨てられる。
 
 → **前節が名指しした「毎回動く 3.6%」は、そもそも誰も読んでいない。**
@@ -5220,14 +5220,14 @@ work    extract 1 / render 13 / requests 1
 
 古い地図は自パッケージの宣言群を持ち `.key` sidecar も無いので、
 **最初の抽出でいまの形に書き直され、ダイジェストが動き、全ページが再描画される。**
-**これは一度きりの移行コストで、利用者も同じものを払う** — 段 C を含む lean-doc に
+**これは一度きりの移行コストで、利用者も同じものを払う** — 段 C を含む litedoc4 に
 上げた後の最初の増分ビルドは、そのパッケージのページを全部書き直す。
 
 ゲート側は正しかった (定常状態を問うている) ので、**直したのはハーネスの方**:
 CI は 2 回編集して**2 回目**を測り、1 回目のログも残して移行が見えるようにした
 (commit `611c4f3`)。**「ゲートを緩める」ではなく「定常状態に到達してから測る」に倒した。**
 
-#### 2 度目に落ちて出したもの — **CI は段 C/D 以前の `lean-doc` を走らせていた**【実測 2026-08-17】
+#### 2 度目に落ちて出したもの — **CI は段 C/D 以前の `litedoc4` を走らせていた**【実測 2026-08-17】
 
 run `31963305864`。2 回目の編集でも地図が動き、`impact mode all -> 13 page(s)`。
 抽出器は**その run で新しく建てられている** (`extractor 15.815 built`) のに、
@@ -5236,11 +5236,11 @@ run `31963305864`。2 回目の編集でも地図が動き、`impact mode all ->
 
 原因はキャッシュキーと `tools/ci-build.sh` の組み合わせ:
 
-- ワークフローの Rust キャッシュは `cargo-${{ runner.os }}-${{ hashFiles('lean-doc/Cargo.lock') }}`。
+- ワークフローの Rust キャッシュは `cargo-${{ runner.os }}-${{ hashFiles('litedoc4/Cargo.lock') }}`。
   **ソースが動いても `Cargo.lock` は動かない**ので、前 run の `target/` がそのまま復元される。
-- `ci-build.sh` は `if [ -x "$LEAN_DOC_BIN" ]` で**バイナリがあれば cargo を呼ばなかった**。
+- `ci-build.sh` は `if [ -x "$LITEDOC4_BIN" ]` で**バイナリがあれば cargo を呼ばなかった**。
 
-結果、**ランナーは「今の抽出器 + 別 commit の lean-doc」で走っていた。**
+結果、**ランナーは「今の抽出器 + 別 commit の litedoc4」で走っていた。**
 `cargo` を必ず呼ぶように直した (commit `7859e5c`)。新鮮なツリーなら約 0.2 s。
 抽出器側も `-nt` でソースの方が新しければ建て直すようにした
 (こちらはキャッシュキーが `Extract.lean` を含むので CI では起きないが、手で叩くときに起きる)。
@@ -5274,7 +5274,7 @@ run `31963581512`。生ログ `benchmarks/results/g3-ci-2026-08-17.txt`。
 
 | | |
 |---|---|
-| gate 1 一発・地図を渡さない | PASS (`lean-doc site` の出力と byte 一致) |
+| gate 1 一発・地図を渡さない | PASS (`litedoc4 site` の出力と byte 一致) |
 | gate 2 決定性 | PASS (site も IR も) |
 | gate 3 無変更 | PASS (23 ファイル、1 バイトも動かない) |
 | gate 4 実変更 (モジュール移動) | PASS (site / IR / 台帳 / 地図がフル生成と byte 一致) |
@@ -5291,7 +5291,7 @@ run `31963581512`。生ログ `benchmarks/results/g3-ci-2026-08-17.txt`。
 ### 段 D 後の秒の全額割り当て【実測 2026-08-17】
 
 生ログ `benchmarks/results/g3-attribution-2026-08-17.txt`。**新しいコードは要らなかった** —
-`lean-doc build --timings` は 4 段しか出さないが、`lean-doc incremental --timings` は 10 段出す。
+`litedoc4 build --timings` は 4 段しか出さないが、`litedoc4 incremental --timings` は 10 段出す。
 `incremental` は台帳を書かないので同じ 1 モジュール変更を何度でも測り直せる。
 
 | 段 | 秒 | 比例するもの |

@@ -13,9 +13,9 @@ node_modules/
 # depends on Lean core and nothing else.
 /e2e/*/.lake/
 
-# Lake's build output for lean-doc itself (lakefile.lean). A consumer that
+# Lake's build output for litedoc4 itself (lakefile.lean). A consumer that
 # requires this package by path builds the extractor here — 171 MB of binary
-# plus the C it comes from, regenerable by `lake build lean-doc/extract` from the
+# plus the C it comes from, regenerable by `lake build litedoc4/extract` from the
 # consumer's workspace.
 /.lake/
 

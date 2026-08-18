@@ -47,7 +47,7 @@ multiple-versions = "warn"
 # (implementation-plan §7), released together or not at all. `cargo-deny` has an
 # `allow-wildcard-paths` for exactly that, and it **does not apply to crates that
 # could be published** — none of ours sets `publish = false`, because whether
-# lean-doc ever goes to crates.io is an open question and answering it in a
+# litedoc4 ever goes to crates.io is an open question and answering it in a
 # supply-chain config would be the wrong place.
 #
 # So: warn. A wildcard on an *external* dependency still shows up in the CI log,

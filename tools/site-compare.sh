@@ -21,10 +21,10 @@
 # the second one silently (plan §5); the registered divergence is pinned in the
 # Rust tests instead, where a *set* is asserted rather than skipped.
 #
-# The candidate comes from `lean-doc site`; the M3-d1 gate is
+# The candidate comes from `litedoc4 site`; the M3-d1 gate is
 #   URL=https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec
-#   cargo build --release -p lean-doc
-#   ./target/release/lean-doc site \
+#   cargo build --release -p litedoc4
+#   ./target/release/litedoc4 site \
 #     --ir /private/tmp/lean-doc-relay/w7h/base-ir --out /tmp/rust-site \
 #     --source-url $URL \
 #     --link-index /private/tmp/lean-doc-relay/w7c/linkindex/link-index.lidx

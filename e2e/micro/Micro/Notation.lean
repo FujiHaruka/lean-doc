@@ -4,7 +4,7 @@ import Micro.Basic
 # Notation
 
 `scoped notation` is the one thing doc-gen4 cannot print for a package's own
-declarations (approach.md §10), so the fixture has to contain it: if lean-doc
+declarations (approach.md §10), so the fixture has to contain it: if litedoc4
 ever loses `Lean.activateScoped`, the signature of `useNotation` below stops
 printing as `⟦n⟧` and this fixture is where that shows.
 -/

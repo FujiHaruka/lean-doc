@@ -3,7 +3,7 @@
 # modules — cold and warm.
 #
 # Series:
-#   rust-warm   ./target/release/lean-doc ledger build, sha256, concurrency 1
+#   rust-warm   ./target/release/litedoc4 ledger build, sha256, concurrency 1
 #   rust-cold   rust-warm with the 432 oleans evicted from the page cache first
 #
 # THE PROTOTYPE SIDE IS GONE.
@@ -43,7 +43,7 @@ TARGET="${TARGET_REPO:-/Users/haruka/dev/lean-projects}"
 IR="${IR_DIR:-/private/tmp/lean-doc-relay/w7h/base-ir}"
 MODULES="$RESULTS/it-modules.txt"
 ROUNDS="${1:-8}"
-RUST_BIN="$REPO/target/release/lean-doc"
+RUST_BIN="$REPO/target/release/litedoc4"
 URL=https://github.com/FujiHaruka/information-theory/blob/573793b243fb1343636088eb62d1789ab2b14cec
 
 for p in "$RUST_BIN" "$MODULES" "$TARGET" "$IR" "$HERE/olean-evict"; do

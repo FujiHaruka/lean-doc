@@ -16,10 +16,10 @@
 # the candidate to, and say which one it was.
 #
 # The candidate comes from the Rust port; the whole loop is
-#   cargo build --release -p lean-doc && ./target/release/lean-doc global \
+#   cargo build --release -p litedoc4 && ./target/release/litedoc4 global \
 #     --ir /private/tmp/lean-doc-relay/w7h/base-ir --out /tmp/rust-global
 #   tools/global-compare.sh <reference tree> /tmp/rust-global
-# `cargo test -p lean-doc-global --test global` makes the same comparison in
+# `cargo test -p litedoc4-global --test global` makes the same comparison in
 # process against a committed fixture.
 
 set -uo pipefail
