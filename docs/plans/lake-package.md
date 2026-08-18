@@ -195,6 +195,25 @@ require «lean-doc» from git "https://github.com/FujiHaruka/lean-doc" @ "v0.1.4
 D3 が `uses: FujiHaruka/lean-doc@main` を実走させて初めて「配布経路が動く」と言えたのと同じ。
 **`.github/workflows/ci-lake.yml`** を足し、push された sha を git require して同じゲートを回す。
 
+> **結果 — 通った**【実測 2026-08-18、PR #1】。**4 ジョブ**: `gate` (path require の 5 項目を
+> Linux で) / `git-require` (**この commit を GitHub から clone**) / `refused` (`lean_lib` の
+> 無いパッケージが exit 3) / `download` (§5 のゲート。**Linux でしか走らない枝がある**)。
+>
+> **`uses:` より強い形になった**: `ci-action.yml` の `published` は `uses:` が式を取れないので
+> `@main` と書くしかなく「配布経路は見るが、この diff は見ない」。require 行は生成できるので、
+> こちらは**この commit を pin できる**。
+>
+> **実欠陥が 1 件出た**: 生成した consumer が git 木でなかったため `lean-doc build` が
+> `--source-url` を導出できず **exit 3**。壊れていたのは製品ではなく**フィクスチャの方が
+> 現実と違っていた** — 利用者のパッケージは git チェックアウトなので、`git init` + GitHub
+> origin を持たせて直した。**「フィクスチャを現実に近づける」修正であって、検査を緩めていない。**
+>
+> **副産物の観察 (エラーではない)**: 依存として入った lean-doc 自身が consumer の package
+> リストに載り、`no top-level .lean file, so no module root could be resolved for package
+> lean-doc` という note が毎回出る。consumer は lean-doc から何も import しないので実害は
+> 無いが、**全利用者の出力にこの note が出る**。消すなら lean-doc 側のパッケージ形を変える
+> ことになるので、いまは**所在の記録に留める**。
+
 ### L1-f. docs
 
 - README §Running it locally に `require` の節を足す (既存のコピペ手順は**消さない** —
@@ -266,16 +285,67 @@ arch の取り方は `System.Platform` に無い可能性が高い → `uname -m
 
 3 と 5 は**壊して落とす**検査なので、ゲート自身の自己検査を兼ねる。
 
+> **結果**【実測 2026-08-18】: **L2 は動く。** `tools/lake-download-gate.sh` 5 項目すべて緑、
+> **全体 8.4 秒**(warm。ダウンロードを含む 1 項目 + サイト構築 4 回)。実走した中身:
+> v0.1.3 の `lean-doc-aarch64-apple-darwin.tar.gz` (**960,891 B**、
+> sha256 `589d2b7e…` = Release の `checksums.txt` と一致) を取り、展開した
+> **2,544,112 B / Mach-O arm64 / `lean-doc 0.1.3`** (sha256 `32c463f0…`) が
+> `e2e/consumer` のサイトを書いた。**この木の debug ビルド (`050535d6…`) とは別物**で、
+> ゲートは両者の digest が一致したら落とす (一致は「ローカルビルドを cache 形のパスで
+> 採点している」を意味するため)。
+>
+> **5 項目それぞれを個別に壊して落とした**: キャッシュのパスから `v` を落とす → 1 と 2 が FAIL /
+> 段 2 の cache hit を殺す → 2 が FAIL / SHA-256 の不一致判定を殺す → 3 が FAIL /
+> `LEAN_DOC_NO_DOWNLOAD` の判定を殺す → 4 が FAIL / 「アセットが無い」の印字だけ消す → 5 が FAIL。
+> **4 の壊し方は終了コードに出ない** —— PATH に落ちて `lake run docs` は exit 0 のまま緑に見え、
+> 捕まえたのは **curl が呼ばれた回数**だけだった (だからこの項目は印字ではなく
+> 「ネットワークを使えない状態で通るか」で判定している)。
+>
+> **§6 D3 の予測が外れた。** 「`System.Platform` に arch は無い可能性が高い → `uname -m`」と
+> 書いていたが、**ある** —— `System.Platform.target` が LLVM triple を返す
+> (この機材で `arm64-apple-darwin24.6.0`)。`uname -m` も並べて測って同じ答え (`arm64`) だったが、
+> **採ったのは `System.Platform`** (subprocess が 1 本減る)。ただし triple はそのままでは使えない:
+> `arm64` → `aarch64`、`darwin24.6.0` の版を落とす、**Linux では Lean が `-gnu` と言うのに
+> アセットは `-musl`**。だから triple は組み直している。
+>
+> **§5 L2-e の「URL とサイズを 1 行」は 2 行になった** —— サイズはリクエストの前には分からない。
+> URL を要求前に、サイズと digest を照合後に印字する。
+
+**残る穴 (数えた上で残しているもの)**【2026-08-18】:
+
+| | 状態 |
+|---|---|
+| **Linux / musl の枝** | **塞いだ** — このゲートを `ci-lake.yml` の `download` ジョブに載せた。載せるまでは `-gnu → -musl` の読み替えは**推論であって実測ではなく**、しかも利用者の主戦場は Linux CI だった |
+| **段 5 (`cargo build`) の成功経路** | **残っている。** 両ゲートとも失敗する `cargo` shim を置いている — 置かないと「落ちるべき項目」が数分の release ビルドの末に別の理由で緑になる。L1-d が記録した穴のうち段 4 は塞がり、**段 5 だけが残る** |
+| **`curl` / `sha256sum` が無い環境** | ゲートには入れず、**手で 1 度ずつ確認した**【実測】 — `curl` 無しは要求前に落ちる、**sha256 の計算手段が無いと書庫は落ちてくるが照合できないので使わず、キャッシュは空のまま**。ゲートに入れるには PATH を削る必要があり、それが `lean-doc build` 自身の要る道具まで消す |
+
+**テスト専用の裏口が 1 つある**: `LEAN_DOC_TARGET_OVERRIDE`。無いと項目 5 は
+「Intel Mac と arm Linux の利用者しか走らせない枝」になる。**理由は `hostTarget` の
+コメントに書いてある** — 裏口は、理由が書いていないと本番経路と誤解される。
+>
+> **被検査範囲の穴 (記録)**: (a) **Linux/musl の枝は一度も走っていない** — この機材は arm macOS
+> だけで、ゲートはアセットの無い機材では exit 2 で落ちる。CI (`ci-lake.yml`) に載せれば
+> `x86_64-unknown-linux-musl` を通せるが、まだ載せていない。(b) **段 5 (`cargo build`) は
+> 依然として一度も成功経路を走っていない** — 両ゲートとも失敗する `cargo` shim を置いている
+> (置かないと、落ちるべき項目が数分の release ビルドの末に別の理由で緑になる)。
+> (c) ターゲット詐称のために **`LEAN_DOC_TARGET_OVERRIDE`** を実装側に置いた。理由は
+> lakefile のコメントに書いてある —— 無いと項目 5 は「Intel Mac と arm Linux の利用者しか
+> 走らせない枝」になる。検査を弱めるものではない (詐称した後も表・ダウンロード・照合は同じに走る)。
+> (d) **「照合できない」2 枝はゲートに入っていない**が、手で 1 度ずつ走らせた【実測 2026-08-18】 ——
+> `curl` の無い PATH では要求前に落ち、**`shasum`/`sha256sum` の無い PATH では書庫は落ちてくるが
+> 照合できないので使わず、キャッシュには何も残らない**。どちらもゲートに入れるには PATH を
+> 削る必要があり、それは `lean-doc build` 自身が要る道具まで消してしまうので 5 項目に入れていない。
+
 ---
 
-## 6. 未決 (実装中に測って決める)
+## 6. 未決 → **4 つとも決着**【実測 2026-08-18】
 
-| | 問い | 決め方 |
+| | 問い | 答え |
 |---|---|---|
-| **D1** | script から「建てるだけ」をどう書くか (`Lake.exe` は建てて起動する) | `Workspace.runBuild` を試す。駄目なら `lake build` を subprocess |
-| **D2** | `--out` の既定値。`main.rs:134` は「`--out` は `--root` の中に置けない」と書いている | まず**本当に拒否されるか**を確かめる。拒否されるなら既定を置かず必須にする |
-| **D3** | Lean から arch を取れるか | `System.Platform` を見て、無ければ `uname -m` |
-| **D4** | `lean_lib` が 0 個 / 複数のとき何を渡すか | `target2` は 2 つ持つ (`target2-gate.sh`)。全部渡す想定で確認 |
+| **D1** | script から「建てるだけ」をどう書くか | **`Workspace.runBuild extract.fetch` で建つ。** `Lake.exe` は `runBuild exe.fetch` → `env exeFile args` (`Lake/CLI/Actions.lean:23-29`) なので、その前半だけを使う。subprocess 案は不要だった |
+| **D2** | `--out` の既定値 | **本当に拒否される** — `--out ./inside-root-docs` は非ゼロ終了し、ディレクトリも作られない。よって**既定値を置かず必須**。`lake` は上位ディレクトリへ lakefile を探しに行かないので、相対パスは必ずパッケージディレクトリ基準 |
+| **D3** | Lean から arch を取れるか | **取れる。予測が外れた。** 「`System.Platform` に arch は無い可能性が高い」と書いたが、**`System.Platform.target` が LLVM triple を返す** (この機材で `arm64-apple-darwin24.6.0`)。`uname -m` と同じ答えを出したが subprocess が 1 本減るので採用。**ただし triple はそのままでは使えない** — `arm64`→`aarch64`、OS の版を落とす、**Linux では Lean が `-gnu` と言うのにアセットは `-musl`** |
+| **D4** | `lean_lib` が 0 個 / 複数のとき | **0 個は exit 3 + 名指しのエラー** (黙って `--lib` 無しで渡すと Rust 側が `lakefile.lean` を名前で拒否して意味不明なエラーになる)。**複数は全 `lean_lib` の `roots` を全部渡す** — `lib.name` ではなく `lib.roots` なのは `--lib` が「ライブラリのルートモジュール」だから |
 
 ---
 

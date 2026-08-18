@@ -12,6 +12,7 @@
 cargo build --bin lean-doc
 tools/e2e-micro.sh          # micro/  — 宣言の形
 tools/lake-package-gate.sh  # consumer/ — Lake の配線
+tools/lake-download-gate.sh # consumer/ — Release からバイナリを取る経路 (要ネットワーク)
 ```
 
 ## なぜ Mathlib に依存しないのか
@@ -111,7 +112,7 @@ curated な単体テストは**手で書いた IR** でこれらの分岐に到�
 | | 担当 | 走らせるもの |
 |---|---|---|
 | `micro/` (+ `micro-dep/`) | **宣言の形** — 対象が持たない 9 分岐と版固定できない依存 | `tools/e2e-micro.sh` |
-| `consumer/` | **Lake の配線** — lean-doc を `require` した利用者の経路 | `tools/lake-package-gate.sh` |
+| `consumer/` | **Lake の配線** — lean-doc を `require` した利用者の経路 | `tools/lake-package-gate.sh` / `tools/lake-download-gate.sh` |
 
 `consumer/` は lean-doc を **path で `require`** する最小パッケージで、
 `lake run docs -- --out <dir>` が動くかだけを見る (計画は `docs/plans/lake-package.md` L1)。

@@ -98,7 +98,12 @@ def docsUsage : String :=
   --source-url  https://host/owner/repo/blob/<40-hex-rev>; read from the
                 package's git HEAD when left out
 
-  LEAN_DOC_BIN  the `lean-doc` executable to run (see `resolveLeanDoc`)"
+  LEAN_DOC_BIN          the `lean-doc` executable to run. Set it and nothing else
+                        below is consulted (see `resolveLeanDoc` for the whole order)
+  LEAN_DOC_NO_DOWNLOAD  set to anything non-empty to never fetch a release. An
+                        already-downloaded one is still used
+  XDG_CACHE_HOME        where a fetched release is kept
+                        (default ~/.cache; lean-doc/v<version>/<target>/lean-doc)"
 
 /-- Parse the script's arguments. Structural recursion, and an unknown flag is an
 error rather than something skipped — a `docs` run that quietly ignored
@@ -131,6 +136,244 @@ def findOnPath (exe : String) : IO (Option FilePath) := do
     if ← isFileAt candidate then return some candidate
   return none
 
+/-- An environment variable that is "set" only when it is set to something.
+`FOO=` in a wrapper script is how a shell spells "I did not set this", and
+`resolveLeanDoc` already reads `LEAN_DOC_BIN` that way. -/
+def envIsSet (name : String) : IO Bool := do
+  match ← IO.getEnv name with
+  | some raw => return !raw.isEmpty
+  | none => return false
+
+/-! ## Sources 2 and 3 — the version-pinned cache and the GitHub Release
+
+Everything in this section exists to make one sentence true: **a binary this
+script downloads is never run unless its SHA-256 matched the `checksums.txt`
+published beside it.** Every failure to verify — no `curl`, no `sha256sum`, a
+`checksums.txt` that does not name the asset, a digest that does not match — is
+an error that leaves the cache empty and falls through to `PATH` and `cargo`.
+None of them is a warning.
+-/
+
+/--
+The target triples a release actually carries 【実測 2026-08-18】.
+
+Only these two, and not by accident: `.github/workflows/release.yml` builds no
+`x86_64-apple-darwin` (there is no Intel runner to *test* one on) and no
+`aarch64-unknown-linux-*` (no arm Linux runner), because shipping a binary
+nobody has executed is exactly what that workflow's smoke job exists to refuse
+(`docs/plans/distribution.md` D2). So **"this machine has no asset" is a normal
+path, not a fault** — source 3 says which target it wanted and falls through.
+-/
+def releaseTargets : List String :=
+  ["x86_64-unknown-linux-musl", "aarch64-apple-darwin"]
+
+/-- Where a release's assets live. The asset names carry no version — the
+version is in the directory the archive unpacks to (`release.yml`, "Work out
+the version"). -/
+def releaseBaseUrl (version : String) : String :=
+  s!"https://github.com/FujiHaruka/lean-doc/releases/download/v{version}"
+
+/--
+This machine's target triple, spelled the way `release.yml` spells it.
+
+**D3 (plan §6) is answered by `System.Platform`, not by `uname -m`.** Lean does
+carry the architecture: `System.Platform.target` is the LLVM triple Lean was
+compiled for, and reads `arm64-apple-darwin24.6.0` here 【実測 2026-08-18】, so
+the architecture is its first field. `uname -m` was measured beside it (`arm64`
+— the same answer) and is deliberately *not* used: it costs a subprocess, and a
+subprocess is one more way for this to fail on a machine where nothing else is
+wrong.
+
+The triple is rebuilt rather than passed through, because neither end of it
+matches an asset name: `arm64` has to become `aarch64`, the `darwin24.6.0`
+suffix has to go, and on Linux the asset is **musl** where Lean says `-gnu`.
+Asking for the musl asset on a glibc machine is right, not a bug — it is
+statically linked and `release.yml` asserts that with `ldd` on every build.
+
+`System.Platform.target` is documented as possibly empty (Lean compiled without
+it). Then the architecture comes out empty, the triple matches nothing in
+`releaseTargets`, and source 3 falls through saying so — the same already
+designed path as an Intel Mac.
+-/
+def hostTarget : IO String := do
+  -- **Test-only, and the only reason it exists**: `tools/lake-download-gate.sh`
+  -- item 5 has to reach the "no asset for this machine" branch *from* a machine
+  -- that has one. Without it that branch is code only Intel-Mac and arm-Linux
+  -- users ever run, i.e. an untested branch in the path that decides what gets
+  -- executed. It is not a supported knob and nothing in this file weakens
+  -- because of it: it chooses which asset is looked for, and the release table,
+  -- the download and the checksum all still run unchanged afterwards.
+  match ← IO.getEnv "LEAN_DOC_TARGET_OVERRIDE" with
+  | some raw => if !raw.isEmpty then return raw
+  | none => pure ()
+  let arch := (System.Platform.target.splitOn "-").headD ""
+  let arch := if arch == "arm64" then "aarch64" else arch
+  if System.Platform.isWindows then return s!"{arch}-pc-windows-msvc"
+  if System.Platform.isOSX then return s!"{arch}-apple-darwin"
+  return s!"{arch}-unknown-linux-musl"
+
+/--
+The version in *this tree's* `Cargo.toml`, which is what the release is looked
+up by.
+
+**This is the general form of what `action.yml` already paid for**: take the
+version from the tree that was required, never from the name of the ref. A
+consumer on `@main` gets main's version, and if no release carries it source 3
+fails and falls through — rather than silently installing an older binary whose
+IR schema this checkout's extractor no longer writes.
+
+Section-aware rather than "the first line starting with `version`", because
+`[workspace.dependencies]` is full of `version = "1"`.
+-/
+def cargoWorkspaceVersion (manifest : FilePath) : IO (Option String) := do
+  unless ← isFileAt manifest do return none
+  let mut inWorkspacePackage := false
+  for raw in (← IO.FS.readFile manifest).splitOn "\n" do
+    let line := raw.trimAscii.toString
+    if line.startsWith "[" then
+      inWorkspacePackage := line == "[workspace.package]"
+    else if inWorkspacePackage && line.startsWith "version" then
+      match line.splitOn "\"" with
+      | _ :: value :: _ => return some value
+      | _ => return none
+  return none
+
+/--
+Where the downloaded binary is kept: `$XDG_CACHE_HOME/lean-doc`, else
+`~/.cache/lean-doc`, else nowhere.
+
+**Not under `.lake/`**: `lake update` removes that directory, so a cache there
+would be re-downloaded whenever a consumer updated any dependency. The caller
+adds `v<version>/<target>/` under this, so two checkouts at different versions
+— or one machine that has run under two targets — never contend for one path.
+-/
+def cacheRoot : IO (Option FilePath) := do
+  match ← IO.getEnv "XDG_CACHE_HOME" with
+  | some raw => if !raw.isEmpty then return some (FilePath.mk raw / "lean-doc")
+  | none => pure ()
+  match ← IO.getEnv "HOME" with
+  | some home => if !home.isEmpty then return some (FilePath.mk home / ".cache" / "lean-doc")
+  | none => pure ()
+  return none
+
+/--
+The SHA-256 that `checksums.txt` publishes for `asset`, if it names it at all.
+
+The file is `sha256sum`'s own output (`release.yml`: `sha256sum *.tar.gz >
+checksums.txt`), i.e. `<64 hex><two spaces><name>`. The separator is read as
+"a run of spaces" and a leading `*` (sha256sum's binary-mode marker) is dropped,
+because a checksum file that is *almost* parsed is how verification quietly
+becomes no verification.
+-/
+def checksumFor (text : String) (asset : String) : Option String := Id.run do
+  for raw in text.splitOn "\n" do
+    match (raw.trimAscii.toString.splitOn " ").filter (!·.isEmpty) with
+    | [digest, name] =>
+      let name := if name.startsWith "*" then name.drop 1 else name
+      if name == asset then return some digest
+    | _ => pure ()
+  return none
+
+/--
+SHA-256 of a file, via whichever of the two standard tools is on `PATH`
+(`shasum` on macOS, `sha256sum` on Linux; both print `<digest>  <name>`).
+
+`none` means **no verification is possible on this machine**, and the caller
+treats that as a hard stop for source 3 rather than as permission to proceed.
+-/
+def sha256OfFile (path : FilePath) : IO (Option String) := do
+  for (exe, flags) in [("shasum", #["-a", "256"]), ("sha256sum", (#[] : Array String))] do
+    match ← findOnPath exe with
+    | none => pure ()
+    | some bin =>
+      let out ← IO.Process.output {cmd := bin.toString, args := flags.push path.toString}
+      if out.exitCode == 0 then
+        match ((out.stdout.splitOn " ").filter (!·.isEmpty)).head? with
+        | some digest => return some digest.trimAscii.toString
+        | none => pure ()
+  return none
+
+/-- Fetch one URL to one path. -/
+def curlTo (curl : FilePath) (url : String) (dest : FilePath) : IO (Except String Unit) := do
+  -- `-L` is not optional: a release asset URL answers a redirect to
+  -- `release-assets.githubusercontent.com` 【実測 2026-08-18】, and without it
+  -- curl writes the redirect body and exits 0 — a "successful" download of a
+  -- few hundred bytes of HTML. `-f` is what turns a 404 into a non-zero exit
+  -- for the same reason. Neither is a nicety: both are the difference between
+  -- failing here and failing later with a confusing message.
+  let out ← IO.Process.output {
+    cmd := curl.toString
+    args := #["-fsSL", "--connect-timeout", "20", "-o", dest.toString, url]}
+  if out.exitCode == 0 then return .ok ()
+  return .error s!"curl exited {out.exitCode} for {url}: {out.stderr.trimAscii.toString}"
+
+/--
+Download the release archive into `work`, verify it, and — only then — put the
+executable at `targetDir/lean-doc`.
+
+`work` is a subdirectory of `targetDir` so that the final `IO.FS.rename` stays
+inside one filesystem, and so that a half-finished download is visibly beside
+the thing it would become rather than in a shared temporary directory. The
+caller removes it on both paths.
+-/
+def fetchRelease (version triple : String) (targetDir work : FilePath) :
+    IO (Except String FilePath) := do
+  let asset := s!"lean-doc-{triple}.tar.gz"
+  let base := releaseBaseUrl version
+  let some curl ← findOnPath "curl"
+    | return .error "no `curl` on PATH to download with"
+  let some tar ← findOnPath "tar"
+    | return .error "no `tar` on PATH to unpack with"
+  IO.FS.createDirAll work
+  let archive := work / asset
+  let sums := work / "checksums.txt"
+  -- Printed *before* the first request. A build tool that reaches the network
+  -- without saying so is the thing this line exists to prevent (plan §5 L2-e);
+  -- the size cannot be printed here because it is not known until afterwards,
+  -- so it goes on the line below, with the digest.
+  IO.println s!"lean-doc: downloading {base}/{asset}"
+  match ← curlTo curl s!"{base}/{asset}" archive with
+  | .error message => return .error message
+  | .ok () => pure ()
+  match ← curlTo curl s!"{base}/checksums.txt" sums with
+  | .error message =>
+    return .error s!"{message} — the archive downloaded but nothing can verify it, so it is not used"
+  | .ok () => pure ()
+  let some expected := checksumFor (← IO.FS.readFile sums) asset
+    | return .error s!"{base}/checksums.txt names no {asset}"
+  let some actual ← sha256OfFile archive
+    | return .error "no `shasum` and no `sha256sum` on PATH: the archive cannot be verified, so it is not used"
+  if actual != expected then
+    return .error s!"SHA-256 mismatch for {asset}: checksums.txt says {expected}, the download is {actual}"
+  IO.println s!"lean-doc: {(← archive.metadata).byteSize} bytes, sha256 {actual} matches {base}/checksums.txt"
+  let untar ← IO.Process.output {
+    cmd := tar.toString, args := #["xzf", archive.toString, "-C", work.toString]}
+  if untar.exitCode != 0 then
+    return .error s!"tar exited {untar.exitCode} on {asset}: {untar.stderr.trimAscii.toString}"
+  -- The archive unpacks to a **versioned** directory even though its own name
+  -- is not versioned (`release.yml`, "Archive"), which is what keeps two
+  -- versions from colliding on disk.
+  let unpacked := work / s!"lean-doc-{version}-{triple}" / "lean-doc"
+  unless ← isFileAt unpacked do
+    return .error s!"{asset} does not contain lean-doc-{version}-{triple}/lean-doc"
+  let bin := targetDir / "lean-doc"
+  IO.FS.rename unpacked bin
+  return .ok bin
+
+/-- `fetchRelease` plus the cleanup that has to happen on **both** paths: an
+archive whose checksum did not match must not be left anywhere a later run
+could take it for a cache. (Only `targetDir/lean-doc` is ever read as one, so
+this is belt and braces — but the belt is cheap and the alternative is a
+directory named after a version holding bytes nobody vouched for.) -/
+def downloadRelease (version triple : String) (targetDir : FilePath) :
+    IO (Except String FilePath) := do
+  let work := targetDir / ".download"
+  if ← work.pathExists then IO.FS.removeDirAll work
+  IO.FS.createDirAll targetDir
+  let outcome ← fetchRelease version triple targetDir work
+  if ← work.pathExists then IO.FS.removeDirAll work
+  return outcome
+
 /--
 Which `lean-doc` (the Rust half) this script runs, and in what order it is looked
 for. **One function on purpose**: L2 fills in sources 2 and 3 and nothing else in
@@ -139,22 +382,29 @@ the tree gets an opinion about where the binary comes from (CLAUDE.md 「判断�
 
 | | source | |
 |---:|---|---|
-| 1 | `$LEAN_DOC_BIN` | here |
-| 2 | version-pinned cache | L2 |
-| 3 | GitHub Release | L2 |
-| 4 | `lean-doc` on `PATH` | here, with its version printed |
-| 5 | `cargo build` in this package | here |
-| 6 | an error naming every source above | here |
+| 1 | `$LEAN_DOC_BIN` | an error if it is not a file |
+| 2 | `$XDG_CACHE_HOME/lean-doc/v<version>/<target>/lean-doc` | version from this tree's `Cargo.toml` |
+| 3 | the GitHub Release for that version | SHA-256 checked against `checksums.txt` |
+| 4 | `lean-doc` on `PATH` | its version is printed, with a warning |
+| 5 | `cargo build` in this package | slow, but cannot be out of step |
+| 6 | an error naming every source above | |
 
 `PATH` sits **below** the download on purpose: whatever answers to that name may
-write an IR schema older than this checkout's renderer reads. Until L2 fills in
-2 and 3, `PATH` is the source that usually answers — but the *order* is already
-the final one, because slotting a step in later is how one decision ends up
-living in two places.
+write an IR schema older than this checkout's renderer reads. Sources 2 and 3
+know which version this tree is, so they cannot.
 
 `$LEAN_DOC_BIN` set to something that is not a file is an **error, not a
 fallthrough**: a caller who named a binary and silently got a different one
 would never find out.
+
+Two things sources 2 and 3 will not do (plan §5 L2-e):
+
+* **reach the network without saying so** — the URL is printed before the first
+  request, and `LEAN_DOC_NO_DOWNLOAD=1` turns source 3 off entirely while
+  leaving source 2 (a cache that is already on disk costs nothing and needs no
+  network);
+* **run something unverified** — every way of failing to check the SHA-256 is a
+  failure of source 3, not a reason to continue.
 -/
 def resolveLeanDoc (pkgDir : FilePath) : IO (Except String FilePath) := do
   let mut tried : Array String := #[]
@@ -174,12 +424,51 @@ def resolveLeanDoc (pkgDir : FilePath) : IO (Except String FilePath) := do
         return .error s!"$LEAN_DOC_BIN is {raw}, which is not a file"
   | none => tried := tried.push "$LEAN_DOC_BIN: unset"
 
-  -- 2. A version-pinned cache under $XDG_CACHE_HOME/lean-doc/v<version>/<target>.
-  --    L2 goes here (docs/plans/lake-package.md §5, L2-d).
-  -- 3. The GitHub Release for the version in this tree's Cargo.toml, checksum
-  --    verified. L2 goes here too (§5, L2-a..c). Both are deliberately left
-  --    empty rather than absent: the order below is written against the final
-  --    list, not against L1's.
+  -- 2 and 3 both hang off the same two answers — which version this tree is,
+  -- and which target this machine is — so they are worked out once here. Not
+  -- knowing either is a failure of *both* sources, reported as one line.
+  let manifest := pkgDir / "Cargo.toml"
+  let triple ← hostTarget
+  match ← cargoWorkspaceVersion manifest, ← cacheRoot with
+  | none, _ =>
+    tried := tried.push s!"cache and release: no [workspace.package] version in {manifest}"
+  | _, none =>
+    tried := tried.push "cache and release: neither $XDG_CACHE_HOME nor $HOME is set"
+  | some version, some cache =>
+    let targetDir := cache / s!"v{version}" / triple
+    let cached := targetDir / "lean-doc"
+
+    -- 2. The version-pinned cache (§5 L2-d). Checked before $LEAN_DOC_NO_DOWNLOAD
+    --    is consulted: an offline machine that downloaded this once should keep
+    --    working.
+    if ← isFileAt cached then
+      IO.println s!"lean-doc: {cached} (cached, v{version})"
+      return .ok cached
+    tried := tried.push s!"cache: no {cached}"
+
+    -- 3. The GitHub Release for *this tree's* version (§5 L2-a..c).
+    if !(releaseTargets.contains triple) then
+      -- Loud, because it is not a fault: releases carry two targets on purpose
+      -- (see `releaseTargets`), so this is the designed path for every other
+      -- machine and it has to be legible rather than silent.
+      let carried := String.intercalate " and " releaseTargets
+      IO.println s!"lean-doc: no release asset for {triple}; releases carry {carried}. \
+        Trying PATH next."
+      tried := tried.push s!"release v{version}: no asset for {triple}"
+    else if ← envIsSet "LEAN_DOC_NO_DOWNLOAD" then
+      IO.println "lean-doc: $LEAN_DOC_NO_DOWNLOAD is set; not downloading. Trying PATH next."
+      tried := tried.push s!"release v{version} {triple}: skipped ($LEAN_DOC_NO_DOWNLOAD)"
+    else
+      match ← downloadRelease version triple targetDir with
+      | .ok bin =>
+        IO.println s!"lean-doc: {bin} (downloaded, v{version})"
+        return .ok bin
+      | .error message =>
+        -- Printed as well as recorded: a download that failed and was recovered
+        -- from by a later source is still the most interesting thing that
+        -- happened, and source 6 never runs when a later source answers.
+        IO.println s!"lean-doc: release v{version} {triple} not used: {message}"
+        tried := tried.push s!"release v{version} {triple}: {message}"
 
   -- 4. PATH.
   match ← findOnPath "lean-doc" with
@@ -194,8 +483,8 @@ def resolveLeanDoc (pkgDir : FilePath) : IO (Except String FilePath) := do
 
   -- 5. Build it from this package's own source, if this is a checkout with cargo
   --    available. Slow (a release build), and the last thing tried, but it is
-  --    the only source that cannot be out of step with this tree.
-  let manifest := pkgDir / "Cargo.toml"
+  --    the only source that cannot be out of step with this tree. `manifest` is
+  --    the same file sources 2 and 3 read the version out of.
   if ← isFileAt manifest then
     match ← findOnPath "cargo" with
     | some cargo =>

@@ -11,7 +11,7 @@
 #   involved in any of it.
 #
 # ============================================================================
-# THE THREE JOBS, AND WHY EACH IS SEPARATE
+# THE FOUR JOBS, AND WHY EACH IS SEPARATE
 # ============================================================================
 #   gate         `tools/lake-package-gate.sh` on Linux. The same five items the
 #                gate runs locally, on the OS the probe never measured — every
@@ -37,6 +37,14 @@
 #   refused      a consumer with no `lean_lib` FAILS with a named error. A gate
 #                that cannot fail is not a gate (CLAUDE.md; this repository has
 #                shipped two of those).
+#   download     `tools/lake-download-gate.sh` — the release-fetch half of
+#                `resolveLeanDoc`. **This job is not a duplicate of the local
+#                run**: the target triple is computed from `System.Platform`,
+#                and the Linux spelling is the one nobody has measured. Lean
+#                answers `-gnu` there while the release carries `-musl`, so the
+#                remapping is an inference everywhere except here — and Linux CI
+#                is where most consumers will run this. It also exercises the
+#                musl binary itself, which the macOS box cannot execute.
 #
 #   The consumers are generated here rather than committed: `e2e/consumer/`
 #   requires by path and is the local fixture, and a second committed copy that
@@ -52,6 +60,7 @@ on:
       - "extractor/**"
       - "e2e/consumer/**"
       - "tools/lake-package-gate.sh"
+      - "tools/lake-download-gate.sh"
       - ".github/workflows/ci-lake.yml"
   pull_request:
     paths:
@@ -60,6 +69,7 @@ on:
       - "extractor/**"
       - "e2e/consumer/**"
       - "tools/lake-package-gate.sh"
+      - "tools/lake-download-gate.sh"
       - ".github/workflows/ci-lake.yml"
   workflow_dispatch:
 
@@ -280,3 +290,37 @@ jobs:
             || { echo "::error::exit 3 but the message does not name the reason"; exit 1; }
           test ! -e "$RUNNER_TEMP/empty-docs" \
             || { echo "::error::it refused and still created --out"; exit 1; }
+
+  download:
+    name: the release is fetched and verified, on Linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Cache elan
+        id: elan-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.elan
+          key: elan-${{ runner.os }}-${{ hashFiles('e2e/micro/lean-toolchain') }}
+
+      - name: Install elan at the fixture's toolchain
+        if: steps.elan-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -sSfL https://github.com/leanprover/elan/releases/latest/download/elan-x86_64-unknown-linux-gnu.tar.gz \
+            | tar xz
+          ./elan-init -y --default-toolchain "$(cat e2e/micro/lean-toolchain)"
+
+      - name: Put elan on PATH
+        run: echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build lean-doc
+        run: cargo build --bin lean-doc
+
+      # No LEAN_DOC_BIN here, and the gate strips one it inherits: source 1
+      # short-circuits the two sources this job exists to run.
+      - name: Gate
+        run: tools/lake-download-gate.sh
