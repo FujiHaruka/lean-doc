@@ -681,7 +681,10 @@ M7 は規則の発明ではなく「**その URL を別のページから指せ�
   名前解決に届く前に `litedoc4-md` 側が拾う経路。**所在が分かっている 7 本**として穴に記録する
 - 副作用: **`--root` を `site` / `render` / `incremental` / `ledger` に足した**。`build` は自分の
   `--root` から解決する。**`--root` 無しの `ledger check` は `build` と違う `renderKey` を出す**
-  (全ページ再生成になるだけで誤りは出ない) → README 未検証 13
+  (全ページ再生成になるだけで誤りは出ない) → **2026-08-18 に「未検証」から外した**:
+  `build.rs` §"What `renderKey` covers" が「解決が劣化 → 別 digest → 全再描画」を明示的に
+  選んでいるので、これは**意図された挙動**であって測っていない項目ではない
+  ([`plans/unverified-sweep.md`](plans/unverified-sweep.md) §1)
 
 ### M7-d — 版固定 URL は生きている【実測】
 

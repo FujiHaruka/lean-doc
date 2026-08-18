@@ -44,7 +44,7 @@ curated な単体テストは**手で書いた IR** でこれらの分岐に到�
 | `Micro/Notation.lean` | **`scoped notation`** — doc-gen4 が出せない唯一のもの (approach.md §10)。署名が `⟦n⟧` と印字されなくなったらここで出る |
 | `Micro/Unicode.lean` | **U1 / U2 の罠** — `𝒜` (U+1D49C) は BMP 外なので、UTF-16 順ソートと UTF-8 順ソートが食い違う唯一の領域。docstring 内の markdown (heading / code span / リスト) も |
 | `Micro/Shapes.lean` | **`class` / `class inductive` / 非 `mk` constructor / `extends` の継承 field / field の implicit binder** |
-| `Micro/Dep.lean` + `../micro-dep/` | **版固定できない依存** — path require なので manifest entry に `url` も `rev` も無い。モジュール名は **`«Dep-Aux»`** (ギュメが要る形)。README「未検証項目」の #10 と #4 がここを通る (下記) |
+| `Micro/Dep.lean` + `../micro-dep/` | **版固定できない依存** — path require なので manifest entry に `url` も `rev` も無い。モジュール名は **`«Dep-Aux»`** (ギュメが要る形)。**版固定できない依存へのリンク**と**`.lidx` の綴り差**がここを通る (下記) |
 
 ## 初回に出たもの【実測 2026-08-16】
 
@@ -103,7 +103,10 @@ curated な単体テストは**手で書いた IR** でこれらの分岐に到�
 
 **修正後は 3 綴りとも「リンクを張らない」に落ちる** (依存であって版固定できないので、それが正しい)。
 つまり**この綴り差が出力に出るのは、版固定できる依存がギュメ付きモジュールを持つときだけ**で、
-その実物はまだ無い → README「未検証項目」に残してある。
+その実物はまだ無い → 未検証のまま残している 3 件の 1 つ
+([`../docs/plans/unverified-sweep.md`](../docs/plans/unverified-sweep.md) §1)。
+**番号ではなく名前で指すこと** — README の一覧は `e744f79` で消えており、
+番号参照はそれより先に腐っていた。
 
 ## `consumer/` — なぜ micro と別なのか
 
