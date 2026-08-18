@@ -1,0 +1,82 @@
+# U4 — the leak check, on the machine that can run it.
+#
+# `fuzz/README.md` records: "Leak detection is not part of this. LeakSanitizer
+# does not run on macOS, so a buffer md4c allocates and never frees would not
+# show here." That is a fact about **this desk**, not about the project:
+# `ubuntu-latest` runs LSan and has been free all along
+# (`docs/plans/unverified-sweep.md` U4).
+#
+# This is not the fuzzer coming to CI. 決定 5 keeps time-boxed exploration out of
+# every push and that stands — what runs here is the **committed corpus, once
+# each** (`-runs=0`), which is a bounded job with a fixed input set. It stays on
+# `workflow_dispatch` all the same: it needs nightly and a `cargo-fuzz` install.
+#
+# **The canary runs first and must fail.** A leak check that reports nothing
+# looks identical whether the subject is clean or the sanitizer never got linked
+# in — the same shape as Q6's `CFLAGS` finding, where a fuzzer that reached none
+# of the C looked exactly like a fuzzer that found nothing.
+name: leak check on Linux (U4)
+
+on:
+  workflow_dispatch:
+
+env:
+  # Q6: `RUSTFLAGS` reaches Rust only, so without this the md4c C is neither
+  # instrumented nor watched. cov went 1023 -> 2487 when it was added.
+  CFLAGS: "-fsanitize=address -fsanitize=fuzzer-no-link -mllvm -asan-guard-against-version-mismatch=0 -fno-omit-frame-pointer -g"
+  ASAN_OPTIONS: "detect_leaks=1"
+
+jobs:
+  lsan:
+    name: LeakSanitizer over the committed corpus
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install nightly and cargo-fuzz
+        run: |
+          rustup toolchain install nightly --profile minimal
+          cargo +nightly install cargo-fuzz --locked
+
+      # The corpus is the gate's, not a fresh one: this job's claim is about the
+      # inputs that already run on every push, now with a sanitizer watching.
+      - name: Seed the corpus from the committed gate corpus
+        run: |
+          mkdir -p fuzz/corpus/docstring
+          cp crates/litedoc4-md/tests/data/fuzz/*.md fuzz/corpus/docstring/
+          echo "corpus entries: $(ls fuzz/corpus/docstring | wc -l)"
+
+      # Negative control. `set +e` because a non-zero exit is the pass here, and
+      # the log is grepped as well as the status: "it exited non-zero" and "LSan
+      # reported a leak" are different claims (CLAUDE.md: a toolchain mismatch
+      # once returned non-zero from `lake` before `extract` ever started).
+      - name: The canary must leak
+        working-directory: fuzz
+        run: |
+          set +e
+          cargo +nightly fuzz run leak_canary corpus/docstring -- -runs=0 >canary.log 2>&1
+          status=$?
+          set -e
+          tail -40 canary.log
+          if [ "$status" -eq 0 ]; then
+            echo "::error::the leaking canary passed — LSan is not watching, so a green run below would mean nothing"
+            exit 1
+          fi
+          if ! grep -qi "detected memory leaks" canary.log; then
+            echo "::error::the canary exited $status, but not because LSan reported a leak"
+            exit 1
+          fi
+          echo "canary leaked as intended (exit $status)"
+
+      - name: The corpus must not leak
+        working-directory: fuzz
+        run: cargo +nightly fuzz run docstring corpus/docstring -- -runs=0
+
+      - name: Upload the logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: leak-logs
+          path: fuzz/canary.log
+          if-no-files-found: warn

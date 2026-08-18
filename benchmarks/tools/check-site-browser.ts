@@ -289,6 +289,80 @@ async function main() {
       await page.close();
     }
 
+    // 5b — the themes' actual colours, not just that the attribute moves.
+    //
+    // Check 5 clicks the toggle and asks whether `data-theme` changed. That is
+    // the mechanism; what a reader gets is the contrast, and a theme can rewrite
+    // every colour and still be unreadable. **Both** themes are measured,
+    // because a palette that is only ever looked at in one of them is exactly
+    // how the other one rots (`docs/plans/unverified-sweep.md` U3).
+    //
+    // Threshold: WCAG 2.1 SC 1.4.3, 4.5:1 for body-sized text. The elements are
+    // named rather than crawled, and **a name that matches nothing fails** — a
+    // check that measured zero elements would pass for the wrong reason.
+    for (const theme of ["light", "dark"]) {
+      const page = await browser.newPage();
+      await page.goto(`${base}/${first}`, { waitUntil: "networkidle0" });
+      const rows = await page.evaluate((wanted) => {
+        document.documentElement.setAttribute("data-theme", wanted);
+        const parse = (value: string): number[] | null => {
+          const inside = value.match(/rgba?\(([^)]+)\)/);
+          if (!inside) return null;
+          const parts = inside[1].split(",").map((v) => parseFloat(v.trim()));
+          return [parts[0], parts[1], parts[2], parts.length > 3 ? parts[3] : 1];
+        };
+        // sRGB -> relative luminance, WCAG 2.1 relative-luminance definition.
+        const channel = (v: number) => {
+          const c = v / 255;
+          return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+        };
+        const luminance = (rgb: number[]) =>
+          0.2126 * channel(rgb[0]) + 0.7152 * channel(rgb[1]) + 0.0722 * channel(rgb[2]);
+        // The painted background is the nearest ancestor with a non-transparent
+        // one; an element's own `background-color` is usually rgba(0,0,0,0).
+        const background = (el: Element): number[] => {
+          let node: Element | null = el;
+          while (node) {
+            const rgba = parse(getComputedStyle(node).backgroundColor);
+            if (rgba && rgba[3] > 0) return rgba;
+            node = node.parentElement;
+          }
+          return [255, 255, 255, 1];
+        };
+        const contrast = (fg: number[], bg: number[]) => {
+          const pair = [luminance(fg), luminance(bg)].sort((a, b) => b - a);
+          return (pair[0] + 0.05) / (pair[1] + 0.05);
+        };
+        const visible = (el: Element) => {
+          const box = el.getBoundingClientRect();
+          return box.width > 0 && box.height > 0;
+        };
+        return ["body", ".doc", ".decl-name", ".fn", ".src", "main a"].map((selector) => {
+          const el = [...document.querySelectorAll(selector)].find(visible);
+          if (!el) return { selector, found: false, ratio: 0, fg: "", bg: "" };
+          const style = getComputedStyle(el);
+          const fg = parse(style.color) ?? [0, 0, 0, 1];
+          const bg = background(el);
+          return {
+            selector,
+            found: true,
+            ratio: Math.round(contrast(fg, bg) * 100) / 100,
+            fg: style.color,
+            bg: `rgb(${bg[0]}, ${bg[1]}, ${bg[2]})`,
+          };
+        });
+      }, theme);
+
+      for (const row of rows) {
+        const label = `${theme}: ${row.selector} is readable`;
+        counts[`${theme} ${row.selector} contrast`] = row.ratio;
+        if (!row.found) bad(label, "no element matched the selector");
+        else if (row.ratio >= 4.5) ok(label, `${row.ratio}:1  ${row.fg} on ${row.bg}`);
+        else bad(label, `${row.ratio}:1 (want 4.5:1)  ${row.fg} on ${row.bg}`);
+      }
+      await page.close();
+    }
+
     // 6 — UI-3, the gate ui-redesign.md left 未判定.
     for (const width of [375, 1440]) {
       const page = await browser.newPage();

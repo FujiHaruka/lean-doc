@@ -31,4 +31,12 @@ test = false
 doc = false
 bench = false
 
+# Not a subject — the negative control for the leak check. See the file.
+[[bin]]
+name = "leak_canary"
+path = "fuzz_targets/leak_canary.rs"
+test = false
+doc = false
+bench = false
+
 [workspace]

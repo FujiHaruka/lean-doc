@@ -1,0 +1,134 @@
+# U3 — the browser gate on Windows.
+#
+# `ui-redesign.md` 決定 2 dropped the JuliaMono web font and bet on the system
+# monospace stack. Q8's check 8 measured that bet on macOS and on
+# `ubuntu-latest` and found no missing glyph on either, and recorded that
+# **Windows was untested because no machine here has Consolas**. That is true of
+# this desk and false of GitHub: `windows-latest` ships Consolas *and* Chrome,
+# and has been free all along — the same shape as the failure Q8 itself recorded
+# ("the Linux machine had been free all along"), one operating system further on
+# (`docs/plans/unverified-sweep.md` U3).
+#
+# Two jobs, because the site has to be built where Lean runs: ubuntu builds the
+# e2e fixture's site and uploads it, Windows downloads it and drives Chrome. The
+# font check does **not** read its character set out of the site — it reads
+# `benchmarks/tools/mono-charset.json`, the 178 non-ASCII characters of the
+# measurement target — so the tiny fixture is enough to judge a font stack.
+#
+# `workflow_dispatch` only: CLAUDE.md keeps verification workflows off `push`.
+name: browser gate on Windows (U3)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  site:
+    name: build the fixture's site (ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install the toolchain rust-toolchain.toml asks for
+        run: rustup show
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Cache elan
+        id: elan-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.elan
+          key: elan-${{ runner.os }}-${{ hashFiles('e2e/micro/lean-toolchain') }}
+
+      - name: Install elan at the fixture's toolchain
+        if: steps.elan-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -sSfL https://github.com/leanprover/elan/releases/latest/download/elan-x86_64-unknown-linux-gnu.tar.gz \
+            | tar xz
+          ./elan-init -y --default-toolchain "$(cat e2e/micro/lean-toolchain)"
+
+      - name: Put elan on PATH
+        run: echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Build the CLI
+        run: cargo build --bin litedoc4
+
+      - name: End to end
+        run: tools/e2e-micro.sh --out "$RUNNER_TEMP/e2e" --keep
+
+      # The same gate this job could run itself, run here so that a Windows
+      # failure downstream is known to be about Windows and not about the site.
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Browser gate (ubuntu, for comparison)
+        run: tools/browser-gate.sh "$RUNNER_TEMP/e2e/first/site" --json "$RUNNER_TEMP/browser-ubuntu.json"
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+
+      - name: Upload the site for the Windows job
+        uses: actions/upload-artifact@v4
+        with:
+          name: micro-site
+          path: ${{ runner.temp }}/e2e/first/site
+          if-no-files-found: error
+
+      - name: Upload the ubuntu report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-ubuntu
+          path: ${{ runner.temp }}/browser-ubuntu.json
+          if-no-files-found: warn
+
+  windows:
+    name: browser gate (windows-latest)
+    needs: site
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: micro-site
+          path: site
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      # Printed before the gate runs, because "the gate was green" and "the gate
+      # ran against Consolas" are different claims and only this step can tell
+      # them apart. If Chrome is not at this path the gate says so and exits 2
+      # rather than passing.
+      - name: What is on this runner
+        shell: bash
+        run: |
+          ls -la "/c/Program Files/Google/Chrome/Application/chrome.exe" || echo "no Chrome at the expected path"
+          powershell -Command "(New-Object -TypeName System.Drawing.Text.InstalledFontCollection).Families | Where-Object { \$_.Name -match 'Consolas|Cascadia|Courier|Segoe UI Mono' } | ForEach-Object { \$_.Name }"
+
+      - name: Browser gate
+        shell: bash
+        env:
+          CHROME_PATH: C:\Program Files\Google\Chrome\Application\chrome.exe
+        run: tools/browser-gate.sh site --json browser-windows.json
+
+      - name: Upload the Windows report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-windows
+          path: browser-windows.json
+          if-no-files-found: warn
