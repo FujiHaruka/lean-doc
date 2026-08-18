@@ -4,12 +4,13 @@
 A consumer requires this package and gets a `docs` script:
 
 ```lean
-require «litedoc4» from git "https://github.com/FujiHaruka/litedoc4" @ "main"
+require «litedoc4» from git "https://github.com/FujiHaruka/litedoc4" @ "v0.1.4"
 ```
 
 A tag works too, but **only a tag whose tree contains this file** — `v0.1.3` and
-earlier have no `lakefile.lean`, so Lake cannot resolve them as a package. Pin to
-a released tag once one carries it; until then `main` is the honest spelling.
+earlier have no `lakefile.lean`, so Lake cannot resolve them as a package.
+**`v0.1.4` is the first tag that carries it**, and the first released under this
+name; `@ "main"` also works and moves.
 
 ```
 lake run docs -- --out ../mypkg-docs

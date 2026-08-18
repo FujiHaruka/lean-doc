@@ -7,8 +7,8 @@ D4 は「配れると確認した上で配らない」判定。起票時点で�
 | 段 | 結果 |
 |---|---|
 | **D1** 検証 | X1/X3/X4/X5/X6 すべて実測。extractor は **toolchain だけで決まり、可搬で、不一致では静かに壊れない** |
-| **D2** Release | **`v0.1.3`** — Linux musl (静的) / macOS arm。書庫に `LICENSE` + `NOTICE` |
-| **D3** action | **`FujiHaruka/litedoc4@v0.1.3`** — 利用側は 5 行。self-test 5 ジョブ |
+| **D2** Release | **`v0.1.4`** — Linux musl (静的) / macOS arm。書庫に `LICENSE` + `NOTICE`。**`v0.1.4` が改名後の最初の Release** (それ以前は `lean-doc-*.tar.gz`) |
+| **D3** action | **`FujiHaruka/litedoc4@v0.1.4`** — 利用側は 5 行。self-test 5 ジョブ |
 | **D4** extractor | **配らない**。226 MB vs 16 s のビルド、しかも CI はキャッシュする |
 
 **この作業で見つけた欠陥は 11 件。product は 0 件で、全部が配布経路か検査自身**:
@@ -149,7 +149,7 @@ X2 で比べるのは「バイナリの byte」ではなく「**出てくる IR 
   - composite の中から `uses:` は呼べる。その post ステップ (cache の save) も走る
   - **`lake build` を含めるかは input で選ばせる** (`lake-build`, 既定 `true`)。
     `leanprover/lean-action` を既に使っている利用者と組み合わせられるように
-- **バージョン運用**: `v0.1.3` を固定用。可動 `v0` はまだ作っていない (作るなら
+- **バージョン運用**: `v0.1.4` を固定用。可動 `v0` はまだ作っていない (作るなら
   「最新の 0.x」として付け替える)。
 
 > **結果 — 完遂**【2026-08-18】。`action.yml` (ルート) + `.github/workflows/ci-action.yml`

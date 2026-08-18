@@ -66,7 +66,7 @@ jobs:
     environment: { name: github-pages }
     steps:
       - uses: actions/checkout@v4
-      - uses: FujiHaruka/litedoc4@v0.1.3
+      - uses: FujiHaruka/litedoc4@v0.1.4
         id: docs
         with:
           cache-get: true             # `lake exe cache get` — drop it if you have no Mathlib
@@ -99,7 +99,7 @@ toolchain.
 Add it to your `lakefile.lean` (or the `[[require]]` equivalent in `lakefile.toml`):
 
 ```lean
-require «litedoc4» from git "https://github.com/FujiHaruka/litedoc4" @ "main"
+require «litedoc4» from git "https://github.com/FujiHaruka/litedoc4" @ "v0.1.4"
 ```
 
 ```sh
@@ -168,15 +168,13 @@ not GitHub (another host is refused rather than guessed).
 
 ## Status
 
-`v0.1.3` — the action and the released binaries. Tested on macOS (Apple Silicon) and
-`ubuntu-latest` with Lean/Mathlib v4.31.0. Pin the action to a tag (`@v0.1.3`); `@main` moves.
+`v0.1.4` — the action and the released binaries. Tested on macOS (Apple Silicon) and
+`ubuntu-latest` with Lean/Mathlib v4.31.0. Pin the action to a tag (`@v0.1.4`); `@main` moves.
 
 **Renamed from `lean-doc` on 2026-08-18** — repository, crates, CLI, and Lake package name.
-Every release up to `v0.1.3` was published under the old name, so until the next release:
-the `curl` line above **404s** (the newest release carries `lean-doc-*.tar.gz`, not
-`litedoc4-*`), and `uses: FujiHaruka/litedoc4@v0.1.3` still resolves but pins a tree from
-before the rename. `require «litedoc4» … @ "main"` and building from source both work today.
-What was deliberately *not* renamed, and why, is in
+**`v0.1.4` is the first release under the new name**, and the first tag whose tree carries
+`lakefile.lean`. `v0.1.3` and earlier ship `lean-doc-*.tar.gz` and cannot be `require`d, so
+pin to `v0.1.4` or later. What was deliberately *not* renamed, and why, is in
 [`docs/plans/rename.md`](docs/plans/rename.md).
 
 The extractor is not distributed as a binary. It **could** be — it is decided by the toolchain

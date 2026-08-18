@@ -108,7 +108,7 @@ checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
 
 [[package]]
 name = "litedoc4"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "litedoc4-global",
  "litedoc4-incr",
@@ -119,7 +119,7 @@ dependencies = [
 
 [[package]]
 name = "litedoc4-global"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "litedoc4-ir",
  "litedoc4-md",
@@ -130,7 +130,7 @@ dependencies = [
 
 [[package]]
 name = "litedoc4-incr"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "litedoc4-ir",
  "serde",
@@ -140,7 +140,7 @@ dependencies = [
 
 [[package]]
 name = "litedoc4-ir"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "serde",
  "serde_json",
@@ -148,7 +148,7 @@ dependencies = [
 
 [[package]]
 name = "litedoc4-md"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "cc",
  "serde",
@@ -157,7 +157,7 @@ dependencies = [
 
 [[package]]
 name = "litedoc4-render"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "litedoc4-ir",
  "litedoc4-md",
