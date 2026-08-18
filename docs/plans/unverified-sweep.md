@@ -25,7 +25,39 @@ git show 117e928:README.md    # 18 件版 (v0.1.0 を締めた日)
 | **U2** 同名宣言のページ配置 | **通過**【実測 2026-08-18 → [`../../benchmarks/results/duplicate-owners-2026-08-18.txt`](../../benchmarks/results/duplicate-owners-2026-08-18.txt)】 | **現象は実在する (21 件)** が **出力に出ない**。所有判定 (link index) と重複除去 (IR) を**それぞれ消して測っても出力は 1 バイトも動かない** — 21 件は blacklist で先に落ちている。**出ない理由は blacklist であって、2 本ある規則が一致しているからではない** |
 | **U3** Windows フォント / ダークの色 | **通過**【実測 2026-08-18 → [`../../benchmarks/results/browser-windows-2026-08-18.txt`](../../benchmarks/results/browser-windows-2026-08-18.txt)、[run 32141072539](https://github.com/FujiHaruka/litedoc4/actions/runs/32141072539)】 | **Consolas を持つ機材はあった** (`windows-latest`)。**欠けた字形 0**、ただし等幅スタック単独では **105/178**、送り幅が違う字は **73 種で 3 OS 中最悪**。ダークの色は検査 5b を足し、**片テーマだけ壊して一度落としてから**通した |
 | **U4** md4c のリーク検査 | **通過**【実測 2026-08-18 → [`../../benchmarks/results/leak-check-2026-08-18.txt`](../../benchmarks/results/leak-check-2026-08-18.txt)、[run 32141014754](https://github.com/FujiHaruka/litedoc4/actions/runs/32141014754)】 | corpus 12 件で **leak 0**。負検査 (`leak_canary`) が **24 byte leaked** で落ちることを先に確かめた。**1 回目は `cc` が gcc で落ち**、canary の判定が「非ゼロだが LSan のせいではない」と正しく報告した |
-| **U5** 新しい Lean で建つか | **通過 (結果は否定的)**【実測 2026-08-18 → [`../../benchmarks/results/lean-version-2026-08-18.txt`](../../benchmarks/results/lean-version-2026-08-18.txt)】 | **v4.32.2 は建ち、IR は v4.31.0 と byte 一致**。**v4.33.0 は建たない** — `getCustomAttrs` の `match` が `ReducibilityStatus.instanceReducible` を網羅していない。**壊れているのは 1 箇所**で、広げると error 0 で建つ。落ち方はコンパイルエラー = **大声**（合格条件はこちら側） |
+| **U5** 新しい Lean で建つか | **通過 (結果は否定的)**【実測 2026-08-18 → [`../../benchmarks/results/lean-version-2026-08-18.txt`](../../benchmarks/results/lean-version-2026-08-18.txt)】 | **v4.32.2 は建ち、IR は v4.31.0 と byte 一致**。**v4.33.0 は建たない** — `getCustomAttrs` の `match` が `ReducibilityStatus.instanceReducible` を網羅していない。**壊れているのは 1 箇所**で、広げると error 0 で建つ。落ち方はコンパイルエラー = **大声**（合格条件はこちら側）。**この欠陥は同じ日に閉じた** → 下の §0.1 |
+
+### 0.1 U5 が増やした 1 件は閉じた — Lean v4.33.0 対応【実測 2026-08-18 → [`../../benchmarks/results/lean-433-fix-2026-08-18.txt`](../../benchmarks/results/lean-433-fix-2026-08-18.txt)】
+
+U5 は「未検証」を**既知の欠陥**に変えた。その欠陥を同じ日に閉じたので、ここに結果だけ置く
+(測り方と限界は上のログ)。
+
+**直し方が本体**。選べたのは 4 つで、上 3 つはどれも駄目だった:
+
+| | なぜ駄目か |
+|---|---|
+| exhaustive な `match` のまま | v4.33 で建たない (これが起きたこと) |
+| `\| _ => pure ()` を足す | 建つが、**新しい属性を黙って IR から落とす** |
+| Lean の版で分岐する | 分岐が増え続ける。**判断が 1 箇所に集まらない** |
+| **列挙を Lean に委ねる** | **採用**。`ReducibilityStatus.toAttrString` から名前を取り、`[name]` の括弧だけ剥がす |
+
+出たもの:
+
+- **1 つのソースが v4.31.0 / v4.32.2 / v4.33.0 の 3 版で建ち、IR まで出る**。
+  否定対照として、**同じ v4.33.0 の複製にソースだけ修正前を置くと落ちる** (変えた条件は 1 つ)
+- **古い版の IR は 1 バイトも動かない** — 計測対象 432 モジュールで **436/436 一致**。
+  **空振りではない**: この分岐は対象の **75 宣言**で実際に踏んでいる
+  (`reducible` 69 / `implicit_reducible` 4 / `irreducible` 2)
+- **v4.33.0 との差は 4 宣言の `implicit_reducible` → `instance_reducible` だけ**。
+  Lean 側がインスタンスを再分類したもので、**`| _ => pure ()` で塞いでいたら消えていた 4 件**
+- 括弧を剥がす式は **3 版で実際にコンパイルして選んだ** — `String.drop` はここでは
+  `String.Slice` を返し、`dropRight` も `String.mk` も deprecated だった。**推測で書けない**
+- **assert は火を噴くがプロセスは 0 で終わる**【実測】 — 括弧なしのリテラルに差し替えた探針が
+  `failures (75)` を報告し、宣言数が 4747 → 4672 (= −75) に落ちたが、**終了コードは 0**。
+  抽出器の宣言ごとのエラーは元からそういう設計で、この修正が持ち込んだものではない。
+  **`failures` を製品側が判定に使っている箇所は無い** → **別件の宿題**
+
+---
 
 **U1 が足したもの**: `litedoc4 links --root <repo> [--link-index <file>] [--out <file>]` —
 マップは `build` のログの 1 行以外どこからも観測できず、**その 1 行では何も叩けなかった**。

@@ -75,12 +75,20 @@
   「版固定できる依存」/ より大きいパッケージ・RAM の小さいランナー。
   **どれも「作れば測れる」もので、機材が無いのではない。**
 
-- **U5 は「未検証」を「既知の欠陥」に変えた**【実測 2026-08-18 →
-  [`../benchmarks/results/lean-version-2026-08-18.txt`](../benchmarks/results/lean-version-2026-08-18.txt)】 —
-  **Lean v4.33.0 で extractor が建たない** (`ReducibilityStatus` にコンストラクタが増え、
-  `getCustomAttrs` の `match` が非網羅)。**v4.32.2 は建ち、IR は v4.31.0 と byte 一致**。
-  **壊れているのは 1 箇所**で、広げると error 0 で建つ。**項目が減ったこととは別に、
-  やることが 1 件増えている。**
+- **U5 は「未検証」を「既知の欠陥」に変え、その欠陥は同じ日に閉じた**【実測 2026-08-18 →
+  [`../benchmarks/results/lean-version-2026-08-18.txt`](../benchmarks/results/lean-version-2026-08-18.txt)
+  (見つけた回) と
+  [`../benchmarks/results/lean-433-fix-2026-08-18.txt`](../benchmarks/results/lean-433-fix-2026-08-18.txt)
+  (直した回)】 — **Lean v4.33.0 で extractor が建たなかった** (`ReducibilityStatus` に
+  コンストラクタが増え、`getCustomAttrs` の `match` が非網羅)。
+  **直し方は版で分岐させることではない** — 列挙を Lean 自身の
+  `ReducibilityStatus.toAttrString` に委ね、括弧だけ剥がす形にした。1 つのソースが
+  **v4.31.0 / v4.32.2 / v4.33.0 の 3 版で建ち**、知らないコンストラクタも黙って
+  捨てずに出力へ出る。**古い版の IR は動いていない** (計測対象 432 モジュール、
+  修正前後で **436/436 byte 一致**。この分岐は 75 宣言で実際に踏んでいる)。
+  **v4.33.0 との差は 4 宣言の `implicit_reducible` → `instance_reducible` だけ**で、
+  これは Lean 側がインスタンスを再分類したもの。**`| _ => pure ()` で塞いでいたら
+  この 4 件は消えていた。**
 
 - **「他人のリポジトリから使われる」はまだ一度も起きていない** —
   `push:` トリガと利用者リポジトリの checkout は 2026-08-18 に前進した

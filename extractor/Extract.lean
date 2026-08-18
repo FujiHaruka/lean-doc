@@ -801,7 +801,32 @@ def getParametricValues (decl : Name) : MetaM (Array String) := do
   return res
 
 /-- doc-gen4's `customAttrs` (`hasSimp`, `hasCsimp`, `getReducibility`) in order.
-`semireducible` is the default and is deliberately not printed. -/
+`semireducible` is the default and is deliberately not printed.
+
+The reducibility name is taken from Lean's own `ReducibilityStatus.toAttrString`
+rather than matched constructor by constructor, which is where doc-gen4 spells it
+out (`DocGen4/Process/Attributes.lean`, `getReducibility`). The reason is a
+version break, measured: **Lean v4.33.0 added `instanceReducible` to the
+inductive**, and an exhaustive `match` over the four older constructors stops
+compiling the moment a fifth appears — while one carrying `| _ => pure ()` would
+compile and silently drop the new attribute from the IR instead
+(→ `benchmarks/results/lean-version-2026-08-18.txt`). Deriving the string keeps a
+single source building on v4.31 through v4.33 *and* keeps a constructor nobody
+here has heard of in the output; the strings are unchanged for the four that
+existed before, so the IR does not move — 436 of 436 files byte identical over
+the measurement target, with 75 declarations actually taking this branch
+(→ `benchmarks/results/lean-433-fix-2026-08-18.txt`). What is not derivable
+is the bracketing, so that is asserted rather than assumed: if `toAttrString`
+ever stops returning `[name]` this throws instead of writing a mangled attribute
+— which, like every other `throwError` in the analysis loop, costs the
+declaration and lands in the `failures` report rather than failing the process.
+Verified by building a copy with the call replaced by an unbracketed literal: it
+reported `failures (75)`, exactly the number of declarations in the measurement
+target that carry a non-`semireducible` status, and nothing else moved.
+The slicing is spelled `drop`/`dropEnd`/`toString` because that is what compiles
+warning-free on all three toolchains: `String.drop` returns a `String.Slice` here,
+`Slice.dropRight` is deprecated in favour of `dropEnd`, and `String.mk` is
+deprecated in favour of `ofList` — all measured, not assumed. -/
 def getCustomAttrs (decl : Name) : MetaM (Array String) := do
   let mut res : Array String := #[]
   let thms ← simpExtension.getTheorems
@@ -809,11 +834,12 @@ def getCustomAttrs (decl : Name) : MetaM (Array String) := do
     res := res.push "simp"
   if Compiler.hasCSimpAttribute (← getEnv) decl then
     res := res.push "csimp"
-  match ← getReducibilityStatus decl with
-  | .reducible => res := res.push "reducible"
-  | .irreducible => res := res.push "irreducible"
-  | .implicitReducible => res := res.push "implicit_reducible"
-  | .semireducible => pure ()
+  let status ← getReducibilityStatus decl
+  if status != .semireducible then
+    let bracketed := status.toAttrString
+    unless bracketed.startsWith "[" && bracketed.endsWith "]" do
+      throwError "ReducibilityStatus.toAttrString returned {bracketed}, expected [name]"
+    res := res.push ((bracketed.drop 1).dropEnd 1).toString
   return res
 
 def getAllAttributes (decl : Name) : MetaM (Array String) := do

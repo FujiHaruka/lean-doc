@@ -1,0 +1,135 @@
+Lean v4.33.0 対応 — 版をまたいで建つようにし、IR が動かないことを確かめた【実測 2026-08-18】
+================================================================
+
+U5 が見つけた既知の欠陥を直した回 (→ lean-version-2026-08-18.txt)。あちらは
+「**v4.33.0 で extractor が建たない、壊れているのは 1 箇所**」までを測った。
+ここで測るのは修正のほうで、**問いは 3 つ**:
+
+  (1) 直した版は v4.31 / v4.32 / v4.33 の**すべてで建つか**
+  (2) 直したことで**古い版の IR が動かないか** (動いたら全ページ再描画になる)
+  (3) また次のコンストラクタが増えたとき、**黙って捨てないか**
+
+機材と条件
+----------
+  Apple M1 / macOS 26.0。elan に v4.31.0 (既定) / v4.32.2 / v4.33.0。
+  (1)(3) の対象は **e2e/micro** の複製 (Mathlib 非依存)、(2) の対象は
+  **計測対象リポジトリ** (`lean-projects`、432 モジュール、Mathlib 全体)。
+  extractor はすべて `lake env lean --root=<src>` + `lake env leanc -rdynamic` の 2 段。
+  抽出のフラグは全走行で同一: `--equations --refs --write-ir --ir-dir <d> --tagged-code --jobs 4`。
+
+  **版ごとに micro と micro-dep を別々に複製した** — 1 つの micro-dep を共有すると
+  `incompatible header` で止まる (U5 が踏んだもの)。
+
+直し方 — なぜ `match` をやめたか
+--------------------------------
+  `getCustomAttrs` は `getReducibilityStatus` の結果をコンストラクタごとに
+  `match` していた (doc-gen4 の `getReducibility` を転記したもの)。これだと
+  **コンストラクタが 1 つ増えるだけで古い側も新しい側も直せない**:
+
+    exhaustive な match  → v4.33 で建たない (実際に起きたこと)
+    `| _ => pure ()`     → 建つが、新しい属性を**黙って IR から落とす**
+    版で分岐             → 分岐そのものが増え続ける
+
+  採ったのは 4 番目 — **Lean 自身の `ReducibilityStatus.toAttrString` から名前を取る**。
+  列挙が Lean 側に移るので 1 つのソースが 3 版で建ち、知らないコンストラクタも
+  そのまま出力に出る。`toAttrString` は `[name]` を返すので括弧を剥がすが、
+  **剥がせる形であることは仮定せず assert する**。
+
+  括弧を剥がす式は**推測せず 3 版で実際にコンパイルして選んだ**。
+  `String.drop` はここでは `String.Slice` を返す:
+
+    s.replace "[" "" |>.replace "]" ""        4.31 ok   4.32 ok   4.33 ok
+    ((s.drop 1).dropEnd 1).toString           4.31 ok   4.32 ok   4.33 ok   ← 採用
+    String.mk (s.toList.drop 1 |>.dropLast)   3 版とも deprecated 警告 (`String.ofList` へ)
+    (s.drop 1).dropRight 1                    3 版とも deprecated 警告 + 型が Slice のまま
+    s.extract ⟨1⟩ (s.endPos - ⟨1⟩)            3 版とも error (`String.Pos.mk` は 2 引数)
+
+(1) 3 版で建つか — 建つ【実測】
+--------------------------------
+  複製した micro を `lake build` し、そこから extractor を建てて IR まで出した:
+
+    v4.31.0   lake build ok / lean ok / leanc ok / extract ok   IR 9 ファイル
+    v4.32.2   lake build ok / lean ok / leanc ok / extract ok   IR 9 ファイル
+    v4.33.0   lake build ok / lean ok / leanc ok / extract ok   IR 9 ファイル
+
+  **否定対照**: 同じ v4.33.0 の複製・同じ micro・同じコマンドで、
+  **ソースだけ修正前に差し替える**と落ちる:
+
+    Extract.lean:812:2: error: Missing cases: ReducibilityStatus.instanceReducible
+
+  変えた条件は 1 つ (ソース) だけ。「v4.33 で建つようになった」の原因はこの修正。
+
+(2) 古い版の IR が動かないか — 動かない【実測】
+-----------------------------------------------
+  **計測対象 432 モジュール**を、修正前後のバイナリ (どちらも v4.31.0 で建てた) で抽出:
+
+    修正前 IR   436 ファイル
+    修正後 IR   436 ファイル
+    diff -r     **差分 0 バイト**
+
+  **この一致は空振りではない** — 対象の IR に実際に出ている reducibility 属性は
+  **75 件** (`reducible` 69 / `implicit_reducible` 4 / `irreducible` 2)。
+  75 回この分岐を通って、75 回同じ文字列を書いている。
+
+  micro 側でも版差を見た (すべて修正後のソース):
+
+    v4.31.0 vs v4.32.2   modules 6/6 一致、deps 2/2 一致、**差は index.json の
+                         `leanVersion` 1 フィールドだけ**
+    v4.31.0 vs v4.33.0   modules 4/6 一致、deps 2/2 一致、
+                         Micro.Basic と Micro.Shapes が違う
+
+  v4.33.0 で違うのは**4 宣言の属性 1 つずつだけ**で、中身は Lean 側の再分類:
+
+    Micro.instInhabitedPoint          implicit_reducible -> instance_reducible
+    Micro.instGreetNat                implicit_reducible -> instance_reducible
+    Micro.instPreferredNat            implicit_reducible -> instance_reducible
+    Micro.Preferred.toInhabited       implicit_reducible -> instance_reducible
+
+  v4.33.0 の `ReducibilityAttrs.lean` はインスタンスを `implicitReducible` から
+  分離した (「型クラス合成が unfold に依存するため」とコメントにある)。
+  **`| _ => pure ()` で塞いでいたら、この 4 件は属性ごと IR から消えていた。**
+  バイト数は両モジュールとも同じ (7688 / 18347) で contentHash だけ動く。
+
+(3) assert が本当に火を噴くか — 噴く。ただし**プロセスは 0 で終わる**【実測】
+------------------------------------------------------------------------------
+  `status.toAttrString` を括弧なしのリテラルに差し替えた複製を建て、対象で走らせた:
+
+    failures (75):
+      InformationTheory.FiniteJointPMF.mass: ReducibilityStatus.toAttrString
+        returned reducible, expected [name]
+      ... (75 件)
+
+  **75 は上の 75 と同じ数**。分岐を通る宣言をちょうど網羅していて、それ以外は
+  通っていないことの裏取りになっている。宣言数も一致する:
+
+    修正後 (正常)   declarationCount 4747
+    assert 探針     declarationCount 4672   = 4747 - 75
+
+  **ただし終了コードは 0 だった。** 抽出器の宣言ごとのエラーは元から
+  `failures` に集めて報告するだけで、プロセスを落とさない設計 (この修正が
+  持ち込んだものではない)。つまりこの assert が守るのは「壊れた属性を IR に
+  書かないこと」であって、「気づかせること」は `failures` の行に依存する。
+  **`failures` を製品側が判定に使っている箇所は無い** — これは別件の宿題。
+
+ゲート
+------
+  cargo test --workspace          ok
+  cargo clippy -D warnings        ok
+  tools/provenance-gate.sh        ok (27 claims)
+  tools/corpus-gate.sh --verify-list  ok (21 tests)
+  tools/e2e-micro.sh              ok (9/9)
+  tools/lake-package-gate.sh      ok (5/5) — 項目 4 が「lake で建てた extractor と
+                                  手で建てた extractor が同じ IR を書く」で、
+                                  修正後のソースでも 9 ファイル + link-index 一致
+
+主張の限界
+----------
+  - **Mathlib 依存パッケージを v4.32 / v4.33 で建てたわけではない。** (1)(3) の対象は
+    Mathlib 非依存の micro で、Mathlib がその版に対応しているかは Mathlib 側の話。
+    (2) の 432 モジュールは **v4.31.0 でしか走らせていない**
+  - **v4.32.0 / v4.32.1 は測っていない** (v4.32.2 のみ)。v4.33.1 以降も同様
+  - **「v4.33 で建つ」と「v4.33 で正しい」は別。** 測ったのは建つことと、
+    IR の差が上の 4 件だけであること。v4.33 でサイトまで作って検査してはいない
+  - `instance_reducible` という属性名は Lean の `toAttrString` が返すものをそのまま
+    使っている。**doc-gen4 が将来どう表示するかは見ていない** (M8 で byte 再現は
+    終了しているので、合わせにいく相手はもういない)
