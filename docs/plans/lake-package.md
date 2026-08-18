@@ -1,6 +1,20 @@
 # Lake パッケージ化 — lean-doc を dev 依存として `require` させる
 
-**状態**: **着手 (2026-08-18)**。ユーザー指示により L1 → L2 を通しで完遂する。
+**状態**: **完遂 (2026-08-18)**。L1・L2 とも実装・実走・CI 緑 (PR #1 → main `202011b`)。
+
+| 段 | 結果 |
+|---|---|
+| **L1** lakefile | **`require «lean-doc»` + `lake run docs` が動く。** extractor は Lake が利用者の toolchain で建てる。`--lib` は Lake から取る。**`lean-toolchain` は置かない** (置く方が危険と実測) |
+| **L2** Release | **バイナリは Release から取る。** 版は require した rev のツリーの `Cargo.toml`。**checksum が合わなければ拒否**してキャッシュを空のまま次の段へ |
+| **ゲート** | `lake-package-gate.sh` 5 項目 + `lake-download-gate.sh` 5 項目。**10 項目すべて個別に壊して落としてから通した** |
+| **CI** | `ci-lake.yml` 4 ジョブ。`git-require` は**この commit を GitHub から clone** して実配布経路を通す |
+
+**この作業で見つけた欠陥は 3 件。product は 0 件**で、全部が配布経路か検査自身だった:
+生成フィクスチャが git 木でなく `--source-url` を導出できなかった (CI が捕まえた) /
+`tools/e2e-micro.sh` が「ok」と印字して exit 1 していた (範囲外、実測して直した) /
+新ゲートが呼び出し側の `LEAN_DOC_BIN` を継ぐと全項目が「何も検査せずに緑」になる (`env -u` で塞いだ)。
+
+**予測が 2 つ外れた** — どちらも計画側を直してある: §4 L1-d のゲート自己検査手順と、§6 D3。
 
 配布 (`docs/plans/distribution.md`) が扱ったのは **CI (GitHub Actions) の経路だけ**だった。
 ローカルで使う利用者には、いまも「lean-doc を clone して 2 つのバイナリのパスを自分で管理する」

@@ -1,69 +1,80 @@
-# Handoff — 2026-08-18 08:42
+# Handoff — 2026-08-18
 
 ## State
 
-- Branch: main / **clean** / push 済み (HEAD `27e6496`)。**tag `v0.1.3`**、Release 3 本 (v0.1.1〜v0.1.3)
-- Active phase: **配布は完遂**。次のゴールは未定 (ユーザー待ち)
-- CI は 4 ワークフロー全緑 — `ci.yml` (3 ジョブ) / `ci-action.yml` (action の自己テスト 5 ジョブ) /
-  `release.yml` (tag で走る) / `ci-extractor-portability.yml` (`workflow_dispatch`、測定)
-- 計測環境: 手元の `extractor/build/extract` は **micro-dep でビルドしたもの** (どの環境で
-  作っても byte 同一なので区別不要)。`lean-projects` は無傷、`/private/tmp/lean-doc-relay` は掃除済み。
-  **ディスク 51 Gi 空き**
+- Branch: main / **clean** / HEAD `202011b` (PR #1 を rebase マージ、ブランチは削除済み)
+- Active phase: **Lake パッケージ化は完遂**。次のゴールは未定 (ユーザー待ち)
+- CI は **5 ワークフロー** — `ci.yml` (3 ジョブ) / `ci-action.yml` (5 ジョブ) / `release.yml` (tag) /
+  `ci-extractor-portability.yml` (`workflow_dispatch`) / **`ci-lake.yml` (4 ジョブ、新規)**
+- 手元の状態: `.lake/` 178 MB (Lake が建てた extract) と `e2e/micro/.lake/` 176 MB
+  (build.sh の extract) が残っている。**どちらも gitignored かつ再生成可能**。
+  `lean-projects` は無傷、**ディスク 51 Gi 空き**
 
 ## Relay control
 
-- Mode: ON
-- Goal: **Lake パッケージ化を完遂する** — 第 1 段 (lakefile + extractor を Lake の `lean_exe` に載せる)
-  から第 2 段 (Release からの Rust バイナリ取得を lakefile に入れる) まで
+- Mode: DONE
+- Goal: Lake パッケージ化を第 1 段 (lakefile + extractor を Lake に載せる) から
+  第 2 段 (Release からの Rust バイナリ取得) まで完遂する
 - Leg: 1 / cap 8
 - Predecessor: none
-- Stop-on: completion | user-decision | no-progress×2 | leg-cap
+- Stop-on: completion
 - Progress ledger:
-  - r1: (進行中) Lake の挙動を実測 → 計画 `docs/plans/lake-package.md` → L1 実装
+  - r1: **L1・L2 とも完遂**。計画 `2b4c03f` → L1 `ce0f32d` → フィクスチャ修正 `bf4c6b6` →
+    L2 `202011b`。PR #1 で CI 実走してから main へ。欠陥 3 件、**product は 0 件**
 
 ### 前 relay (完了、参考)
 
 - Goal: 配布を完遂する (D1 検証 → D2 Release → D3 action → D4 プリビルドの可否) — **DONE**
-  - r1: **D1〜D4 完遂**。D4 は「配れると確認した上で配らない」判定。main の赤 (4 コミット) も修復
-
-## Tasks
-
-なし (Task list は使っていない)。
 
 ## Where we are
 
-配布経路が 3 つできた — action (`uses: FujiHaruka/lean-doc@v0.1.3`)、Release のバイナリ
-(Linux musl 静的 / macOS arm)、ソースからのビルド。extractor のプリビルドは**技術的には
-可能**と実測で確認した上で、**226 MB vs 16 秒のビルド**という理由で配らないと決めた。
-この作業で欠陥が **11 件**出たが、**product は 0 件**で全部が配布経路と検査自身だった。
+利用者が書くのはこれだけ:
+
+```lean
+require «lean-doc» from git "https://github.com/FujiHaruka/lean-doc" @ "main"
+```
+```
+lake run docs -- --out ../mypkg-docs
+```
+
+**利用者が用意するものは無い** — extractor は Lake が利用者の toolchain で建て、Rust バイナリは
+Release から取る (checksum 照合必須)。**`--lib` の手書きが要らなくなった**のが `lakefile.lean` の
+パッケージ (Mathlib / doc-gen4) にとっての本題。
 
 ## Next step
 
 **ユーザーの指示待ち。** 手を動かすなら候補は 3 つ:
 
-1. **Marketplace 掲載** — 要件 (public / ルートの `action.yml` / `branding`) は満たしている。
-   ただし **Web UI の操作なのでユーザーの手作業**。こちらからはできない
-2. **`.github/workflow-templates/lean-doc-docs.yml` の去就** — starter workflow は org の
-   `.github` リポジトリ専用で、**配布経路として一度も機能していない**。action が役目を
-   引き継いだので消す候補。**消す判断はユーザーのもの**
-3. **他人のリポジトリから action を使う** — self-test の呼び出し側はこのリポジトリ自身なので、
-   これはまだ一度も起きていない (`implementation-plan.md` §1 の未検証項目)
+1. **tag を打つか** — いま README も lakefile も `@ "main"` と書いている。**`v0.1.3` 以前の
+   ツリーには `lakefile.lean` が無いので、既存 tag では `require` が解決できない**。
+   版固定できる綴りを提供するには `Cargo.toml` を 0.1.4 に上げて tag を打つ (release.yml が
+   アセットを作る)。**これは outward-facing なのでユーザーの判断**
+2. **`resolveLeanDoc` 段 5 (`cargo build`) の成功経路** — 10 項目のゲートで唯一残った穴。
+   両ゲートが失敗する `cargo` shim を置いているため一度も走っていない
+   (置かないと「落ちるべき項目」が数分の release ビルドの末に別の理由で緑になる)
+3. **`docs/approach.md` が 613 行**で `/compact-plan` の閾値超え。前 relay から持ち越し
 
 ## Files to read first
 
-- `docs/plans/distribution.md` — 計画の SoT。冒頭に結果表と欠陥 11 件の内訳 (241 行)
-- `benchmarks/results/extractor-uniqueness-2026-08-18.txt` — X1/X3〜X6 の数字と §5 の判定
-- `action.yml` — 3 つのハマりどころが全部コメントに入っている
-- `.github/workflows/ci-action.yml` — 何を検査していて、なぜ 5 つに分かれているか
+- `docs/plans/lake-package.md` — 計画の SoT。冒頭に結果表、§3 に確定した前提 5 つ、§6 に未決の答え
+- `benchmarks/results/lake-package-probe-2026-08-18.txt` — Lake の挙動の実測。**§1 が toolchain の話**
+- `lakefile.lean` — `resolveLeanDoc` の入手順序 6 段が判断の 1 箇所
+- `tools/lake-download-gate.sh` の冒頭 — **なぜ `LEAN_DOC_BIN` を設定してはいけないか**
 
 ## Load-bearing context
 
-- **`docs/approach.md` が 613 行**で「600 行を超えたら `/compact-plan`」の閾値を超えている。
-  今回の作業では 1 行も触っていないので**手を付けなかった**。触るなら独立した作業として
-- **`GITHUB_ACTION_REF` は composite action の `run` 段では空**【実測】。context 式
-  `github.action_ref` には来るので env で渡す。同様に **`hashFiles()` は workspace の外を
-  読めない** — action 自身の `Cargo.lock` はハッシュできない
-- **`actions/cache` は同じ job で 2 回目の restore が先行ステップの出力を上書きする**【実測】。
-  action は sentinel で初回だけ restore する形にしてある。**同じ形は他の action にもある**
-- **`macos-13` (Intel) runner は 15 分待っても起動しなかった**【実測 2026-08-18】。
-  Intel macOS 向けを出すなら、まず runner が取れるかを確かめてから
+- **`lean-toolchain` を lean-doc に置かない**【実測】。依存側が root より高い版を持つと
+  `lake update` が**利用者の `lean-toolchain` を書き換える** (elan の入手失敗より前に)。
+  低いと警告すら出ない。**CLAUDE.md の制約は弱まるどころか強化された**
+- **オラクルは IR の byte 一致**。Lake ビルドは package シンボル prefix と `-O3` で
+  バイナリを +308,032 B 動かすので、**バイナリの SHA 一致は原理的に追えないし追う必要も無い**
+- **`lake run` は `--` を剥がさない**【実測】。script 側で先頭の `--` を落としている
+- **script の env に `LEAN_PATH` は入っていない**【実測】。ただし `lean-doc build` は
+  `--lake` から自分で `lake env` を張るので、script が張る必要は無い
+- **`lakefile.toml` の `[[script]]` はエラーも警告も無く黙殺される**【実測】。
+  だから lean-doc 側は `lakefile.lean`。**利用者側の lakefile は `.toml` のままでよい**
+- **`trap … EXIT` の最後のコマンドの終了コードがスクリプトの終了コードになる** —
+  `tools/e2e-micro.sh` がこれで「ok」と印字して exit 1 していた。CLAUDE.md「この機材の罠」に追加済み
+- **依存として入った lean-doc 自身が consumer の package リストに載り**、
+  `no top-level .lean file, so no module root could be resolved` という note が毎回出る。
+  エラーでも実害でも無いが**全利用者の出力に出る**。消すならパッケージ形を変えることになる
