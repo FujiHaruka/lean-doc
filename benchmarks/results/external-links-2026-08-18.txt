@@ -1,0 +1,86 @@
+依存 root の版固定リンクは実在するか — HTTP サンプル【実測 2026-08-18】
+================================================================
+
+未検証項目「依存 root の 39 件中 27 件にオフラインのオラクルが無い」を潰すための 1 本
+(→ docs/plans/unverified-sweep.md U1)。M7-b は解決経路がオフラインで閉じることを確かめたが、
+**照合相手 (doc-gen4 の参照木) が持っていた root は 39 中 12 だけ**で、残り 27
+(Archive / Counterexamples / Cli / MD4Lean / UnicodeBasic …) は対象の import closure に無く、
+「オフラインで確かめる手段が無い」と記録されていた。
+
+**その 27 は検証不能ではない。URL であり、サーバが答えを持っている。**
+
+測れる状態にするために足したもの
+--------------------------------
+  litedoc4 links --root <repo> [--lake <path>] [--link-index <file>] [--out <file>]
+
+  マップは build のログの 1 行 ("external 21 root(s) from 9/9 package(s) + core") 以外
+  どこからも観測できなかった。**この 1 行では何も叩けない**ので、行を出す読み取り専用の
+  サブコマンドを足した。URL は ExternalLinks::url_for が返したものをそのまま出す —
+  **チェッカ側で組むと、レンダラが間違って組んでいても一致してしまう**。
+
+機材と条件
+----------
+  Apple M1 / macOS 26.0 / litedoc4 は release ビルド (v0.1.4 + links)
+  対象 : /Users/haruka/dev/lean-projects (InformationTheory, 422 モジュール)
+         HEAD c4f6af29704029b3c62eaa0842c3225ad0e689a0
+  lake-manifest.json は 9 パッケージ。core の rev は lake env lean --githash
+  ネットワーク : HEAD リクエスト、未認証、2026-08-18 の GitHub の応答
+
+  **root 数は 21 で、M7-b の 39 とは違う**【実測】。対象リポジトリが当時から進んでおり
+  (432 → 422 モジュール)、依存構成も違う。**39 と 21 を並べない** — 別の入力に対する別の数字。
+
+負検査 — 先に落とす
+-------------------
+  すべてのサンプル URL に存在し得ないパス成分を足して叩き、404 を期待した:
+
+    NEGATIVE: 21 root(s), 32 checked, 32 as expected (404), 0 not
+
+  これが 200 を返すなら、チェッカは GitHub に届いていない。届いている。
+
+結果 — マップの全 root【実測】
+------------------------------
+    EXTERNAL LINKS: 21 root(s), 32 checked, 32 as expected (200), 0 not
+
+  内訳は 21 root の「root モジュール自身のファイル」+ 11 root の「その下のモジュール」。
+  **深いサンプルのほうが重要**で、root モジュールは 1 成分なのでドットもネストも踏まない:
+  Mathlib.lean は通っても Mathlib/Algebra/Group.lean が通るとは限らない。11 で止まるのは、
+  link index に載っているのが対象の import closure だけだから (Cli / MainGraph などは載らない)。
+
+  オフラインのオラクルが無かった側も全部 200:
+    Archive          .../mathlib4/blob/fabf563a/Archive.lean
+    Counterexamples  .../mathlib4/blob/fabf563a/Counterexamples.lean
+    docs             .../mathlib4/blob/fabf563a/docs.lean          ← 実在する
+    Cli              .../lean4-cli/blob/92564e57/Cli.lean
+    Batteries        .../batteries/blob/fa08db58/Batteries/Classes/Order.lean
+    Aesop            .../aesop/blob/e3cb2f74/Aesop/BaseM.lean
+    Qq               .../quote4/blob/f4632499/Qq/AssertInstancesCommute.lean
+    ProofWidgets     .../ProofWidgets4/blob/24b0d9dc/ProofWidgets/Cancellable.lean
+    Plausible / PlausibleTest / LeanSearchClient / LeanSearchClientTest /
+    ImportGraph / ImportGraphTest / MainGraph / MainUnusedTransitiveImports
+    Init / Lean / Std / Lake (core 4 root。Lake だけ src/lake/ の下 — M7-b の実測どおり)
+
+結果 — サイトに実際に出ている側【実測】
+--------------------------------------
+    EXTERNAL LINKS: 4 root(s), 11 checked, 11 as expected (200), 0 not
+
+  **マップは 21 root あるが、422 ページが実際に書いた外部リンクは 4 root・3 リポジトリだけ**
+  (InformationTheory 422 種 / Mathlib 456 種 / Init 21 種 / Lean 2 種 = 901 種)。
+  対象が参照していない依存にはリンクが出ない。**これは #9 の性質を変える発見で**、
+  「オラクルが届かない 27 root」の大半は**この対象の出力には 1 本も出ていない**。
+  マップの正しさは、出力に出る 4 root でしか利用者に届いていない。
+
+主張の限界
+----------
+  - **行アンカーは判定していない。** GitHub は #L1-L1 でも #L99999-L99999 でも同じページを
+    返し、フラグメントはサーバに届かない。ここで言えるのは「ファイルがその rev に在る」まで
+  - **1 root 1〜2 本のサンプル**であって全数ではない。サイト側 901 種のうち叩いたのは 11
+  - **1 時点の応答**。rev は固定なので腐らない側だが、リポジトリが消えれば 404 になる
+  - **これはゲートではない** (ネットワークを要するので CI に置いていない)。tools/ ではなく
+    benchmarks/tools/ にあるのはそのため
+
+再現
+----
+  ./target/release/litedoc4 links --root <repo> --link-index <out>/link-index.lidx --out links.json
+  python3 benchmarks/tools/check-external-links.py --links links.json --per-root 2 --negative
+  python3 benchmarks/tools/check-external-links.py --links links.json --per-root 2
+  python3 benchmarks/tools/check-external-links.py --site <out>/site --per-root 3
