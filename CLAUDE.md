@@ -36,8 +36,16 @@ GitHub Actions を無料枠で回すこと)。計測対象の `lean-projects` �
 | `tools/*-gate.sh` | **ゲート** = 機材・対象・toolchain を要する判定。`cargo test` は機材ゼロ依存のものだけ |
 | `.claude/handoff.md` | セッション間の引き継ぎ (tracked、コミットする) |
 
-Lean 側のビルドは `lake env` で計測対象リポジトリの環境を借りる — lean-doc 側に toolchain も
-lakefile も Mathlib も置かない。**Rust 側は `cargo build` で完結する** (Rust 1.97.1 / rustup)。
+Lean 側のビルドは `lake env` で計測対象リポジトリの環境を借りる — **lean-doc 側に toolchain も
+Mathlib も置かない**。**Rust 側は `cargo build` で完結する** (Rust 1.97.1 / rustup)。
+
+**`lakefile.lean` は置く** (2026-08-18、`docs/plans/lake-package.md`) — 利用者が
+`require «lean-doc»` で使えるようにするため。**`lean-toolchain` は置かない、が強化された**:
+依存側が root より高い版の `lean-toolchain` を持つと **`lake update` が利用者の
+`lean-toolchain` を書き換える**、低いと**警告すら出ずに黙殺される**【実測 →
+`benchmarks/results/lake-package-probe-2026-08-18.txt` §1】。**置かなければ Lake は何も言わず
+root の toolchain を使う。** 代償は「lean-doc 自身のディレクトリでは `lake` が動かない」ことで、
+`lake-manifest.json` は手書き、ビルドは常に利用者のワークスペース側から。
 
 ### 撤去したプロトタイプ — tag `experiments-frozen`
 
@@ -254,6 +262,11 @@ lint と別に CI が持っているもの: **rustdoc のリンク**
   `AddrInUse` が出たら `pkill -f check-site-browser.ts`。
 - **CI の実測値を main を赤くせずに取るには、ブランチ push + `gh workflow run ci.yml --ref <branch>`**
   (検証用ワークフローは `workflow_dispatch` のみ。`ci.yml` だけが push / PR で走る)。
+- **`trap … EXIT` の最後のコマンドの終了コードが、スクリプトの終了コードになる。**
+  `cleanup() { [ -f "$F" ] && cp …; }` は、`$F` が無いときに **1 を返す**。
+  実際に `tools/e2e-micro.sh` が **「E2E MICRO: ok」と印字して exit 1** していた
+  【実測 2026-08-18】(CI は常に `--out … --keep` で呼ぶので発火しなかった)。
+  `&&` ではなく `if` で書く。**「出力と終了コードが食い違う」形はゲートを嘘にする。**
 - **C++ をビルドするとき、Command Line Tools の `usr/include/c++/v1` にヘッダが無い** —
   `CXXFLAGS="-isystem $(xcrun --show-sdk-path)/usr/include/c++/v1"` が要る。
 

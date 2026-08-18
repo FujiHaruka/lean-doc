@@ -13,6 +13,12 @@ node_modules/
 # depends on Lean core and nothing else.
 /e2e/*/.lake/
 
+# Lake's build output for lean-doc itself (lakefile.lean). A consumer that
+# requires this package by path builds the extractor here — 171 MB of binary
+# plus the C it comes from, regenerable by `lake build lean-doc/extract` from the
+# consumer's workspace.
+/.lake/
+
 # cargo-mutants working output. Mutation is an exploration, not a gate
 # (docs/plans/quality-gates.md Q10) — what it finds becomes a test, and the run
 # directory itself is disposable.

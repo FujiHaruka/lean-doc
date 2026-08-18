@@ -1,0 +1,38 @@
+# The Lake-wiring fixture: a package that reaches lean-doc through `require`.
+#
+# `e2e/micro` is the *declaration shapes* fixture and this one is deliberately
+# not a second copy of it (see `../README.md`). What it exists to check is that
+# `lake run docs` in a consumer's workspace finds the script, builds the
+# extractor against the consumer's toolchain, and works out `--lib` on its own.
+#
+# The require is by **path** because a git require would need the network and a
+# pushed revision; the real distribution shape is checked in CI instead
+# (docs/plans/lake-package.md L1-e).
+name = "consumer"
+version = "0.1.0"
+
+# **Two libraries, and `defaultTargets` names only one.** Both halves are load
+# bearing, and both are what gate item 5 turns into a failure rather than a
+# guess:
+#
+#   two libraries    a script that passed the first `lean_lib`, or the package
+#                    name, instead of every library root would document half of
+#                    this package and report success. `target2` is the other
+#                    fixture with two (`tools/target2-gate.sh`).
+#   one default      `lake build` here builds `Consumer` and leaves
+#                    `ConsumerExtra` without oleans, so a `docs` script that
+#                    relied on `defaultTargets` — or on a plain `lake build` —
+#                    fails loudly instead of silently documenting less. The
+#                    script builds every `lean_lib` of the root package for
+#                    exactly this reason.
+defaultTargets = ["Consumer"]
+
+[[lean_lib]]
+name = "Consumer"
+
+[[lean_lib]]
+name = "ConsumerExtra"
+
+[[require]]
+name = "«lean-doc»"
+path = "../.."

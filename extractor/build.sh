@@ -8,9 +8,16 @@
 # steps below are still two steps and `leanc` is still called with `-rdynamic`;
 # see the comment there.
 #
-# lean-doc has no toolchain, no lakefile and no Mathlib of its own, so the Lean
-# environment is borrowed from the measurement target through `lake env`
-# (CLAUDE.md). `TARGET_REPO` selects it.
+# lean-doc has no toolchain and no Mathlib of its own, so the Lean environment is
+# borrowed from the measurement target through `lake env` (CLAUDE.md).
+# `TARGET_REPO` selects it.
+#
+# There *is* a `lakefile.lean` at the root now, and it builds the same extractor
+# as a `lean_exe` (`docs/plans/lake-package.md`). This script is still the one
+# the benchmarks and `tools/ci-build.sh` use: the two builds do not produce the
+# same bytes (Lake adds a package symbol prefix and `-O3`) even though they write
+# byte-identical IR, and every number in `benchmarks/` was taken with this one.
+# `tools/lake-package-gate.sh` item 4 is what keeps the two paths honest.
 #
 # usage: build.sh
 set -euo pipefail
