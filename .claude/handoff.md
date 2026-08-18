@@ -1,83 +1,84 @@
-# Handoff — 2026-08-18
+# Handoff — 2026-08-18 (2)
 
 ## State
 
-- Branch: main / **clean** / HEAD は `v0.1.4` を打った版 (改名 → version bump の 2 commit)
-- Active phase: **2026-08-18 に `lean-doc` → `litedoc4` へ改名した**【ユーザー判断】 —
-  リポジトリ名・crate・CLI・Lake パッケージ名のすべて。**記録の SoT は
-  `docs/plans/rename.md`** (旧名を意図的に残した 5 種と、改名が生んだ過渡状態)。
-  その前の Lake パッケージ化は完遂済み
-- CI は **5 ワークフロー** — `ci.yml` (3 ジョブ) / `ci-action.yml` (5 ジョブ) / `release.yml` (tag) /
-  `ci-extractor-portability.yml` (`workflow_dispatch`) / **`ci-lake.yml` (4 ジョブ、新規)**
-- 手元の状態: `.lake/` 178 MB (Lake が建てた extract) と `e2e/micro/.lake/` 176 MB
-  (build.sh の extract) が残っている。**どちらも gitignored かつ再生成可能**。
-  `lean-projects` は無傷、**ディスク 51 Gi 空き**
+- Branch: main / **clean** / 未検証項目の棚卸しと 5 件の実走が完遂
+- Active phase: **なし。ユーザーの指示待ち**
+- CI は **7 ワークフロー** — `ci.yml` / `ci-action.yml` / `ci-lake.yml` / `release.yml` /
+  `ci-extractor-portability.yml` / **`ci-browser-windows.yml` (新規)** /
+  **`ci-leak.yml` (新規)**。後ろ 3 つは `workflow_dispatch` のみ
+- 手元: `/private/tmp/lean-doc-relay/unverified` は**削除済み**。elan に
+  **v4.32.2 と v4.33.0 を入れた** (既定は v4.31.0 のまま。U5 の再測に使える)
 
 ## Relay control
 
 - Mode: DONE
-- Goal: Lake パッケージ化を第 1 段 (lakefile + extractor を Lake に載せる) から
-  第 2 段 (Release からの Rust バイナリ取得) まで完遂する
+- Goal: 未検証項目のうち推奨 5 件 (U1 依存 root の外部リンク / U2 同名宣言のページ配置 /
+  U3 Windows フォント + ダークの色 / U4 LSan / U5 新しい Lean) を完遂まで自走
 - Leg: 1 / cap 8
 - Predecessor: none
 - Stop-on: completion
 - Progress ledger:
-  - r1: **L1・L2 とも完遂**。計画 `2b4c03f` → L1 `ce0f32d` → フィクスチャ修正 `bf4c6b6` →
-    L2 `202011b`。PR #1 で CI 実走してから main へ。欠陥 3 件、**product は 0 件**
-
-### 前 relay (完了、参考)
-
-- Goal: 配布を完遂する (D1 検証 → D2 Release → D3 action → D4 プリビルドの可否) — **DONE**
+  - r1: **U1〜U5 すべて実測して決着**。`9aeadd6` 計画 → `b696112` U1 → `6d09d7d` U2 →
+    `55e4f03`/`15df4e7` U3/U4/U5 → `29734f9` docs → `4223bd0` 件数の SoT →
+    `95a8ba3` 参照の腐り → フレーキー修正。**未検証項目 13 → 3 件、既知の欠陥が 1 件増えた**
 
 ## Where we are
 
-利用者が書くのはこれだけ:
+**未検証項目は 13 → 3 件**。判定と結果の SoT は **`docs/plans/unverified-sweep.md`**
+(冒頭 §0 が結果表)。**一覧は復元しない**【決定、ユーザー判断】 — 番号参照は一覧より先に
+腐っていた。旧一覧は `git show e744f79^:README.md` / `git show 117e928:README.md`。
 
-```lean
-require «litedoc4» from git "https://github.com/FujiHaruka/litedoc4" @ "main"
-```
-```
-lake run docs -- --out ../mypkg-docs
-```
+| | 出たもの |
+|---|---|
+| **U1** | マップの **21 root / 32 URL がすべて実在**。ただし **422 ページが実際に書く外部リンクは 4 root・3 リポジトリだけ** |
+| **U2** | 同名宣言は **21 件実在するが出力に出ない**。落としているのは **blacklist** であって、2 本ある所有規則が一致しているからではない |
+| **U3** | **Windows に Consolas はあった** — 欠け 0、ただし等幅で描けたのは **105/178**、送り幅の崩れ **73 種で 3 OS 中最悪**。ダークの色は検査 5b で判定するようにした |
+| **U4** | md4c は corpus 12 件で **leak 0**。canary が **24 byte leaked** で落ちることを先に確認 |
+| **U5** | **Lean v4.33.0 で extractor が建たない**。v4.32.2 は建ち IR も byte 一致 |
 
-**利用者が用意するものは無い** — extractor は Lake が利用者の toolchain で建て、Rust バイナリは
-Release から取る (checksum 照合必須)。**`--lib` の手書きが要らなくなった**のが `lakefile.lean` の
-パッケージ (Mathlib / doc-gen4) にとっての本題。
+**残っている 3 件**: 他人のリポジトリから `uses:` される / ギュメ付きモジュールを持つ
+「版固定できる依存」/ より大きいパッケージ・RAM の小さいランナー。
+**どれも「作れば測れる」もので、機材が無いのではない。**
 
 ## Next step
 
-**ユーザーの指示待ち。** 手を動かすなら候補は 3 つ:
+**ユーザーの指示待ち。** 手を動かすなら:
 
-1. ~~tag を打つ~~ — **済んだ**。`v0.1.4` が改名後の最初の Release で、`lakefile.lean` を
-   持つ最初の tag。**CI 3 ワークフローとも緑**【実測 2026-08-18】。次の候補は可動 `v0` tag
-   (「最新の 0.x」として付け替える運用) だが、**まだ作っていない** → `docs/plans/distribution.md`
-2. **`resolveLitedoc4` 段 5 (`cargo build`) の成功経路** — 10 項目のゲートで唯一残った穴。
-   両ゲートが失敗する `cargo` shim を置いているため一度も走っていない
-   (置かないと「落ちるべき項目」が数分の release ビルドの末に別の理由で緑になる)
-3. **`docs/approach.md` が 613 行**で `/compact-plan` の閾値超え。前 relay から持ち越し
+1. **Lean v4.33.0 対応** — **U5 が見つけた既知の欠陥**。壊れているのは 1 箇所
+   (`extractor/Extract.lean` の `getCustomAttrs`、`ReducibilityStatus.instanceReducible`)。
+   **`_ => pure ()` で塞がない** — 新しいコンストラクタを黙って捨てる形はこの木の規律に反する。
+   `instanceReducible` を何と表示するか (doc-gen4 の 4.33 対応を見る) の判断が要る。
+   **古い版でも建つ必要がある**ので、単に足すだけでは v4.31/v4.32 が壊れる
+2. **残り 3 件のどれか** — 一番効くのは「他人のリポジトリから使われる」で、
+   **別リポジトリの作成が要る【ユーザー判断】**
+3. **可動 `v0` tag** — `docs/plans/distribution.md` §152、まだ作っていない
+4. **`docs/approach.md` が 613 行** — `/compact-plan` の閾値超え。前 relay から持ち越し
 
 ## Files to read first
 
-- **`docs/plans/rename.md` — 改名の記録。§3 が「直してはいけない旧名 5 種」、§5 が過渡状態**
-- `docs/plans/lake-package.md` — 計画の SoT。冒頭に結果表、§3 に確定した前提 5 つ、§6 に未決の答え
-- `benchmarks/results/lake-package-probe-2026-08-18.txt` — Lake の挙動の実測。**§1 が toolchain の話**
-- `lakefile.lean` — `resolveLitedoc4` の入手順序 6 段が判断の 1 箇所
-- `tools/lake-download-gate.sh` の冒頭 — **なぜ `LITEDOC4_BIN` を設定してはいけないか**
+- **`docs/plans/unverified-sweep.md` — 今回の SoT。§0 が結果表、§1 が 13 件の分岐**
+- `benchmarks/results/lean-version-2026-08-18.txt` — **U5。v4.33 の障害が 1 箇所であることの実測**
+- `benchmarks/results/browser-windows-2026-08-18.txt` — 3 OS のフォント表とコントラスト比
+- `benchmarks/results/duplicate-owners-2026-08-18.txt` — **所有規則が 2 本あることと、
+  どちらを消しても出力が動かないこと**
+- `benchmarks/results/external-links-2026-08-18.txt` — U1
 
 ## Load-bearing context
 
-- **`lean-toolchain` を litedoc4 に置かない**【実測】。依存側が root より高い版を持つと
-  `lake update` が**利用者の `lean-toolchain` を書き換える** (elan の入手失敗より前に)。
-  低いと警告すら出ない。**CLAUDE.md の制約は弱まるどころか強化された**
-- **オラクルは IR の byte 一致**。Lake ビルドは package シンボル prefix と `-O3` で
-  バイナリを +308,032 B 動かすので、**バイナリの SHA 一致は原理的に追えないし追う必要も無い**
-- **`lake run` は `--` を剥がさない**【実測】。script 側で先頭の `--` を落としている
-- **script の env に `LEAN_PATH` は入っていない**【実測】。ただし `litedoc4 build` は
-  `--lake` から自分で `lake env` を張るので、script が張る必要は無い
-- **`lakefile.toml` の `[[script]]` はエラーも警告も無く黙殺される**【実測】。
-  だから litedoc4 側は `lakefile.lean`。**利用者側の lakefile は `.toml` のままでよい**
-- **`trap … EXIT` の最後のコマンドの終了コードがスクリプトの終了コードになる** —
-  `tools/e2e-micro.sh` がこれで「ok」と印字して exit 1 していた。CLAUDE.md「この機材の罠」に追加済み
-- **依存として入った litedoc4 自身が consumer の package リストに載り**、
-  `no top-level .lean file, so no module root could be resolved` という note が毎回出る。
-  エラーでも実害でも無いが**全利用者の出力に出る**。消すならパッケージ形を変えることになる
+- **「機材が無い」と書いてある項目を疑う**【実測 2026-08-18】 — 5 件のうち **2 件は
+  持っている機材を使っていなかった** (Windows の Consolas、Linux の LSan)。
+  Q8 が前日に同じ失敗を記録している。**CLAUDE.md「計測の誠実性」に追記済み**
+- **条件を 2 つ変えて 1 つの結論を出しかけたのが、この日 3 回**【実測】 —
+  (1) link index の所有判定を測るとき `--link-index-omit` を渡し忘れた、
+  (2) IR の版差を測るとき e2e ゲートの探針が入った木と比べた、
+  (3) 探針バイナリの抽出で 3 つの複製が 1 つの `micro-dep` を共有していた。
+  **「数字が動いた」は「その変更で動いた」ではない**
+- **`litedoc4 links` を足した** (読み取り専用サブコマンド)。マップは `build` のログの
+  1 行以外どこからも観測できず、**その 1 行では何も叩けなかった**。
+  URL は `ExternalLinks::url_for` が返したものをそのまま出す
+- **常駐テストが CI で 8 回に 1 回 exit 126 で落ちていた**【実測、run 32133544132】。
+  ETXTBSY と読んで `rename` 方式に直したが、**診断は測っていない**。
+  緑が続いても証明にはならない (コードのコメントにその旨を書いてある)
+- **`--link-index-omit` を渡さないと自パッケージの宣言が link index に入る**【実測】。
+  手で `extract` を叩くときの落とし穴
