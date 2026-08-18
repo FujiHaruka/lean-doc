@@ -5,11 +5,13 @@
 **抽出器と Rust の間の契約を検査するものが 1 つも無くなる**。`Extract.lean` が書く形を変えても
 `cargo test` は全部緑のまま通る。ここはその穴を塞ぐ唯一の場所。
 
-走らせるのは `tools/e2e-micro.sh`。
+走らせるのは `tools/e2e-micro.sh`。**フィクスチャは 2 つあり、担当が違う**
+(→ 下の「`consumer/` — なぜ micro と別なのか」)。
 
 ```
 cargo build --bin lean-doc
-tools/e2e-micro.sh
+tools/e2e-micro.sh          # micro/  — 宣言の形
+tools/lake-package-gate.sh  # consumer/ — Lake の配線
 ```
 
 ## なぜ Mathlib に依存しないのか
@@ -102,6 +104,42 @@ curated な単体テストは**手で書いた IR** でこれらの分岐に到�
 つまり**この綴り差が出力に出るのは、版固定できる依存がギュメ付きモジュールを持つときだけ**で、
 その実物はまだ無い → README「未検証項目」に残してある。
 
+## `consumer/` — なぜ micro と別なのか
+
+**フィクスチャは 2 つある。担当が違う。**
+
+| | 担当 | 走らせるもの |
+|---|---|---|
+| `micro/` (+ `micro-dep/`) | **宣言の形** — 対象が持たない 9 分岐と版固定できない依存 | `tools/e2e-micro.sh` |
+| `consumer/` | **Lake の配線** — lean-doc を `require` した利用者の経路 | `tools/lake-package-gate.sh` |
+
+`consumer/` は lean-doc を **path で `require`** する最小パッケージで、
+`lake run docs -- --out <dir>` が動くかだけを見る (計画は `docs/plans/lake-package.md` L1)。
+検査しているのは、利用者が手で書けない 2 つの引数を Lake から取れているか:
+
+- **`--extractor-bin`** — 抽出器を Lake が建てる (root の toolchain に対して建つので、
+  版がずれようがない)
+- **`--lib`** — `crates/lean-doc/src/lakefile.rs` は `lakefile.lean` を**名前で拒否する**
+  (正直に読むには Lake で elaborate するしかないため)。`script docs` は
+  **その elaborate の後に走る**ので Lake に聞ける
+
+**`micro/` を流用しない**のは、あちらの母数と不変量を動かさないため。
+`e2e-micro.sh` は「サイトのバイト不動」「フル生成 2 回がバイト一致」を主張していて、
+そこに require を足すと**両方の主張の前提が変わる**。
+
+### このフィクスチャが持っている形
+
+**`lean_lib` が 2 つ、`defaultTargets` は 1 つだけ。** どちらも意図的で、
+ゲートの 5 項目目 (`--lib` が Lake から来ているか) を**推測ではなく失敗**にするためにある:
+
+- **2 つある**ので、最初の `lean_lib` だけを渡す実装・パッケージ名を渡す実装は
+  **短いサイトを書いて成功を報告する** (`lakefile.rs` が名指ししている失敗の形)
+- **`ConsumerExtra` が `defaultTargets` に無い**ので、`lake build` だけに頼った実装は
+  olean の無いモジュールに当たって**大きな音で落ちる**。`script docs` が
+  `defaultTargets` ではなく root パッケージの `lean_lib` を全部建てるのはこのため
+
+宣言の形は網羅していない — **それは `micro/` の担当**で、ここに増やす理由は無い。
+
 ## ゲート
 
 `tools/e2e-micro.sh` が順に見るもの:
@@ -149,3 +187,7 @@ curated な単体テストは**手で書いた IR** でこれらの分岐に到�
   上の 3 経路を守るものが消える
 - **Mathlib を足さない。** 足した瞬間にこれは CI で回らなくなる
 - `micro/.lake/` は gitignored。`lake build` で作り直せる
+- **`consumer/` の `lean_lib` を 1 つに減らさない / `defaultTargets` に 2 つとも書かない。**
+  どちらもゲート 5 項目目が見ている形そのもの (上の表)
+- **`consumer/` に宣言の形を足さない。** 増やす先は `micro/`。ここを太らせると
+  「Lake の配線を見るフィクスチャ」が 2 つ目の母数になる

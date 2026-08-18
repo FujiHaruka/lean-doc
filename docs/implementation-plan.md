@@ -387,7 +387,8 @@ IR には 1 つ分しか入らないのに `.lidx` (= 環境全体) には 3 つ
 
 `stage7d/{Extract.lean,build.sh}` → **`extractor/`** (リポジトリ直下)。**`leanc -rdynamic` は load-bearing**
 (`importModules (loadExts := true)` が Lean インタプリタでモジュール初期化子を走らせ、実行中の実行ファイルから
-シンボルを解決する)。**lean-doc 側に toolchain も lakefile も Mathlib も置かない** — 環境は `lake env` で借りる。
+シンボルを解決する)。**lean-doc 側に toolchain も Mathlib も置かない** — 環境は `lake env` で借りる
+(**`lakefile.lean` は 2026-08-18 に置いた** → `plans/lake-package.md`。`lean-toolchain` は依然として置かない)。
 `extractor/build/` は `.gitignore` 済み (バイナリ 171 MB + C 2.7 MB は再生成可能)。
 **残るハードコード**は `build-link-index.ts:42-45` と `incremental.sh:106` / `run.sh:55`
 (既定 `SOURCE_URL` に 40 桁 rev 直書き) — どれも `experiments/` 側なので**撤去と一緒に消えた**

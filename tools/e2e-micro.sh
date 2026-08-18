@@ -331,7 +331,14 @@ PROBE="$FIXTURE/Micro/Basic.lean"
 cp "$PROBE" "$OUT/probe.orig"
 # `set -e` must not leave the fixture edited: everything below this line runs
 # under a trap that puts the file back, including the failure paths.
-restore_probe () { [ -f "$OUT/probe.orig" ] && cp "$OUT/probe.orig" "$PROBE"; }
+# `if`, not `[ … ] && cp`: an EXIT trap's last command decides the script's exit
+# status, and with a temporary --out this function runs *after* `$OUT` has been
+# deleted, so the test is false and the `&&` form returned 1 — this script
+# printed "E2E MICRO: ok" and exited 1 【実測 2026-08-18】. CI never saw it
+# because it always passes `--out … --keep`. A failing `cp` still fails here.
+restore_probe () {
+  if [ -f "$OUT/probe.orig" ]; then cp "$OUT/probe.orig" "$PROBE"; fi
+}
 trap restore_probe EXIT
 
 cp "$OUT/first/link-index.lidx" "$OUT/lidx-before"

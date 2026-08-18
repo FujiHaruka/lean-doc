@@ -61,8 +61,9 @@
 # WHEN THE EXTRACTOR IS BUILT
 # ============================================================================
 #   `extractor/build.sh` compiles Extract.lean against **the package's own
-#   toolchain** (`lake env` borrows it — lean-doc has no toolchain, no lakefile
-#   and no Mathlib of its own, CLAUDE.md). It therefore cannot be shipped as a
+#   toolchain** (`lake env` borrows it — lean-doc has no toolchain and no Mathlib
+#   of its own, CLAUDE.md; the root `lakefile.lean` deliberately has no
+#   `lean-toolchain` beside it either). It therefore cannot be shipped as a
 #   binary and cannot be built before the package's toolchain exists. It also
 #   does not change between commits of the package, so in CI it belongs in a
 #   cache keyed on `lean-toolchain` + the hash of `Extract.lean` — see the

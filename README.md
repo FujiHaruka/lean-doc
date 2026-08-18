@@ -94,6 +94,37 @@ You need `elan`/`lake` and a package that `lake build` passes. The `lean-doc` bi
 downloaded; the Lean extractor is always built here, because it is compiled against **your**
 toolchain.
 
+### As a Lake dependency
+
+Add it to your `lakefile.lean` (or the `[[require]]` equivalent in `lakefile.toml`):
+
+```lean
+require «lean-doc» from git "https://github.com/FujiHaruka/lean-doc" @ "main"
+```
+
+```sh
+lake run docs -- --out ../mypkg-docs
+```
+
+Lake builds the extractor against your toolchain and the script fills in `--root`,
+`--extractor-bin` and `--lib` for you — including for a `lakefile.lean` package, where `--lib`
+otherwise has to be written by hand.
+
+`--out` is required and must be outside the package (`lean-doc build` refuses one inside), and a
+relative path resolves against the package directory, so `../mypkg-docs` is the shortest spelling
+that works.
+
+You still need the `lean-doc` binary itself. Put it on `PATH`, or point `LEAN_DOC_BIN` at it —
+the script says what it looked for when it cannot find one. Get it from the release download or
+the `cargo build` below.
+
+There is deliberately no `lean-toolchain` in this package: one that named a *higher* version
+would make your `lake update` rewrite **your** `lean-toolchain`, and a *lower* one would be
+ignored without a warning (both measured, `benchmarks/results/lake-package-probe-2026-08-18.txt`).
+Without the file, Lake builds the extractor with your toolchain and says nothing.
+
+### From a checkout
+
 ```sh
 git clone https://github.com/FujiHaruka/lean-doc && cd lean-doc
 
