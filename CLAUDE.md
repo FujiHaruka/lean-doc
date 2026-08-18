@@ -19,7 +19,7 @@ Mathlib に依存する Lean パッケージのための、高速ドキュメン
 **直し方は版で分岐させることではない** — 列挙を Lean 自身の `toAttrString` に委ねた。
 **残り 3 件も「たぶん大丈夫」と読まない。**)
 **「v0.1」を「完成」の意味で書かない。**
-アプローチの SoT は `docs/approach.md`、**実装の SoT は `docs/implementation-plan.md`**、
+アプローチの SoT は `docs/approach*.md` の 3 ファイル、**実装の SoT は `docs/implementation-plan.md`**、
 数字の SoT は `docs/verification-log.md`。実装の**結果**は `docs/milestone-log.md`。
 
 **2026-08-18 に `lean-doc` から `litedoc4` へ改名した**【決定、ユーザー判断】 — GitHub リポジトリ・
@@ -39,7 +39,9 @@ GitHub Actions を無料枠で回すこと)。計測対象の `lean-projects` �
 
 | | |
 |---|---|
-| `docs/approach.md` | アプローチ計画。**アプローチの SoT**。実装レベルの詳細は書かない |
+| `docs/approach.md` | アプローチ計画 §1〜4 / §7〜10。**アプローチの SoT はこれと下の 2 つの合併**。実装レベルの詳細は書かない |
+| `docs/approach-pillars.md` | 同 **§5 設計の柱** (5.1〜5.6)。2026-08-18 に分割。**節番号は分割前のまま** |
+| `docs/approach-performance.md` | 同 **§6 性能** (6.1〜6.6)。同上。`approach.md` 末尾に対応表がある |
 | `docs/implementation-plan.md` | v0.1 のゲート / 移設の順序 / ファイル別内訳 / Rust 側の構成と制約。**実装の SoT** |
 | `docs/milestone-log.md` | **実装段階 (M1〜M6) の結果**。移設元と移設先・オラクル・母数・出た数字 |
 | `docs/verification-log.md` | **検証段階 (approach.md §7 の 1〜8) の結果**。**予測と食い違ったらこちらが SoT** |
@@ -250,7 +252,12 @@ lint と別に CI が持っているもの: **rustdoc のリンク**
 
 ## docs の衛生
 
-- 計画文書は 600 行を超えたら `/compact-plan`。
+- 計画文書は 600 行を超えたら `/compact-plan`。**要約と分割は別の手段で、既定は分割ではない** —
+  ただし **`approach.md` は分割を選んだ**【決定 2026-08-18、ユーザー判断】。理由は
+  §5 と §6 が**節ごと丸ごと生きている**ことで、要約すると【実測 / 外挿 / 仮定】の
+  ラベルと前提から先に落ちる。**分割するときは節番号を振り直さない** — 番号は
+  docs と `benchmarks/results/` の凍結ログから引かれていて、振り直すと一斉に腐る。
+  代わりに元ファイルに対応表を残す。
 - **予測と結果が食い違ったら結果が SoT。** 計画側を直す (逆をやらない)。
 - 決着した選択の経緯は消してよい (git が持つ)。**仮説と、それを否定する条件は残す**
   — これが消えると計画が単なるやることリストに退化する。
