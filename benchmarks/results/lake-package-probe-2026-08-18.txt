@@ -1,0 +1,261 @@
+Lake の挙動 — lean-doc を dev 依存 (`require`) にできるか
+==========================================================
+
+問い (docs/plans/lake-package.md §3):
+  lean-doc を Lake パッケージにして `require` させる計画の前提を、推測ではなく
+  実測で確定させる。特に「lean-doc 側に toolchain を置かない」(CLAUDE.md の中核制約)
+  を壊さずに Lake 依存になれるか。
+
+計測条件【実測 2026-08-18】
+  機材        Apple M1 / macOS (Darwin 25.6.0), arm64
+  Lake        5.0.0-src+68218e8 (Lean 4.31.0)   ← e2e/micro 内で `lake --version`
+  elan        4.2.1 (3d5138e15 2026-03-18)
+  toolchain   インストール済は leanprover/lean4:v4.31.0 の 1 つだけ。elan の default は無し
+  作業領域    scratchpad/lake-probe/ (実験後に削除。547 MB)
+  ディスク    起点 51 Gi → 終了 51 Gi
+
+  リポジトリの tracked ファイル・lean-projects・elan の toolchain は無改変。
+  extractor/build/extract の SHA-256 も不変。
+
+--------------------------------------------------------------------------
+1. lean-toolchain を置かずに require できるか → できる。置かない方が安全
+--------------------------------------------------------------------------
+
+  lean-toolchain の**無い** path 依存 / git 依存とも、`lake update` も `lake build` も
+  **エラーも警告も出さない**。root の toolchain がそのまま依存側のビルドに使われる。
+
+  根拠は終了コードではない: その依存の中の `lean_exe extract` が root の toolchain
+  (v4.31.0) で実際にビルドされ、実行され、IR を書いた (→ §2)。
+
+  ソース側の裏取り: `Workspace.updateToolchain` (Lake/Load/Resolve.lean L350-408) は
+  依存ごとに `ToolchainVer.ofDir?` を呼び、`none` (ファイルが無い) なら状態を素通しする。
+  候補にすらならないので clash も update も起きない。
+
+  **置くと危ない** — root を v4.31.0 に固定して、依存側の lean-toolchain を振った:
+
+    依存側の lean-toolchain   lake update                          root の lean-toolchain
+    無し                      toolchain not updated / exit 0        不変
+    v4.30.0 (低い)            同上 / exit 0。**警告すら出ない**      不変
+    my-custom (比較不能)      warning: multiple candidates / exit 0 不変
+    v4.99.0 (高い)            info: updating toolchain to '…'       **書き換えられた**
+
+  高い版の生ログ:
+
+      root tc before: leanprover/lean4:v4.31.0
+      info: updating toolchain to 'leanprover/lean4:v4.99.0'
+      info: restarting Lake via Elan
+      error: no such release: 'v4.99.0'
+      root tc AFTER: leanprover/lean4:v4.99.0
+
+  存在しない版を選んだのは、実在する新しい版だと elan が実際に落としてしまうため。
+  ~/.elan/toolchains/ は v4.31.0 のみのまま = **ダウンロードは発生していない**。
+  つまり**書き換えは elan が失敗する前に済んでおり、入手できるかとは独立に起きる**。
+
+  `lake build` は書き換えない【実測】(root=4.31.0 / dep=4.99.0 のまま `Nothing to build.`)。
+  ソースとも整合する — `updateToolchain` は `lake update` 経路からしか呼ばれない。
+
+  **「低い版なら安全」ではない**: v4.30.0 のケースは警告も出ない。`ToolchainVer.ble` は
+  `depTc ≤ tc` なら黙って無視する (Resolve.lean L374-375)。lean-doc が古い lean-toolchain を
+  持つと、**利用者はそれに気づく手段がない**。
+
+  緩和策は 1 つあるが利用者側のもの【実測】: root が `fixedToolchain = true` を宣言していれば
+  同じケースが書き換えではなく警告になる。**lean-doc からは強制できない**。
+
+  副作用 (a): toolchain の無いパッケージは**自分のディレクトリで lake を一切動かせない**。
+    $ cd leandoc && lake --version
+    error: no default toolchain configured.   exit=1
+  これは Lake ではなく elan の解決。この機材に elan の default が無いためで、**default が
+  ある機材ではその default で動いてしまう** (どの版かは利用者の設定次第)。
+  → lean-doc 単体で `lake build` / `lake update` する運用は成立しない。
+
+  副作用 (b): 依存側に lake-manifest.json が無いと利用者に毎回 warning が出る。
+    warning: lean-doc: ignoring missing manifest: …/leandoc/lake-manifest.json
+  手書きの lake-manifest.json (`packages: []`) を置いたら消えた【実測】。
+  lean-doc は依存を持たないので手書きできる (副作用 (a) の理由で `lake update` では作れない)。
+
+  主張の限界:
+    * **実在する**新しい版での書き換え + elan 再起動の完走は未確認。確認したのは
+      root の lean-toolchain が書き換わるところまで。
+    * 測ったのは Lake 5.0.0-src+68218e8 / Lean 4.31.0 のみ。
+    * nightly / pr-release 系の版比較は測っていない。
+
+--------------------------------------------------------------------------
+2. lean_exe + supportInterpreter → 建つ。バイナリは違うが IR は byte 一致
+--------------------------------------------------------------------------
+
+  `extractor/build.sh` のコメント「`-rdynamic` を Lake は `supportInterpreter := true` と
+  綴る」は**正しい** — interpreter 経由の `importModules (loadExts := true)` が実際に動いた。
+
+                                                        SHA-256      size
+    extractor/build/extract (リポジトリにあるもの)       226d49ab…   171,334,112
+    e2e/micro/.lake/e2e-extract/extract (既存)           226d49ab…   171,334,112
+    スクラッチで build.sh と同じ 2 段で建て直したもの     226d49ab…   171,334,112
+    lake build lean-doc/extract                          4d4193d2…   171,642,144
+    同上を git clone 先で建てたもの                      4d4193d2…   171,642,144
+
+  **2 段ビルドは 3 環境で byte 再現し、Lake ビルドも 2 環境で byte 再現する。両者の間だけが違う**
+  (+308,032 B)。`otool -L` は同一 (libc++ / libSystem の 2 つだけ)。
+
+  差の正体は 2 つで、どちらも Lake の既定に由来する:
+    1. シンボルに package-local prefix が付く (`l_Foo` → `lp_lean_x2ddoc_Foo`)。
+       Lake は `{"package":"lean-doc",…}` という setup を lean に渡すため。
+    2. C の最適化レベル: Lake は `buildType := .release` 既定 → `-O3 -DNDEBUG`
+       (LeanConfig.lean L121/L160)。build.sh の `leanc -rdynamic` には `-O` が無い
+       (`leanc -###` で clang の起動行を出させて確認【実測】= clang 既定の -O0)。
+
+  生成 C は**両方 73,600 行**。素の diff は 13,040 行出るが、`lp_lean_x2ddoc_` → `l_` の
+  置換をかけると**差分は 8 行**まで落ちる (モジュール初期化子の名前のみ)。
+  → コンパイルされている Lean のコードは同じ。
+
+  ■ 本題 — 同じ IR を書くか
+
+  e2e/micro の 6 モジュールに対し、crates/lean-doc/src/extract.rs と同じ引数
+  (--equations --refs --write-ir --tagged-code --jobs 1 --ir-dir … --link-index …) で:
+
+    起動                                        結果
+    lake env <manual/extract> (build.sh 相当)   基準
+    lake env <lake-built extract>               diff -r 差分ゼロ / lidx 一致 / exit 0
+    lake exe extract (root から)                差分ゼロ / lidx 一致 / exit 0
+    lake run docsrun (依存の script 経由)       差分ゼロ / lidx 一致 / exit 0
+    git require した clone から lake run docsrun 差分ゼロ / lidx 一致 / exit 0
+
+  **5 通りすべてで IR ツリー (9 ファイル) と link-index が byte 一致**【実測】。
+  抽出器の自己申告も一致 (42 declarations / 137 ref pairs / 16 dep map entries /
+  0 unresolved refs、385 spans in 123 fragments)。
+  **根拠は「exit 0 だった」ではなく「9 ファイルの中身が同一だった」。**
+
+  ■ ビルド時間 (同一セッション / warm)
+
+                                          real      内訳
+    build.sh 2 段 (3 回とも安定)          11.2 s    lean -c 9.37s + leanc 1.86s
+    lake build lean-doc/extract (clean)   24.2 / 22.2 s  Built Extract 10-11s + c.o 10s
+    lake build lean-doc/extract (no-op)   **0.45 s**     何も再ビルドしない
+
+  clean build は Lake の方が約 2 倍遅い (-O3 の C コンパイルが 10 s)。
+  一方 **no-op が 0.45 s** で、build.sh には無い増分性がある (build.sh は毎回 11.2 s。
+  tools/e2e-micro.sh は自前で mtime を比較してこれを回避している)。
+
+  ■ -O3 に速度上の利得があるか → **micro では観測できなかった**
+
+    manual (-O0) : 0.201 0.173 0.166 0.165 0.168   ← 抽出器自身が報告する total
+    lake   (-O3) : 0.215 0.205 0.166 0.169 0.170
+
+  収束後は区別できない。micro は 42 宣言しかなく環境ロード律速なので、
+  **これは -O3 の効果を測れる計測ではない**。計測対象 (432 モジュール) では未検証。
+  **「Lake だと速くなる」とは書けない。**
+
+  主張の限界:
+    * 対象は e2e/micro (6 モジュール / 42 宣言) のみ。計測対象では走らせていない。
+    * 実行時性能の比較は成立していない (上記)。
+    * `supportInterpreter ≡ -rdynamic` の根拠は「両方で importModules が成功して同じ IR が
+      出た」であって、リンカ行の byte 比較ではない。Lake 側の rsp には -rdynamic が実際に
+      入っている (.lake/build/bin/extract.rsp 2 行目)。
+
+--------------------------------------------------------------------------
+3. root からの起動 → lake exe extract だけでよい
+--------------------------------------------------------------------------
+
+  `lake exe` が子プロセスに渡す LEAN_PATH は **root ワークスペース全体のもの**で、
+  `lake env` が出すものと**文字列として同一**【実測】。
+
+    $ cd micro && lake exe envprobe hello
+    cwd = …/micro                                    ← root パッケージのディレクトリ
+    LEAN_PATH = …/micro-dep/.lake/build/lib/lean
+              : …/leandoc/.lake/build/lib/lean
+              : …/micro/.lake/build/lib/lean         ← root の olean が入っている
+              : ~/.elan/toolchains/…v4.31.0/lib/lean
+    $ lake env printenv LEAN_PATH                    → 同じ 4 エントリ・同じ順
+    $ ./leandoc/.lake/build/bin/envprobe             → LEAN_PATH = <unset>
+
+  決定的な確認は変数の値ではなく**抽出器が実際に root のモジュールを読めたこと**:
+  `lake exe extract` の IR が manual のものと差分ゼロ。Micro.Dep は micro-dep の
+  Dep-Aux を import しているので、**root と root の依存の両方**が見えている。
+
+  ■ 落とし穴: lake exe は root のライブラリを建ててくれない
+
+    micro/.lake/build/lib を退避してから `lake exe extract`:
+      No directory 'Micro' or file 'Micro.olean' in the search path entries: …
+      exit=1   (IR ディレクトリは作られない)
+
+  `lake exe extract` は extract ターゲットだけを建てる。**root のパッケージは先に
+  `lake build` されている必要がある。**
+
+  仕組みの裏取り: Lake.exe → Lake.env → getAugmentedEnv (Lake/CLI/Actions.lean L20-30)。
+  `lake env` と同じ関数を通るので「同一」は実測とソースの両方で裏が取れている。
+  測ったのは path require と git(file://) require の 2 形態。ネットワーク越しは未確認。
+
+--------------------------------------------------------------------------
+4. 依存の script は root から呼べる。ただし LEAN_PATH は入っていない
+--------------------------------------------------------------------------
+
+    $ cd micro && lake script list
+    lean-doc/docs
+    lean-doc/envdump
+    lean-doc/docsrun
+    $ lake run docs                  → 動く (exit 0)
+    $ lake run lean-doc/docs -- a b  → 動く。args = [--, a, b]   ← `--` は剥がされない
+    $ lake run nosuch                → error: unknown script nosuch / exit 1
+
+  `Workspace.findScript?` は全パッケージを走査する (Config/Workspace.lean L267) ので
+  無修飾でも当たる。裏返すと**同名 script があると衝突する**。
+
+  任意コマンドの起動は可能【実測】— exit code だけでなく stdout を見て確認:
+    IO.Process.output {cmd := "curl", args := #["--version"]}  → curl 8.7.1 … / exit 0
+    /bin/sh -c                                                  → from-shell 45654 / exit 0
+
+  自パッケージの絶対パスは 2 通りとも取れる:
+    path require: __dir__ = …/lake-probe/leandoc
+    git require : __dir__ = …/gitroot/.lake/packages/lean-doc      ← 第 2 段で要るのはこちら
+                  findPackageByName? から dir / relDir / buildDir / binDir / leanLibDir
+    IO.currentDir は **root パッケージ**であって依存側ではない。
+
+  ■ script の env に LEAN_PATH は入っていない【実測】
+
+  `lake exe` と違い `lake run` は augmented env を子に渡さない。Lean 環境が要る仕事は
+  `Lake.exe` / `Lake.env` / `getAugmentedEnv` を経由すること:
+
+    script docsrun (args) do
+      let rc ← Lake.exe `extract args.toArray   -- 建ててから augmented env で起動
+      return rc
+
+  → `lake run docsrun … --ir-dir …/ir-script` の IR が manual と差分ゼロ【実測】。
+  git clone 先でも同じ結果。`lake run envdump` で getAugmentedEnv を直接読むこともでき、
+  そこには LEAN_PATH が入っている。
+
+  主張の限界: `Workspace.runBuild` で任意ターゲットを建てる経路は未測定 (測ったのは
+  Lake.exe 経由)。ネットワーク越しの IO.Process.run は未実行 (curl --version のみ)。
+
+--------------------------------------------------------------------------
+5. script は lakefile.lean が必須。lakefile.toml の [[script]] は黙殺される
+--------------------------------------------------------------------------
+
+    # lakefile.toml に [[script]] name = "docs" を書いた場合
+    $ lake script list   → (何も出ない) / exit 0
+    $ lake run docs      → error: unknown script docs / exit 1
+
+  TOML ローダは**未知のキーを黙って捨てる** — `totallyBogusKey = 42` を足しても
+  `lake script list` は exit 0 で無言だった【実測】。Lake/Load/Toml.lean のデコーダに
+  script を読む枝は存在しないので、綴りの問題ではない。
+
+  両方置くと lakefile.lean が勝つ【実測】。出るのは info 1 行だけで、警告でもエラーでもない:
+    info: [root]: lakefile.lean and lakefile.toml are both present; using lakefile.lean
+
+  e2e/micro/lakefile.toml は crates/lean-doc/src/lakefile.rs に読まれている ([[lean_lib]] の
+  name) ので、**利用者側の lakefile を .lean に変えさせる設計は lean-doc 自身のパーサに
+  影響する**。lean-doc 側だけを lakefile.lean にするなら影響しない。
+
+  主張の限界: 依存パッケージでも .lean が勝つかは未確認 (manifest に configFile が
+  記録されるので、依存側では manifest の値が使われる可能性がある)。
+
+--------------------------------------------------------------------------
+6. 未確認のまま残したこと
+--------------------------------------------------------------------------
+
+  * 実在する新しい toolchain を持つ依存での `lake update` の**完走**
+    (書き換えまでは確認、elan による再起動の成功は未確認)
+  * 計測対象 (Mathlib / 432 モジュール) での Lake ビルド抽出器の**実行時性能**と
+    **出力の一致** — micro (42 宣言) では一致したが、-O3/-DNDEBUG の影響は桁が違う入力で
+    確認していない
+  * ネットワーク越しの git require
+  * Lake 5.0.0-src+68218e8 / Lean 4.31.0 以外の版
+  * 依存パッケージに lakefile.lean と lakefile.toml が両方あるときの優先順位

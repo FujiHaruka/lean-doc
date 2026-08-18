@@ -12,12 +12,18 @@
 
 ## Relay control
 
-- Mode: DONE
-- Goal: 配布を完遂する (D1 検証 → D2 Release → D3 action → D4 プリビルドの可否)
+- Mode: ON
+- Goal: **Lake パッケージ化を完遂する** — 第 1 段 (lakefile + extractor を Lake の `lean_exe` に載せる)
+  から第 2 段 (Release からの Rust バイナリ取得を lakefile に入れる) まで
 - Leg: 1 / cap 8
 - Predecessor: none
-- Stop-on: completion
+- Stop-on: completion | user-decision | no-progress×2 | leg-cap
 - Progress ledger:
+  - r1: (進行中) Lake の挙動を実測 → 計画 `docs/plans/lake-package.md` → L1 実装
+
+### 前 relay (完了、参考)
+
+- Goal: 配布を完遂する (D1 検証 → D2 Release → D3 action → D4 プリビルドの可否) — **DONE**
   - r1: **D1〜D4 完遂**。D4 は「配れると確認した上で配らない」判定。main の赤 (4 コミット) も修復
 
 ## Tasks
