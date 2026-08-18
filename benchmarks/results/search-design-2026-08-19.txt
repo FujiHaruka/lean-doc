@@ -1,0 +1,109 @@
+# 検索の再設計 — 実測 2026-08-19
+
+設計文書は docs/plans/search-v2.md。ここはその数字の出所。
+
+## 計測条件
+機材      : Apple M1 / RAM 16 GB / Darwin 25.6.0 arm64
+ランタイム: deno 2.7.14 (stable, release, aarch64-apple-darwin) / v8 14.7.173.20-rusty
+入力      : 公開サイトが実際に配っている search-index.json を curl で取得したもの
+            last-modified: Sun, 16 Aug 2026 05:11:30 GMT
+            etag: "6a814682-62f9a"
+            content-length: 405402
+ツール    : benchmarks/tools/search-format-probe.ts
+注意      : 壁時計は参考値 (規則: 性能を壁時計でゲートしない)。メモリはページキャッシュに
+            依存しない (どちらもプロセス内)。gzip は Deno の CompressionStream で、
+            GitHub Pages が返す gzip とは設定が違う。§0b に実配信の値を併記する。
+            圧縮器を跨いで引き算しないこと。
+
+## 0. HTTP Range は GitHub Pages では使えない
+
+### 素の Range (Accept-Encoding: identity) — 成立する
+  HTTP/2 206 
+  content-range: bytes 1000-1099/405402
+  content-length: 100
+
+### ブラウザと同じ Accept-Encoding では、Range が gzip 後のバイト列に掛かる
+  HTTP/2 206 
+  content-encoding: gzip
+  content-range: bytes 1000-1099/49193
+  curl: (56) Error while processing content unencoding: incorrect header check
+  → content-range の分母 49193 は gzip 後の長さ。返るのは gzip ストリームの断片で、
+    curl は 'incorrect header check' で復号に失敗する。
+
+### バイナリの content-type でも同じ (image/bmp も gzip される)
+  HTTP/2 206 
+  content-encoding: gzip
+  content-range: bytes 0-63/5655790
+  先頭 16 バイト: 00000000: 1f8b 0800 0000 0000 0003 ccbd cb8e 2439  ..............$9
+  → 1f 8b 08 は gzip のマジック。66,418,003 B のファイルに対し分母は 5,655,790 B。
+
+  fetch() は Accept-Encoding を設定できない (forbidden header name) ので、
+  ブラウザから identity を要求する手段が無い。→ Range 方式は却下。
+
+## 0b. 公開サイトが実際に返すバイト数
+  search-index.json  gzip 転送 49193 B / 生 405402 B
+  modules.json       gzip 転送 8500 B
+
+## 1〜6. ツールの出力
+$ deno run --allow-read benchmarks/tools/search-format-probe.ts search-index.json
+
+# /private/tmp/claude-502/-Users-haruka-dev-lean-doc/21cd753a-ac68-4bea-bfc1-4175c285f341/scratchpad/si.json  405402 B on disk
+
+## 1. what is in the shipped file
+declarations 4584   modules 422   kinds ["ctor","def","instance","opaque","structure","theorem"]
+  modules         51975 B  12.8%
+  kinds              56 B  0.0%
+  decls          334306 B  82.5%
+  instances        7036 B  1.7%
+  instancesFor    11970 B  3.0%
+name bytes 285148  avg 62.2  max 129
+sorted as shipped: true
+names where toLowerCase() != ASCII fold: 0
+
+## 2. the proposed format
+  1 names (front-coded)  raw   93497  gzip  34119
+  2 restarts u32         raw    1148  gzip    876
+  3 kind nibbles         raw    2292  gzip    727
+  4 module u16           raw    9168  gzip   3095
+  total                  raw  106105  gzip  39651
+  shipped file           raw  405402  gzip  47959
+  shipped, search part   raw  334381  gzip  40935
+
+## 3. rejected alternatives, measured
+  component dictionary  4513 components: dict gzip 31083 + ids gzip 10047 = 41130
+  vs front-coded names                                            gzip 34119
+  sorted permutations   byName gzip 8001 + byLast gzip 7989 added to the file
+  2-char buckets of the last component: 179 buckets, max 374, median 8
+
+## 4. equivalence with the shipped scorer
+  20/20 queries: identical hit set and identical first 30
+
+## 5. work per keystroke (wall clock is indicative only)
+  JSON.parse of the shipped file: median 0.59 ms   (the proposed file has no parse step)
+  shipped (JSON, strings)    median over 10 queries 0.65 ms
+  proposed (bytes)           median over 10 queries 0.60 ms
+  strings allocated per keystroke: shipped 2 x 4584 = 9168;  proposed 0 in the scan, O(hits) in the sort
+
+## 6. narrowing while typing
+  entropy      en:4584->1206  ent:1206->564  entr:564->325  entro:325->318  entrop:318->318  entropy:318->318
+  add_comm     ad:4584->926  add:926->220  add_:220->176  add_c:176->16  add_co:16->14  add_com:14->1  add_comm:1->1
+  fano         fa:4584->164  fan:164->30  fano:30->30
+  measure      me:4584->973  mea:973->347  meas:347->329  measu:329->313  measur:313->313  measure:313->181
+  information  in:4584->4584  inf:4584->4572  info:4572->4572  infor:4572->4572  inform:4572->4572  informa:4572->4572  informat:4572->4572  informati:4572->4572  informatio:4572->4572  information:4572->4572
+  candidates examined: rescan 146688, narrowing 70633 (48.2%)
+
+## 7. 常駐メモリ (1 条件 1 プロセス、--expose-gc、測る前に 5 回 gc)
+$ deno run --allow-read --v8-flags=--expose-gc … --mem <mode>
+
+  emit: /private/tmp/claude-502/-Users-haruka-dev-lean-doc/21cd753a-ac68-4bea-bfc1-4175c285f341/scratchpad/idx-v2.bin: 106105 B
+  json        heap +860 KiB   external +0 KiB   kept=yes
+  json+source heap +1651 KiB   external +0 KiB   kept=yes
+  json+lower  heap +1457 KiB   external +0 KiB   kept=yes
+  bin         heap +1 KiB   external +104 KiB   kept=yes
+
+  json        : いまの実装が保持する量。
+  json+source : ページが実際に踏む山。response.json() は本体を JS 文字列にしてから
+                parse する。Lean の名前に非 ASCII があるので V8 は 2 バイト文字列で持つ。
+  json+lower  : 打鍵ごとの toLowerCase() を潰す一番素直な手 (lower/last を前計算)。
+                CPU をメモリで買う方向で、目的と逆。
+  bin         : 提案形式。ArrayBuffer なので JS ヒープではなく external に載る。
