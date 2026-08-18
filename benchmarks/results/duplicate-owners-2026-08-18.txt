@@ -1,0 +1,86 @@
+同名宣言のページ配置 — 21 件は実在し、出力には出ない【実測 2026-08-18】
+================================================================
+
+未検証項目「同名宣言を複数モジュールが持つ形」を潰すための 1 本
+(→ docs/plans/unverified-sweep.md U2)。段階 1 は索引方式の列挙 8,849 と走査方式の該当 8,824 に
+**25 件の差**を測り、「索引方式は宣言の所有モジュールを一意に決めない」「doc-gen4 が暗黙に持つ
+規則を明示的に決め直す必要がある」と記録した (verification-log §判明したこと 3)。
+「第 2 の対象で再現できなかった」「batteries でも当たらなかった」で止まっていたが、
+**再現できないのは第 2 の対象と batteries であって、対象 1 では今も起きている。**
+
+機材と条件
+----------
+  Apple M1 / macOS 26.0 / litedoc4 は release ビルド
+  対象 : /Users/haruka/dev/lean-projects (422 モジュール / 4,584 宣言 / 依存 6,011 モジュール)
+  抽出器は対象の lake env で建てたもの。**壊した版も同じ手順で建てて同じ入力に当てた**
+
+1. 現象は実在する — 21 件【実測】
+---------------------------------
+  抽出器の stage4b.indexLookup が両方の数を出している:
+
+    targetModules 422   enumerated 8522   candidates 8501     差 = 21
+
+  `enumerated` は「対象 422 モジュールの olean に焼かれた定数」の延べ数、`candidates` は
+  重複を潰した数。**21 件が複数モジュールの olean に焼かれている**。
+  段階 1 の 25 件に対応する現在の数字で、対象が進んでいる (432 → 422 モジュール) ぶん違う。
+
+2. 規則は 2 本ある【コード】
+---------------------------
+  同じ問いに 2 つの経路が別々に答えている:
+
+    IR 側        (Extract.lean 段 4b)  `seen` による first-wins
+                 — targets の列挙順で最初に来たモジュールが勝つ
+    link index 側 (Extract.lean 段 D)  `env.getModuleIdxFor?` (= const2ModIdx)
+                 — `if modNames[idx]! != m then continue`
+
+  抽出器自身のコメントがこの食い違いを名指ししている:「the module of a name is
+  `env.const2ModIdx` … and **not** the module whose `constNames` the name was reached
+  through. The two disagree for the names that live in more than one module's olean
+  (25 on this target, 段階 1)」。**CLAUDE.md「判断は 1 箇所に集める」に触れる構造**で、
+  ここは 2 箇所ある。
+
+3. どちらを壊しても出力は動かない【実測】
+-----------------------------------------
+  「効いているか」は消して数字が動くかで見るしかない (CLAUDE.md)。2 つとも消して測った:
+
+  (a) link index の所有判定 (`modNames[idx]! != m`) を消す
+        正常          entries=251225  distinct=251225  重複名 0
+        所有判定なし  entries=251225  distinct=251225  重複名 0     ← 完全一致
+      **依存 6,011 モジュール・251,225 エントリで 1 件も発火しない。**
+
+  (b) IR の重複除去 (`if seen.contains n then continue`) を消す
+        正常        entries=4584  distinct=4584  重複 0
+        除去なし    entries=4584  distinct=4584  重複 0             ← 完全一致
+      21 件の重複候補は、**後段の blacklist / private / recInfo で全部落ちている**。
+      `isBlackListed` は doc-gen4 の `DocInfo.isBlackListed` の転写で、
+      21 件は `Foo.eq_1` / `Foo.congr_simp` 系の自動生成補題。
+
+  つまり **21 件は IR にもページにも search index にも到達しない**。
+
+  一度やり直している【記録】: (a) の 1 回目は差が +4,584 と出たが、**これは所有判定ではなく
+  `--link-index-omit` を渡し忘れた差**だった (自パッケージの宣言が link index に入った)。
+  条件を 2 つ変えて 1 つの結論を出しかけたので、omit を揃えて取り直した = 上の表。
+  **「数字が動いた」は「その変更で動いた」ではない。**
+
+4. 索引 ↔ ページの往復は既に検査されている
+------------------------------------------
+  tools/site-gate.sh の check-site-closure.py が「モジュール索引・検索索引・ページが
+  **両方向で**一致する」を毎 push で見ている。**索引が指すページに宣言が無い**という
+  壊れ方 (M4 で実際に出た形) はここで落ちる。
+
+結論
+----
+  **「索引方式は所有モジュールを一意に決めない」は、現在の対象では出力に出ない。**
+  出ない理由は **blacklist であって、2 本の規則が一致しているからではない。**
+
+  残る構造リスク (未検証ではなく設計上の事実):
+  - blacklist が緩む / `--equations` で自動生成補題を出す設定を足すと、**21 件は表面化する**
+  - そのとき IR 側 (first-wins) と link index 側 (const2ModIdx) が**別の答えを出しうる**
+  - 対象が変われば件数も変わる。**21 は「この対象・この日」の数**
+
+再現
+----
+  # 21 件の観測 (壊す必要なし)
+  jq 'select(.phase=="stage4b.indexLookup")' <out>/work/extract-timings-1-events.jsonl
+  # (a) (b) は extractor/Extract.lean をスクラッチに複製して該当行を落とし、
+  #     lake env lean --root=<scratch> で建て直して同じ --modules に当てる
