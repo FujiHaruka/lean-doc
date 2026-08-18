@@ -788,12 +788,10 @@ mod tests {
             fs::write(&modules_file, modules.join("\n") + "\n").expect("writable");
 
             let lake = root.join("lake");
-            fs::write(
+            write_executable(
                 &lake,
                 "#!/bin/sh\n[ \"$1\" = env ] || exit 9\nshift\nexec \"$@\"\n",
-            )
-            .expect("writable");
-            executable(&lake);
+            );
 
             // The server: records its argv and its pid once, answers every
             // request, and leaves on EOF the way `Extract.lean:2747` leaves.
@@ -801,9 +799,9 @@ mod tests {
             // protocol — a reply found by position rather than by prefix would
             // find that instead (`serve-ctl.sh:25-30`).
             let bin = root.join("extract");
-            fs::write(
+            write_executable(
                 &bin,
-                format!(
+                &format!(
                     "#!/bin/sh\n\
                      printf '%s\\n' \"$$\" > {pid}\n\
                      : > {argv}\n\
@@ -823,9 +821,7 @@ mod tests {
                     argv = quoted(&root.join("argv")),
                     reqs = quoted(&root.join("requests")),
                 ),
-            )
-            .expect("writable");
-            executable(&bin);
+            );
 
             Self {
                 work: root.join("work"),
@@ -1036,8 +1032,7 @@ mod tests {
         // A `lake` that exits without ever printing `ready`: the read gets EOF
         // rather than a reply, which is the one failure the prototype needs a
         // polling loop and a pid file to notice (`serve-ctl.sh:82-102`).
-        fs::write(&world.lake, "#!/bin/sh\nexit 3\n").expect("writable");
-        executable(&world.lake);
+        write_executable(&world.lake, "#!/bin/sh\nexit 3\n");
         let mut resident = world.resident().expect("a resident");
         let failure = world.extract(&mut resident, 1).expect_err("no server");
         let (code, message) = refusal(&failure);
@@ -1137,8 +1132,26 @@ mod tests {
             .is_ok_and(|status| status.success())
     }
 
-    fn executable(path: &Path) {
-        fs::set_permissions(path, fs::Permissions::from_mode(0o755)).expect("chmod");
+    /// Writes a script and makes it runnable, **through a rename**.
+    ///
+    /// Linux returns `ETXTBSY` — exit 126 — when a file is `exec`'d while some
+    /// process still holds a write descriptor to it, and `cargo test` runs these
+    /// tests in parallel threads that fork: a sibling's `Command::spawn`
+    /// inherits the descriptor this thread just wrote through, so the exec races
+    /// the close. Renaming over the path hands the exec a fresh inode that no
+    /// descriptor points at.
+    ///
+    /// **This is a fix for a measured symptom against a reasoned cause, and the
+    /// cause is not itself measured**: CI went red once in eight pushes
+    /// 【実測 2026-08-18, run 32133544132】 with
+    /// `the resident extractor exited 126 before ` + "`ready`" + `, on a commit that
+    /// changed only README prose. macOS has never reproduced it. A green run
+    /// after this does not prove the diagnosis — only many of them do.
+    fn write_executable(path: &Path, body: &str) {
+        let tmp = path.with_extension("new");
+        fs::write(&tmp, body).expect("writable");
+        fs::set_permissions(&tmp, fs::Permissions::from_mode(0o755)).expect("chmod");
+        fs::rename(&tmp, path).expect("rename");
     }
 
     fn read_lines(path: &Path) -> Vec<String> {
