@@ -13,7 +13,7 @@ Live example: <https://fujiharuka.github.io/information-theory/> — 422 modules
 ## Is this for you?
 
 **Yes**, if doc-gen4 is too slow for your CI and your package lives on GitHub and is on Lean
-4.31.x. Any Lean 4 package works — the payoff just scales with how large your dependencies are
+4.31.x or 4.32.x. Any Lean 4 package works — the payoff just scales with how large your dependencies are
 next to your own code, and Mathlib is as large as that gets. You get a module tree, search,
 instance lists, "Imported by", hyperlinked signatures, and a dark theme.
 
@@ -21,8 +21,12 @@ instance lists, "Imported by", hyperlinked signatures, and a dark theme.
 
 - **your docstrings need typeset math** — `$…$` is rendered as plain text; no MathJax, no KaTeX
 - **you want to search dependency declarations** — search covers your package only
-- **you are far from Lean 4.31.0** — nothing else is tested, and the extractor is compiled
-  against your toolchain, so a mismatch surfaces as a build failure, not as bad output
+- **you are on Lean 4.33.0 or later** — the extractor does not compile there: `Lean`'s
+  `ReducibilityStatus` gained a constructor and one `match` here is now non-exhaustive
+  (measured 2026-08-18, `benchmarks/results/lean-version-2026-08-18.txt`). **4.31.0 and
+  4.32.2 both work and write byte-identical IR**, measured on a Mathlib-free fixture.
+  Either way the extractor is compiled against your toolchain, so a version this does not
+  handle surfaces as a build failure, not as bad output
 - **you are on Windows, Intel macOS, or Linux/arm64** — releases carry Linux/x86-64 and
   Apple Silicon; anything else builds from source, which needs Rust and a C compiler
 
@@ -177,7 +181,9 @@ not GitHub (another host is refused rather than guessed).
 ## Status
 
 `v0.1.4` — the action and the released binaries. Tested on macOS (Apple Silicon) and
-`ubuntu-latest` with Lean/Mathlib v4.31.0. Pin the action to a tag (`@v0.1.4`); `@main` moves.
+`ubuntu-latest` with Lean/Mathlib v4.31.0, and the browser side also on `windows-latest`.
+**Lean 4.32.2 builds the extractor and produces the same IR; 4.33.0 does not build yet.**
+Pin the action to a tag (`@v0.1.4`); `@main` moves.
 
 **Renamed from `lean-doc` on 2026-08-18** — repository, crates, CLI, and Lake package name.
 **`v0.1.4` is the first release under the new name**, and the first tag whose tree carries

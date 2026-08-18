@@ -116,7 +116,7 @@ doc-gen4 を失って消えたのは**外部オラクル** — 「正しい出�
 | **Q5** | 仕事量カウンタ (決定 4) | 増分で再抽出 0 / 描画 0 が**数で**出る | **通過** — `litedoc4-build.json` の `work` + e2e の **GATE 5**。**docs の主張を 3 つ訂正させた** (下記) |
 | **Q6** | md4c FFI の fuzz (決定 5) | seed corpus 全通しで 0 crash | **通過** — ゲートは `crates/litedoc4-md/tests/fuzz_corpus.rs` (**12 入力 + 固定 seed の生成 4,000 本**、安定版・機材ゼロ)。**探索も実走した**【実測 2026-08-17 → [`fuzz/README.md`](../../fuzz/README.md)】 — ASan + libFuzzer で **1,534,477 execs / crash 0**。下記 |
 | **Q7** | サイズ予算 | 上限超過で理由付きで落ちる | **通過** — 静的資産に絞った【判断、下記】。`assets.rs` のテスト |
-| **Q8** | **E3 — ブラウザゲート** (`tools/browser-gate.sh`) | コンソールエラー 0、**UI-3 が「未判定」でなくなる** | **通過** — 9 検査すべて緑。**375 px の overflow 0 px【実測 2026-08-16】= UI-3 決着**。**2026-08-17 に検査 8 (等幅フォントの字形) を足して 10 検査**、`ubuntu-latest` でも緑 → **UI-V1 も決着** (下記) |
+| **Q8** | **E3 — ブラウザゲート** (`tools/browser-gate.sh`) | コンソールエラー 0、**UI-3 が「未判定」でなくなる** | **通過** — 9 検査すべて緑。**375 px の overflow 0 px【実測 2026-08-16】= UI-3 決着**。**2026-08-17 に検査 8 (等幅フォントの字形) を足して 10 検査**、`ubuntu-latest` でも緑 → **UI-V1 も決着** (下記)。**2026-08-18 に検査 5b (両テーマの実際のコントラスト比) を足し、`windows-latest` でも回した** (下記) |
 | **Q9** | provenance ゲート | 帰属表示の実在 | **通過** — `tools/provenance-gate.sh`、**27 claims**。**`cargo-deny` も済んでいた** — CI ジョブ `supply-chain` (`deny.toml`) が緑【実測 2026-08-17、[run 32012152635](https://github.com/FujiHaruka/litedoc4/actions/runs/32012152635)】。**この行が「未」のまま 1 日残っていた** |
 | **Q10** | mutation 探索 — **ゲートにしない** | 拾えた穴だけテストに落とす | **実施** — 今回の diff **9/9 caught**、`decl.rs` 全体 **74 中 1 missed** → 塞いで **74/74**。ワークスペース全体は **1,602 mutant** で未実施 |
 
@@ -149,6 +149,44 @@ doc-gen4 を失って消えたのは**外部オラクル** — 「正しい出�
 結果は 2 OS とも**欠け 0**。同時に**等幅スタック単独では 8〜9 割しか描いていない**ことも出た
 (→ 決定 2 の表)。**ゲートを一度落として**から通した — 描画されない文字 (U+200B) を集合に混ぜると
 `BROWSER GATE: 1 failed` になる【実測】。
+
+### Q8 の検査 5b と Windows — 同じ穴が OS 1 つ分先にあった【実測 2026-08-18】
+
+**検査 8 の教訓は「Linux 機材はタダで手に入っていた」だったが、`windows-latest` も
+同じだけタダだった。** `ui-redesign.md` 決定 2 は「Windows は機材がここに無いので
+測っていない」と書き続けていて、その間 CI の Windows ランナーには **Consolas も Chrome も
+入っていた**。`.github/workflows/ci-browser-windows.yml` (ubuntu が site を建てて
+artifact に渡し、Windows がゲートを回す 2 ジョブ) で測った結果:
+**字形の欠け 0、ただし等幅で描かれたのは 105/178 で、送り幅の崩れは 73 種と 3 OS 中最悪**
+(→ [`../../benchmarks/results/browser-windows-2026-08-18.txt`](../../benchmarks/results/browser-windows-2026-08-18.txt))。
+
+**検査 5b が足したもの** — 検査 5 は `data-theme` が動くことしか見ていなかった。
+それは**機構であって結果ではない**: テーマは全色を書き換えても読めないままにできる。
+5b は **light と dark の両方**で computed style から WCAG 2.1 のコントラスト比を出す
+(閾値 4.5:1)。**両方を測るのは、片方しか見ないパレットがもう片方を腐らせるから。**
+
+- **一度落としてから通した**: 複製サイトの `--fg` の**ダーク側だけ**を背景に寄せると、
+  **ダークの 4 項目が 1.32:1 で落ち、ライトは通った**【実測】
+- **セレクタが 1 つも一致しなかったら落ちる。** 0 要素を測って緑になるのが
+  この形の典型的な嘘 (§6「ゲートは走った本数を数える」と同型)
+- 実測値: light は本文 17.65:1 / 補助テキストとリンク 4.82:1、dark は 13.93:1 / 6.01:1。
+  **light の 4.82 は AA ぎりぎり**で、ここを暗くする変更は落ちる
+
+### Q9 のリーク検査 — LSan も Linux にあった【実測 2026-08-18】
+
+`fuzz/README.md` の「LeakSanitizer does not run on macOS」も**この机の話**だった。
+`.github/workflows/ci-leak.yml` (workflow_dispatch) が `ubuntu-latest` で
+**committed corpus 12 件を `-runs=0` で 1 度ずつ**通す。**探索ではないので決定 5 は動かない。**
+
+- **負検査が先に走り、緑なら CI を落とす**: `fuzz_targets/leak_canary.rs` は
+  `mem::forget` するだけの的で、**24 byte(s) leaked in 1 allocation(s)** で非ゼロ終了する。
+  リーク 0 の報告は、**サニタイザが繋がっていない場合と見分けがつかない**
+- **1 回目は落ちた。落ち方が正しかった**: `ubuntu-latest` の `cc` は **gcc** で、
+  `-fsanitize=fuzzer-no-link` は clang のもの。canary の判定は「非ゼロで終わった」を
+  合格と読まず `grep "detected memory leaks"` も見ていたので、
+  **「exited 1, but not because LSan reported a leak」**と報告して止まった
+- 結果: **corpus 12 件で leak 0**
+  (→ [`../../benchmarks/results/leak-check-2026-08-18.txt`](../../benchmarks/results/leak-check-2026-08-18.txt))
 
 ### Q6 — 探索を回して分かったのは「何を検査していないか」だった【すべて実測 2026-08-17】
 
