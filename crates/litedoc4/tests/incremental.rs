@@ -64,7 +64,7 @@ const URL_NEXT: &str =
 /// debt 4 — `prune --ir` pointed at a site calls them orphans — a thing that
 /// can happen at all; and it is now the site's entry pages that would go, not
 /// three files nothing read.
-const ARTIFACTS: [&str; 7] = [
+const ARTIFACTS: [&str; 8] = [
     "declarations/name-map.json",
     "index.html",
     "404.html",
@@ -72,6 +72,7 @@ const ARTIFACTS: [&str; 7] = [
     "foundational_types.html",
     "modules.json",
     "search-index.json",
+    "instances.json",
 ];
 
 // --------------------------------------------------------------- the branches

@@ -138,10 +138,21 @@ DEL_MOD=InformationTheory.Shannon.ArithmeticCoding
 DEL_REL="$(printf '%s' "$DEL_MOD" | tr '.' '/').lean"
 
 # Written down rather than derived, so that a run which produced the wrong
-# number of pages fails instead of redefining the question. 6 = the
-# whole-package artifacts; the move adds one module and therefore one page.
-EXPECT_BASE=438
-EXPECT_MOVE=439
+# number of pages fails instead of redefining the question.
+#
+#   432 module pages + 8 whole-package artifacts + 3 static assets = 443,
+#   and the move adds one module and therefore one page.
+#
+# **These were 438/439 until 2026-08-19 and had been wrong since M8-a.** They
+# were set at M4, when the site was pages + 6 artifacts and carried no static
+# assets; M8-a added `style.css` / `app.js` / `favicon.svg` to the tree, M8-d
+# took the artifacts to 7, and `docs/plans/search-v2.md` P0 takes them to 8.
+# Nobody noticed because a wrong denominator only printed — see the exit status
+# below, which is the other half of this fix. **The new numbers are derived
+# from that arithmetic and not yet measured**: the next real run either agrees
+# or prints the true count beside them.
+EXPECT_BASE=443
+EXPECT_MOVE=444
 
 nlines () { grep -c . "$1" 2>/dev/null || true; }
 files_in () { find "$1" -type f | wc -l | tr -d ' '; }
@@ -207,8 +218,14 @@ manifest () { # manifest <site> <out file>
 
 # One `diff -r`, reported with its denominator and with the first differing byte
 # of every file that differs — "they differ" is not a finding.
+# Set by `compare` when any comparison fails, read by the exit status at the
+# bottom. **A gate that prints FAIL and exits 0 is not a gate** — CLAUDE.md's
+# "出力と終了コードが食い違う形はゲートを嘘にする", which this script was an
+# instance of until 2026-08-19.
+FAILURES=0
+
 compare () { # compare <name> <a> <b> <expected files>
-  local name="$1" a="$2" b="$3" expect="$4" status=0
+  local name="$1" a="$2" b="$3" expect="$4" status=0 verdict=FAIL
   "$DIFF" -r -q "$a" "$b" > "$OUT/$name.diff" 2>&1 || status=$?
   {
     printf 'comparison          %s\n' "$name"
@@ -220,6 +237,8 @@ compare () { # compare <name> <a> <b> <expected files>
     else
       printf 'denominator         ok\n'
     fi
+    if [ "$status" = 0 ] && [ "$(files_in "$a")" = "$expect" ] \
+       && [ "$(files_in "$b")" = "$expect" ]; then verdict=PASS; fi
     printf 'diff                %s\n' \
       "$([ "$status" = 0 ] && echo identical || echo "$(nlines "$OUT/$name.diff") line(s)")"
     sed 's/^/  /' "$OUT/$name.diff"
@@ -228,11 +247,10 @@ compare () { # compare <name> <a> <b> <expected files>
       sed -n 's/^Files \(.*\) and \(.*\) differ$/\1|\2/p' "$OUT/$name.diff" \
         | while IFS='|' read -r x y; do printf '  %s\n' "$(cmp "$x" "$y" 2>&1 || true)"; done
     fi
-    printf 'RESULT              %s\n' \
-      "$([ "$status" = 0 ] && [ "$(files_in "$a")" = "$expect" ] \
-         && [ "$(files_in "$b")" = "$expect" ] && echo PASS || echo FAIL)"
+    printf 'RESULT              %s\n' "$verdict"
   } > "$OUT/$name.txt"
   cat "$OUT/$name.txt"
+  [ "$verdict" = PASS ] || FAILURES=$((FAILURES + 1))
 }
 
 # What the run said it did, in the four numbers the gates are stated in.
@@ -388,3 +406,10 @@ case "$PHASE" in
   all)   phase_gate1; phase_gate2; phase_gate3; phase_gate4; phase_reset ;;
 esac
 conditions
+
+# The gates above print PASS / FAIL per comparison. This is what makes a caller
+# — CI, a script, a person reading `echo $?` — see the same answer.
+[ "$FAILURES" = 0 ] || {
+  echo "### $FAILURES comparison(s) FAILED" >&2
+  exit 1
+}

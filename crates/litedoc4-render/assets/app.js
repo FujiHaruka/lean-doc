@@ -7,15 +7,19 @@
 // placed statically because they are facts about the *whole* site rather than
 // about the module being rendered (instances, instances-for, imported-by).
 //
-// Two data files, split by when they are needed (plan 決定 5):
+// Three data files, split by when they are needed (plan 決定 5,
+// `docs/plans/search-v2.md` P0):
 //
 //   modules.json       every module, its page and what imports it.
 //                      Small, wanted immediately — it draws the tree.
-//   search-index.json  every declaration, plus the instance maps.
-//                      Large, wanted on the first keystroke or the first time
-//                      an "Instances" block is opened.
+//   search-index.json  every declaration and the kind vocabulary. Large,
+//                      wanted on the first keystroke. It has no module array
+//                      of its own: a declaration names its module by
+//                      subscript into `modules.json`'s, which is already here.
+//   instances.json     the two instance maps, wanted only when a reader opens
+//                      one of the two blocks — which most never do.
 //
-// Neither is cached in storage: they are ordinary GETs against the same origin
+// None is cached in storage: they are ordinary GETs against the same origin
 // and the browser's HTTP cache is better at this than we are. (doc-gen4 tried
 // IndexedDB here and disabled it.)
 
@@ -29,21 +33,45 @@ const url = (name) => new URL(ROOT + name, location.href).href;
 
 let modulesPromise = null;
 let declsPromise = null;
+let instancesPromise = null;
+
+/** One GET, parsed, or `null` — every caller here treats a miss as "no data". */
+const fetchJson = (name) =>
+  fetch(url(name))
+    .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+    .catch(() => null);
 
 /** `modules.json`, fetched at most once per page. */
 function modules() {
-  modulesPromise ??= fetch(url("modules.json"))
-    .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-    .catch(() => null);
+  modulesPromise ??= fetchJson("modules.json");
   return modulesPromise;
 }
 
 /** `search-index.json`, fetched at most once per page, on demand. */
 function decls() {
-  declsPromise ??= fetch(url("search-index.json"))
-    .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-    .catch(() => null);
+  declsPromise ??= fetchJson("search-index.json");
   return declsPromise;
+}
+
+/** `instances.json`, fetched only when a reader opens an instance block. */
+function instanceMaps() {
+  instancesPromise ??= fetchJson("instances.json");
+  return instancesPromise;
+}
+
+/**
+ * What every result row needs: the declarations, and the module array they
+ * index into.
+ *
+ * The two live in different files because they are wanted at different times —
+ * the tree draws from `modules.json` before a reader has typed anything — but
+ * a result row needs both, so this is where they meet. Requesting both at once
+ * costs nothing after the first: `modules()` has already resolved.
+ */
+async function searchData() {
+  const [tree, index] = await Promise.all([modules(), decls()]);
+  if (!tree?.modules || !index?.decls) return null;
+  return { modules: tree.modules, kinds: index.kinds, decls: index.decls };
 }
 
 // ------------------------------------------------------------------- theme
@@ -254,14 +282,17 @@ function initInstances() {
       "toggle",
       async () => {
         const ul = host.querySelector("ul");
-        const data = await decls();
-        const map = host.dataset.fill === "instances" ? data?.instances : data?.instancesFor;
+        // The maps and the links come from different files now: the names are
+        // in `instances.json`, and turning a name into a URL needs the search
+        // index. Both are fetched here and nowhere earlier.
+        const [maps, data] = await Promise.all([instanceMaps(), searchData()]);
+        const map = host.dataset.fill === "instances" ? maps?.instances : maps?.instancesFor;
         const names = map?.[host.dataset.name] ?? [];
         ul.textContent = "";
         if (names.length === 0) {
           const li = document.createElement("li");
           li.className = "search-empty";
-          li.textContent = data ? "None" : "Index unavailable";
+          li.textContent = maps ? "None" : "Index unavailable";
           ul.append(li);
           return;
         }
@@ -274,7 +305,7 @@ function initInstances() {
 
 function declItem(data, name) {
   const li = document.createElement("li");
-  const at = data.decls?.find((d) => d[0] === name);
+  const at = data?.decls?.find((d) => d[0] === name);
   const a = document.createElement("a");
   a.textContent = name;
   a.href = at ? declHref(data, at) : `#${name}`;
@@ -351,7 +382,7 @@ function initSearch() {
   const run = async () => {
     const query = input.value.trim().toLowerCase();
     if (query.length < 2) return close();
-    const data = await decls();
+    const data = await searchData();
     if (!data) return close();
 
     const hits = search(data, query);
@@ -385,7 +416,7 @@ function initSearch() {
     clearTimeout(timer);
     timer = setTimeout(run, 90);
   });
-  input.addEventListener("focus", () => void decls()); // warm the index
+  input.addEventListener("focus", () => void searchData()); // warm the index
   input.addEventListener("keydown", (e) => {
     if (e.key === "ArrowDown") (e.preventDefault(), move(1));
     else if (e.key === "ArrowUp") (e.preventDefault(), move(-1));
@@ -440,7 +471,7 @@ function initSearchPage() {
       if (note) note.textContent = "Type at least two characters.";
       return;
     }
-    const data = await decls();
+    const data = await searchData();
     if (!data) {
       if (note) note.textContent = "The search index could not be loaded.";
       return;
@@ -496,7 +527,7 @@ async function initNotFound() {
   const query = guess.trim().toLowerCase();
   if (query.length < 2) return;
 
-  const data = await decls();
+  const data = await searchData();
   if (!data) return;
   // A prefix of the *last* component is what a moved declaration matches on, so
   // the plain scorer is already the right one.

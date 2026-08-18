@@ -10,12 +10,18 @@ Seven questions, each printed with its 母数 so that a passing run says how muc
 it looked at rather than only that it was happy:
 
   1. modules.json      every module names a page that exists
-  2. search-index      every module names a page that exists
+  2. search-index      every declaration's module subscript resolves
   3. search-index      every declaration is an anchor on its own module's page
   4. pages             every `class="decl"` anchor is in the search index
   5. instances         every instance name is a declaration the index knows
   6. instancesFor      every key and every value is a declaration
   7. resources         no <script src> / <link href> points at another host
+
+(2) used to be "the search index's module array names pages that exist", back
+when it had one. `docs/plans/search-v2.md` P0 took it out — there is one module
+array, in `modules.json`, and a declaration names its module by subscript into
+it. So the question became whether those subscripts land, which is the same
+failure (a result row linking to a page nobody wrote) caught one file earlier.
 
 (3) and (4) are deliberately the two directions of the same statement. One of
 them alone is satisfied by an index that is a subset of the pages, or by pages
@@ -124,6 +130,9 @@ def main():
 
     modules_json = load_json(site, "modules.json", problems)
     search_index = load_json(site, "search-index.json", problems)
+    instance_maps = load_json(site, "instances.json", problems)
+    # The one module array. Both of the other files point into it.
+    modules = (modules_json or {}).get("modules") or []
 
     def fail(check, missing, total, note=""):
         counts[check] = {"checked": total, "failed": len(missing)}
@@ -133,22 +142,27 @@ def main():
         more = f" (+{len(missing) - args.show} more)" if len(missing) > args.show else ""
         problems.append(f"{check}: {len(missing)}/{total} failed — {head}{more}{note}")
 
-    # 1 / 2 — a module index that names a page nobody wrote.
-    for name, doc in (("modules.json", modules_json), ("search-index", search_index)):
-        if not doc:
-            continue
-        entries = doc.get("modules") or []
+    # 1 — a module index that names a page nobody wrote.
+    if modules_json:
         missing = {
             entry.get("p")
-            for entry in entries
+            for entry in modules
             if not os.path.isfile(os.path.join(site, entry.get("p", "")))
         }
-        fail(f"{name}: module pages exist", missing, len(entries))
+        fail("modules.json: module pages exist", missing, len(modules))
 
     if search_index:
-        modules = search_index.get("modules") or []
         decls = search_index.get("decls") or []
         names = {entry[0] for entry in decls}
+
+        # 2 — every declaration's third column lands in the module array that
+        # now lives in the other file.
+        out_of_range = {
+            f"{entry[0]} (module index {entry[2]})"
+            for entry in decls
+            if entry[2] >= len(modules)
+        }
+        fail("search-index: module subscripts resolve", out_of_range, len(decls))
 
         # 3 — every indexed declaration is an anchor on the page the index sends
         # a reader to. Anchors, not `class="decl"` anchors: a member is a real
@@ -178,8 +192,12 @@ def main():
                     orphans.add(f"{anchor} (on {page})")
         fail("pages -> search-index", orphans, checked)
 
-        # 5 / 6 — the instance tables are name references too.
-        instances = search_index.get("instances") or {}
+    # 5 / 6 — the instance tables are name references too. They moved to their
+    # own file in P0, but they still refer to declarations the search index has
+    # to know, so this needs both files and says so if either is missing.
+    if search_index and instance_maps:
+        names = {entry[0] for entry in search_index.get("decls") or []}
+        instances = instance_maps.get("instances") or {}
         values = [name for group in instances.values() for name in group]
         fail(
             "instances -> declarations",
@@ -190,7 +208,7 @@ def main():
         # Only the values. A key is the *type* an instance is for, and that type
         # is very often not this package's — `instance : Greet Nat` is keyed by
         # `Nat`, which lives in Lean core. The instance itself always is ours.
-        instances_for = search_index.get("instancesFor") or {}
+        instances_for = instance_maps.get("instancesFor") or {}
         pairs = [(key, name) for key, group in instances_for.items() for name in group]
         bad = {f"{key} -> {name}" for key, name in pairs if name not in names}
         fail("instancesFor -> declarations", bad, len(pairs))

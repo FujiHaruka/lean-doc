@@ -306,37 +306,51 @@ fn the_indexes_are_well_formed_in_every_case() {
             }
         }
 
+        // P0 of `docs/plans/search-v2.md` took the module array out of the
+        // search index, so the check that the two agreed is now the check that
+        // the search index's third column indexes **this** array — the same
+        // invariant, one file later. It is the load-bearing one: a subscript
+        // into an array that is no longer beside it is a link to the wrong
+        // page, and nothing else would say so.
         let index = read("search-index.json");
-        let indexed = index["modules"].as_array().expect("modules");
-        let kinds = index["kinds"].as_array().expect("kinds");
-        assert_eq!(
-            indexed.len(),
-            list.len(),
-            "{}: the two files disagree about how many modules there are",
+        assert!(
+            index.get("modules").is_none(),
+            "{}: the search index is carrying a second module array",
             case.what
         );
-        for (a, b) in list.iter().zip(indexed) {
-            assert_eq!(
-                a["n"], b["n"],
-                "{}: the two module arrays are not one order",
-                case.what
-            );
-            assert_eq!(a["p"], b["p"], "{}", case.what);
-        }
+        let kinds = index["kinds"].as_array().expect("kinds");
         for decl in index["decls"].as_array().expect("decls") {
             let row = decl.as_array().expect("a triple");
             assert_eq!(row.len(), 3, "{}", case.what);
             assert!(row[0].is_string(), "{}", case.what);
             let kind = usize::try_from(row[1].as_u64().expect("a kind index")).expect("fits");
             let module = usize::try_from(row[2].as_u64().expect("a module index")).expect("fits");
-            assert!(
-                kind < kinds.len() && module < indexed.len(),
-                "{}",
+            assert!(kind < kinds.len() && module < list.len(), "{}", case.what);
+        }
+
+        // Every declared name is in the map that names its module, and the
+        // subscript agrees with it. This is what the two files being one array
+        // actually buys, checked rather than assumed.
+        let name_map = read("declarations/name-map.json");
+        for decl in index["decls"].as_array().expect("decls") {
+            let name = decl[0].as_str().expect("a name");
+            let at = usize::try_from(decl[2].as_u64().expect("a module index")).expect("fits");
+            assert_eq!(
+                name_map[name],
+                list[at]["n"],
+                "{}: {name} is indexed under the wrong module",
                 case.what
             );
         }
+
+        let instances = read("instances.json");
         for key in ["instances", "instancesFor"] {
-            for (_, names) in index[key].as_object().expect("a map of name lists") {
+            assert!(
+                index.get(key).is_none(),
+                "{}: {key} is still in the search index",
+                case.what
+            );
+            for (_, names) in instances[key].as_object().expect("a map of name lists") {
                 assert!(
                     names
                         .as_array()
@@ -748,7 +762,9 @@ fn the_new_artifacts_reach_every_shape() {
             assert_eq!(index["decls"], serde_json::json!([]));
             empty += 1;
         }
-        if index["instances"]
+        let instance_maps: serde_json::Value =
+            serde_json::from_str(&got["instances.json"]).expect("instances.json is JSON");
+        if instance_maps["instances"]
             .as_object()
             .is_some_and(|map| !map.is_empty())
         {

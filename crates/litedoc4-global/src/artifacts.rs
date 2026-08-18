@@ -7,7 +7,8 @@
 //! search.html                 where the top bar's form submits
 //! foundational_types.html     what every `Sort` in every signature links to
 //! modules.json                every module, its page, and what imports it
-//! search-index.json           every declaration, and the two instance maps
+//! search-index.json           every declaration, and the kind vocabulary
+//! instances.json              the two instance maps
 //! ```
 //!
 //! # M8-d removed five files and their reader in the same step
@@ -33,9 +34,12 @@
 //! comparing the new map with nothing and silently re-rendering too little.
 //!
 //! So the byte-reproduction denominator moves with the file list: **432 pages +
-//! 6 artifacts = 438** was M6's, and M8-d's is **432 pages + 7 artifacts = 439**
-//! (plus the 3 static assets, which have never been in it). The old number is
-//! not rewritten — see `docs/milestone-log.md`.
+//! 6 artifacts = 438** was M6's, M8-d's is **432 pages + 7 artifacts = 439**,
+//! and `docs/plans/search-v2.md` P0 makes it **432 + 8 = 440** by splitting
+//! `instances.json` out of the search index (plus the 3 static assets, which
+//! have never been in it — `tools/build-gate.sh` counts a tree that does have
+//! them, which is why its number is 443 and not 440). The old numbers are not
+//! rewritten — see `docs/milestone-log.md`.
 //!
 //! # Every sort here is UTF-16 (plan §7, U1)
 //!
@@ -78,7 +82,7 @@ pub fn page_path(module: &str) -> String {
     path
 }
 
-/// The seven files, as bytes, before anything is written.
+/// The eight files, as bytes, before anything is written.
 ///
 /// Held in memory rather than streamed: the largest is a few hundred kilobytes
 /// on the target package【実測】, and having them as values is what lets the
@@ -94,10 +98,15 @@ pub struct Artifacts {
     /// Fetched on **every** page, so it carries names and indices and nothing
     /// else (決定 4).
     pub modules_json: String,
-    /// What `app.js` searches and fills the two instance blocks from. Fetched on
-    /// the first keystroke or the first opened `<details>`, never before
-    /// (決定 5).
+    /// What `app.js` searches. Fetched on the first keystroke, never before
+    /// (決定 5). Carries the declarations and the kind vocabulary and nothing
+    /// else — module names come from [`Artifacts::modules_json`], which is
+    /// already on the page.
     pub search_index_json: String,
+    /// The two instance maps, fetched only when a reader opens one of the two
+    /// `<details>` blocks. Split from the search index in P0 of
+    /// `docs/plans/search-v2.md`.
+    pub instances_json: String,
     /// The same `name -> module` map [`Artifacts::name_map_json`] is the
     /// serialisation of, as data.
     ///
@@ -125,15 +134,15 @@ pub struct Counts {
     pub declarations: usize,
     /// Distinct names the dependency slices contribute.
     pub dependency_names: usize,
-    /// Keys of `search-index.json`'s `instances`.
+    /// Keys of `instances.json`'s `instances`.
     pub instance_classes: usize,
-    /// Keys of `search-index.json`'s `instancesFor`.
+    /// Keys of `instances.json`'s `instancesFor`.
     pub instance_types: usize,
 }
 
 /// The order the artifacts are listed and written in, and the paths they take
 /// under the site root.
-pub const ARTIFACT_PATHS: [&str; 7] = [
+pub const ARTIFACT_PATHS: [&str; 8] = [
     "declarations/name-map.json",
     "index.html",
     "404.html",
@@ -141,11 +150,12 @@ pub const ARTIFACT_PATHS: [&str; 7] = [
     "foundational_types.html",
     "modules.json",
     "search-index.json",
+    "instances.json",
 ];
 
 impl Artifacts {
-    /// Derives all seven from the facts of every module, in index order, and the
-    /// dependency slices, in index order.
+    /// Derives all eight from the facts of every module, in index order, and
+    /// the dependency slices, in index order.
     ///
     /// **Index order is behaviour, twice.** Two modules declaring the same name
     /// leave the later one in the map, and a module's importer list is built in
@@ -310,23 +320,20 @@ impl Artifacts {
             instance_types: instances_for.len(),
         };
 
+        // **No `modules` array here.** `modules.json` already carries one, in
+        // the same order and with the same subscripts — both are built from the
+        // one `own_sorted` above, and `app.js` fetches that file on every page
+        // for the module tree. A second copy is 12.8% of this file【実測
+        // 2026-08-19: 51,975 of 405,402 B】and a second thing to disagree with.
         let search_index_json = object([
-            (
-                "modules".to_owned(),
-                Value::Array(
-                    pages
-                        .iter()
-                        .map(|(module, page)| {
-                            object([
-                                ("n".to_owned(), Value::String((*module).to_owned())),
-                                ("p".to_owned(), Value::String(page.clone())),
-                            ])
-                        })
-                        .collect(),
-                ),
-            ),
             ("kinds".to_owned(), strings(kinds.iter().copied())),
             ("decls".to_owned(), decls),
+        ]);
+
+        // The instance maps leave with them. A search never reads either, so
+        // carrying them here made every first keystroke pay for a block most
+        // readers never open.
+        let instances_json = object([
             ("instances".to_owned(), instances_out),
             ("instancesFor".to_owned(), instances_for_out),
         ]);
@@ -340,15 +347,16 @@ impl Artifacts {
             foundational_types_html: entry::foundational_types_html(&site),
             modules_json: to_json(&modules_json),
             search_index_json: to_json(&search_index_json),
+            instances_json: to_json(&instances_json),
             name_map: flat_map,
             counts,
         }
     }
 
-    /// The seven files paired with the paths they go to, in [`ARTIFACT_PATHS`]
+    /// The eight files paired with the paths they go to, in [`ARTIFACT_PATHS`]
     /// order.
     #[must_use]
-    pub fn files(&self) -> [(&'static str, &str); 7] {
+    pub fn files(&self) -> [(&'static str, &str); 8] {
         [
             (ARTIFACT_PATHS[0], self.name_map_json.as_str()),
             (ARTIFACT_PATHS[1], self.index_html.as_str()),
@@ -357,6 +365,7 @@ impl Artifacts {
             (ARTIFACT_PATHS[4], self.foundational_types_html.as_str()),
             (ARTIFACT_PATHS[5], self.modules_json.as_str()),
             (ARTIFACT_PATHS[6], self.search_index_json.as_str()),
+            (ARTIFACT_PATHS[7], self.instances_json.as_str()),
         ]
     }
 }
@@ -528,13 +537,17 @@ mod tests {
     fn the_search_index_is_the_shape_the_script_reads() {
         let artifacts = Artifacts::derive(&chain(), &[]);
         let json = parsed(&artifacts.search_index_json);
-        let modules = json["modules"].as_array().expect("modules");
+        // The module array is `modules.json`'s, and only its. The subscripts
+        // below index into it from the other file.
+        let modules_json = parsed(&artifacts.modules_json);
+        let modules = modules_json["modules"].as_array().expect("modules");
         assert_eq!(modules.len(), 3);
-        assert!(
-            modules
-                .iter()
-                .all(|m| m["n"].is_string() && m["p"].is_string())
-        );
+        for key in ["modules", "instances", "instancesFor"] {
+            assert!(
+                json.get(key).is_none(),
+                "the search index is still carrying `{key}`"
+            );
+        }
 
         let kinds: Vec<&str> = json["kinds"]
             .as_array()
@@ -570,9 +583,10 @@ mod tests {
             .expect("the instance is indexed");
         assert_eq!(inst[2], 1);
 
-        assert_eq!(json["instances"]["Cls"], serde_json::json!(["Pkg.B.inst"]));
+        let instances = parsed(&artifacts.instances_json);
+        assert_eq!(instances["instances"]["Cls"], serde_json::json!(["Pkg.B.inst"]));
         assert_eq!(
-            json["instancesFor"]["Pkg.a"],
+            instances["instancesFor"]["Pkg.a"],
             serde_json::json!(["Pkg.B.inst"]),
             "a type named twice by one instance lists it once (doc-gen4's RBTree)"
         );
@@ -584,17 +598,18 @@ mod tests {
     fn the_counts_are_what_the_files_hold() {
         let artifacts = Artifacts::derive(&chain(), &[]);
         let json = parsed(&artifacts.search_index_json);
+        let instances = parsed(&artifacts.instances_json);
         assert_eq!(
             artifacts.counts.declarations,
             json["decls"].as_array().expect("decls").len()
         );
         assert_eq!(
             artifacts.counts.instance_classes,
-            json["instances"].as_object().expect("instances").len()
+            instances["instances"].as_object().expect("instances").len()
         );
         assert_eq!(
             artifacts.counts.instance_types,
-            json["instancesFor"]
+            instances["instancesFor"]
                 .as_object()
                 .expect("instancesFor")
                 .len()

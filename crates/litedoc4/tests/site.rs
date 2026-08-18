@@ -355,6 +355,7 @@ fn the_site_is_render_then_global_over_the_same_tree() {
         "foundational_types.html",
         "modules.json",
         "search-index.json",
+        "instances.json",
     ]
     .iter()
     .map(PathBuf::from)

@@ -185,10 +185,14 @@ async function main() {
     const searchIndex = JSON.parse(
       await Deno.readTextFile(`${site}/search-index.json`),
     );
+    // The module array lives in `modules.json` and only there
+    // (`docs/plans/search-v2.md` P0); a declaration names its module by
+    // subscript into it, which is exactly what the page's script does.
+    const moduleList = JSON.parse(
+      await Deno.readTextFile(`${site}/modules.json`),
+    ).modules as { n: string; p: string }[];
     const firstDecl: [string, number, number] | undefined = searchIndex.decls?.[0];
-    const first = firstDecl
-      ? searchIndex.modules[firstDecl[2]].p
-      : modulePages[0];
+    const first = firstDecl ? moduleList[firstDecl[2]].p : modulePages[0];
 
     // 2 — the module tree is drawn from modules.json rather than shipped.
     {

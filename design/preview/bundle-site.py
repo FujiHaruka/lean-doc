@@ -49,7 +49,7 @@ def bundle(site: pathlib.Path, page: str) -> str:
     icon = base64.b64encode((site / "favicon.svg").read_bytes()).decode()
     canned = {
         name: json.loads((site / name).read_text(encoding="utf-8"))
-        for name in ("modules.json", "search-index.json")
+        for name in ("modules.json", "search-index.json", "instances.json")
         if (site / name).exists()
     }
 
