@@ -23,9 +23,9 @@ git show 117e928:README.md    # 18 件版 (v0.1.0 を締めた日)
 |---|---|---|
 | **U1** 依存 root の外部リンク | **通過**【実測 2026-08-18 → [`../../benchmarks/results/external-links-2026-08-18.txt`](../../benchmarks/results/external-links-2026-08-18.txt)】 | マップの **21 root / 32 URL がすべて実在** (負検査 32/32 が 404 で、叩いていることを先に確かめた)。**副産物のほうが大きい** — 422 ページが実際に書いた外部リンクは **4 root・3 リポジトリだけ**で、オラクルが届かなかった root の大半は**この対象の出力に 1 本も出ていない** |
 | **U2** 同名宣言のページ配置 | **通過**【実測 2026-08-18 → [`../../benchmarks/results/duplicate-owners-2026-08-18.txt`](../../benchmarks/results/duplicate-owners-2026-08-18.txt)】 | **現象は実在する (21 件)** が **出力に出ない**。所有判定 (link index) と重複除去 (IR) を**それぞれ消して測っても出力は 1 バイトも動かない** — 21 件は blacklist で先に落ちている。**出ない理由は blacklist であって、2 本ある規則が一致しているからではない** |
-| **U3** Windows フォント / ダークの色 | 未 | |
-| **U4** md4c のリーク検査 | 未 | |
-| **U5** 新しい Lean で建つか | 未 | |
+| **U3** Windows フォント / ダークの色 | **通過**【実測 2026-08-18 → [`../../benchmarks/results/browser-windows-2026-08-18.txt`](../../benchmarks/results/browser-windows-2026-08-18.txt)、[run 32141072539](https://github.com/FujiHaruka/litedoc4/actions/runs/32141072539)】 | **Consolas を持つ機材はあった** (`windows-latest`)。**欠けた字形 0**、ただし等幅スタック単独では **105/178**、送り幅が違う字は **73 種で 3 OS 中最悪**。ダークの色は検査 5b を足し、**片テーマだけ壊して一度落としてから**通した |
+| **U4** md4c のリーク検査 | **通過**【実測 2026-08-18 → [`../../benchmarks/results/leak-check-2026-08-18.txt`](../../benchmarks/results/leak-check-2026-08-18.txt)、[run 32141014754](https://github.com/FujiHaruka/litedoc4/actions/runs/32141014754)】 | corpus 12 件で **leak 0**。負検査 (`leak_canary`) が **24 byte leaked** で落ちることを先に確かめた。**1 回目は `cc` が gcc で落ち**、canary の判定が「非ゼロだが LSan のせいではない」と正しく報告した |
+| **U5** 新しい Lean で建つか | **通過 (結果は否定的)**【実測 2026-08-18 → [`../../benchmarks/results/lean-version-2026-08-18.txt`](../../benchmarks/results/lean-version-2026-08-18.txt)】 | **v4.32.2 は建ち、IR は v4.31.0 と byte 一致**。**v4.33.0 は建たない** — `getCustomAttrs` の `match` が `ReducibilityStatus.instanceReducible` を網羅していない。**壊れているのは 1 箇所**で、広げると error 0 で建つ。落ち方はコンパイルエラー = **大声**（合格条件はこちら側） |
 
 **U1 が足したもの**: `litedoc4 links --root <repo> [--link-index <file>] [--out <file>]` —
 マップは `build` のログの 1 行以外どこからも観測できず、**その 1 行では何も叩けなかった**。

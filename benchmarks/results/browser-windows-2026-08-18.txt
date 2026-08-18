@@ -1,0 +1,77 @@
+Windows の等幅フォールバックとダークの実際の色【実測 2026-08-18】
+================================================================
+
+未検証項目 2 件を潰すための 1 本 (→ docs/plans/unverified-sweep.md U3):
+
+  「等幅フォントのフォールバック — 残っているのは Windows。Consolas を持つ機材が
+    ここに無いので測っていない」
+  「実ブラウザで見ていないのは見た目そのもの。ゲートが見ないのはダークモードの
+    実際の色 (見ているのは data-theme が動くことだけ) と、スクリーンリーダー」
+
+**Consolas を持つ機材はあった** — `windows-latest` に Consolas も Chrome も入っていて、
+public リポジトリなのでタダで回る。Q8 が 2026-08-17 に記録した
+「Linux の機材はずっとタダで手に入っていた」と**同じ失敗が OS 1 つ分先にあった**。
+
+機材と条件
+----------
+  .github/workflows/ci-browser-windows.yml (workflow_dispatch、2 ジョブ)
+  run 32141072539 — https://github.com/FujiHaruka/litedoc4/actions/runs/32141072539
+  job1 ubuntu-latest : e2e/micro のサイトを建てて artifact に上げる (+ 比較用に同じゲート)
+  job2 windows-latest: artifact を取り、Chrome を CHROME_PATH で指して同じゲート
+  文字集合はサイトからではなく**対象から**取る (mono-charset.json、178 種)
+
+1 回目は落ちた — ゲートに届く前に【実測】
+------------------------------------------
+  診断ステップの PowerShell が `System.Drawing` を読めず
+  ("Cannot find type [System.Drawing.Text.InstalledFontCollection]")、
+  **ブラウザゲートは 1 度も走らなかった**。`Add-Type -AssemblyName System.Drawing` を
+  足して再実走。**「ジョブが赤い」と「ゲートが判定した」は別**。
+
+Windows に実在したもの【実測】
+------------------------------
+  Chrome : /c/Program Files/Google/Chrome/Application/chrome.exe (4,074,648 B)
+  等幅   : Cascadia Code / Cascadia Mono の各ウェイト、Consolas、Courier New
+
+字形 — 欠けは 0、ただしスタック単独では 105/178【実測】
+-------------------------------------------------------
+  Chrome が実際に描いたフォント (CSS.getPlatformFontsForNode):
+
+    Consolas:105   Cambria Math:60   Times New Roman:11   Segoe UI Symbol:2
+
+  **欠けた字形は 0。** 決定 2 の賭け (Web フォントを捨ててシステムの等幅に任せる) は
+  3 OS すべてで成立した。同時に、**等幅スタック単独では 105/178 しか描いていない**ことも
+  出た — 残り 73 はプロポーショナルの数学フォントが埋めている。
+
+  3 OS の比較 (すべて同じ 178 種、同じ CSS):
+
+    OS       等幅で描かれた数   欠け   送り幅が違う字
+    macOS    Menlo:140          0      34
+    ubuntu   DejaVu Sans Mono:157  0   22
+    Windows  Consolas:105       0      **73**
+
+  **字幅の崩れは Windows が最も大きい** (73 種)。決定 2 は「字幅は崩れうる」を
+  明示的に受け入れているので**判定には使わない**が、数字としては 3 OS 中最悪。
+
+ダーク/ライトの実際の色【実測】
+-------------------------------
+  検査 5 は `data-theme` が動くことしか見ていなかった (機構であって結果ではない)。
+  検査 5b を足し、**両テーマ**で computed style から WCAG 2.1 のコントラスト比を出す:
+
+    light  body/.doc/.decl-name/.fn 17.65:1   .src/main a 4.82:1
+    dark   body/.doc/.decl-name/.fn 13.93:1   .src/main a 6.01:1
+
+  閾値は SC 1.4.3 の 4.5:1。**Windows と ubuntu と macOS で同じ値**が出た
+  (色は CSS 由来なので OS に依らない)。**light の 4.82 は AA ぎりぎり**で、
+  ここを暗くする変更は落ちる。
+
+  **一度落としてから通した**【実測、ローカル】: サイトの複製で `--fg` のダーク側だけを
+  背景に寄せると (#dfe4ea → #2a2f36)、**ダークの 4 項目だけが 1.32:1 で落ち、
+  ライトは通った**。両テーマを別々に見ていることの実測。
+
+残しているもの
+--------------
+  - **スクリーンリーダーは持たないと決める** (自動化できない。axe-core は代替であって
+    スクリーンリーダーではない)
+  - 判定に使っているのは**代表要素 1 つずつ**で、全要素の走査ではない
+  - Windows ジョブが見ているのは **e2e/micro のサイト** (9 宣言)。文字集合は対象由来
+    なのでフォントの判定は成立するが、レイアウトの判定は小さい木の上のもの

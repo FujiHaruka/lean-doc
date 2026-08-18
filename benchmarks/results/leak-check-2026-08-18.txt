@@ -1,0 +1,57 @@
+md4c のリーク検査 — LSan は Linux で走った【実測 2026-08-18】
+================================================================
+
+未検証項目「md4c FFI のリークを見ていない」を潰すための 1 本
+(→ docs/plans/unverified-sweep.md U4)。fuzz/README.md はこう書いていた:
+「Leak detection is not part of this. LeakSanitizer does not run on macOS, so a
+buffer md4c allocates and never frees would not show here」。
+**これはこの机についての事実であって、プロジェクトについての事実ではない** —
+`ubuntu-latest` は LSan を走らせられて、ずっとタダで手に入っていた
+(Q8 が 2026-08-17 に記録した「Linux の機材はずっとタダで手に入っていた」と同型)。
+
+機材と条件
+----------
+  GitHub Actions ubuntu-latest / .github/workflows/ci-leak.yml (workflow_dispatch)
+  run 32141014754 — https://github.com/FujiHaruka/litedoc4/actions/runs/32141014754
+  nightly + cargo-fuzz、ASAN_OPTIONS=detect_leaks=1
+  corpus は **ゲートが毎 push で回している 12 件** (crates/litedoc4-md/tests/data/fuzz/)
+  `-runs=0` = 各入力を 1 度ずつ実行して終了。**探索ではない** (決定 5 は据え置き)
+
+1 回目は落ちた — そして落ち方が正しかった【実測】
+--------------------------------------------------
+  `cc` は **gcc 13.3.0** で、`-fsanitize=fuzzer-no-link` と `-mllvm` は clang のもの。
+  cc-rs が「unrecognized argument to '-fsanitize=' option: 'fuzzer-no-link'」で落ちた。
+
+  **このとき canary の判定が嘘を防いだ**: ステップは「非ゼロで終わった」ことを合格と
+  読まず、`grep "detected memory leaks"` も見ていたので、
+
+      ##[error]the canary exited 1, but not because LSan reported a leak
+
+  と報告して止まった。**ビルド失敗を「きれいな実行」と読む経路が塞がっていた**
+  (CLAUDE.md「非ゼロ終了を答えと読む前に、環境が作れること自体を確かめる」)。
+  直したのは `CC: clang` の 1 行。clang は 18.1.3 が最初から入っている。
+
+負検査 — canary は必ず漏らす【実測】
+------------------------------------
+  fuzz/fuzz_targets/leak_canary.rs は入力を確保して `mem::forget` するだけの的。
+
+      SUMMARY: AddressSanitizer: 24 byte(s) leaked in 1 allocation(s).
+      canary leaked as intended (exit 1)
+
+  **これが緑になったら本番の緑は無意味**なので、ワークフローはここで止まる。
+  リーク 0 の報告は、サニタイザが繋がっていない場合と見分けがつかない。
+
+結果【実測】
+------------
+      Done 12 runs in 0 second(s)          ← corpus 全通し、leak 報告なし
+
+  **md4c が確保して解放しないバッファは、この 12 入力の範囲では無い。**
+
+主張の限界
+----------
+  - **corpus 12 件だけ。** 探索 (8,939,197 execs) はこのジョブではやっていない
+  - **1 機材・1 ビルド。** ubuntu-latest の clang 18 でのみ
+  - **`-runs=0` はパースを 1 回ずつ通すだけ**で、長時間走らせたときに積み上がる種類の
+    リーク (1 回では見えない量) はここに出ない
+  - **CI の常設ゲートではない** (workflow_dispatch)。決定 5 のとおり、時間で回すものを
+    毎 push には入れない
