@@ -282,6 +282,12 @@ lint と別に CI が持っているもの: **rustdoc のリンク**
   `AddrInUse` が出たら `pkill -f check-site-browser.ts`。
 - **CI の実測値を main を赤くせずに取るには、ブランチ push + `gh workflow run ci.yml --ref <branch>`**
   (検証用ワークフローは `workflow_dispatch` のみ。`ci.yml` だけが push / PR で走る)。
+- **パイプを噛ませた瞬間、見ている終了コードは最後のコマンドのものになる。**
+  `litedoc4 build … | tail -25` は **litedoc4 が拒否して 3 で落ちても 0 に見える**
+  【実測 2026-08-18、この日 2 回踏んだ】。ログを読むために `| tail` を足すのは日常なので、
+  **終了コードを判定に使う場面では `${PIPESTATUS[0]}` を見るか、パイプを外して
+  ファイルにリダイレクトする**。上の「出力と終了コードが食い違う形はゲートを嘘にする」の、
+  こちら側が観測を誤る版。
 - **`trap … EXIT` の最後のコマンドの終了コードが、スクリプトの終了コードになる。**
   `cleanup() { [ -f "$F" ] && cp …; }` は、`$F` が無いときに **1 を返す**。
   実際に `tools/e2e-micro.sh` が **「E2E MICRO: ok」と印字して exit 1** していた
