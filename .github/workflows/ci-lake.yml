@@ -168,6 +168,21 @@ jobs:
           /-- It is the answer. -/
           theorem widgetAnswer_eq : widgetAnswer = 42 := rfl
           LEAN
+          # A real consumer is a git checkout with a GitHub `origin`, and
+          # `lean-doc build` derives --source-url from exactly that. The first
+          # version of this step skipped it and the job failed with
+          # `git rev-parse HEAD … not a git repository` 【実測 2026-08-18】 — the
+          # fixture, not the product, was the thing that did not look like a
+          # user's package. `.lake/` is excluded because `lake update` clones
+          # lean-doc into it and a repository inside a repository is not what is
+          # being tested here.
+          printf '.lake/\n' > "$CONSUMER/.gitignore"
+          git -C "$CONSUMER" init -q
+          git -C "$CONSUMER" add .
+          git -C "$CONSUMER" -c user.name=ci -c user.email=ci@example.invalid \
+            commit -qm "the fixture"
+          git -C "$CONSUMER" remote add origin \
+            https://github.com/FujiHaruka/lean-doc-consumer-fixture.git
           echo "CONSUMER=$CONSUMER" >> "$GITHUB_ENV"
 
       # The real channel: this clones over https into .lake/packages/lean-doc.
