@@ -2,7 +2,7 @@
 
 ## State
 
-- Branch: main / HEAD は**改名コミット** (直前は `70f48b1`)
+- Branch: main / **clean** / HEAD は `v0.1.4` を打った版 (改名 → version bump の 2 commit)
 - Active phase: **2026-08-18 に `lean-doc` → `litedoc4` へ改名した**【ユーザー判断】 —
   リポジトリ名・crate・CLI・Lake パッケージ名のすべて。**記録の SoT は
   `docs/plans/rename.md`** (旧名を意図的に残した 5 種と、改名が生んだ過渡状態)。
@@ -48,12 +48,9 @@ Release から取る (checksum 照合必須)。**`--lib` の手書きが要ら�
 
 **ユーザーの指示待ち。** 手を動かすなら候補は 3 つ:
 
-1. **tag を打つか — 改名で優先度が上がった**。`v0.1.3` 以前のツリーには `lakefile.lean` が
-   無いので既存 tag では `require` が解決できない、に加えて、**改名で 3 つ壊れたままになっている**:
-   README の `curl` が **404** (最新 Release の資産は `lean-doc-*.tar.gz`)、`lakefile.lean` の
-   段 3 が資産を見つけられない、**L2 が未検証に戻った** (`tools/lake-download-gate.sh` を
-   走らせられない)。`Cargo.toml` を 0.1.4 に上げて tag を打てば 3 つとも解ける。
-   **これは outward-facing なのでユーザーの判断** → `docs/plans/rename.md` §5
+1. ~~tag を打つ~~ — **済んだ**。`v0.1.4` が改名後の最初の Release で、`lakefile.lean` を
+   持つ最初の tag。**CI 3 ワークフローとも緑**【実測 2026-08-18】。次の候補は可動 `v0` tag
+   (「最新の 0.x」として付け替える運用) だが、**まだ作っていない** → `docs/plans/distribution.md`
 2. **`resolveLitedoc4` 段 5 (`cargo build`) の成功経路** — 10 項目のゲートで唯一残った穴。
    両ゲートが失敗する `cargo` shim を置いているため一度も走っていない
    (置かないと「落ちるべき項目」が数分の release ビルドの末に別の理由で緑になる)

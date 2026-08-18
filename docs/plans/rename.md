@@ -67,19 +67,30 @@ Lean 4 向けだと名前が言う。**弱点**: Lean 5 が出たら古びる (m
 **旧マーカーで旧期待値が完全に再現することを対照として先に確認**してから新値を採った
 (コードの出力をコピーすると、正準形が壊れても通るテストになる)。
 
-## 5. 未解決 — 改名後の最初のリリースまでの過渡状態
+## 5. 過渡状態 — **`v0.1.4` で解消した**【実測 2026-08-18】
 
-1. **`lakefile.lean` の段 3 (Release からの取得) は現版では機能しない** — このツリーの
-   `Cargo.toml` は 0.1.3 で、**v0.1.3 の Release に `litedoc4-*.tar.gz` は無い**
-   (あるのは `lean-doc-*`)。段 4 (PATH) / 段 5 (cargo build) に落ちる
-2. **README の `curl … /releases/latest/download/litedoc4-x86_64-…` は今は 404**
-3. **`uses: FujiHaruka/litedoc4@v0.1.3` は動くが旧名時代の action** — タグの中身は
-   自己完結していて旧資産を掴むため実害は無いが、名前は食い違っている
-4. **`tools/lake-download-gate.sh` (L2) は走らせられない** — 新名の資産が存在しないため。
-   **改名後のリリースを打つまで L2 は未検証に戻っている**
-5. 既存の URL は **GitHub のリポジトリ改名リダイレクト頼み**
+改名は 4 つを壊した。**どれも「次のリリースまで」の過渡状態だったが、1 つは予測より強く出た**:
 
-→ **次のリリース (v0.1.4) を打った時点で 1〜4 を解消し、L2 を走らせ直すこと。**
+| | 壊れたもの | 解消 |
+|---|---|---|
+| 1 | `lakefile.lean` の段 3 (Release 取得) — v0.1.3 に `litedoc4-*.tar.gz` が無く段 4/5 に落ちる | v0.1.4 |
+| 2 | README の `curl … /releases/latest/download/litedoc4-…` が **404** | v0.1.4 |
+| 3 | `uses: …@v0.1.3` は動くが旧名時代の tree を指す | v0.1.4 |
+| 4 | **`ci-lake.yml` の L2 ジョブが CI で赤くなった** | v0.1.4 |
+
+**4 はこの文書が最初「走らせられない」としか書いていなかった** — 実際に起きたのは
+`main` の CI が赤くなることで、`tools/lake-download-gate.sh` は
+`cannot reach …/v0.1.3/litedoc4-x86_64-unknown-linux-musl.tar.gz — this gate needs the
+network and a release for v0.1.3` と言って exit 2 した【実測、run 32129750236】。
+**ゲートは正しい** (何が無いかを 1 行で言って落ちた)。**弱かったのは予測のほうで、
+「未検証に戻る」と「CI が赤くなる」を同じ強さで書いていた。**
+
+**`v0.1.4` を打って解消**【実測 2026-08-18、release run 32130453578】。資産は
+`litedoc4-aarch64-apple-darwin.tar.gz` (**961,382 B**) /
+`litedoc4-x86_64-unknown-linux-musl.tar.gz` (**1,146,329 B**) / `checksums.txt`。
+**再実行した `ci-lake.yml` は 4 ジョブとも緑**【run 32130453216】。
+
+残るのは 1 つだけ: 既存の `lean-doc` URL は **GitHub のリポジトリ改名リダイレクト頼み**。
 
 ## 6. 改名後に実際に通したもの【実測 2026-08-18】
 
@@ -94,4 +105,6 @@ Lean 4 向けだと名前が言う。**弱点**: Lean 5 が出たら古びる (m
 | `tools/e2e-micro.sh` | **ok** — 改名後の CLI が Lean パッケージからサイトを構築 |
 | `tools/lake-package-gate.sh` | **5/5 ok** — **`require «litedoc4»` と `lake script list` の `litedoc4/docs` が動く** |
 
-未走: `tools/lake-download-gate.sh` (§5-4)、browser gate、CI 実走。
+**改名後に CI も実走した**【実測 2026-08-18】 — `CI` / `action (self-test)` /
+`lake package (self-test)` の 3 ワークフローすべて緑 (L2 は v0.1.4 の後に再実行して緑)。
+未走は browser gate のみ。
