@@ -12,10 +12,10 @@ Live example: <https://fujiharuka.github.io/information-theory/> — 422 modules
 
 ## Is this for you?
 
-**Yes**, if doc-gen4 is too slow for your CI and your package uses `lakefile.toml`, lives on
-GitHub, and is on Lean 4.31.x. Any Lean 4 package works — the payoff just scales with how large
-your dependencies are next to your own code, and Mathlib is as large as that gets. You get a
-module tree, search, instance lists, "Imported by", hyperlinked signatures, and a dark theme.
+**Yes**, if doc-gen4 is too slow for your CI and your package lives on GitHub and is on Lean
+4.31.x. Any Lean 4 package works — the payoff just scales with how large your dependencies are
+next to your own code, and Mathlib is as large as that gets. You get a module tree, search,
+instance lists, "Imported by", hyperlinked signatures, and a dark theme.
 
 **No**, if:
 
@@ -23,33 +23,40 @@ module tree, search, instance lists, "Imported by", hyperlinked signatures, and 
 - **you want to search dependency declarations** — search covers your package only
 - **you are far from Lean 4.31.0** — nothing else is tested, and the extractor is compiled
   against your toolchain, so a mismatch surfaces as a build failure, not as bad output
-- **you use `lakefile.lean`** — library names cannot be derived from it; pass `--lib` by hand
 - **you are on Windows, Intel macOS, or Linux/arm64** — releases carry Linux/x86-64 and
   Apple Silicon; anything else builds from source, which needs Rust and a C compiler
+
+A `lakefile.lean` package is fine — the live example is one. The CLI will not guess library names
+out of Lean code, so pass `--lib` by hand; used as a Lake dependency (below) it is read for you.
 
 Already hosting doc-gen4 output? Page paths (`Foo/Bar.html`) and declaration anchors
 (`#Foo.bar`) keep doc-gen4's shape, so existing links into your own docs survive.
 
 ## Speed
 
-432-module package on an Apple M1 / 16 GB, warm page cache, wall clock:
+Apple M1 / 16 GB, warm page cache, wall clock. One Mathlib-dependent package throughout, measured
+at two of its revisions — 432 modules then, 422 later — so every row names the one it ran on:
 
 | | doc-gen4 | litedoc4 |
 |---|---:|---:|
-| Extract all 432 modules, single-threaded | 1,076 s | **14.08 s** |
-| Full site from nothing, `--jobs 4` | — | **29.5 s** |
-| Rebuild after one added declaration | — | **~4 s** |
-| Rebuild with nothing changed | — | **0.3 s** |
+| Extract every module, single-threaded (432 modules) | 1,076 s | **14.08 s** |
+| Full site from nothing, `--jobs 4` (422) | — | **24.5 s** |
+| Rebuild after one added declaration (422) | — | **4.35 s** |
+| Rebuild with nothing changed (422) | — | **0.31 s** |
+
+The rebuild row is the median of 6 runs spread over 3.96–6.22 s. What moves between them is Lean's
+environment load, not the work, so that wall clock is not something to gate on.
 
 **The dashes are the point**: doc-gen4 is not doing these jobs. It documents your entire import
 closure — ~8,600 modules here against your 432 — and regenerates every page on every run. That
 build has never been finished on this machine (aborted at 42%, memory-bound, after 13,611 s of
 CPU time, which extrapolates to ~9 h of CPU for the closure), so there is no wall-clock number to
-put next to 29.5 s.
+put next to 24.5 s.
 
 On a 4-core GitHub runner `litedoc4 build` took **11.5–20.7 s** for 422 modules. A first run also
 builds the tools (~16 s extractor, ~24 s cargo, cached afterwards); the rest of the job is your
-usual `lake exe cache get` + `lake build`. Peak memory ≈3.3 GB. Raw logs: [`benchmarks/`](benchmarks/).
+usual `lake exe cache get` + `lake build`. Peak resident memory ≈4.0 GB (3.88–4.03 GB across 50
+runs). Raw logs: [`benchmarks/`](benchmarks/).
 
 ## Documentation on GitHub Pages
 
@@ -83,7 +90,8 @@ and last run's state, which is what makes the second run incremental.
 Inputs you may need: `root` if your package is not at the repository root, `lib` if you use
 `lakefile.lean`, `lake-build: false` if you already built the package **earlier in the same
 job** (from another job the page cache is cold), `full: true` to ignore previous state.
-Outputs: `site`, `out`, `timings`.
+Outputs: `site`, `out`, `timings`, and `binary-source` — where the `litedoc4` binary came from
+(`release`, `cached` or `cargo`), so a caller can assert on it.
 
 To archive instead of publish, swap the last two steps for `actions/upload-artifact` and drop
 the `permissions` / `environment` lines.
