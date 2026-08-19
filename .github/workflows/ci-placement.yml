@@ -80,14 +80,6 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  # Incremental compilation is for a working tree that gets built over and
-  # over. CI builds once from a restored cache and throws the machine away, so
-  # the incremental state is never read back — it is only written, cached, and
-  # restored. Locally it was 3.5 GB of a 7.2 GB `target/`, and the cargo cache
-  # is what was pushing this repository to 98.8% of the 10 GiB limit.
-  CARGO_INCREMENTAL: 0
-
 jobs:
   # ---------------------------------------------------------------- arm `same`
   same:
