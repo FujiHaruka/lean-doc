@@ -89,6 +89,15 @@ jobs:
         with:
           path: litedoc4
 
+      # `crates/litedoc4-render/build.rs` bundles the site's TypeScript into
+      # `app.js`, so **cargo cannot build this workspace without node**
+      # (`docs/plans/assets-typescript.md` 決定 1). Pinned rather than left to
+      # whatever the runner image happens to ship: the version is the one in
+      # `mise.toml`, and `tools/assets-gate.sh` checks that these two agree.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24.19.0"
+
       - name: Check out the measurement target (public), pinned
         uses: actions/checkout@v5
         with:
@@ -200,6 +209,15 @@ jobs:
         uses: actions/checkout@v5
         with:
           path: litedoc4
+
+      # `crates/litedoc4-render/build.rs` bundles the site's TypeScript into
+      # `app.js`, so **cargo cannot build this workspace without node**
+      # (`docs/plans/assets-typescript.md` 決定 1). Pinned rather than left to
+      # whatever the runner image happens to ship: the version is the one in
+      # `mise.toml`, and `tools/assets-gate.sh` checks that these two agree.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24.19.0"
 
       - name: Check out the measurement target (public), pinned
         uses: actions/checkout@v5

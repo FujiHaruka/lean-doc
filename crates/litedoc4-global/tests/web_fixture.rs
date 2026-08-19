@@ -12,6 +12,7 @@
 //!
 //! Regenerate with `UPDATE_WEB_FIXTURE=1 cargo test -p litedoc4-global`.
 
+use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -95,11 +96,7 @@ fn build() -> (Vec<u8>, String) {
         .iter()
         .zip(&kinds)
         .zip(&modules)
-        .map(|((name, &kind), &module)| Entry {
-            name,
-            kind,
-            module,
-        })
+        .map(|((name, &kind), &module)| Entry { name, kind, module })
         .collect();
     let bytes = encode(&entries, &KINDS);
 
@@ -156,7 +153,7 @@ fn escape(s: &str) -> String {
             c => {
                 let mut buf = [0u16; 2];
                 for unit in c.encode_utf16(&mut buf) {
-                    out.push_str(&format!("\\u{unit:04x}"));
+                    write!(out, "\\u{unit:04x}").expect("a String never fails to write");
                 }
             }
         }
@@ -166,7 +163,9 @@ fn escape(s: &str) -> String {
 }
 
 fn fixture(name: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join(FIXTURE_DIR).join(name)
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join(FIXTURE_DIR)
+        .join(name)
 }
 
 /// The corpus is only worth committing if it still exercises what it claims to.

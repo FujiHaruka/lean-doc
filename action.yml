@@ -265,6 +265,16 @@ runs:
         fi
         { echo "bin="; echo "source=cargo"; } >> "$GITHUB_OUTPUT"
 
+    # The same condition as the toolchain above: only the cargo fallback needs
+    # node, because `crates/litedoc4-render/build.rs` bundles the site's
+    # TypeScript into `app.js` (`docs/plans/assets-typescript.md` 決定 1). A
+    # caller on a released ref downloads a binary and never gets here.
+    - name: Node toolchain
+      if: steps.binary.outputs.bin == ''
+      uses: actions/setup-node@v6
+      with:
+        node-version: "24.19.0"
+
     - name: Rust toolchain
       if: steps.binary.outputs.bin == ''
       shell: bash

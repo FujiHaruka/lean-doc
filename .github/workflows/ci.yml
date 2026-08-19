@@ -45,6 +45,22 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # `crates/litedoc4-render/build.rs` bundles the site's TypeScript into
+      # `app.js`, so **cargo cannot build this workspace without node**
+      # (`docs/plans/assets-typescript.md` 決定 1). Pinned rather than left to
+      # whatever the runner image happens to ship: the version is the one in
+      # `mise.toml`, and `tools/assets-gate.sh` checks that these two agree.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24.19.0"
+
+      # Before the Rust half, and deliberately: this is thirty seconds against
+      # cargo's ten minutes, and `cargo build` cannot even start if the
+      # TypeScript does not bundle. The four stages inside fail separately, so a
+      # red run says which of lint / types / tests / bundle broke.
+      - name: Assets gate (the site's TypeScript)
+        run: tools/assets-gate.sh --json "$RUNNER_TEMP/assets.json"
+
       # rust-toolchain.toml pins the channel and asks for rustfmt and clippy;
       # `rustup show` is what makes rustup act on it.
       - name: Install the toolchain rust-toolchain.toml asks for
@@ -135,6 +151,15 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
+
+      # `crates/litedoc4-render/build.rs` bundles the site's TypeScript into
+      # `app.js`, so **cargo cannot build this workspace without node**
+      # (`docs/plans/assets-typescript.md` 決定 1). Pinned rather than left to
+      # whatever the runner image happens to ship: the version is the one in
+      # `mise.toml`, and `tools/assets-gate.sh` checks that these two agree.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24.19.0"
 
       - name: Install the toolchain rust-toolchain.toml asks for
         run: rustup show
