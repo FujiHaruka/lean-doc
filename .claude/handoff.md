@@ -18,7 +18,10 @@
 - Progress ledger:
   - r1: 計画 `561db4c` / 数式クレート確定 `?` / **A-1 本体 `baab197`**
     (依存リンクを検証つきで docs へ。既定は不変、テスト 394 緑、clippy 緑)。
-    残り: A-1 のゲート + 残り経路 (`incremental` / `ledger` / `links`) + 実測ログ
+    A-1 のゲート `tools/deps-docs-gate.sh` + 残り経路 + 実測ログ
+    (`benchmarks/results/deps-docs-2026-08-19.txt`) は未コミットで検証中。
+    ゲートはフォールバック枝 (表に無い名前 → ソース) を既定で通っていなかったので
+    Init を既定に入れて両枝を発火させる修正を依頼中
 
 ## Where we are
 
