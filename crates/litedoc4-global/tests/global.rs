@@ -265,7 +265,7 @@ fn every_case_writes_the_new_artifacts() {
     }
 }
 
-/// The two JSON indexes, as `assets/app.js` reads them, over the curated cases
+/// The two JSON indexes, as the site's script reads them, over the curated cases
 /// rather than over a hand-built package.
 ///
 /// The unit tests in `src/artifacts.rs` pin the shape on three modules this

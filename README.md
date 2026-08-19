@@ -134,7 +134,9 @@ leaves the cache empty.
 
 Releases carry `x86_64-unknown-linux-musl` and `aarch64-apple-darwin` only. On anything else —
 Intel macOS, arm Linux — the script says there is no asset for your target and falls through to
-`PATH` and `cargo build`; that is a normal path, not a failure.
+`PATH` and `cargo build`; that is a normal path, not a failure. **That last fallback needs node**,
+because building from source builds the site's JavaScript too; a release binary needs nothing but
+itself.
 
 ```sh
 LITEDOC4_NO_DOWNLOAD=1 lake run docs -- --out ../mypkg-docs   # never reach the network
@@ -160,7 +162,9 @@ TARGET_REPO=/path/to/your-package extractor/build.sh     # -> extractor/build/ex
 # other one), which unpacks to litedoc4-<version>-<target>/litedoc4 …
 curl -sSfL https://github.com/FujiHaruka/litedoc4/releases/latest/download/litedoc4-x86_64-unknown-linux-musl.tar.gz \
   | tar xz
-# … or build it, which needs Rust (via rustup) and a C compiler
+# … or build it, which needs Rust (via rustup), a C compiler and node.
+# node builds the site's JavaScript from the TypeScript in
+# crates/litedoc4-render/web; mise.toml pins the version.
 cargo build --release                                    # -> target/release/litedoc4
 
 # then, with whichever of the two you have:

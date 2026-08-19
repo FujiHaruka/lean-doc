@@ -35,7 +35,8 @@
   **105 KiB (15.7×)**【実測】。
 - **重複に 12.8% ある。** `modules` 節は `modules.json` と**同じ配列に同じ順で添字を
   張っている**【実測: `artifacts.rs:186-198` が一つの `own_sorted` から両方を作る】。
-  そして `modules.json` は `initTree()` が**全ページで取る**【`app.js:544`】。
+  そして `modules.json` は `initTree()` が**全ページで取る**【当時 `app.js:544`、
+  2026-08-19 の TS 化以後は `web/src/tree.ts` の `initTree`】。
   検索索引がもう 1 部持つ理由が無い。
 
 さらに、**規模が変わると前提ごと変わる** — 全件ダウンロードと O(N) 走査は、いまの母数が
@@ -221,7 +222,7 @@ P0 + P2 だけ入れて閉じる」。
 | ファイル | 何をするか |
 |---|---|
 | `crates/litedoc4-global/src/artifacts.rs` | encoder。`ARTIFACT_PATHS` / `search_index_json` を `.bin` + `instances.json` に置き換え、`modules` 節を落とす |
-| `crates/litedoc4-render/assets/app.js` | decoder と照合。`decls()` / `search()` / `score()` / `resultItem()` / instances ブロック |
+| `crates/litedoc4-render/web/src/` (2026-08-19 の TS 化まで `assets/app.js`) | decoder と照合。`decls()` / `search()` / `score()` / `resultItem()` / instances ブロック |
 | `crates/litedoc4-global/src/site.rs` | `search_index_bytes` の集計 |
 | `crates/litedoc4-global/src/state.rs`, `crates/litedoc4-incr/src/prune.rs` | 全域成果物の一覧と増分の差分規則 |
 | `crates/litedoc4-global/tests/global.rs`, `crates/litedoc4/tests/{site,incremental}.rs` | 成果物パスの一覧と形の検査 |

@@ -104,9 +104,11 @@ sourcemap を site に置くと `ASSETS` が 3 → 4 本になり、`prune.rs` /
 記述が全部動く。**読者が払うバイトでもある。** ソースは公開リポジトリにあるので、
 デバッグしたい人はそれを読める。
 
-**決定 3 — minify は vite 既定の esbuild。**
-terser は圧縮率で数 % 勝つが、決定 1 で生成物をコミットする以上
-**出力の決定性が要件**になる。esbuild は vite に同梱で版が lockfile に落ちる。
+**決定 3 — minify は vite 8 既定の oxc。**
+**esbuild を指定して落ちた**【実測 2026-08-19】: vite 8 は rolldown / oxc で建っていて、
+`minify: "esbuild"` は「非推奨、esbuild を別途 install せよ」と言って**ビルドを失敗させる**。
+terser は圧縮率で数 % 勝つが、依存を 1 つ増やして得るものではない。
+oxc は vite に同梱で、版は lockfile に落ちる。
 
 **決定 4 — node は mise で固定する** (`mise.toml`, `node = "24.19.0"` = 現行 LTS)。
 この機材では PATH 上の `node` が 2023 年の pkg 版で **SIGKILL される** (→ CLAUDE.md
@@ -265,3 +267,72 @@ Rust を 10 分回すのは無駄。
 
 **P4 は任意。** P0〜P3 が入った時点でこの計画の目的
 (型・lint・テスト・ビルド・minify) は満たされている。
+
+---
+
+## 9. 結果 (2026-08-19)
+
+**P0〜P3 完了。** 数字はすべて実測。
+
+### 出たもの
+
+| | 前 | 後 |
+|---|---|---|
+| ソース | `assets/app.js` 917 行 1 本 | `web/src/` **17 本** (+ `web/test/` 5 本) |
+| 配るバイト | 32,173 B | **15,109 B** (−53.0%) |
+| 同 gzip | 10,508 B | **4,908 B** (−53.3%) |
+| 型検査 | 無し | `strict` + `noUncheckedIndexedAccess` + `exactOptionalPropertyTypes` ほか、2 プロジェクト |
+| lint / format | 無し | biome 2.5.9 (`preset: recommended` + `noNonNullAssertion` の 1 本だけ追加) |
+| テスト | 実ブラウザのみ | **vitest 42 本** + ブラウザゲートは据え置き |
+| サイズ予算 | 32 KiB (残り 595 B) | **20 KiB** (残り 5,371 B) |
+
+`the_assets_stay_within_their_budget` の上限は**下げた** — 詳細は `assets.rs` の
+その doc コメント。**測っているものが変わった**のが理由で、いまは
+「読者がダウンロードするバイト」そのもの。
+
+### 挙動同値は保った
+
+`browser-gate.sh` が緑 — とくに **「the byte searcher ranks like the frozen one」
+(11 クエリ / 43 宣言 / うち 3 つは 1 文字ずつ)** が通っている。`e2e-micro.sh` の
+9 段も緑。**意図した差は 1 つだけ**: `resultItem` / `declItem` が、索引の指す
+モジュール添字が配列に無いときに **TypeError を投げず**、リンク先をページ内
+フラグメントに落とす。正しいデータでは到達しない枝で、旧版はそこで
+結果リスト全体の描画を落としていた。
+
+### テストが本当に見ているかを確かめた
+
+**故意の欠陥 7 種を 1 つずつ入れ、7 種とも赤くなることを確認**【実測】:
+astral を 1 と数える / 段の点数を入れ替える / 絞り込みキャッシュを常に使う /
+fold 節を無視する / ツリーの spine を開かない / テーマの巡回を変える /
+restart 表を無視する。**「テストがある」と「テストが見ている」は別**で、
+確かめる手段はこれしかない。
+
+ゲートも同じく **5 通りの落とし方で、それぞれ別の段で落ちることを確認**
+(lint / format / types / tests / bundle)。
+
+### 拾った欠陥 — どれも「走らせてみるまで」分からなかった
+
+1. **`biome.json` にコメントを書くと biome が設定を黙って捨てる**【実測】。
+   終了コードは 0、警告も無し。症状は「`indentStyle: "space"` と書いたのに
+   全ファイルがタブになる」。**`biome.jsonc` にすれば読む。** → CLAUDE.md の罠に追加。
+2. **vite 8 で `minify: "esbuild"` はビルドを落とす** (→ 決定 3)。
+3. **ゲートの `mktemp -t <prefix>` が GNU で落ちる** — BSD は prefix に乱数を足すが、
+   GNU は「too few X's」と言って失敗する。**ローカルでは緑、ubuntu で赤**【実測 CI】。
+   完全なテンプレートを書けば両方で動く。
+4. **`git checkout -- <path>` で未コミットの CI 編集を消した** (CLAUDE.md が
+   「無効化実験に使うな」と書いている罠、実演)。作り直した。
+
+### 巻き添えの実測 — §6 の仮定は潰した
+
+`cargo` を回すワークフロー **8 本と `action.yml` の cargo 経路**に
+`actions/setup-node@v6` を入れた (計 14 箇所)。**「runner に node が入っているはず」
+という仮定に頼るのをやめた** — 入っていても版が runner image 次第で、
+`mise.toml` の固定と食い違う。食い違わないことは `assets-gate.sh` が
+**14 箇所すべてを grep して**主張する (これも一度落として確認済)。
+
+### 残り
+
+- **P4 (`THEME_BOOT` の TS 化) は未着手。** 決定 6 の通り任意で、
+  §1 の「テーマキーが 2 言語に重複」だけが残る。
+- **決定 5 (biome を `tools/*.ts` / `benchmarks/tools/*.ts` にも広げるか) は未判断。**
+  差分の大きさを測っていない。

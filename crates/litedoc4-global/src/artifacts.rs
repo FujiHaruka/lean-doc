@@ -17,7 +17,7 @@
 //! `experiments/stage7h/global.ts:277-361` (frozen) because the acceptance
 //! oracle was byte equality with doc-gen4's own build. Five of the six existed
 //! **only** for doc-gen4's six JavaScript files, and M8-c replaced those with
-//! `assets/app.js`, so the files went with their reader
+//! `litedoc4-render`'s `web/src`, so the files went with their reader
 //! (`docs/plans/ui-redesign.md` §8):
 //!
 //! | | why it is gone |
@@ -531,7 +531,8 @@ mod tests {
         assert_eq!(importers(2), Vec::<&str>::new());
     }
 
-    /// The shape `assets/app.js` reads, field by field.
+    /// The shape the site's script reads, field by field —
+    /// `litedoc4-render/web/src/types.ts` is the other side of it.
     #[test]
     fn the_search_index_is_the_shape_the_script_reads() {
         let artifacts = Artifacts::derive(&chain(), &[]);

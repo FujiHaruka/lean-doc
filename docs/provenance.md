@@ -127,7 +127,8 @@ doc-gen4・計測対象リポジトリがすべて Apache-2.0 なので、揃え
 
 `crates/` の `.rs` は 62 ファイル。doc-gen4 に言及するのは 41 ファイルあるが、
 **言及の大半はコメント内の設計根拠の説明**で、コードが由来しているのは B/C の 20 ファイル。
-`tools/` 9 本は全て D。`assets/app.js` (546 行) と `assets/favicon.svg` は**新規** — doc-gen4 の
+`tools/` 9 本は全て D。サイトの JS (2026-08-19 から `crates/litedoc4-render/web/src/`、
+それ以前は `assets/app.js` 546 行) と `assets/favicon.svg` は**新規** — doc-gen4 の
 12 本の JS と突き合わせて共有識別子は DOM API と英単語のみ、`favicon.svg` は共通要素ゼロ。
 
 **ビルド時に doc-gen4 をリンクしない。** `extractor/Extract.lean` は `import Lean` だけ (`:145`)。
