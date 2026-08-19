@@ -114,6 +114,7 @@ dependencies = [
  "litedoc4-incr",
  "litedoc4-ir",
  "litedoc4-render",
+ "serde",
  "serde_json",
 ]
 

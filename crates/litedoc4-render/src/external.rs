@@ -63,7 +63,35 @@
 //! case §M7「行範囲が取れない宣言でリンクを消さない」 refuses, which is about a
 //! declaration with no line range inside a package that *is* pinned; there the
 //! file's URL is still right.
+//!
+//! # A dependency that publishes documentation is a **fourth** state — [`DepDocs`]
+//!
+//! A version-pinned blob URL is right for ever and reads like source. A
+//! dependency that already hosts *rendered* documentation — mathlib4_docs, for
+//! instance — can be linked at instead, and then a reader lands on a page with
+//! the signature, the docstring and the instances rather than on a `.lean` file.
+//!
+//! The reason this is not simply better is that such a site is built from one
+//! revision (mathlib4_docs is built from `master` and no versioned copy exists
+//! 【実測 2026-08-19, `benchmarks/results/deps-link-rot-2026-08-19.txt` §9】)
+//! while the manifest pins another, so a name this package refers to may not be
+//! on it. Measured on the target: **0 of 396 Mathlib names missing at a two
+//! month pin 【実測】, 10.3 of 396 expected at twelve 【外挿】**.
+//!
+//! So the state carries the site's **declaration table**, and the rule is one
+//! rule rather than a fallback chain:
+//!
+//! * the table holds the name ⇒ the docs page, at the table's own `docLink`;
+//! * the table does not hold it ⇒ the version-pinned source, as before;
+//! * **there is no table** ⇒ no [`DepDocs`] at all, so every name of that root
+//!   takes the version-pinned source. A run never tries the docs site and
+//!   recovers from a 404: nothing here can see a 404, and a link that 404s is
+//!   exactly what the pin was protecting against.
+//!
+//! Module links are answered the same way out of the table's `modules` section,
+//! which is what an import list needs.
 
+use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
 use sha2::{Digest, Sha256};
@@ -77,9 +105,139 @@ use crate::frame::module_source_url;
 /// digest even for the empty map, which otherwise has no bytes to move.
 pub const DIGEST_MARKER: &str = "litedoc4 external-links v1\n";
 
+/// The line that opens the **docs** section of [`ExternalLinks::canonical`],
+/// written only when at least one root has a [`DepDocs`].
+///
+/// Its absence is what keeps a map with no documentation sites hashing to
+/// exactly the bytes it hashed to before this state existed — so every ledger
+/// written by a run that did not use the feature stays valid, and turning the
+/// feature on moves the key rather than leaving pages that link elsewhere
+/// looking up to date.
+pub const DOCS_DIGEST_MARKER: &str = "litedoc4 external-links docs v1\n";
+
+/// A dependency's **already-rendered documentation**, and the names that were
+/// verified to be on it (see the heading's fourth state).
+///
+/// The two maps are the site's own declaration table, cut down to what this run
+/// can ask about. Their values are `docLink`s **as the table wrote them**, with
+/// the leading `./` removed and nothing else changed: reconstructing the path
+/// from a module name would be this side guessing at the other side's layout,
+/// which is the mistake [`crate::module_source_url`] is allowed to make only
+/// because a checkout's layout is the module name.
+///
+/// `BTreeMap` rather than a hash map for one reason that is not performance:
+/// [`ExternalLinks::canonical`] hashes these entries, so their order has to be
+/// a function of the entries and not of how they were inserted.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct DepDocs {
+    base: String,
+    declarations: BTreeMap<String, String>,
+    modules: BTreeMap<String, String>,
+}
+
+impl DepDocs {
+    /// The site at `base`, holding these declarations and these modules.
+    ///
+    /// Both maps are keyed by **full name** — `Mathlib.Order.Basic` is a key of
+    /// `modules` and `Nat.add_comm` a key of `declarations` — and their values
+    /// are stripped here rather than at either call site, so that the table
+    /// reader and the resolved-map reader cannot disagree about what a
+    /// `docLink` means.
+    #[must_use]
+    pub fn new<K: Into<String>, V: Into<String>>(
+        base: impl Into<String>,
+        declarations: impl IntoIterator<Item = (K, V)>,
+        modules: impl IntoIterator<Item = (K, V)>,
+    ) -> Self {
+        fn entries<K: Into<String>, V: Into<String>>(
+            raw: impl IntoIterator<Item = (K, V)>,
+        ) -> BTreeMap<String, String> {
+            raw.into_iter()
+                .map(|(name, link)| (name.into(), strip_doc_link(&link.into()).to_owned()))
+                .collect()
+        }
+        Self {
+            // As [`ExternalLinks::new`] does, and for the same reason: a
+            // trailing slash would produce `…/mathlib4_docs//Mathlib/…`.
+            base: base.into().trim_end_matches('/').to_owned(),
+            declarations: entries(declarations),
+            modules: entries(modules),
+        }
+    }
+
+    /// Where the site is.
+    #[must_use]
+    pub fn base(&self) -> &str {
+        &self.base
+    }
+
+    /// The page for a declaration this site was verified to document, or `None`
+    /// — which means "not on that site", and the caller falls back to the
+    /// version-pinned source rather than to a guess.
+    #[must_use]
+    pub fn url_for_name(&self, name: &str) -> Option<String> {
+        self.url(self.declarations.get(name)?)
+    }
+
+    /// The same question for a module, which is what an import list asks.
+    #[must_use]
+    pub fn url_for_module(&self, module: &str) -> Option<String> {
+        self.url(self.modules.get(module)?)
+    }
+
+    /// `<base>/<docLink>`, or `None` for a base that is not a URL to hang a
+    /// path off.
+    ///
+    /// The guard is [`ExternalLinks::url_for`]'s, one type over: an empty base
+    /// would produce `/Mathlib/Order/Basic.html`, an absolute path on whatever
+    /// host serves *this* site. A caller is expected to have refused the empty
+    /// base already; this is what makes the failure a missing link rather than
+    /// a wrong one if one ever gets through.
+    fn url(&self, link: &str) -> Option<String> {
+        if self.base.is_empty() {
+            return None;
+        }
+        Some(format!("{}/{link}", self.base))
+    }
+
+    /// The verified declarations, sorted by name.
+    pub fn declarations(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.declarations
+            .iter()
+            .map(|(name, link)| (name.as_str(), link.as_str()))
+    }
+
+    /// The verified modules, sorted by name.
+    pub fn modules(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.modules
+            .iter()
+            .map(|(name, link)| (name.as_str(), link.as_str()))
+    }
+
+    #[must_use]
+    pub fn declaration_count(&self) -> usize {
+        self.declarations.len()
+    }
+
+    #[must_use]
+    pub fn module_count(&self) -> usize {
+        self.modules.len()
+    }
+}
+
+/// A `docLink` as the table writes it — `./Mathlib/Order/Basic.html#Foo.bar` —
+/// with the leading `./` removed so that it can be joined onto a base.
+///
+/// A leading `/` goes too: joined onto `https://host/mathlib4_docs` it would
+/// otherwise resolve at the host's root, which is a different site.
+fn strip_doc_link(link: &str) -> &str {
+    link.trim_start_matches("./").trim_start_matches('/')
+}
+
 /// Module root component -> the `…/blob/<rev>` prefix its source lives under,
 /// **or the empty string** when the root belongs to a dependency this run could
-/// not version-pin (see the heading's third state).
+/// not version-pin (see the heading's third state) — plus, since A-1, the
+/// dependency's own documentation site when there is one (the fourth).
 ///
 /// A `Vec` rather than a map: it holds one entry per dependency package plus
 /// core — 19 on the measurement target — every lookup is one pass over it, and
@@ -87,7 +245,16 @@ pub const DIGEST_MARKER: &str = "litedoc4 external-links v1\n";
 /// line. Duplicate roots are dropped on construction, **first one wins**.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ExternalLinks {
-    roots: Vec<(String, String)>,
+    roots: Vec<Root>,
+}
+
+/// One root's three answers: what it is called, where its source is, and
+/// whether it has documentation of its own.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Root {
+    name: String,
+    base: String,
+    docs: Option<DepDocs>,
 }
 
 impl ExternalLinks {
@@ -105,17 +272,48 @@ impl ExternalLinks {
     pub fn new<K: Into<String>, V: Into<String>>(
         entries: impl IntoIterator<Item = (K, V)>,
     ) -> Self {
-        let mut roots: Vec<(String, String)> = Vec::new();
+        let mut roots: Vec<Root> = Vec::new();
         for (root, base) in entries {
             let root = root.into();
-            if roots.iter().any(|(seen, _)| *seen == root) {
+            if roots.iter().any(|seen| seen.name == root) {
                 continue;
             }
             // A trailing slash would produce `…/blob/<rev>//Mathlib/…`, which
             // resolves on GitHub but is not the byte the reference tree has.
-            roots.push((root, base.into().trim_end_matches('/').to_owned()));
+            roots.push(Root {
+                name: root,
+                base: base.into().trim_end_matches('/').to_owned(),
+                docs: None,
+            });
         }
         Self { roots }
+    }
+
+    /// The same map with each named root's documentation site attached (A-1).
+    ///
+    /// **A root this map does not hold is added with an empty base**, which is
+    /// the heading's third state and is the honest reading: the caller has just
+    /// said the root belongs to a dependency, so a name in it that the docs
+    /// site does not document must get *no* link rather than a relative one to
+    /// a page this site never writes. The case is real — `litedoc4 render
+    /// --deps-docs-map <file>` without `--root` has a resolved documentation map
+    /// and no manifest to pin sources from.
+    ///
+    /// A repeated root keeps the first, as [`ExternalLinks::new`] does.
+    #[must_use]
+    pub fn with_docs(mut self, docs: impl IntoIterator<Item = (String, DepDocs)>) -> Self {
+        for (root, site) in docs {
+            match self.roots.iter_mut().find(|entry| entry.name == root) {
+                Some(entry) if entry.docs.is_none() => entry.docs = Some(site),
+                Some(_) => {}
+                None => self.roots.push(Root {
+                    name: root,
+                    base: String::new(),
+                    docs: Some(site),
+                }),
+            }
+        }
+        self
     }
 
     /// The prefix a module root's sources live under, or `None` when this map
@@ -128,10 +326,42 @@ impl ExternalLinks {
     /// one, [`crate::autolink::NameIndex::link_to`] — have to ask this.
     #[must_use]
     pub fn base_for(&self, root: &str) -> Option<&str> {
-        self.roots
-            .iter()
-            .find(|(name, _)| name == root)
-            .map(|(_, base)| base.as_str())
+        self.root(root).map(|entry| entry.base.as_str())
+    }
+
+    /// The documentation site a root publishes, or `None` when it publishes
+    /// none this run could read.
+    ///
+    /// **`None` is also what "the table could not be read" looks like**, and
+    /// that is deliberate: the resolver drops the whole site rather than
+    /// carrying a half-read one, so every name of that root takes the
+    /// version-pinned source and the run says so on its own line. A partially
+    /// populated table would answer some names and not others with no way to
+    /// tell which case a missing name is.
+    #[must_use]
+    pub fn docs_for(&self, root: &str) -> Option<&DepDocs> {
+        self.root(root)?.docs.as_ref()
+    }
+
+    /// The page a **documentation site** has for a declaration in `module`, or
+    /// for `module` itself when `anchor` is `None`.
+    ///
+    /// The root is `module`'s first component, unescaped, as
+    /// [`ExternalLinks::url_for`] reads it — but the *name* is the key, because
+    /// the table is a name -> page map and the whole point of consulting it is
+    /// that it knows where a name lives now.
+    #[must_use]
+    pub fn docs_url_for(&self, module: &str, anchor: Option<&str>) -> Option<String> {
+        let root = *litedoc4_ir::module_components(module).first()?;
+        let docs = self.docs_for(root)?;
+        match anchor {
+            Some(name) => docs.url_for_name(name),
+            None => docs.url_for_module(module),
+        }
+    }
+
+    fn root(&self, root: &str) -> Option<&Root> {
+        self.roots.iter().find(|entry| entry.name == root)
     }
 
     /// The blob URL for `module`, with a line anchor when there is one.
@@ -174,7 +404,14 @@ impl ExternalLinks {
     pub fn iter(&self) -> impl Iterator<Item = (&str, &str)> {
         self.roots
             .iter()
-            .map(|(root, base)| (root.as_str(), base.as_str()))
+            .map(|entry| (entry.name.as_str(), entry.base.as_str()))
+    }
+
+    /// The roots that publish documentation, in the order they were given.
+    pub fn iter_docs(&self) -> impl Iterator<Item = (&str, &DepDocs)> {
+        self.roots
+            .iter()
+            .filter_map(|entry| Some((entry.name.as_str(), entry.docs.as_ref()?)))
     }
 
     #[must_use]
@@ -202,7 +439,9 @@ impl ExternalLinks {
     }
 
     /// The bytes the digest is taken over: [`DIGEST_MARKER`], then one
-    /// `<root>\t<base>\n` line per entry, **sorted by root**.
+    /// `<root>\t<base>\n` line per entry, **sorted by root** — and then, only
+    /// when some root publishes documentation, [`DOCS_DIGEST_MARKER`] and a
+    /// section per such root.
     ///
     /// Sorted rather than in map order because the roots are unique: two maps
     /// that resolve every module alike have to hash alike, whatever order they
@@ -216,17 +455,57 @@ impl ExternalLinks {
     /// links change. It also means a map with no empty-base root hashes to
     /// exactly the bytes it hashed to before that state existed, so the ledgers
     /// written for the measurement target stay valid.
+    ///
+    /// # Why the resolved **entries** are hashed and not the table's bytes
+    ///
+    /// A documentation site's section is `<root>\t<base>\t<n>\t<m>\n` and then
+    /// its `n` declarations and `m` modules, one `<name>\t<link>\n` each. The
+    /// counts are there so that the concatenation cannot be read two ways.
+    ///
+    /// Hashing the entries rather than the table they came from is what makes a
+    /// changed table re-render: mathlib4_docs is rebuilt from `master`, so the
+    /// page a name lives on moves without anything else in this run changing,
+    /// and a run whose only changed input is that has to re-render rather than
+    /// report success (the reason this digest exists at all). It also has a
+    /// cost worth naming: **the entries depend on which dependency names this
+    /// package refers to**, so the first build after a declaration starts
+    /// referring to a name nothing referred to before re-renders every page.
+    /// That is the loud direction, it starts no Lean (`renderKey` changed means
+    /// re-render all, re-extract nothing), and the alternative — hashing the
+    /// table's bytes — would leave that new name pointing at the source for as
+    /// long as its page went untouched.
     #[must_use]
     pub fn canonical(&self) -> String {
-        let mut lines: Vec<&(String, String)> = self.roots.iter().collect();
-        lines.sort_by(|(a, _), (b, _)| a.cmp(b));
+        let mut lines: Vec<&Root> = self.roots.iter().collect();
+        lines.sort_by(|a, b| a.name.cmp(&b.name));
         let mut out = String::with_capacity(DIGEST_MARKER.len() + lines.len() * 96);
         out.push_str(DIGEST_MARKER);
-        for (root, base) in lines {
-            out.push_str(root);
+        for entry in &lines {
+            out.push_str(&entry.name);
             out.push('\t');
-            out.push_str(base);
+            out.push_str(&entry.base);
             out.push('\n');
+        }
+        if lines.iter().all(|entry| entry.docs.is_none()) {
+            return out;
+        }
+        out.push_str(DOCS_DIGEST_MARKER);
+        for entry in lines {
+            let Some(docs) = &entry.docs else {
+                continue;
+            };
+            writeln!(
+                out,
+                "{}\t{}\t{}\t{}",
+                entry.name,
+                docs.base,
+                docs.declarations.len(),
+                docs.modules.len(),
+            )
+            .expect("writing to a String cannot fail");
+            for (name, link) in docs.declarations().chain(docs.modules()) {
+                writeln!(out, "{name}\t{link}").expect("writing to a String cannot fail");
+            }
         }
         out
     }
@@ -406,5 +685,196 @@ mod tests {
     fn the_map_collects_from_an_iterator() {
         let collected: ExternalLinks = [("Mathlib", MATHLIB)].into_iter().collect();
         assert_eq!(collected.iter().collect::<Vec<_>>(), [("Mathlib", MATHLIB)]);
+    }
+
+    // ------------------------------------------------------- the fourth state
+
+    const DOCS: &str = "https://leanprover-community.github.io/mathlib4_docs";
+
+    /// A map with mathlib pinned *and* documented, holding one name and one
+    /// module out of that site's table.
+    fn with_docs() -> ExternalLinks {
+        links().with_docs([(
+            "Mathlib".to_owned(),
+            DepDocs::new(
+                DOCS,
+                [("Mathlib.Order.le_refl", "./Mathlib/Order/Basic.html#le_refl")],
+                [("Mathlib.Order.Basic", "./Mathlib/Order/Basic.html")],
+            ),
+        )])
+    }
+
+    /// **The rule, both directions.** The name the table holds resolves on the
+    /// documentation site; the one it does not gets nothing from here, which is
+    /// what sends [`crate::autolink::NameIndex::link_to`] on to the
+    /// version-pinned source.
+    #[test]
+    fn a_name_the_table_holds_resolves_and_one_it_does_not_holds_does_not() {
+        let map = with_docs();
+        assert_eq!(
+            map.docs_url_for("Mathlib.Order.Basic", Some("Mathlib.Order.le_refl"))
+                .unwrap(),
+            format!("{DOCS}/Mathlib/Order/Basic.html#le_refl"),
+        );
+        assert_eq!(
+            map.docs_url_for("Mathlib.Order.Basic", Some("Mathlib.Order.le_rfl")),
+            None,
+        );
+        // The source URL is untouched by any of this: it is the answer for the
+        // second name and it has to still be there.
+        assert_eq!(
+            map.url_for("Mathlib.Order.Basic", Some((67, 67))).unwrap(),
+            format!("{MATHLIB}/Mathlib/Order/Basic.lean#L67-L67"),
+        );
+    }
+
+    /// A module link — the import list's — is the same question asked of the
+    /// table's other section, and a module the table does not name is a `None`
+    /// exactly as a name is.
+    #[test]
+    fn a_module_is_verified_out_of_the_tables_module_section() {
+        let map = with_docs();
+        assert_eq!(
+            map.docs_url_for("Mathlib.Order.Basic", None).unwrap(),
+            format!("{DOCS}/Mathlib/Order/Basic.html"),
+        );
+        assert_eq!(map.docs_url_for("Mathlib.Order.Defs", None), None);
+        // A root with no documentation site is not this state at all.
+        assert_eq!(map.docs_url_for("Init.Prelude", None), None);
+        assert_eq!(map.docs_for("Init"), None);
+    }
+
+    /// The value that reaches the href is the table's, not one built out of the
+    /// module name: `Mathlib.Order.Basic`'s page would be `Mathlib/Order/Basic`
+    /// by that construction, and the point of consulting a table is that it
+    /// knows where a name moved to.
+    #[test]
+    fn the_href_is_the_tables_own_doc_link() {
+        let moved = ExternalLinks::default().with_docs([(
+            "Mathlib".to_owned(),
+            DepDocs::new(
+                DOCS,
+                [("Mathlib.Old.thing", "./Mathlib/New/Home.html#thing")],
+                [("Mathlib.Old", "/Mathlib/New/Home.html")],
+            ),
+        )]);
+        assert_eq!(
+            moved
+                .docs_url_for("Mathlib.Old", Some("Mathlib.Old.thing"))
+                .unwrap(),
+            format!("{DOCS}/Mathlib/New/Home.html#thing"),
+        );
+        // `./` and a leading `/` are both stripped: joined onto the base the
+        // second would resolve at the host's root, which is another site.
+        assert_eq!(
+            moved.docs_url_for("Mathlib.Old", None).unwrap(),
+            format!("{DOCS}/Mathlib/New/Home.html"),
+        );
+    }
+
+    /// A documentation site for a root the source map does not hold puts the
+    /// root in the map **with an empty base** — the third state — so a name the
+    /// table does not document gets no link rather than a relative one to a page
+    /// this site never writes.
+    #[test]
+    fn a_docs_root_the_source_map_does_not_hold_arrives_with_an_empty_base() {
+        let map = ExternalLinks::default().with_docs([(
+            "Dep".to_owned(),
+            DepDocs::new(DOCS, [("Dep.thing", "./Dep.html#thing")], [("Dep", "./Dep.html")]),
+        )]);
+        assert_eq!(map.base_for("Dep"), Some(""));
+        assert_eq!(map.url_for("Dep.Aux", None), None);
+        assert_eq!(
+            map.docs_url_for("Dep", Some("Dep.thing")).unwrap(),
+            format!("{DOCS}/Dep.html#thing"),
+        );
+    }
+
+    /// A repeated root keeps the first documentation site, as
+    /// [`ExternalLinks::new`] keeps the first base.
+    #[test]
+    fn a_repeated_docs_root_keeps_the_first() {
+        let one = DepDocs::new(DOCS, [("A.b", "./A.html#b")], [("A", "./A.html")]);
+        let none: [(&str, &str); 0] = [];
+        let two = DepDocs::new("https://other.invalid", [("A.b", "./Z.html#b")], none);
+        let map = ExternalLinks::new([("A", "")]).with_docs([
+            ("A".to_owned(), one),
+            ("A".to_owned(), two),
+        ]);
+        assert_eq!(map.docs_for("A").unwrap().base(), DOCS);
+        assert_eq!(map.iter_docs().count(), 1);
+    }
+
+    /// **The digest is what makes a changed table re-render.** Same entries in
+    /// another order hash alike; one entry moved to another page does not.
+    #[test]
+    fn the_digest_moves_with_the_tables_contents_and_not_with_insertion_order() {
+        let forward = ExternalLinks::new([("Mathlib", MATHLIB)]).with_docs([(
+            "Mathlib".to_owned(),
+            DepDocs::new(
+                DOCS,
+                [("Mathlib.b", "./B.html#b"), ("Mathlib.a", "./A.html#a")],
+                [("Mathlib.B", "./B.html"), ("Mathlib.A", "./A.html")],
+            ),
+        )]);
+        let backward = ExternalLinks::new([("Mathlib", MATHLIB)]).with_docs([(
+            "Mathlib".to_owned(),
+            DepDocs::new(
+                DOCS,
+                [("Mathlib.a", "./A.html#a"), ("Mathlib.b", "./B.html#b")],
+                [("Mathlib.A", "./A.html"), ("Mathlib.B", "./B.html")],
+            ),
+        )]);
+        assert_eq!(forward.digest(), backward.digest());
+
+        // The same names, one of them documented somewhere else: this is what a
+        // rebuilt mathlib4_docs looks like from here, and it has to re-render.
+        let moved = ExternalLinks::new([("Mathlib", MATHLIB)]).with_docs([(
+            "Mathlib".to_owned(),
+            DepDocs::new(
+                DOCS,
+                [("Mathlib.a", "./A.html#a"), ("Mathlib.b", "./C.html#b")],
+                [("Mathlib.A", "./A.html"), ("Mathlib.B", "./B.html")],
+            ),
+        )]);
+        assert_ne!(forward.digest(), moved.digest());
+        // …and so does a name the table stopped documenting.
+        let dropped = ExternalLinks::new([("Mathlib", MATHLIB)]).with_docs([(
+            "Mathlib".to_owned(),
+            DepDocs::new(
+                DOCS,
+                [("Mathlib.a", "./A.html#a")],
+                [("Mathlib.A", "./A.html"), ("Mathlib.B", "./B.html")],
+            ),
+        )]);
+        assert_ne!(forward.digest(), dropped.digest());
+        // …and turning the feature on at all.
+        assert_ne!(
+            forward.digest(),
+            ExternalLinks::new([("Mathlib", MATHLIB)]).digest(),
+        );
+    }
+
+    /// The docs section is written **only** when there is one, which is what
+    /// keeps every ledger written before this state existed valid — the two
+    /// frozen shasums above are the statement that the no-docs bytes did not
+    /// move, and this is the statement about the shape that carries them.
+    #[test]
+    fn the_docs_section_is_absent_until_a_root_has_one_and_then_counts_itself() {
+        assert_eq!(
+            links().canonical(),
+            format!("{DIGEST_MARKER}Init\t{CORE}\nMathlib\t{MATHLIB}\n"),
+        );
+        assert!(!links().canonical().contains(DOCS_DIGEST_MARKER));
+
+        assert_eq!(
+            with_docs().canonical(),
+            format!(
+                "{DIGEST_MARKER}Init\t{CORE}\nMathlib\t{MATHLIB}\n\
+                 {DOCS_DIGEST_MARKER}Mathlib\t{DOCS}\t1\t1\n\
+                 Mathlib.Order.le_refl\tMathlib/Order/Basic.html#le_refl\n\
+                 Mathlib.Order.Basic\tMathlib/Order/Basic.html\n",
+            ),
+        );
     }
 }

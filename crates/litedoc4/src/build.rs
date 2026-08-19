@@ -185,6 +185,16 @@ struct Layout {
     /// derives it (M5-b). Overridden by `--link-index`, which names one
     /// somebody else made.
     link_index: PathBuf,
+    /// `<out>/work/deps-docs-map.json` — the resolved documentation map (A-1),
+    /// which `litedoc4 site --deps-docs-map` and `litedoc4 render
+    /// --deps-docs-map` read back.
+    ///
+    /// Under `work` because it is **one run's answer**: it holds the names that
+    /// run verified against the table that run fetched, and a stale one would
+    /// link at a page the site no longer documents. Written only when
+    /// `--deps-docs-url` was passed, so a run without the feature leaves the
+    /// directory exactly as it left it before.
+    deps_docs_map: PathBuf,
 }
 
 impl Layout {
@@ -198,6 +208,7 @@ impl Layout {
             ledger: out.join("ledger.json"),
             marker: out.join(MARKER),
             link_index: out.join("link-index.lidx"),
+            deps_docs_map: out.join("work").join("deps-docs-map.json"),
         }
     }
 
@@ -252,6 +263,8 @@ pub(crate) fn build(args: &[String]) -> Result<(), Failure> {
     let mut max_rounds = DEFAULT_MAX_ROUNDS;
     let mut timings: Option<PathBuf> = None;
     let mut full = false;
+    let mut deps_docs_urls: Vec<String> = Vec::new();
+    let mut deps_docs_indexes: Vec<String> = Vec::new();
 
     let mut rest = args.iter();
     while let Some(arg) = rest.next() {
@@ -286,6 +299,21 @@ pub(crate) fn build(args: &[String]) -> Result<(), Failure> {
             }
             "--timings" => timings = Some(value("--timings")?.into()),
             "--full" => full = true,
+            "--deps-docs-url" => deps_docs_urls.push(value("--deps-docs-url")?),
+            "--deps-docs-index" => deps_docs_indexes.push(value("--deps-docs-index")?),
+            // Refused by name: it is `site` and `render`'s flag, and it names
+            // the file *this* command writes. Accepting it here would let a run
+            // render against a map another run resolved, which is the one thing
+            // the artifact exists to make impossible.
+            "--deps-docs-map" => {
+                return usage(
+                    "--deps-docs-map is not a `build` flag: this command resolves the \
+                     documentation map itself, from --deps-docs-url, and writes it under \
+                     <out>/work for `litedoc4 site` and `litedoc4 render` to read. A build that \
+                     rendered against somebody else's resolved map would record its own map's \
+                     digest in the ledger",
+                );
+            }
             // Refused by name rather than as "unknown argument": every one of
             // these is a real flag of a subcommand this one drives, so what the
             // caller needs to hear is which decision `build` has taken over.
@@ -438,11 +466,17 @@ pub(crate) fn build(args: &[String]) -> Result<(), Failure> {
     // process inside the target, and the digest it feeds has to be the same one
     // on both sides of this run.
     let external_links = crate::resolve_external_links(Some(&root), lake.as_deref());
+    // **Before the marker, before the work directory, before Lean**: the two
+    // answers this can give are "that root is not a dependency" and "that flag
+    // is not a pair", and both are things to say while nothing has been written.
+    let deps_docs = crate::deps_docs::parse(&deps_docs_urls, &deps_docs_indexes)?;
+    crate::deps_docs::check_roots(&deps_docs, &external_links)?;
     run(&Request {
         root,
         layout,
         libs,
         external_links,
+        deps_docs,
         link_index,
         derived_link_index: derived,
         source_url,
@@ -469,6 +503,10 @@ struct Request {
     /// two would come to disagree, and a disagreement there re-renders every page
     /// on every run for ever.
     external_links: litedoc4_render::ExternalLinks,
+    /// `--deps-docs-url` / `--deps-docs-index` (A-1), parsed and checked against
+    /// the map above. Empty is the default and means the map is used exactly as
+    /// M7-c left it.
+    deps_docs: Vec<crate::deps_docs::Site>,
     /// The dependency map the pages are rendered against, absolute.
     link_index: PathBuf,
     /// Whether this run *writes* that file (M5-b) or only reads it.
@@ -603,7 +641,7 @@ fn run(request: &Request) -> Result<(), Failure> {
         &layout.ir,
         &source_url,
         &request.link_index,
-        &request.external_links,
+        &done.external_links,
     )?;
     println!(
         "ledger  {} module(s) -> {} ({bytes} B)",
@@ -674,6 +712,16 @@ struct Done {
     /// The ledger this run licensed, with the hashes read **before** the
     /// extraction.
     detected: Ledger,
+    /// **The map the pages were rendered with**, which is `--root`'s sources
+    /// plus whatever `--deps-docs-url` resolved (A-1).
+    ///
+    /// It comes out of the path rather than in on [`Request`] because the two
+    /// paths resolve it at different moments and both are "as soon as there is
+    /// an IR tree to read": a full generation has none until it has extracted,
+    /// and an incremental round has to know its render key before `detect`
+    /// compares it with the ledger's. Carrying it back here is what makes
+    /// [`write_ledger`] record the map the pages actually got.
+    external_links: litedoc4_render::ExternalLinks,
 }
 
 // ------------------------------------------------------------------- the work
@@ -846,11 +894,18 @@ fn full_generation(
         modules.len()
     );
 
+    // **The documentation map, now that there is an IR to ask about** (A-1).
+    // Not before the extraction: on this path the tree does not exist yet, and
+    // the set of dependency names to verify is exactly what it holds. Nothing
+    // has compared a render key on this path — `write_ledger` recomputes the one
+    // that reaches the file — so resolving here costs no consistency.
+    let external_links = resolve_docs(request, &layout.ir)?;
+
     let site = crate::generate_site(
         &layout.ir,
         &layout.site,
         source_url,
-        &request.external_links,
+        &external_links,
         Some(&request.link_index),
         Some(&layout.state),
     )?;
@@ -866,6 +921,7 @@ fn full_generation(
         render_seconds: site.render_seconds,
         global_seconds: site.global_seconds,
         detected,
+        external_links,
     })
 }
 
@@ -877,6 +933,13 @@ fn incremental_generation(
     extractor: &mut Extractor,
 ) -> Result<Done, Failure> {
     let layout = &request.layout;
+    // **Before the round, from the tree the round starts on** (A-1). `detect` is
+    // about to compare this map's digest with the ledger's, and the render uses
+    // the same value, so it has to be resolved once and here. The cost is that a
+    // dependency name a module starts referring to *during* this round is
+    // verified on the next run rather than this one — at which point the map
+    // moves, the render key moves, and every page is re-rendered with it.
+    let external_links = resolve_docs(request, &layout.ir)?;
     let run = crate::pipeline::run_incremental(
         &Incremental {
             ir: &layout.ir,
@@ -886,7 +949,7 @@ fn incremental_generation(
             modules,
             source_url,
             link_index: &request.link_index,
-            external_links: &request.external_links,
+            external_links: &external_links,
             state: &layout.state,
             mode: request.mode.clone(),
             max_rounds: request.max_rounds,
@@ -905,7 +968,24 @@ fn incremental_generation(
         render_seconds: run.timings.render,
         global_seconds: run.timings.global,
         detected: run.detected,
+        external_links,
     })
+}
+
+/// `--root`'s source map with every configured documentation site verified
+/// against `ir` and attached (A-1).
+///
+/// **One function, two call sites, and they are the same rule**: resolve as soon
+/// as there is an IR tree whose render key this run is about to record. Without
+/// `--deps-docs-url` it is the identity — no fetch, no artifact, no line — which
+/// is what makes the feature's default "nothing changes".
+fn resolve_docs(request: &Request, ir: &Path) -> Result<litedoc4_render::ExternalLinks, Failure> {
+    let resolved = crate::deps_docs::resolve(
+        &request.deps_docs,
+        ir,
+        Some(&request.layout.deps_docs_map),
+    )?;
+    Ok(crate::deps_docs::attach(&request.external_links, resolved))
 }
 
 // ------------------------------------------------------------ the four answers

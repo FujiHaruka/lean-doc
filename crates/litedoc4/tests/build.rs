@@ -219,6 +219,15 @@ echo "--modules $MODULES --ir-dir $IRDIR --timings $TIMINGS" >> "$WORK/extractor
 tr -d '\n' < "$MODULES" | tr ' ' '\n' > /dev/null
 [ "$FAIL" = 0 ] || { echo "fake extractor: asked to fail" >&2; exit 3; }
 mkdir -p "$IRDIR/modules"
+# The dependency slices, when the world has any. Its `deps-index.json` is the
+# `dependencyMaps` array verbatim, because a shell that computed the byte counts
+# itself would be a second writer of a format the extractor owns.
+DEPS=""
+if [ -f "$WORLD/ir/deps-index.json" ]; then
+  DEPS=$(cat "$WORLD/ir/deps-index.json")
+  mkdir -p "$IRDIR/deps"
+  cp "$WORLD"/ir/deps/*.json "$IRDIR/deps/"
+fi
 ENTRIES="$WORK/.entries"
 : > "$ENTRIES"
 n=0
@@ -230,7 +239,7 @@ while IFS= read -r m; do
   n=$((n + 1))
 done < "$MODULES"
 {
-  printf '{"declarationCount":0,"dependencyMaps":[],'
+  printf '{"declarationCount":0,"dependencyMaps":[%s],' "$DEPS"
   printf '"generator":"fake-extractor","hashAlgorithm":"lean-string-hash-64/hex16",'
   printf '"leanVersion":"4.31.0","moduleCount":%s,"modules":[' "$n"
   cat "$ENTRIES"
@@ -731,6 +740,243 @@ fn full_regenerates_the_same_tree() {
     assert_eq!(tree(&live.site()), incremental);
 }
 
+// ------------------------------------------------- the dependency's own docs
+
+/// A dependency with a version-pinned URL, a module root and a declaration this
+/// package refers to — everything A-1 needs to have something to link.
+///
+/// Returns the declaration table on disk. **A file rather than a URL**: a test
+/// that needs mathlib4_docs to be up is not a test, and the local-path spelling
+/// of `--deps-docs-index` is a shipped feature rather than a hook for this.
+fn write_dependency(live: &Live) -> PathBuf {
+    write(
+        &live.repo.join("lake-manifest.json"),
+        br#"{"version":"1.1.0","packagesDir":".lake/packages","packages":[
+             {"url":"https://github.com/example/dep.git","type":"git",
+              "rev":"0123456789abcdef0123456789abcdef01234567","name":"dep"}]}"#,
+    );
+    write(
+        &live.repo.join(".lake/packages/dep/Dep.lean"),
+        b"-- the dependency's module root\n",
+    );
+
+    // The IR the fake extractor copies: `Dep.elsewhere` is a name this package
+    // refers to, so it is what the table is asked about.
+    let slice = br#"{"schemaVersion":4,"package":"Dep","declarations":{"Dep.elsewhere":"Dep.Home"}}"#;
+    write(&live.world.join("ir/deps/Dep.json"), slice);
+    write(
+        &live.world.join("ir/deps-index.json"),
+        format!(
+            r#"{{"package":"Dep","file":"deps/Dep.json","entries":1,"bytes":{}}}"#,
+            slice.len(),
+        )
+        .as_bytes(),
+    );
+
+    let table = live.trees.path.join("declaration-data.json");
+    write(
+        &table,
+        include_bytes!("data/declaration-data.json").as_slice(),
+    );
+    table
+}
+
+/// The package as A-1 needs it: one docstring naming a dependency declaration
+/// the table documents **and** one it does not.
+fn docs_world() -> Vec<ModuleSpec> {
+    let mut world = base_world();
+    world[0].doc = Some("See `Dep.elsewhere` and `Dep.Home.other`.".to_owned());
+    world
+}
+
+/// **The rule, on a real page.** `Dep.elsewhere` is in the dependency's
+/// declaration table, so its link is the dependency's own documentation;
+/// `Dep.Home.other` is not, so its link stays the version-pinned source. One
+/// docstring, one page, both answers.
+#[test]
+fn a_verified_name_links_at_the_dependencys_documentation_and_the_rest_at_its_source() {
+    let live = Live::new("build-deps-docs");
+    live.set_world(&docs_world());
+    let table = write_dependency(&live);
+
+    let ok = live.build(&[
+        "--deps-docs-url",
+        "Dep=https://docs.invalid/dep",
+        "--deps-docs-index",
+        &format!("Dep={}", table.display()),
+    ]);
+    assert_eq!(code(&ok), 0, "{}", stderr(&ok));
+
+    // **The line, with both halves of the rule and their denominators.** One
+    // name was asked for and found; the table's two `Dep.*` modules came with
+    // it; nothing fell through.
+    let log = stdout(&ok);
+    assert!(
+        log.contains(
+            "deps    Dep: 1/1 name(s) and 2 module(s) -> https://docs.invalid/dep, 0 name(s) not \
+             in the table -> version-pinned source"
+        ),
+        "{log}",
+    );
+
+    let page = fs::read_to_string(live.site().join("Pkg.html")).expect("the root page");
+    assert!(
+        page.contains("https://docs.invalid/dep/Dep/Home.html#Dep.elsewhere"),
+        "the table documents Dep.elsewhere and the page did not link there: {page}",
+    );
+    assert!(
+        page.contains(
+            "https://github.com/example/dep/blob/0123456789abcdef0123456789abcdef01234567/\
+             Dep/Home.lean"
+        ),
+        "the table does not document Dep.Home.other and the page did not fall back to the \
+         version-pinned source: {page}",
+    );
+}
+
+/// **The artifact round-trips**: `build` resolves once and writes the map, and
+/// `render` reading that map produces the same page bytes.
+///
+/// This is what the artifact is *for* — three commands render, and a flag
+/// repeated on all three is one that gets forgotten on one of them
+/// (`crates/litedoc4-render/src/frame.rs:66-70`). `render` here is given no
+/// `--deps-docs-url` at all and has no way to fetch anything.
+#[test]
+fn the_resolved_map_is_written_and_render_reproduces_the_same_page() {
+    let live = Live::new("build-deps-docs-map");
+    live.set_world(&docs_world());
+    let table = write_dependency(&live);
+    let ok = live.build(&[
+        "--deps-docs-url",
+        "Dep=https://docs.invalid/dep",
+        "--deps-docs-index",
+        &format!("Dep={}", table.display()),
+    ]);
+    assert_eq!(code(&ok), 0, "{}", stderr(&ok));
+
+    let map = live.out.join("work/deps-docs-map.json");
+    assert!(map.is_file(), "the resolved map was not written");
+
+    let pages = live.trees.path.join("re-rendered");
+    let rendered = litedoc4(&[
+        "render",
+        "--ir",
+        &live.out.join("ir").display().to_string(),
+        "--pages",
+        &pages.display().to_string(),
+        "--source-url",
+        URL,
+        "--link-index",
+        &live.lidx.display().to_string(),
+        "--root",
+        &live.repo.display().to_string(),
+        "--deps-docs-map",
+        &map.display().to_string(),
+    ]);
+    assert_eq!(code(&rendered), 0, "{}", stderr(&rendered));
+    // The same line, out of the artifact rather than out of a table: the second
+    // command has to report the fact the first one established, in the same
+    // words, or a drift between them is invisible.
+    assert!(
+        stdout(&rendered).contains("deps    Dep: 1/1 name(s) and 2 module(s)"),
+        "{}",
+        stdout(&rendered),
+    );
+
+    for module in MODULES {
+        let path = format!("{}.html", module.replace('.', "/"));
+        assert_eq!(
+            fs::read(live.site().join(&path)).expect("built"),
+            fs::read(pages.join(&path)).expect("re-rendered"),
+            "{path} came out differently from the resolved map",
+        );
+    }
+}
+
+/// **A table that will not read sends the whole root to the source**, says so,
+/// and does not stop the build.
+///
+/// The plan's 撤退ライン, as behaviour: guessing at a table this could not read
+/// would put a link on every page of a dependency nobody verified. The run still
+/// produces a site — the links are the ones v0.1 shipped — and the line is the
+/// only way anyone finds out, so it is what is asserted.
+#[test]
+fn a_table_that_will_not_read_costs_the_root_its_documentation_links() {
+    let live = Live::new("build-deps-docs-unreadable");
+    live.set_world(&docs_world());
+    write_dependency(&live);
+    let missing = live.trees.path.join("no-such-table.json");
+
+    let ok = live.build(&[
+        "--deps-docs-url",
+        "Dep=https://docs.invalid/dep",
+        "--deps-docs-index",
+        &format!("Dep={}", missing.display()),
+    ]);
+    assert_eq!(code(&ok), 0, "{}", stderr(&ok));
+    let log = stdout(&ok);
+    assert!(
+        log.contains(
+            "deps    Dep: the declaration table could not be read, so every link -> \
+             version-pinned source"
+        ),
+        "{log}",
+    );
+    assert!(log.contains("no-such-table.json"), "{log}");
+
+    // Both names take the source, and no resolved map is left behind claiming
+    // otherwise.
+    let page = fs::read_to_string(live.site().join("Pkg.html")).expect("the root page");
+    assert!(!page.contains("docs.invalid"), "{page}");
+    assert!(
+        page.contains(
+            "https://github.com/example/dep/blob/0123456789abcdef0123456789abcdef01234567/\
+             Dep/Home.lean"
+        ),
+        "{page}",
+    );
+    assert!(
+        !live.out.join("work/deps-docs-map.json").exists()
+            || fs::read_to_string(live.out.join("work/deps-docs-map.json"))
+                .expect("readable")
+                .contains("\"roots\":[]"),
+        "a map that resolved nothing must not look like one that resolved something",
+    );
+}
+
+/// **The verification is in the render key.** Turning the feature off moves
+/// `renderKey.externalLinks`, so the next run re-renders instead of reporting a
+/// site whose links point somewhere it no longer says they do.
+#[test]
+fn the_documentation_map_reaches_the_render_key() {
+    let live = Live::new("build-deps-docs-key");
+    live.set_world(&docs_world());
+    let table = write_dependency(&live);
+
+    let with = live.build(&[
+        "--deps-docs-url",
+        "Dep=https://docs.invalid/dep",
+        "--deps-docs-index",
+        &format!("Dep={}", table.display()),
+    ]);
+    assert_eq!(code(&with), 0, "{}", stderr(&with));
+    let documented = live.ledger()["renderKey"]["externalLinks"].clone();
+
+    let without = live.build(&["--full"]);
+    assert_eq!(code(&without), 0, "{}", stderr(&without));
+    let plain = live.ledger()["renderKey"]["externalLinks"].clone();
+
+    assert!(documented.is_string() && plain.is_string(), "{documented} / {plain}");
+    assert_ne!(
+        documented, plain,
+        "the ledger records the same key with and without the documentation map, so a run that \
+         gained or lost it would report success without re-rendering",
+    );
+    // …and the map is not in the tree any more, so the run cannot be read as
+    // still using it.
+    assert!(!stdout(&without).contains("deps    Dep:"), "{}", stdout(&without));
+}
+
 // ---------------------------------------------------------------- the lakefile
 
 /// The one shape that is read, and every refusal, each naming `--lib`.
@@ -1017,7 +1263,7 @@ fn the_command_line_is_checked() {
     let out = live.out.display().to_string();
     let lidx = live.lidx.display().to_string();
 
-    let cases: [(&[&str], i32, &str); 9] = [
+    let cases: [(&[&str], i32, &str); 12] = [
         (&["build"], 2, "--root <repo> is required"),
         (&["build", "--root", &repo], 2, "--out <dir> is required"),
         // M5-b: `--link-index` is optional now — left out, the map is
@@ -1121,6 +1367,56 @@ fn the_command_line_is_checked() {
             ],
             2,
             "--mode takes self|referrers|importers|all",
+        ),
+        // A-1. The resolved map is this command's *output*, so naming one as an
+        // input would render against somebody else's answer while recording the
+        // digest of this run's.
+        (
+            &[
+                "build",
+                "--root",
+                &repo,
+                "--out",
+                &out,
+                "--link-index",
+                &lidx,
+                "--deps-docs-map",
+                "x",
+            ],
+            2,
+            "resolves the documentation map itself",
+        ),
+        (
+            &[
+                "build",
+                "--root",
+                &repo,
+                "--out",
+                &out,
+                "--link-index",
+                &lidx,
+                "--deps-docs-url",
+                "https://docs.invalid",
+            ],
+            2,
+            "--deps-docs-url wants <Root>=<value>",
+        ),
+        // The root has to be a dependency this package resolves — exit 3, not
+        // 2: the command line is well formed and the world disagrees with it.
+        (
+            &[
+                "build",
+                "--root",
+                &repo,
+                "--out",
+                &out,
+                "--link-index",
+                &lidx,
+                "--deps-docs-url",
+                "Nope=https://docs.invalid",
+            ],
+            3,
+            "is not a module root of any dependency",
         ),
     ];
     for (args, expected, message) in cases {

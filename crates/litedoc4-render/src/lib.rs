@@ -131,7 +131,7 @@ pub use decl::{
     decl_head_html, decl_name_to_link, decl_signature, equations_html, instances_for_html,
 };
 pub use escape::{escape_html, escape_html_into, lean_quote, lean_quote_into};
-pub use external::{DIGEST_MARKER, ExternalLinks};
+pub use external::{DIGEST_MARKER, DOCS_DIGEST_MARKER, DepDocs, ExternalLinks};
 pub use frame::{
     SiteMeta, head_html, module_head_html, module_meta_html, module_source_url, sidebar_html,
     sorted_imports, topbar_html,

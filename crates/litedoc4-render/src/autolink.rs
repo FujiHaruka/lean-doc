@@ -360,10 +360,11 @@ impl NameIndex {
     /// here; the one that does not is a declaration's own self-link, which is on
     /// this page by construction.
     ///
-    /// # Three questions, because absence means three different things
+    /// # Four questions, because absence means four different things
     ///
     /// | asked | answer | which module |
     /// |---|---|---|
+    /// | 0. [`ExternalLinks::docs_url_for`] resolves | the dependency's own `…/Mathlib/Order/Basic.html#…` | a dependency whose documentation site documents *this name* |
     /// | 1. [`ExternalLinks::url_for`] resolves | the `…/blob/<rev>/….lean#L…` | a version-pinned dependency |
     /// | 2. [`ExternalLinks::base_for`] holds the root | **`None`** | a dependency with no `/blob/<rev>` |
     /// | 3. [`NameIndex::has_page`] | `<root><module path>.html#<anchor>` | a module this run rendered |
@@ -378,12 +379,23 @@ impl NameIndex {
     /// because a dependency's module has no page either and answering it with
     /// question 3 would lose *why* there is no link.
     ///
+    /// **Question 0 is not a preference between two links, it is a different
+    /// question** (A-1). It asks whether the dependency's own documentation site
+    /// was **verified to document this name**, and only a `yes` answers; a `no`
+    /// falls to question 1 and gets the version-pinned source, which is where
+    /// every dependency link went before the flag existed. There is no third
+    /// outcome and in particular no "try the docs site and see": a 404 is not
+    /// visible from here, and avoiding one is the whole reason the pin is there.
+    ///
     /// **`None` means "render the name, draw no link"**. Every caller turns that
     /// into text, and none of them falls through to a later branch: a resolved
     /// name that happens to be unlinkable must not be re-resolved to some
     /// *other* declaration that happens to have a page.
     #[must_use]
     pub fn link_to(&self, root: &str, module: &str, anchor: Option<&str>) -> Option<String> {
+        if let Some(url) = self.external.docs_url_for(module, anchor) {
+            return Some(url);
+        }
         let lines = anchor.and_then(|name| self.links.range_of(name));
         if let Some(url) = self.external.url_for(module, lines) {
             return Some(url);
@@ -1067,6 +1079,67 @@ mod tests {
         // 4: a module of this package with no page.
         assert_eq!(index.link_to("../", "Pkg.One", Some("Pkg.One.a")), None);
         assert_eq!(index.link_to_module("../", "Pkg.One"), None);
+    }
+
+    /// **The branch in front of all four** (A-1): a dependency whose own
+    /// documentation site was verified to hold the name.
+    ///
+    /// The map is [`a_link_takes_one_of_four_branches`]'s with one difference —
+    /// mathlib now publishes documentation, and its table holds one of the two
+    /// names and one of the two modules. So the same index answers both ways,
+    /// which is the statement that this is a lookup and not a preference: a name
+    /// **on** the site gets the site, a name **off** it gets the version-pinned
+    /// source it got before the flag existed, and neither is a retry of the
+    /// other.
+    #[test]
+    fn a_verified_name_takes_the_dependencys_own_documentation() {
+        const MATHLIB: &str = "https://host/o/mathlib4/blob/fabf563";
+        const DOCS: &str = "https://leanprover-community.github.io/mathlib4_docs";
+        let mut builder = NameIndex::builder();
+        builder.module(&module());
+        let index = builder.build(
+            LinkIndex::parse("Mathlib.Order.Basic\n\tLE.ext\t67\t67\n"),
+            ExternalLinks::new([("Mathlib", MATHLIB), ("Dep", "")]).with_docs([(
+                "Mathlib".to_owned(),
+                crate::external::DepDocs::new(
+                    DOCS,
+                    [("LE.ext", "./Mathlib/Order/Basic.html#LE.ext")],
+                    [("Mathlib.Order.Basic", "./Mathlib/Order/Basic.html")],
+                ),
+            )]),
+        );
+
+        // 0: the table documents it. The line range the `.lidx` holds is not
+        // consulted — a docs page is anchored by name, not by line.
+        assert_eq!(
+            index
+                .link_to(".././", "Mathlib.Order.Basic", Some("LE.ext"))
+                .as_deref(),
+            Some("https://leanprover-community.github.io/mathlib4_docs/Mathlib/Order/Basic.html#LE.ext"),
+        );
+        assert_eq!(
+            index.link_to_module("./", "Mathlib.Order.Basic").as_deref(),
+            Some("https://leanprover-community.github.io/mathlib4_docs/Mathlib/Order/Basic.html"),
+        );
+        // 1: the table does not, so the version-pinned source, unchanged.
+        assert_eq!(
+            index
+                .link_to(".././", "Mathlib.Order.Basic", Some("no.range"))
+                .as_deref(),
+            Some("https://host/o/mathlib4/blob/fabf563/Mathlib/Order/Basic.lean"),
+        );
+        assert_eq!(
+            index.link_to_module("./", "Mathlib.Order.Defs").as_deref(),
+            Some("https://host/o/mathlib4/blob/fabf563/Mathlib/Order/Defs.lean"),
+        );
+        // A root with no documentation site is untouched by any of it.
+        assert_eq!(index.link_to("../", "Dep.Aux", Some("Dep.f")), None);
+        assert_eq!(
+            index
+                .link_to(".././", "Pkg.Two", Some("Pkg.Two.a"))
+                .as_deref(),
+            Some(".././Pkg/Two.html#Pkg.Two.a"),
+        );
     }
 
     /// **2026-08-17, `batteries`**: a module of *this* package that this run

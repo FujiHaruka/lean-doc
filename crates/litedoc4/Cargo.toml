@@ -12,6 +12,12 @@ litedoc4-global = { path = "../litedoc4-global" }
 litedoc4-incr = { path = "../litedoc4-incr" }
 litedoc4-ir = { path = "../litedoc4-ir" }
 litedoc4-render = { path = "../litedoc4-render" }
+# The declaration table a dependency's documentation site publishes is 66 MB
+# 【実測】, so it is walked with a `Deserialize` visitor that keeps the ~400
+# entries this run can ask about and skips the rest without building them
+# (crates/litedoc4/src/deps_docs.rs). `serde_json::Value` would materialise the
+# whole file first, which is the one thing that must not happen here.
+serde = { workspace = true }
 serde_json = { workspace = true }
 
 [dev-dependencies]

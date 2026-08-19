@@ -1,0 +1,19 @@
+{
+  "declarations": {
+    "Dep.wanted": { "kind": "def", "docLink": "./Dep/Home.html#Dep.wanted" },
+    "Dep.unwanted": { "kind": "theorem", "docLink": "./Dep/Home.html#Dep.unwanted" },
+    "Dep.elsewhere": { "kind": "def", "docLink": "./Dep/Home.html#Dep.elsewhere" },
+    "Other.thing": { "kind": "def", "docLink": "./Other/Elsewhere.html#Other.thing" }
+  },
+  "instances": {
+    "Dep.Cls": ["Dep.inst"]
+  },
+  "modules": {
+    "Dep": { "importedBy": [], "url": "./Dep.html" },
+    "Dep.Home": { "importedBy": ["Dep"], "url": "./Dep/Home.html" },
+    "Other.Elsewhere": { "importedBy": [], "url": "./Other/Elsewhere.html" }
+  },
+  "instancesFor": {
+    "Dep.Ty": ["Dep.inst"]
+  }
+}

@@ -56,6 +56,7 @@ use litedoc4_incr::{
 use litedoc4_render::{ModuleSet, RenderOptions, RenderSummary, render_site};
 
 mod build;
+mod deps_docs;
 mod extract;
 mod lakefile;
 mod packages;
@@ -65,6 +66,8 @@ mod resident;
 const USAGE: &str = "\
 usage: litedoc4 build  --root <repo> --out <dir> [--link-index <file>]
                        [--lib <Name>]... [--source-url <url>] [--full]
+                       [--deps-docs-url <Root>=<url>]...
+                       [--deps-docs-index <Root>=<url|path>]...
                        (--extractor-bin <path> [--lake <path>] [--jobs <n>]
                         | --extractor <program> [--extractor-arg <arg>]...)
                        [--mode self|referrers|importers|all] [--max-rounds <n>]
@@ -85,11 +88,11 @@ usage: litedoc4 build  --root <repo> --out <dir> [--link-index <file>]
                         [--link-index-key <token>]]
        litedoc4 site   --ir <dir> --out <dir> --source-url <url>
                        (--link-index <file> | --no-link-index)
-                       [--root <repo>] [--lake <path>]
+                       [--root <repo>] [--lake <path>] [--deps-docs-map <file>]
                        [--state <dir>] [--timings <file>]
        litedoc4 render --ir <dir> --pages <dir> --source-url <url>
                        (--link-index <file> | --no-link-index)
-                       [--root <repo>] [--lake <path>]
+                       [--root <repo>] [--lake <path>] [--deps-docs-map <file>]
                        [--only <Module>]... [--only-from <file>]
        litedoc4 global --ir <dir> --out <dir> [--state <dir>]
                        [--before <map.json>] [--print-set <file>]
@@ -154,6 +157,24 @@ usage: litedoc4 build  --root <repo> --out <dir> [--link-index <file>]
                  from the environment it imported anyway (M5-a). Given, it is an
                  input and is never written to. For `extract` it asks the
                  extractor to write one.
+  --deps-docs-url  (`build`) <Root>=<url>: link that dependency's declarations
+                 at the documentation site it already publishes, e.g.
+                 Mathlib=https://leanprover-community.github.io/mathlib4_docs.
+                 Repeatable, off by default, and **verified**: a name that site's
+                 declaration table holds gets the docs page, one it does not
+                 keeps the version-pinned source, and a table that will not read
+                 sends the whole root to the source. There is no fallback on a
+                 404 — a build cannot see one. A <Root> that is not a dependency
+                 of --root is exit 3.
+  --deps-docs-index  (`build`) <Root>=<url|path>: where that site's declaration
+                 table is. Default <url>/declarations/declaration-data.bmp. A
+                 local path is read as a file, which is how a run with no
+                 outbound network uses this.
+  --deps-docs-map  (`site`, `render`) the resolved map `build` wrote under
+                 <out>/work. It carries the base URL and the verified names, so
+                 the three commands that render cannot disagree about the links
+                 (the reason there is no --title, frame.rs:66-70). Nothing here
+                 reads a table or the network.
   --link-index-omit  (`extract`, with --link-index) the modules whose own
                  declaration groups are left out of that map, one name per
                  line — normally the package's own module list. The renderer
@@ -374,6 +395,27 @@ fn resolve_external_links(
         println!("external  note: {line}");
     }
     resolved.links
+}
+
+/// The same map with the **resolved documentation map** `build` wrote applied
+/// to it (A-1), or unchanged when no `--deps-docs-map` was named.
+///
+/// `render` and `site` do not resolve one of their own, and that is the whole
+/// point of the file: three commands render, so a flag repeated on all three is
+/// one that gets forgotten on one of them and then two of the three link
+/// somewhere different, silently. `crates/litedoc4-render/src/frame.rs:66-70`
+/// is where that rule is written down; this reads an answer instead of
+/// re-deriving one, so the three cannot disagree.
+///
+/// Nothing here fetches anything: the artifact holds the verified names.
+fn with_dependency_docs(
+    links: litedoc4_render::ExternalLinks,
+    map: Option<&std::path::Path>,
+) -> Result<litedoc4_render::ExternalLinks, Failure> {
+    let Some(path) = map else {
+        return Ok(links);
+    };
+    Ok(deps_docs::attach(&links, deps_docs::read_map(path)?))
 }
 
 /// One row of [`links`]: a module root, the blob prefix it resolved to, the URL
@@ -614,6 +656,7 @@ fn site(args: &[String]) -> Result<(), Failure> {
     let mut no_link_index = false;
     let mut root: Option<PathBuf> = None;
     let mut lake: Option<PathBuf> = None;
+    let mut deps_docs_map: Option<PathBuf> = None;
     let mut state: Option<PathBuf> = None;
     let mut timings: Option<PathBuf> = None;
 
@@ -633,6 +676,7 @@ fn site(args: &[String]) -> Result<(), Failure> {
             "--no-link-index" => no_link_index = true,
             "--root" => root = Some(value("--root")?.into()),
             "--lake" => lake = Some(value("--lake")?.into()),
+            "--deps-docs-map" => deps_docs_map = Some(value("--deps-docs-map")?.into()),
             "--state" => state = Some(value("--state")?.into()),
             "--timings" => timings = Some(value("--timings")?.into()),
             // Refused by name rather than as "unknown argument": each of these
@@ -680,7 +724,10 @@ fn site(args: &[String]) -> Result<(), Failure> {
         return usage(link_index_required());
     }
 
-    let external = resolve_external_links(root.as_deref(), lake.as_deref());
+    let external = with_dependency_docs(
+        resolve_external_links(root.as_deref(), lake.as_deref()),
+        deps_docs_map.as_deref(),
+    )?;
     let site = generate_site(
         &ir,
         &out,
@@ -1451,6 +1498,7 @@ fn render(args: &[String]) -> Result<(), Failure> {
     let mut no_link_index = false;
     let mut root: Option<PathBuf> = None;
     let mut lake: Option<PathBuf> = None;
+    let mut deps_docs_map: Option<PathBuf> = None;
     // `None` until an `--only` of either spelling appears: the distinction
     // between "no subset asked for" and "a subset that came out empty" is the
     // whole point (plan §5).
@@ -1472,6 +1520,7 @@ fn render(args: &[String]) -> Result<(), Failure> {
             "--no-link-index" => no_link_index = true,
             "--root" => root = Some(value("--root")?.into()),
             "--lake" => lake = Some(value("--lake")?.into()),
+            "--deps-docs-map" => deps_docs_map = Some(value("--deps-docs-map")?.into()),
             "--only" => {
                 only.get_or_insert_with(BTreeSet::new)
                     .insert(value("--only")?);
@@ -1514,7 +1563,10 @@ fn render(args: &[String]) -> Result<(), Failure> {
         Some(names) => ModuleSet::These(names),
         None => ModuleSet::All,
     };
-    let external = resolve_external_links(root.as_deref(), lake.as_deref());
+    let external = with_dependency_docs(
+        resolve_external_links(root.as_deref(), lake.as_deref()),
+        deps_docs_map.as_deref(),
+    )?;
     let summary = render_site(&RenderOptions {
         ir: &ir,
         pages: &pages,
