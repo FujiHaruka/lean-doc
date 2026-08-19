@@ -1,69 +1,57 @@
-# Handoff — 2026-08-19 (検索の索引形式 v2)
-
-## Relay control
-- Mode: DONE
-- Goal: `docs/plans/search-v2.md` の P0〜P2 を実装して完遂まで自走
-- Leg: 1 / cap 8
-- Predecessor: none
-- Stop-on: completion (撤退ラインに当たり、**ユーザー判断で線を引き直して完了**)
-- Progress ledger:
-  - r1: P0 `bfaf537` / P1+P2 `b44937c` / 撤退ラインの実測 `b0c5d64` / fmt `af85f84` /
-    ラインの引き直し + 完了。**CI は `54ac02d` で緑**
+# Handoff — 2026-08-19 (サイト側 JS の TypeScript 化)
 
 ## State
 
-- Branch: main / clean / push 済み。**CI は `af85f84` で回している最中** (それ以前の
-  2 本は `cargo fmt --check` だけで赤。`af85f84` がその修正)
-- **P0 / P1 / P2 は全部入っていて、テストもゲートも緑**
-- **ユーザー判断待ちが 1 件**: 下の「Next step」
+- Branch: main / clean / **push 済み** (`5636968` まで。`bf9aa9f` `da57609` は未 push)
+- Active phase: `docs/plans/assets-typescript.md` の **P0〜P4 完了**。CI 検証中
+- 計測環境: 触っていない (計装・olean 暖機とも前回のまま)
+
+## Relay control
+
+- Mode: DONE
+- Goal: `app.js` (917 行の生 JS) を TypeScript 化 — strict / モジュール分割 / vitest /
+  biome (スペースインデント) / vite + minify、完遂まで自走
+- Leg: 1 / cap 8
+- Predecessor: none
+- Stop-on: completion
+- Progress ledger:
+  - r1: 計画 `dabc17c` / TS 化 `82b31e9` / テスト `e4724d1` / ゲート+CI `26b5995`
+    `797072a` / docs `5636968` / P4 `bf9aa9f` / 決定 5 決着 `da57609`。
+    **CI はブランチ `ts-assets` で 1 度フル緑** (run 32202975792)、最新は 32203827489
 
 ## Where we are
 
-`docs/plans/search-v2.md` の §15 が結果の SoT。要点だけ:
-
-| | |
-|---|---|
-| **P0** | `search-index.json` から `modules` 節 (12.8%) を落とし、instances を別ファイルへ。成果物 7 → 8 本 |
-| **P1** | `search-index.bin` (形式 v2) + `app.js` のバイト走査。実測 **405,402 → 108,500 B / gzip 47,959 → 39,763 B** |
-| **P2** | 打鍵ごとの絞り込みキャッシュ (`NARROW_MAX = 512`) |
-| **新ゲート 2 本** | `check-site-closure.py` に Python の独立デコーダと `search-index == name-map`、`check-site-browser.ts` に**凍結した旧採点器との突き合わせ** (11 クエリ、うち 3 つは 1 文字ずつ打つ)。**どちらも一度落としてから通した** |
-| **拾った欠陥** | `utf16Length` が astral を 1 と数えていた (JS の `.length` は 2)。**ブラウザゲートが捕まえた** — 設計時の計測ツールも同じ間違いをしていて、公開コーパスに BMP 外の名前が無いので気づけなかった |
-
-## 撤退ラインの決着
-
-**§12 の撤退ラインに当たり、線の方を引き直した**【決定 2026-08-19、ユーザー判断】。
-「ピークが 5 倍以上下がらなければ P1 は入れない」に対し実測は **4.2〜4.9 倍**
-(生ログ `benchmarks/results/search-v2-browser-2026-08-19.txt`)。
-
-- 保持 (GC 後) 769 → 156 KiB = 4.9× / GC 前 1,030 → 245 KiB = 4.2× /
-  保持 + ファイル実体 769 → 262 KiB = 2.9×
-- **差はどの取り方でも 613 KiB で一定。倍率だけが分母で動く。**
-- 5 という数字は、**新側の作業用構造を数えていない Deno の比較**から引かれていた。
-
-**「5 倍を満たした」と書かない。満たしていない。**
+`crates/litedoc4-render/assets/app.js` は**リポジトリから消えた**。ソースは
+`crates/litedoc4-render/web/src/` の TS 20 本、`build.rs` が vite を回して
+`OUT_DIR` に `app.js` と `theme-boot.js` を焼き、`assets.rs` / `frame.rs` が
+`include_str!` で拾う。**`cargo build` は node を要る**ようになり、cargo を回す
+ワークフロー 8 本と `action.yml` に `actions/setup-node` を入れた。
+配るバイトは **32,173 → 15,109 B (gzip 10,508 → 4,908)**。
 
 ## Next step
 
-**この作業は完了。** 次にやるなら:
+**残作業は無い。** 次にこの領域を触るなら、まず `bf9aa9f` / `da57609` の push と
+CI (run 32203827489) の結果確認から。それが緑なら完了。
 
-1. **エンジン差** — Firefox / Safari で同じ A/B を取る (`benchmarks/tools/measure-index-memory.ts`
-   は Chrome 決め打ち)。**§13-1 の残り**
-2. **実対象で本物のサイトを建てる** — いまの数字は合成 IR 経由。索引については本物だが、
-   ページを含む全体は測っていない
-3. **依存込み (258,760 宣言) の成立性** — §10 は設計を書いただけで 1 バイトも測っていない
-4. 前の handoff から持ち越し: `failures` を誰も判定に使っていない / 残り 3 件の未検証 /
-   可動 `v0` tag / Mathlib 依存パッケージを v4.32 / v4.33 で建てる
+新しく JS を足すときの手順だけ覚えておく:
+`crates/litedoc4-render/web/` で `mise exec -- npm run …`、確認は
+`mise exec -- tools/assets-gate.sh`。**`mise exec` を外すと PATH 上の壊れた node に当たる**。
 
 ## Files to read first
 
-1. `docs/plans/search-v2.md` §15 — 実装の結果と撤退ラインの判定
-2. `benchmarks/results/search-v2-browser-2026-08-19.txt` — ブラウザ実測の生ログ
-3. `crates/litedoc4-global/src/search_index.rs` — 形式の仕様はここのモジュールコメント
-4. `crates/litedoc4-render/assets/app.js` — リーダと採点 (`readIndex` / `search` / `searchNarrowed`)
+- `docs/plans/assets-typescript.md` — 決定 1〜6 と §9 結果。この作業の SoT
+- `crates/litedoc4-render/build.rs` — node がビルド依存になった理由と、フォールバックが無い理由
+- `tools/assets-gate.sh` — 4 段ゲート。node 版の一致検査もここ
+- `crates/litedoc4-render/web/src/index-format.ts` — 索引デコーダ。`!` の方針がヘッダにある
+- `CLAUDE.md` の「この機材の罠」 — node / biome.json の 2 件が今回追加
 
-## 手元の状態
+## Load-bearing context
 
-- 実対象規模のサイトは `benchmarks/tools/synth-ir.ts` で**いつでも作り直せる** (公開サイトの
-  `modules.json` + `search-index.json` を curl → IR 合成 → `litedoc4 global`)。
-  scratch に置いた実体は捨ててよい
-- ブラウザゲートの後に puppeteer が残ることがある → `pkill -f check-site-browser.ts`
+- **`biome.json` にコメントを書くと設定ごと黙って捨てられ、終了コードは 0。**
+  `biome.jsonc` にすること。これで一度タブ整形されている
+- **`git checkout -- <path>` を無効化実験に使って未コミットの CI 編集を消した。**
+  CLAUDE.md が警告している通り。バックアップコピーを使う
+- **ローカル緑 ≠ CI 緑**: `mktemp -t <prefix>` は BSD で通り GNU で落ちる。
+  ゲートを書いたら CI で 1 度回す (`gh workflow run ci.yml --ref <branch>`)
+- 決定 5 (biome を Deno の `tools/*.ts` に広げるか) は**測って却下**。
+  再検討の条件は「それらのどれかがゲートに昇格したとき」

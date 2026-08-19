@@ -269,7 +269,7 @@ mod tests {
     /// **`app.js`'s limit came *down* on 2026-08-19**, from 32 KiB to 20 KiB.
     /// The rule above is why it had to move at all: the file is now a minified
     /// bundle rather than the source, so the same behaviour measures
-    /// 【実測: 32,173 → 15,109 B, gzip 10,508 → 4,908 B】 and a 32 KiB ceiling
+    /// 【実測: 32,173 → 15,113 B, gzip 10,508 → 4,912 B】 and a 32 KiB ceiling
     /// had stopped being "a round number above" anything. What it measures also
     /// changed for the better — this is exactly the bytes a reader downloads,
     /// where before it was that plus the comments explaining the code to us.
