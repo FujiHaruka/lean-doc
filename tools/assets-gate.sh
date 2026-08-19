@@ -99,9 +99,13 @@ echo "== bundle (vite)"
 rm -rf dist
 npm run build >/dev/null
 [ -f dist/app.js ] || { echo "vite wrote no dist/app.js" >&2; exit 1; }
+[ -f dist/theme-boot.js ] || { echo "vite wrote no dist/theme-boot.js" >&2; exit 1; }
 BYTES="$(wc -c < dist/app.js | tr -d ' ')"
 GZIP="$(gzip -c dist/app.js | wc -c | tr -d ' ')"
-echo "   dist/app.js $BYTES B, gzip $GZIP B"
+BOOT="$(wc -c < dist/theme-boot.js | tr -d ' ')"
+# The second number is per *page*, not per site: `frame.rs` inlines it into
+# every `<head>`, so it is the one that multiplies.
+echo "   dist/app.js $BYTES B, gzip $GZIP B; dist/theme-boot.js $BOOT B (inlined per page)"
 
 # The bundle is not committed (docs/plans/assets-typescript.md 決定 1), so this
 # is a build, not a comparison. `dist/` is the by-hand output path; the one that
@@ -109,8 +113,8 @@ echo "   dist/app.js $BYTES B, gzip $GZIP B"
 rm -rf dist
 
 if [ -n "$JSON" ]; then
-  printf '{"tests":%s,"passed":%s,"failed":%s,"bundleBytes":%s,"bundleGzip":%s}\n' \
-    "$TOTAL" "$PASSED" "$FAILED" "$BYTES" "$GZIP" > "$JSON"
+  printf '{"tests":%s,"passed":%s,"failed":%s,"bundleBytes":%s,"bundleGzip":%s,"bootBytes":%s}\n' \
+    "$TOTAL" "$PASSED" "$FAILED" "$BYTES" "$GZIP" "$BOOT" > "$JSON"
 fi
 
 echo

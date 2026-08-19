@@ -1,14 +1,13 @@
 /**
  * The theme toggle.
  *
- * The *boot* half is not here — `frame.rs` writes a synchronous script into
- * `<head>` that sets `data-theme` before the first paint, because this module
- * is deferred and a theme applied after paint is a flash of the wrong one.
+ * The *boot* half is `theme-boot.ts`, a second bundle that `frame.rs` inlines
+ * into `<head>`: it sets `data-theme` before the first paint, because this
+ * module is deferred and a theme applied after paint is a flash of the wrong
+ * one. The names the two share are in `theme-key.ts`.
  */
 
-const THEME_KEY = "litedoc4-theme";
-const THEMES = ["auto", "light", "dark"] as const;
-type Theme = (typeof THEMES)[number];
+import { THEME_KEY, THEMES, type Theme } from "./theme-key.js";
 
 const isTheme = (value: string | null): value is Theme =>
   value !== null && (THEMES as readonly string[]).includes(value);

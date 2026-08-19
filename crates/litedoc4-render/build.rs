@@ -28,6 +28,7 @@ fn main() {
         "web/package-lock.json",
         "web/tsconfig.json",
         "web/vite.config.ts",
+        "web/vite.boot.config.ts",
     ] {
         println!("cargo:rerun-if-changed={input}");
     }
@@ -44,13 +45,18 @@ fn main() {
     }
     npm(&["run", "build"], &out_dir);
 
-    let bundle = Path::new(&out_dir).join("app.js");
-    assert!(
-        bundle.exists(),
-        "vite reported success but wrote no {}. \
-         `web/vite.config.ts` decides the name; it and this file have to agree.",
-        bundle.display(),
-    );
+    // Two bundles: the deferred module every page links, and the classic script
+    // `frame.rs` inlines into `<head>` before the first paint.
+    for name in ["app.js", "theme-boot.js"] {
+        let bundle = Path::new(&out_dir).join(name);
+        assert!(
+            bundle.exists(),
+            "vite reported success but wrote no {}. \
+             `web/vite.config.ts` and `web/vite.boot.config.ts` decide the \
+             names; they and this file have to agree.",
+            bundle.display(),
+        );
+    }
 }
 
 /// One npm invocation in `web/`, with cargo's `OUT_DIR` handed to vite.

@@ -81,9 +81,19 @@ impl<'a> SiteMeta<'a> {
 }
 
 /// Runs before first paint so a dark-theme reader never sees a white flash.
-/// Kept to one line because it is inlined into every page.
-const THEME_BOOT: &str = "<script>try{var t=localStorage.getItem(\"litedoc4-theme\");\
-     if(t===\"light\"||t===\"dark\")document.documentElement.dataset.theme=t}catch(e){}</script>";
+///
+/// **Not a file on the site and not part of `app.js`.** Both would be fetched
+/// after the HTML, and the whole job of this script is to have finished before
+/// the first paint — so it is inlined, and it is the smallest thing that can do
+/// the job.
+///
+/// It is nevertheless *written* in TypeScript, in
+/// `web/src/theme-boot.ts`, and bundled by `build.rs` alongside `app.js`
+/// (`docs/plans/assets-typescript.md` 決定 6). The reason is the storage key:
+/// until 2026-08-19 this was a Rust string literal, and `"litedoc4-theme"`
+/// existed once here and once in the script that reads it back — two languages,
+/// either renameable alone. Now both come from `web/src/theme-key.ts`.
+const THEME_BOOT_JS: &str = include_str!(concat!(env!("OUT_DIR"), "/theme-boot.js"));
 
 const ICON_MENU: &str =
     "<svg viewBox=\"0 0 20 20\" aria-hidden=\"true\"><path d=\"M3 5h14M3 10h14M3 15h14\"/></svg>";
@@ -127,7 +137,12 @@ pub fn head_html(module: &str, root: &str, site: &SiteMeta<'_>) -> String {
     out.push_str("\"><link rel=\"icon\" href=\"");
     push_asset(&mut out, root, "favicon.svg");
     out.push_str("\">");
-    out.push_str(THEME_BOOT);
+    // No `type="module"` on this one, and that is the point: a module is
+    // deferred. `trim_end` because the bundler leaves a trailing newline and
+    // this goes inside a tag on one line.
+    out.push_str("<script>");
+    out.push_str(THEME_BOOT_JS.trim_end());
+    out.push_str("</script>");
     out.push_str("<script type=\"module\" src=\"");
     push_asset(&mut out, root, "app.js");
     out.push_str("\"></script></head>");
@@ -360,6 +375,38 @@ mod tests {
         let boot = head.find("litedoc4-theme").expect("theme boot is inline");
         let app = head.find("app.js").expect("app.js is linked");
         assert!(boot < app, "{head}");
+    }
+
+    /// **The one thing inlining a bundle can break that linking it cannot.**
+    ///
+    /// `THEME_BOOT_JS` is minifier output pasted between `<script>` and
+    /// `</script>` without escaping — which is correct, script content is not
+    /// HTML — so a `</script` anywhere inside it would close the tag early and
+    /// spill the rest of the bundle into the document as text. Nothing in the
+    /// source can produce one today; this is here because the minifier chooses
+    /// the output and nobody reviews it.
+    #[test]
+    fn the_inlined_boot_script_cannot_close_its_own_tag() {
+        let lowered = THEME_BOOT_JS.to_ascii_lowercase();
+        assert!(
+            !lowered.contains("</script"),
+            "the theme boot bundle contains `</script`, which ends the tag it is \
+             inlined into: {THEME_BOOT_JS}",
+        );
+        // `<!--` opens an HTML comment inside a classic script for the same
+        // historical reason, and has the same "silently eats the rest" failure.
+        assert!(!THEME_BOOT_JS.contains("<!--"), "{THEME_BOOT_JS}");
+    }
+
+    /// The boot script and the toggle have to agree about the storage key, and
+    /// since 2026-08-19 they do so by construction — both come from
+    /// `web/src/theme-key.ts`. This checks the half that reaches Rust.
+    #[test]
+    fn the_boot_script_carries_the_storage_key() {
+        assert!(
+            THEME_BOOT_JS.contains("litedoc4-theme"),
+            "the theme boot bundle no longer names the key it reads: {THEME_BOOT_JS}",
+        );
     }
 
     #[test]
