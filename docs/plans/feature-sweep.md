@@ -209,7 +209,10 @@ litedoc4 は no-op 再ビルド 0.31 s / 1 宣言追加 4.35 s を既に出し�
 Mathlib 依存パッケージの docstring は数式を含む。
 
 - **方式【決定 4】: ビルド時に LaTeX → MathML に変換して HTML に焼く。**
-  Rust のクレート (`pulldown-latex` / `latex2mathml` を比較して選ぶ) を使う。
+  Rust のクレートは **`pulldown-latex` を使う**【調査 2026-08-19】 — v0.8.0、
+  2026-07-28 更新、依存は `bumpalo` 1 本 (`regex` は optional)。
+  `latex2mathml` は 2020 年で更新が止まっており、`katex` クレートは JS エンジンを
+  抱き込むので、依存をほとんど持たないこの木には入れない。
   - **node を実行時に要求しない** — 「利用者は node を払わない」という既存の決定を保つ
     (node は `build.rs` が vite を回すときだけ、つまり開発者と CI のビルド時だけ)。
   - **閲覧側に JS を足さない** — 生成の速さと閲覧の軽さは別の話で、
