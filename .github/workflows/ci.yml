@@ -97,6 +97,16 @@ jobs:
       # `rust-toolchain.toml` joins the hash because a channel bump invalidates
       # every artifact in `target/` anyway; without it the stale entry is still
       # restored, still 2 GB, and still useless.
+      #
+      # After all four fixes the entry is 160 MB and restores in 3-9 s. What the
+      # cache then *buys* is not measurable: warm and cold, n=4 each on identical
+      # sources, put this job at the same 61.0 s mean — the 5.25 s spent
+      # restoring and the 3.00 s saved building cancel. The noise floor comes
+      # from `supply-chain`, which touches no cargo cache at all and still
+      # differed by 3.4 s between the two conditions. So it stays because it is
+      # cheap and correct, not because it was shown to pay; the ratchet's 63 s
+      # was the part that was real. `benchmarks/results/ci-cache-2026-08-19.txt`
+      # has the raw runs and the conditions that would flip this.
       - name: Cache cargo registry and build
         uses: actions/cache@v4
         with:
