@@ -16,7 +16,9 @@
 - Predecessor: none
 - Stop-on: completion | user-decision | no-progress×2 | leg-cap
 - Progress ledger:
-  - r1: (進行中)
+  - r1: 計画 `561db4c` / 数式クレート確定 `?` / **A-1 本体 `baab197`**
+    (依存リンクを検証つきで docs へ。既定は不変、テスト 394 緑、clippy 緑)。
+    残り: A-1 のゲート + 残り経路 (`incremental` / `ledger` / `links`) + 実測ログ
 
 ## Where we are
 
@@ -28,7 +30,8 @@ issue 108 件 + PR。依存リンクの腐敗率は実測済み
 
 ## Next step
 
-**A-1 (b) 依存宣言のリンク先を検証つきで docs へ向ける** — 計画 §4 A-1。
+A-1 の残り (ゲート `tools/deps-docs-gate.sh` / `incremental`・`ledger`・`links` への
+`--deps-docs-map` / 実測ログ) を終えたら **A-2 (g) watch** へ。
 
 ## Files to read first
 
