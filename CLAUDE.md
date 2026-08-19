@@ -53,7 +53,18 @@ GitHub Actions を無料枠で回すこと)。計測対象の `lean-projects` �
 | `.claude/handoff.md` | セッション間の引き継ぎ (tracked、コミットする) |
 
 Lean 側のビルドは `lake env` で計測対象リポジトリの環境を借りる — **litedoc4 側に toolchain も
-Mathlib も置かない**。**Rust 側は `cargo build` で完結する** (Rust 1.97.1 / rustup)。
+Mathlib も置かない**。
+
+**Rust 側は `cargo build` + node で建つ** (Rust 1.97.1 / rustup、node は `mise.toml` が
+固定する 24.19.0)。**2026-08-19 まで「`cargo build` で完結する」だった**
+【決定、ユーザー判断 → `docs/plans/assets-typescript.md` 決定 1】 — サイトの JS が
+TypeScript になり、`crates/litedoc4-render/build.rs` が vite を回して `app.js` を
+`OUT_DIR` に焼くようになったため。**生成物はリポジトリに無い**。
+**利用者は node を払わない** — ワークスペースは `publish = false` で、配布は
+`release.yml` が焼く musl バイナリ。払うのはソースからビルドする者、つまり開発者と CI
+(だから cargo を回すワークフロー 8 本と `action.yml` の cargo 経路に `setup-node` がある)。
+**フォールバックは無い。** node が無ければ `build.rs` が落ちる — 「あれば作る、無ければ
+コミット済のを使う」は経路を 2 本にするので取らない。
 
 **`lakefile.lean` は置く** (2026-08-18、`docs/plans/lake-package.md`) — 利用者が
 `require «litedoc4»` で使えるようにするため。**`lean-toolchain` は置かない、が強化された**:
@@ -304,6 +315,18 @@ lint と別に CI が持っているもの: **rustdoc のリンク**
   `&&` ではなく `if` で書く。**「出力と終了コードが食い違う」形はゲートを嘘にする。**
 - **C++ をビルドするとき、Command Line Tools の `usr/include/c++/v1` にヘッダが無い** —
   `CXXFLAGS="-isystem $(xcrun --show-sdk-path)/usr/include/c++/v1"` が要る。
+- **PATH 上の `node` / `npm` は死んでいる。** `/usr/local/bin/node` は 2023 年の pkg 版で、
+  署名が不正なので **SIGKILL (exit 137) で即死する**【実測 2026-08-19】。しかも
+  `command -v node` は通り、`node -v` は**何も印字せずに**落ちるので、パイプ越しだと
+  「空の出力」に見える。`cargo build` は build.rs で npm を呼ぶので**これに当たる**。
+  使うのは mise 側: **`mise exec -- cargo build`** / `mise exec -- npm …`
+  (`mise.toml` が node を固定している)。`mise` はシェル関数で、非対話シェルでは
+  PATH を書き換えていない — だから `mise exec` を明示する。
+- **`biome.json` にコメントを書くと、biome は設定ごと黙って捨てて既定値で走る**
+  【実測 2026-08-19】。エラーも警告も出ず、**終了コードは 0**。症状は
+  「`indentStyle: "space"` と書いたのに全ファイルがタブに整形される」。
+  コメントを書くなら **`biome.jsonc`** にする (拡張子で判定される)。
+  これも「出力と終了コードが食い違う」形。
 
 ## Commits
 

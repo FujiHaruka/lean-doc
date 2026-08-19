@@ -71,7 +71,10 @@ npx tsc -p tsconfig.json
 npx tsc -p tsconfig.node.json
 
 echo "== tests (vitest)"
-REPORT="$(mktemp -t assets-gate-vitest)"
+# A full template, not `mktemp -t <prefix>`: BSD mktemp appends the random part
+# to a prefix, GNU mktemp demands the X's be in the template and fails with
+# "too few X's" — which is how this first ran red on ubuntu 【実測 2026-08-19】.
+REPORT="$(mktemp "${TMPDIR:-/tmp}/assets-gate-vitest.XXXXXX")"
 # The exit code has to come from vitest and not from a pipe or a `tee`
 # (CLAUDE.md: "パイプを噛ませた瞬間、見ている終了コードは最後のコマンドのもの").
 npx vitest run --reporter=json --outputFile="$REPORT" >/dev/null
