@@ -1,55 +1,38 @@
-# Handoff — 2026-08-19 (サイト側 JS の TypeScript 化)
+# Handoff — 2026-08-19 (機能スイープ: doc-gen4 の要望 8 件)
 
 ## State
 
-- Branch: main / clean / **`17d12b1` まで push 済み**
-- Active phase: `docs/plans/assets-typescript.md` の **P0〜P4 完了**
+- Branch: main / clean / `561db4c` まで
+- Active phase: `docs/plans/feature-sweep.md` の **束 A から着手**
 - 計測環境: 触っていない (計装・olean 暖機とも前回のまま)
 
 ## Relay control
 
-- Mode: DONE
-- Goal: `app.js` (917 行の生 JS) を TypeScript 化 — strict / モジュール分割 / vitest /
-  biome (スペースインデント) / vite + minify、完遂まで自走
+- Mode: ON
+- Goal: `docs/plans/feature-sweep.md` の 8 項目を束 A → B → C で完遂。各項目は
+  「ゲート/テスト・撤退ライン・実測ログ」の 3 点が揃うまで終わりにしない。
+  新しいゲートは必ず一度落としてから通す。完了条件は計画 §5 の 6 項目すべて。
 - Leg: 1 / cap 8
 - Predecessor: none
-- Stop-on: completion
+- Stop-on: completion | user-decision | no-progress×2 | leg-cap
 - Progress ledger:
-  - r1: 計画 `dabc17c` / TS 化 `82b31e9` / テスト `e4724d1` / ゲート+CI `26b5995`
-    `797072a` / docs `5636968` / P4 `bf9aa9f` / 決定 5 決着 `da57609` / 数字合わせ `17d12b1`。
-    **push 契機の 3 ワークフローが全部緑** (`5636968` で CI / lake package / action の
-    3 本、`da57609` で CI)。`17d12b1` の CI は最後の 1 本
+  - r1: (進行中)
 
 ## Where we are
 
-`crates/litedoc4-render/assets/app.js` は**リポジトリから消えた**。ソースは
-`crates/litedoc4-render/web/src/` の TS 20 本、`build.rs` が vite を回して
-`OUT_DIR` に `app.js` と `theme-boot.js` を焼き、`assets.rs` / `frame.rs` が
-`include_str!` で拾う。**`cargo build` は node を要る**ようになり、cargo を回す
-ワークフロー 8 本と `action.yml` に `actions/setup-node` を入れた。
-配るバイトは **32,173 → 15,113 B (gzip 10,508 → 4,912)**。
+計画は `docs/plans/feature-sweep.md` (322 行、`561db4c`)。調査の出所は doc-gen4 の
+issue 108 件 + PR。依存リンクの腐敗率は実測済み
+(`benchmarks/results/deps-link-rot-2026-08-19.txt`)。
+
+**h (`git@` URL) は既に実装済みだったので範囲外**にした (`build.rs:1069 github_path`)。
 
 ## Next step
 
-**残作業は無い。** 次にこの領域を触るときの手順だけ覚えておく:
-`crates/litedoc4-render/web/` で `mise exec -- npm run …`、確認は
-`mise exec -- tools/assets-gate.sh`。**`mise exec` を外すと PATH 上の壊れた node に当たる**。
+**A-1 (b) 依存宣言のリンク先を検証つきで docs へ向ける** — 計画 §4 A-1。
 
 ## Files to read first
 
-- `docs/plans/assets-typescript.md` — 決定 1〜6 と §9 結果。この作業の SoT
-- `crates/litedoc4-render/build.rs` — node がビルド依存になった理由と、フォールバックが無い理由
-- `tools/assets-gate.sh` — 4 段ゲート。node 版の一致検査もここ
-- `crates/litedoc4-render/web/src/index-format.ts` — 索引デコーダ。`!` の方針がヘッダにある
-- `CLAUDE.md` の「この機材の罠」 — node / biome.json の 2 件が今回追加
-
-## Load-bearing context
-
-- **`biome.json` にコメントを書くと設定ごと黙って捨てられ、終了コードは 0。**
-  `biome.jsonc` にすること。これで一度タブ整形されている
-- **`git checkout -- <path>` を無効化実験に使って未コミットの CI 編集を消した。**
-  CLAUDE.md が警告している通り。バックアップコピーを使う
-- **ローカル緑 ≠ CI 緑**: `mktemp -t <prefix>` は BSD で通り GNU で落ちる。
-  ゲートを書いたら CI で 1 度回す (`gh workflow run ci.yml --ref <branch>`)
-- 決定 5 (biome を Deno の `tools/*.ts` に広げるか) は**測って却下**。
-  再検討の条件は「それらのどれかがゲートに昇格したとき」
+- `docs/plans/feature-sweep.md` — この作業の SoT。§3 Approach と §6 決定
+- `benchmarks/results/deps-link-rot-2026-08-19.txt` — A-1 の根拠になる数字
+- `crates/litedoc4-render/src/external.rs` — 依存リンクの値型。「第 3 の状態」の議論
+- `crates/litedoc4-render/src/autolink.rs` の `NameIndex::link_to` — リンク 3 形の唯一の判断箇所
