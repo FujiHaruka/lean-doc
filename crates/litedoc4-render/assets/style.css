@@ -101,9 +101,12 @@ a { color: inherit; }
 
   --topbar-h: 3rem;
   --side-w: 17rem;
-  /* The kind column. Wide enough for `structure` at .68rem plus its tracking,
-     and no wider: every millimetre here is taken from the signature. */
-  --gutter: 6.25rem;
+  /* The kind column. Sized to the longest *word* a kind can contain, which is
+     `noncomputable` (505 declarations of the measurement target are
+     `noncomputable def`) — a word that does not fit breaks mid-syllable and
+     reads as a bug. Longer *phrases* wrap at their space instead, so the
+     column is not sized for `noncomputable instance`. */
+  --gutter: 7.75rem;
   /* One radius for every surface. The two 2px values in the file are on marks
      3px wide, where 4px would round them into ovals. */
   --radius: 4px;

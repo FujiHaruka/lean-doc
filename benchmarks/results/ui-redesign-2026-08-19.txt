@@ -24,15 +24,15 @@ crates/litedoc4-render/assets/style.css だけが差分。
 --------------------------------------------
                      raw      gzip -9   コメント    規則      行
     HEAD (M8-b)   21,516 B    6,529 B    5,206 B  16,310 B    549
-    後            27,378 B    8,799 B   10,012 B  17,366 B    656
-    差            +5,862 B   +2,270 B   +4,806 B  +1,056 B   +107
+    後            27,585 B    8,871 B   10,219 B  17,366 B    659
+    差            +6,069 B   +2,342 B   +5,013 B  +1,056 B   +110
 
   **ブラウザが実行するぶんは +6.5% しか増えていない** (16,310 → 17,366 B)。
   raw の +27% は全部コメントで、増分の 82% がそれ。
 
   ui-redesign.md §9 の撤退ラインは「自前 CSS が doc-gen4 の 836 行より
   大きくなったら削る」。**doc-gen4 の style.css は 18,677 B / 836 行**なので、
-  行数 (656) でも規則バイト (17,366 B) でも下回っている。**総バイトで上回るのは
+  行数 (659) でも規則バイト (17,366 B) でも下回っている。**総バイトで上回るのは
   コメントを書くから**で、これは M8-b の時点 (21,516 B) で既にそうだった。
 
   予算テスト (`assets::tests::the_assets_stay_within_their_budget`) の上限は
@@ -87,8 +87,19 @@ crates/litedoc4-render/assets/style.css だけが差分。
       → `.sig:not(:has(> .binder))` でコロンをインラインに戻す。
         `:has()` の無いブラウザではブロックのまま = 空なだけで壊れてはいない。
 
-  **どちらもプレビューだけ見ていたら出ていない。** e2e/micro が
-  「対象が持たない形」を持っている理由がそのまま効いた回。
+  (c) `noncomputable def` — **e2e/micro でも出なかった**。出したのは計測対象の
+      422 モジュールで、kind の語が gutter (5rem) に入らず `NONCOMPUTA` /
+      `BLE DEF` と**単語の途中で折れた**。対象の **505 宣言**がこの kind。
+      → gutter を最長の**語** (`noncomputable`) に合わせて 6.25 → 7.75rem。
+        最長の**句** (`noncomputable instance`) には合わせない — 句は空白で折れる。
+
+  **3 件とも同じ形**: 代表的な入力で完成に見えた版が、母数を増やすと壊れる。
+  プレビュー 3 形 → fixture 43 宣言 → 対象 4,584 宣言と広げるたびに 1 件ずつ出た。
+
+  対象が出す kind は 9 種【実測】:
+      theorem 3,517 / noncomputable def 505 / def 225 / instance 88 /
+      structure 37 / abbrev 16 / noncomputable abbrev 4 / opaque 1 /
+      noncomputable instance 1
 
 5. テスト
 ---------
@@ -96,3 +107,56 @@ crates/litedoc4-render/assets/style.css だけが差分。
   うち style.css を見る 2 本:
     assets::tests::every_class_the_renderer_emits_is_styled   ok
     assets::tests::the_assets_stay_within_their_budget        ok
+
+6. gh-pages への再デプロイ【実測 2026-08-19】
+---------------------------------------------
+  対象: /Users/haruka/dev/lean-projects (rev c4f6af29、前回公開時と同じ rev)。
+  公開先: https://fujiharuka.github.io/information-theory/
+  直前の公開は 2026-08-16 の aae92b94 で、まだ改名前の `lean-doc` の CSS を配っていた。
+
+  抽出器は Extract.lean が binary より新しかったので建て直した (extractor/build.sh)。
+  litedoc4 は --release。
+
+    litedoc4 build --root <target> --lib InformationTheory --out <dir>
+                   --extractor-bin extractor/build/extract --jobs 4
+
+    extract  422 module(s) in 23.2919 s   (常駐へのリクエスト 1 回)
+    render   modules 422/422  declarations 4394/4584 (190 suppressed)
+             module docs 1484  bytes 34,361,072
+    global   declarations 4584 + 依存名 527  instance classes 8  instance types 86
+    build    full in 24.1871 s
+
+  出た木: **433 ファイル / 426 ページ / 35,300 KiB**。
+
+  ゲート (どちらも公開する木そのものに対して):
+
+    SITE GATE: ok
+      internal links 31,265 / DEAD 0
+      source-path anchors 190 (6 external, dead 0)
+      external resources 426 checked, 0 failed
+      search-index <-> pages 4,584 / 4,394 checked, 0 failed
+    BROWSER GATE: ok
+      pages visited 426 / console errors 0
+      module tree 891 nodes / 検索は dropdown と search.html の両方で当たる
+      overflow at 375px 0 / at 1440px 0
+      非 ASCII 178 種 欠け 0 (off-width 34)
+      JS を切っても本文は読める (9 宣言)
+
+  公開は tools/publish-pages.sh (gh-pages を**置き換え**)。
+  432 パス変更 / +1,122 / −1,095 行、commit 431c431。
+  ssh は通らないので gh の credential helper を GIT_CONFIG_* でその 1 コマンドの間だけ指した。
+
+  公開後、GitHub Pages が掛ける gzip の実測 (curl -H 'Accept-Encoding: gzip'):
+
+    style.css                27,585 -> 8,974 B
+    app.js                   15,113 -> 4,945 B
+    index.html              103,712 -> 6,868 B
+    search-index.bin                   39,806 B
+    declarations/name-map.json         52,835 B
+    InformationTheory/Fano/Core.html    6,562 B
+
+  11 パス (/, index, search, 404, foundational_types, modules.json,
+  search-index.bin, instances.json, favicon.svg, InformationTheory.html,
+  Fano/Core.html) すべて 200。
+
+  **計測対象は無傷** — git status は作業前と同じ (未追跡の docs/doc-gen-bench/ のみ)、HEAD 不動。
