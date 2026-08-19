@@ -27,13 +27,20 @@ on:
   pull_request:
   workflow_dispatch:
 
-# A superseded run tells us nothing we want to wait for.
+# A superseded run tells us nothing we want to wait for, and it still holds
+# slots against the 20-job concurrency limit while telling us nothing.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
+  # Incremental compilation is for a working tree that gets built over and
+  # over. CI builds once from a restored cache and throws the machine away, so
+  # the incremental state is never read back — it is only written, cached, and
+  # restored. Locally it was 3.5 GB of a 7.2 GB `target/`, and the cargo cache
+  # is what was pushing this repository to 98.8% of the 10 GiB limit.
+  CARGO_INCREMENTAL: 0
   # A backtrace costs nothing here and turns "assertion failed" into a location.
   RUST_BACKTRACE: 1
 
@@ -69,6 +76,27 @@ jobs:
           rustc --version
           cargo --version
 
+      # **No `restore-keys`, and the key names the job.** Both were wrong before,
+      # in ways that only showed up in the numbers:
+      #
+      #   `restore-keys: cargo-<os>-` made this a ratchet. A new Cargo.lock
+      #   restored the previous generation's `target/`, built on top of it, and
+      #   saved the union — so the entry grew every time the lockfile moved:
+      #   72 MB → 357 → 560 → 884 → 1208 → 1530 → 1854 → 2177 MB over three
+      #   days, nine live generations, 8.47 GiB of the repository's 10 GiB cache
+      #   limit. Restoring it cost 63 s in a job whose actual build was 14 s.
+      #   Cutting the fallback means a lockfile change builds cold — cheap here,
+      #   because Cargo.lock has 34 packages in it — and the entry then stays
+      #   the size of one honest build.
+      #
+      #   The bare key was shared with `e2e-micro` (one binary) and with
+      #   ci-template.yml (whose `target/` is at another path entirely). Only one
+      #   of them could save it, and which one won decided what the others got
+      #   back. Naming the job in the key is what stops that.
+      #
+      # `rust-toolchain.toml` joins the hash because a channel bump invalidates
+      # every artifact in `target/` anyway; without it the stale entry is still
+      # restored, still 2 GB, and still useless.
       - name: Cache cargo registry and build
         uses: actions/cache@v4
         with:
@@ -77,8 +105,7 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             target
-          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: cargo-${{ runner.os }}-
+          key: cargo-v2-${{ runner.os }}-ci-test-${{ hashFiles('**/Cargo.lock', 'rust-toolchain.toml') }}
 
       - name: Format
         run: cargo fmt --all --check
@@ -164,6 +191,8 @@ jobs:
       - name: Install the toolchain rust-toolchain.toml asks for
         run: rustup show
 
+      # Keyed per job and without `restore-keys` — see the note in `test`. This
+      # job builds one binary; `test` builds --all-targets. Same key was wrong.
       - name: Cache cargo registry and build
         uses: actions/cache@v4
         with:
@@ -172,8 +201,7 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             target
-          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: cargo-${{ runner.os }}-
+          key: cargo-v2-${{ runner.os }}-ci-e2e-${{ hashFiles('**/Cargo.lock', 'rust-toolchain.toml') }}
 
       # Lean core only. The fixture depends on nothing else, which is what keeps
       # this job to minutes instead of the gigabytes Mathlib would cost.

@@ -43,13 +43,29 @@ on:
         required: false
         default: "c4f6af29704029b3c62eaa0842c3225ad0e689a0"
 
+concurrency:
+  # `cancel-in-progress: false`: a double dispatch queues instead of killing the
+  # run already measuring. Losing a 40-minute measurement to a stray click is
+  # worse than waiting for it.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
+
+env:
+  # Incremental compilation is for a working tree that gets built over and
+  # over. CI builds once from a restored cache and throws the machine away, so
+  # the incremental state is never read back — it is only written, cached, and
+  # restored. Locally it was 3.5 GB of a 7.2 GB `target/`, and the cargo cache
+  # is what was pushing this repository to 98.8% of the 10 GiB limit.
+  CARGO_INCREMENTAL: 0
 
 jobs:
   docs:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    # Measured: 2 min over five runs. 120 was a guess made before any ran.
+    timeout-minutes: 30
     steps:
       # litedoc4 itself — the template's second checkout, with no token, which
       # is the line the public repository made possible.
@@ -104,6 +120,8 @@ jobs:
             extractor-${{ hashFiles('package/lean-toolchain',
             'litedoc4/extractor/Extract.lean') }}
 
+      # Key prefixed per workflow: it used to be the bare `cargo-<os>-` that
+      # ci.yml's `restore-keys` reached into.
       - name: cache the Rust build
         uses: actions/cache@v4
         with:
@@ -111,7 +129,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             litedoc4/target
-          key: cargo-${{ runner.os }}-${{ hashFiles('litedoc4/Cargo.lock') }}
+          key: cargo-v2-${{ runner.os }}-template-${{ hashFiles('litedoc4/Cargo.lock') }}
 
       # The template's fourth cache. `id:` is the one addition — the run has to
       # be able to say whether it restored anything, because "extract was fast"

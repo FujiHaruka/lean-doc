@@ -73,8 +73,21 @@ on:
       - ".github/workflows/ci-lake.yml"
   workflow_dispatch:
 
+concurrency:
+  # One run per workflow per ref. Without this a burst of pushes leaves the
+  # earlier runs going: they cannot say anything about HEAD any more, but they
+  # still hold slots against the 20-job concurrency limit.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
+  # Incremental compilation is for a working tree that gets built over and
+  # over. CI builds once from a restored cache and throws the machine away, so
+  # the incremental state is never read back — it is only written, cached, and
+  # restored. Locally it was 3.5 GB of a 7.2 GB `target/`, and the cargo cache
+  # is what was pushing this repository to 98.8% of the 10 GiB limit.
+  CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: 1
 
 jobs:

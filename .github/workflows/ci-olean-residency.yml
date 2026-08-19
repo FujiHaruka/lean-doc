@@ -30,10 +30,18 @@ on:
         required: false
         default: "2"
 
+concurrency:
+  # `cancel-in-progress: false`: a double dispatch queues instead of killing the
+  # run already measuring. Losing a 40-minute measurement to a stray click is
+  # worse than waiting for it.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   residency:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # Measured: 3 min.
+    timeout-minutes: 30
     steps:
       - name: Check out litedoc4 (the measurement tools)
         uses: actions/checkout@v5

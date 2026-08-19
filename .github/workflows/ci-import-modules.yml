@@ -61,10 +61,21 @@ on:
         required: false
         default: "2"
 
+concurrency:
+  # `cancel-in-progress: false`: a double dispatch queues instead of killing the
+  # run already measuring. Losing a 40-minute measurement to a stray click is
+  # worse than waiting for it.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   import-modules:
     runs-on: ubuntu-latest
-    timeout-minutes: 330
+    # GitHub terminates any job at 6 h, so 330 left half an hour to tell
+    # "this hung" apart from "GitHub gave up" — not enough to read a red
+    # run by. Measured at the default inputs: 39 min. Raising `warm_runs` /
+    # `cold_runs` scales this, hence the 4.6x margin rather than 2x.
+    timeout-minutes: 180
     steps:
       - name: Check out litedoc4 (the measurement tools)
         uses: actions/checkout@v5

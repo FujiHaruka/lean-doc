@@ -29,8 +29,21 @@ on:
         default: "leanprover/lean4:v4.30.0"
         required: true
 
+concurrency:
+  # `cancel-in-progress: false`: a double dispatch queues instead of killing the
+  # run already measuring. Losing a 40-minute measurement to a stray click is
+  # worse than waiting for it.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   CARGO_TERM_COLOR: always
+  # Incremental compilation is for a working tree that gets built over and
+  # over. CI builds once from a restored cache and throws the machine away, so
+  # the incremental state is never read back — it is only written, cached, and
+  # restored. Locally it was 3.5 GB of a 7.2 GB `target/`, and the cargo cache
+  # is what was pushing this repository to 98.8% of the 10 GiB limit.
+  CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: 1
 
 jobs:
@@ -110,6 +123,7 @@ jobs:
       - name: Install the toolchain rust-toolchain.toml asks for
         run: rustup show
 
+      # Keyed per job and without `restore-keys` — see the long note in ci.yml.
       - name: Cache cargo registry and build
         uses: actions/cache@v4
         with:
@@ -118,8 +132,7 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             target
-          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: cargo-${{ runner.os }}-
+          key: cargo-v2-${{ runner.os }}-portability-${{ hashFiles('**/Cargo.lock', 'rust-toolchain.toml') }}
 
       - name: Cache elan
         id: elan-cache
