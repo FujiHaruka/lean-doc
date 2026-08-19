@@ -1,0 +1,98 @@
+生成サイトのデザイン作り直し — 触ったのは style.css 1 本【実測 2026-08-19】
+================================================================
+
+計画は docs/plans/ui-redesign.md §10。**IR も HTML も変えていない** —
+decl.rs / frame.rs / page.rs / entry.rs は 1 バイトも動かず、
+crates/litedoc4-render/assets/style.css だけが差分。
+
+機材と条件
+----------
+  Apple M1 / macOS 26.0。Rust 1.97.1、node 24.19.0 (mise)、deno 2.x。
+  Chrome (browser-gate が起動するもの)。
+  対象は **e2e/micro** が建てたサイト (Mathlib 非依存、6 モジュール /
+  43 宣言 / 10 ページ)。計測対象リポジトリではない — このサイトは
+  **対象が持たない宣言の形** (class / inductive / class inductive /
+  非 mk コンストラクタ / 継承フィールド) を持っていて、そこが見たい部分だった。
+
+  再現手順:
+    mise exec -- cargo build --bin litedoc4
+    tools/e2e-micro.sh --out /private/tmp/lean-doc-relay/design --keep
+    tools/site-gate.sh    /private/tmp/lean-doc-relay/design/first/site
+    tools/browser-gate.sh /private/tmp/lean-doc-relay/design/first/site
+
+1. サイズ — 規則は +973 B、増えたのはコメント
+--------------------------------------------
+                     raw      gzip -9   コメント    規則      行
+    HEAD (M8-b)   21,516 B    6,529 B    5,206 B  16,310 B    549
+    後            27,378 B    8,799 B   10,012 B  17,366 B    656
+    差            +5,862 B   +2,270 B   +4,806 B  +1,056 B   +107
+
+  **ブラウザが実行するぶんは +6.5% しか増えていない** (16,310 → 17,366 B)。
+  raw の +27% は全部コメントで、増分の 82% がそれ。
+
+  ui-redesign.md §9 の撤退ラインは「自前 CSS が doc-gen4 の 836 行より
+  大きくなったら削る」。**doc-gen4 の style.css は 18,677 B / 836 行**なので、
+  行数 (656) でも規則バイト (17,366 B) でも下回っている。**総バイトで上回るのは
+  コメントを書くから**で、これは M8-b の時点 (21,516 B) で既にそうだった。
+
+  予算テスト (`assets::tests::the_assets_stay_within_their_budget`) の上限は
+  32 KiB = 32,768 B。**上限は動かしていない。**
+
+2. ブラウザゲート — 全項目 ok
+-----------------------------
+  コントラスト (実測値、WCAG AA の 4.5:1 に対して):
+
+                        light                          dark
+    body            16.02:1  #16202c on #fcfcfb    13.41:1  #dbe3ec on #0e1b2a
+    .doc            16.02:1                        13.41:1
+    .decl-name      16.02:1                        13.41:1
+    .fn (binder)     6.85:1  #4d5a6a               7.60:1  #9fadbd
+    .src / main a    5.23:1  #5f6c7a               5.59:1  #8494a5
+
+  **`--fg-faint` (5.23:1) が最小**。これは意図的に一番薄い色で、名前空間の
+  接頭辞・source リンク・サイドバーの見出しを運ぶ。**これ以上薄くしない。**
+
+    no horizontal scroll at 375px      overflow 0 px   (ゲート UI-3)
+    no horizontal scroll at 1440px     overflow 0 px
+    readable without JavaScript        8 declarations
+    non-ASCII 178 種                   欠けた字形 0 / 送り幅の違う字 34
+    no console errors                  10 pages
+    module tree is drawn               12 nodes
+    search returns a hit               "double" -> Micro.double
+
+  等幅の実描画フォント (Chrome の CSS.getPlatformFontsForNode):
+    Menlo:140 / Apple Symbols:20 / STIX Two Math:7 / Osaka:7 / .SF NS:4
+  → 決定 2 (Web フォントを読まない) は**このデザインでも成立している**。
+
+3. サイトゲート — 全項目 ok
+---------------------------
+    DEAD internal links                0
+    external resources                 10 checked, 0 failed
+    search-index <-> pages             43 / 22 checked, 0 failed
+    instances / instancesFor           3 / 3 checked, 0 failed
+
+4. 本物の出力が見つけた欠陥 2 件 — プレビューでは出なかった
+----------------------------------------------------------
+  手書きプレビュー (design/preview/module.html) は計測対象から取った
+  structure / def / theorem の 3 形しか持たない。**そこで完成に見えた CSS が、
+  e2e/micro の 43 宣言で 2 つ壊れた**:
+
+  (a) `class inductive` — kind の語が gutter (5rem) より広く、
+      `white-space: nowrap` のせいで宣言名に**重なった**。
+      → gutter 内で折り返す。最長の kind 1 個のために全ページの gutter を
+        広げることはしない。
+
+  (b) binder が 0 個の宣言 (`Micro.Named : Type`) — 分けるべき文脈が無いのに
+      罫線が引かれ、**空の箱に蓋**が乗った。
+      → `.sig:not(:has(> .binder))` でコロンをインラインに戻す。
+        `:has()` の無いブラウザではブロックのまま = 空なだけで壊れてはいない。
+
+  **どちらもプレビューだけ見ていたら出ていない。** e2e/micro が
+  「対象が持たない形」を持っている理由がそのまま効いた回。
+
+5. テスト
+---------
+  mise exec -- cargo test --workspace     全緑 (exit 0)
+  うち style.css を見る 2 本:
+    assets::tests::every_class_the_renderer_emits_is_styled   ok
+    assets::tests::the_assets_stay_within_their_budget        ok

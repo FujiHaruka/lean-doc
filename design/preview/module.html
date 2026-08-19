@@ -55,6 +55,8 @@
         <li><a href="#Combinatorics.Polymatroid"><span class="name">Combinatorics</span>.<span class="name">Polymatroid</span></a></li>
         <li><a href="#InformationTheory.FiniteJointPMF.errIndicator"><span class="name">InformationTheory</span>.<span class="name">FiniteJointPMF</span>.<span class="name">errIndicator</span></a></li>
         <li><a href="#InformationTheory.sum_measureReal_singleton_univ_eq_one"><span class="name">InformationTheory</span>.<span class="name">sum_measureReal_singleton_univ_eq_one</span></a></li>
+        <li><a href="#Micro.Decision"><span class="name">Micro</span>.<span class="name">Decision</span></a></li>
+        <li><a href="#Micro.Named"><span class="name">Micro</span>.<span class="name">Named</span></a></li>
       </ul>
     </section>
     <section class="side">
@@ -191,6 +193,53 @@ iff the estimator <code>xh</code> differs from the source <code>x</code>.</p></d
 <span class="binder implicit">
 <span class="fn">[<span class="fn"><a href="#">MeasureTheory.IsProbabilityMeasure</a> <span class="fn">μ</span></span>]</span></span>
 <span class="colon"> :</span><div class="sig-type"><span class="fn">∑ <span class="fn">z</span> : <span class="fn">γ</span>, <span class="fn"><span class="fn"><span class="fn">μ</span>.<a href="#">real</a></span> <a href="#">{</a><span class="fn">z</span><a href="#">}</a></span></span> <a href="#">=</a> <span class="fn">1</span></div></div>
+    </section>
+    <!--
+      The last two blocks are `e2e/micro`'s, not the measurement target's, and
+      they are here because the target has neither shape. Both broke a CSS pass
+      that looked finished against the three above (docs/plans/ui-redesign.md
+      §10.4): `class inductive` is the widest kind there is, and a declaration
+      with no binders is the one signature that has no context to separate from
+      its conclusion.
+    -->
+    <section class="decl" id="Micro.Decision" data-kind="class">
+      <header class="decl-head">
+        <span class="kind">class inductive</span>
+        <h2 class="decl-name"><a class="break_within" href="#Micro.Decision"><span class="name">Micro</span>.<span class="name">Decision</span></a></h2>
+        <a class="src" href="#">source</a>
+      </header>
+      <div class="sig"><span class="binder">
+<span class="fn">(<span class="fn">p</span> : <a href="#">Prop</a>)</span></span>
+<span class="colon"> :</span><div class="sig-type"><a href="#">Type</a></div></div>
+      <div class="doc"><p>A <code>class inductive</code>: a class whose declaration is an inductive type rather
+than a structure.</p></div>
+      <ul class="ctors">
+        <li id="Micro.Decision.no" class="ctor"><div class="field-sig"><span class="field-name">no</span><span class="colon"> : </span><span class="fn"><a href="#">Decision</a> <span class="fn">p</span></span></div></li>
+        <li id="Micro.Decision.yes" class="ctor"><div class="field-sig"><span class="field-name">yes</span><span class="colon"> : </span><span class="fn"><a href="#">Decision</a> <span class="fn">p</span></span></div></li>
+      </ul>
+      <details class="extra" data-fill="instances" data-name="Micro.Decision">
+        <summary>Instances</summary>
+        <ul></ul>
+      </details>
+    </section>
+
+    <section class="decl" id="Micro.Named" data-kind="structure">
+      <header class="decl-head">
+        <span class="kind">structure</span>
+        <h2 class="decl-name"><a class="break_within" href="#Micro.Named"><span class="name">Micro</span>.<span class="name">Named</span></a></h2>
+        <a class="src" href="#">source</a>
+      </header>
+      <div class="sig"><span class="colon"> :</span><div class="sig-type"><a href="#">Type</a></div></div>
+      <div class="doc"><p>A structure whose constructor is <strong>not</strong> <code><a href="#">mk</a></code>, which the renderer prints
+differently from the anonymous one.</p></div>
+      <p class="ctor-note">constructor <code>make</code></p>
+      <ul class="fields" id="Micro.Named.make">
+        <li id="Micro.Named.value" class="field"><div class="field-sig"><span class="field-name">value</span><span class="colon"> : </span><a href="#">Nat</a></div><div class="field-doc"><p>The only field.</p></div></li>
+      </ul>
+      <details class="extra" data-fill="instances-for" data-name="Micro.Named">
+        <summary>Instances For</summary>
+        <ul></ul>
+      </details>
     </section>
   </main>
 </div>

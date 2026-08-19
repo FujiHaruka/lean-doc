@@ -13,6 +13,12 @@
    on one line and cannot drift apart. `color-scheme` on :root decides which
    half wins; the theme toggle sets `data-theme` and overrides it.
 
+   Three rules carry the look, and each of them draws structure the markup
+   already had rather than adding any: the signature is laid out as a proof
+   state (§9), a name's last component is set apart from its namespace (§14),
+   and the declaration kind is a column rather than a badge (§8). What they
+   are for is `docs/plans/ui-redesign.md` §10.
+
    Two rules are taken from doc-gen4 rather than written here — `.fn` and
    `.break_within` (marked in place). Both solve a problem specific to Lean
    signatures, and both are reformatted but otherwise unchanged:
@@ -40,41 +46,49 @@ button { background: none; border: 0; cursor: pointer; }
 ul, ol { padding: 0; }
 a { color: inherit; }
 
-:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 3px; }
+:focus-visible { outline: 2px solid var(--mark); outline-offset: 2px; border-radius: 2px; }
 
 /* -- 2. tokens ----------------------------------------------------------- */
 
 :root {
   color-scheme: light dark;
 
-  --bg:        light-dark(#ffffff, #15181c);
-  --bg-sub:    light-dark(#f7f8fa, #1b1f24);
-  --bg-code:   light-dark(#f2f5f8, #21262d);
-  --bg-hover:  light-dark(#eaeef3, #262c33);
-  --bg-sel:    light-dark(#e4edfb, #23324a);
+  /* Every grey here carries blue, which is what makes the one warm colour in
+     the file — `--mark` — read as a mark rather than as another hue. */
+  --bg:        light-dark(#fcfcfb, #0e1b2a);
+  --bg-sub:    light-dark(#f0f3f7, #12212f);
+  --bg-code:   light-dark(#e9eef4, #172634);
+  --bg-hover:  light-dark(#e3e9f1, #1c2c3c);
+  /* Where the reader is. Warm, because it is the only thing on the page that
+     is answering "you are here" rather than describing the mathematics. */
+  --bg-sel:    light-dark(#f7edda, #2a2318);
 
-  --fg:        light-dark(#15191e, #dfe4ea);
-  --fg-dim:    light-dark(#57616e, #a3adb9);
+  --fg:        light-dark(#16202c, #dbe3ec);
+  --fg-dim:    light-dark(#4d5a6a, #9fadbd);
   /* Not lighter than this: `--fg-faint` carries the `source` links, the
-     breadcrumbs and the sidebar headings, and it has to clear 4.5:1 against
-     both `--bg` and `--bg-sub`. */
-  --fg-faint:  light-dark(#69737f, #8d97a3);
+     namespace prefixes and the sidebar headings, and it has to clear 4.5:1
+     against both `--bg` and `--bg-sub` (the smaller of the two is 4.78:1). */
+  --fg-faint:  light-dark(#5f6c7a, #8494a5);
 
-  --line:      light-dark(#e2e7ed, #2b3138);
-  --line-soft: light-dark(#eef1f5, #23282e);
+  --line:      light-dark(#d9e0e8, #223040);
+  --line-soft: light-dark(#e9edf3, #1a2836);
 
-  --link:      light-dark(#1a5fbd, #77b0f5);
-  --link-hov:  light-dark(#10448f, #a6ccfb);
-  --focus:     light-dark(#2f80ed, #74a9f0);
+  --link:      light-dark(#1a5aa8, #7db4ec);
+  --link-hov:  light-dark(#103f7d, #a9cef5);
+  /* The accent, and the whole of it: current position, the anchor a reader
+     landed on, the focus ring. Never decoration, never a surface. */
+  --mark:      light-dark(#9a6412, #e0a447);
 
-  /* Declaration kinds. Five families, not one per keyword: a reader is
-     looking for "is this a proposition, a definition or a type", and ten
-     colours would answer a question nobody asked. */
-  --k-prop:    light-dark(#7250c9, #b39cf0);  /* theorem, axiom          */
-  --k-def:     light-dark(#1f7a52, #63c79b);  /* def, abbrev, opaque     */
-  --k-type:    light-dark(#a35410, #e0a061);  /* structure, class, ind.  */
-  --k-inst:    light-dark(#1a6a91, #6cb6d9);  /* instance                */
-  --k-other:   light-dark(#6b7684, #949eaa);  /* ctor, everything else   */
+  /* Declaration kinds. Five families, not one per keyword: a reader is looking
+     for "is this a proposition, a definition or a type", and ten colours would
+     answer a question nobody asked. None of them is warm — that hue is
+     `--mark`'s, and sharing it would make the kind column compete with the
+     reader's own position. */
+  --k-prop:    light-dark(#6a45c0, #b49ceb);  /* theorem, axiom          */
+  --k-def:     light-dark(#0f7350, #5ec79c);  /* def, abbrev, opaque     */
+  --k-type:    light-dark(#ad3963, #ee8bad);  /* structure, class, ind.  */
+  --k-inst:    light-dark(#0d6a86, #63bcd8);  /* instance                */
+  --k-other:   light-dark(#5f6c7a, #8a99aa);  /* ctor, everything else   */
 
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
           Arial, "Noto Sans", sans-serif;
@@ -86,8 +100,13 @@ a { color: inherit; }
           "DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono", monospace;
 
   --topbar-h: 3rem;
-  --side-w: 17.5rem;
-  --radius: 6px;
+  --side-w: 17rem;
+  /* The kind column. Wide enough for `structure` at .68rem plus its tracking,
+     and no wider: every millimetre here is taken from the signature. */
+  --gutter: 6.25rem;
+  /* One radius for every surface. The two 2px values in the file are on marks
+     3px wide, where 4px would round them into ovals. */
+  --radius: 4px;
 }
 
 :root[data-theme="light"] { color-scheme: light; }
@@ -97,7 +116,8 @@ a { color: inherit; }
 
 body {
   font-family: var(--font);
-  line-height: 1.6;
+  font-size: .9375rem;
+  line-height: 1.65;
   color: var(--fg);
   background: var(--bg);
   overflow-wrap: break-word;
@@ -108,6 +128,13 @@ a:hover { color: var(--link-hov); text-decoration-color: currentColor; }
 
 code, pre, .sig, .tree, .toc a, .decl-name, kbd { font-family: var(--mono); }
 
+/* Small type that labels a region rather than saying anything. One rule so the
+   three of them cannot drift into three sizes. */
+.side-title, .stats dt, .kind {
+  font-size: .68rem; font-weight: 600; letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
 .skip {
   position: absolute; left: .5rem; top: -3rem; z-index: 100;
   padding: .5rem .75rem; background: var(--bg); border: 1px solid var(--line);
@@ -117,14 +144,14 @@ code, pre, .sig, .tree, .toc a, .decl-name, kbd { font-family: var(--mono); }
 
 /* -- 4. topbar ----------------------------------------------------------- */
 
+/* Opaque, not translucent: what scrolls under this bar is dense monospace, and
+   the half-legible ghost of a signature is worse than a line. */
 .topbar {
   position: sticky; top: 0; z-index: 30;
   display: flex; align-items: center; gap: .5rem;
   height: var(--topbar-h);
   padding-inline: .75rem;
-  background: color-mix(in srgb, var(--bg-sub) 92%, transparent);
-  -webkit-backdrop-filter: saturate(1.6) blur(8px);
-  backdrop-filter: saturate(1.6) blur(8px);
+  background: var(--bg-sub);
   border-bottom: 1px solid var(--line);
 }
 
@@ -138,7 +165,8 @@ code, pre, .sig, .tree, .toc a, .decl-name, kbd { font-family: var(--mono); }
 .iconbtn[aria-pressed="true"] { color: var(--fg); }
 
 .home {
-  font-weight: 600; color: var(--fg); text-decoration: none;
+  font-family: var(--mono); font-weight: 700; letter-spacing: -.01em;
+  color: var(--fg); text-decoration: none;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .home:hover { color: var(--link); }
@@ -152,24 +180,24 @@ code, pre, .sig, .tree, .toc a, .decl-name, kbd { font-family: var(--mono); }
   background: var(--bg); color: var(--fg);
 }
 .search input::placeholder { color: var(--fg-faint); }
-.search input:focus { border-color: var(--focus); outline: none; }
+.search input:focus { border-color: var(--mark); outline: none; }
 
 .search-results {
   position: absolute; top: calc(100% + .35rem); right: 0; left: 0; z-index: 40;
   max-height: min(28rem, 70dvh); overflow-y: auto;
   list-style: none;
   background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius);
-  box-shadow: 0 8px 28px light-dark(rgb(0 0 0 / .12), rgb(0 0 0 / .5));
+  box-shadow: 0 8px 28px light-dark(rgb(16 32 48 / .14), rgb(0 0 0 / .5));
 }
 .search-results:empty, .search-results[hidden] { display: none; }
 .search-results li > a {
-  display: flex; align-items: baseline; gap: .5rem;
+  display: flex; align-items: baseline; gap: .6rem;
   padding: .4rem .6rem; text-decoration: none; color: var(--fg);
   font-family: var(--mono); font-size: .85rem;
 }
 .search-results li > a:hover,
 .search-results li[aria-selected="true"] > a { background: var(--bg-sel); }
-.search-results .kind { font-size: .68rem; }
+.search-results .kind { flex: none; width: 4.5rem; color: var(--fg-faint); }
 .search-results .where { margin-left: auto; color: var(--fg-faint); font-size: .72rem; }
 .search-empty { padding: .6rem; color: var(--fg-faint); font-size: .85rem; }
 
@@ -181,36 +209,49 @@ code, pre, .sig, .tree, .toc a, .decl-name, kbd { font-family: var(--mono); }
   position: sticky; top: var(--topbar-h);
   height: calc(100dvh - var(--topbar-h));
   overflow-y: auto; overscroll-behavior: contain;
-  padding: 1rem .6rem 4rem;
+  padding: 1.25rem .55rem 4rem;
   border-right: 1px solid var(--line);
   background: var(--bg-sub);
-  font-size: .875rem;
 }
 
-.side + .side { margin-top: 1.5rem; }
+.side + .side { margin-top: 1.75rem; }
 .side-title {
-  font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
-  color: var(--fg-faint); padding: 0 .4rem .4rem;
+  color: var(--fg-faint);
+  padding: 0 .4rem .35rem;
+  margin-bottom: .35rem;
+  border-bottom: 1px solid var(--line);
 }
 
+/* A name too long for 17rem has to break somewhere; the hanging indent is
+   what says the second line is still the first entry. */
 .toc { list-style: none; }
-.toc a {
-  display: block; padding: .2rem .4rem; border-radius: 4px;
-  font-size: .8rem; text-decoration: none; color: var(--fg-dim);
+.toc a, .tree a, .tree .node-name {
+  display: block; font-size: .78rem; line-height: 1.5;
+  text-decoration: none; color: var(--fg-dim);
   word-break: break-all;
 }
+.toc a {
+  padding: .22rem .4rem .22rem 1.45rem;
+  text-indent: -1.05rem;
+  border-radius: var(--radius);
+}
 .toc .name { word-break: normal; }
-.toc a:hover { background: var(--bg-hover); color: var(--fg); }
-.toc a[aria-current] { background: var(--bg-sel); color: var(--fg); }
+.toc a:hover, .tree .row:hover a { background: var(--bg-hover); color: var(--fg); }
+/* Current position, in the sidebar and only there: the warm wash plus a bar
+   in the margin. The bar is what survives at a glance; the wash is what makes
+   it findable after scrolling a 400-entry tree. */
+.toc a[aria-current], .tree a[aria-current] {
+  background: var(--bg-sel); color: var(--fg); font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--mark);
+}
 
 /* A row is [disclosure][name]: the two are separate targets because a module
    can be both a page and a parent. See the note in `app.js`. */
 .tree ul { list-style: none; padding-left: .75rem; }
 .tree > ul { padding-left: 0; }
 .tree li { line-height: 1.5; }
-.tree .row { display: flex; align-items: center; border-radius: 4px; }
+.tree .row { display: flex; align-items: center; border-radius: var(--radius); }
 .tree .row:hover { background: var(--bg-hover); }
-.tree .row:has(a[aria-current]) { background: var(--bg-sel); }
 .tree .twisty, .tree .twisty-spacer {
   flex: none; width: 1.1rem; align-self: stretch;
   color: var(--fg-faint); font-size: .9rem; line-height: 1;
@@ -220,14 +261,8 @@ code, pre, .sig, .tree, .toc a, .decl-name, kbd { font-family: var(--mono); }
 }
 .tree .twisty[aria-expanded="true"]::before { transform: rotate(90deg); }
 .tree .twisty:hover { color: var(--fg); }
-.tree a, .tree .node-name {
-  flex: 1; min-width: 0; padding: .2rem .3rem .2rem 0;
-  font-size: .8rem; text-decoration: none; color: var(--fg-dim);
-  word-break: break-all;
-}
-.tree .row:hover a { color: var(--fg); }
+.tree a, .tree .node-name { flex: 1; min-width: 0; padding: .2rem .3rem .2rem .4rem; }
 .tree .node-name { color: var(--fg-faint); }
-.tree a[aria-current] { color: var(--fg); font-weight: 600; }
 
 .scrim { display: none; }
 
@@ -235,29 +270,33 @@ code, pre, .sig, .tree, .toc a, .decl-name, kbd { font-family: var(--mono); }
 
 .content {
   min-width: 0;
-  max-width: 72rem;
-  padding: 1.75rem clamp(1rem, 4vw, 2.5rem) 8rem;
+  max-width: 74rem;
+  padding: 2rem clamp(1rem, 4vw, 3rem) 8rem;
 }
 
-.modhead { padding-bottom: 1rem; border-bottom: 1px solid var(--line); }
+/* The one heavy rule on the page, and the reason the reader can tell a
+   module heading from a declaration heading at a glance. */
+.modhead { padding-bottom: 1.1rem; border-bottom: 2px solid light-dark(#16202c, #41566c); }
 .modhead h1 {
-  font-family: var(--mono); font-size: clamp(1.25rem, 1rem + 1.4vw, 1.75rem);
-  font-weight: 700; line-height: 1.25; word-break: break-all;
+  font-family: var(--mono);
+  font-size: clamp(1.3rem, 1rem + 1.6vw, 1.9rem);
+  font-weight: 700; letter-spacing: -.02em; line-height: 1.2;
+  word-break: break-all;
 }
 .modhead h1 .name { word-break: normal; }
-.modactions { margin-top: .4rem; }
+.modactions { margin-top: .5rem; }
 
 .src {
-  font-family: var(--font); font-size: .78rem; color: var(--fg-faint);
-  text-decoration: none;
+  font-family: var(--font); font-size: .75rem; letter-spacing: .02em;
+  color: var(--fg-faint); text-decoration: none;
 }
 .src:hover { color: var(--link); text-decoration: underline; }
 
-.modmeta { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; padding: .75rem 0; }
+.modmeta { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; padding: .8rem 0; }
 .imports { font-size: .85rem; }
 .imports > summary {
   cursor: pointer; color: var(--fg-dim); width: fit-content;
-  padding: .15rem .35rem; border-radius: 4px;
+  padding: .15rem .35rem; border-radius: var(--radius);
 }
 .imports > summary:hover { background: var(--bg-hover); color: var(--fg); }
 .imports .count { color: var(--fg-faint); }
@@ -268,19 +307,27 @@ code, pre, .sig, .tree, .toc a, .decl-name, kbd { font-family: var(--mono); }
 
 /* -- 8. declaration ------------------------------------------------------ */
 
+/* Every declaration is a band: a rule across the full width, the kind hanging
+   in the gutter under it. The rule is what makes a 200-declaration page
+   countable by eye. */
 .decl {
-  padding-block: 1.5rem;
-  border-top: 1px solid var(--line-soft);
+  position: relative;
+  padding: 1.6rem 0 1.9rem var(--gutter);
+  border-top: 1px solid var(--line);
   scroll-margin-top: calc(var(--topbar-h) + 1rem);
 }
-.decl:first-of-type { border-top: 0; }
-/* Landing on an anchor should say "here", then get out of the way. A left
-   marker does that without repainting the block the reader came to read. */
-.decl:target { box-shadow: inset 3px 0 0 var(--link); padding-left: .85rem; }
+/* Landing on an anchor should say "here", then get out of the way. A marker
+   in the gutter does that without repainting the block the reader came to
+   read — and it lands in the one column that is otherwise only labels. */
+.decl:target::before {
+  content: ""; position: absolute; left: calc(var(--gutter) - 1.4rem);
+  top: 1.6rem; bottom: 1.9rem;
+  width: 3px; background: var(--mark); border-radius: 2px;
+}
 
-.decl-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem .6rem; }
+.decl-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem .7rem; }
 .decl-name {
-  font-size: 1.0625rem; font-weight: 700; line-height: 1.35;
+  font-size: 1.125rem; font-weight: 700; line-height: 1.35;
   min-width: 0; word-break: break-all;
 }
 .decl-name .name { word-break: normal; }
@@ -288,13 +335,16 @@ code, pre, .sig, .tree, .toc a, .decl-name, kbd { font-family: var(--mono); }
 .decl-name a:hover { color: var(--link); text-decoration: underline; }
 .decl-head .src { margin-left: auto; align-self: center; }
 
-.kind {
-  flex: none; align-self: center;
-  font-family: var(--font); font-size: .7rem; font-weight: 600; line-height: 1.5;
-  letter-spacing: .015em; white-space: nowrap;
-  padding: .05rem .4rem; border-radius: 4px;
-  color: var(--k-other);
-  background: color-mix(in srgb, currentColor 12%, transparent);
+.kind { font-family: var(--mono); color: var(--k-other); }
+/* Out of the flex row and into the gutter. `top` is the block's own padding
+   plus the drop from the name's line box to its cap height. It wraps rather
+   than running into the name: `class inductive` is wider than the column, and
+   widening the column for the one longest kind would cost every signature on
+   every page the width instead. */
+.decl-head .kind {
+  position: absolute; left: 0; top: calc(1.6rem + .32rem);
+  width: calc(var(--gutter) - 1.25rem);
+  line-height: 1.4;
 }
 .decl[data-kind="theorem"] .kind,
 .decl[data-kind="axiom"] .kind    { color: var(--k-prop); }
@@ -306,7 +356,7 @@ code, pre, .sig, .tree, .toc a, .decl-name, kbd { font-family: var(--mono); }
 .decl[data-kind="instance"] .kind { color: var(--k-inst); }
 
 .attrs {
-  font-family: var(--mono); font-size: .78rem; color: var(--fg-faint);
+  font-family: var(--mono); font-size: .76rem; color: var(--fg-faint);
   margin-top: .35rem;
 }
 
@@ -318,10 +368,49 @@ code, pre, .sig, .tree, .toc a, .decl-name, kbd { font-family: var(--mono); }
    of the source, and under `pre-wrap` those turn into real line breaks. Inside
    a `.fn` there is no such newline, so the two rules do not fight. */
 .sig {
-  margin-top: .5rem;
-  font-size: .875rem; line-height: 1.75;
+  margin-top: .8rem;
+  font-size: .875rem; line-height: 1.7;
   overflow-x: auto;
 }
+
+/* The proof state. One binder per line is the whole idea: a reader can count a
+   declaration's hypotheses without reading them, and the instance binders — the
+   ones saying what the statement needs to hold — stop hiding inside a paragraph
+   of parentheses. Scoped to `> ` because `.colon` is also a field signature's
+   separator (§10), where it stays inline. */
+.sig > .binder { display: block; padding-left: 1.6ch; color: var(--fg-dim); }
+.sig > .binder.implicit { color: var(--fg-faint); }
+
+/* The turnstile — except it is the declaration's own colon, hanging in the
+   margin with the rule drawn off it. Nothing is invented and nothing hidden:
+   what a reader copies out is still the signature Lean would print. */
+.sig > .colon {
+  display: block; margin: .5rem 0 .35rem;
+  color: var(--fg-dim); line-height: 1;
+}
+/* Short: this rule belongs to the signature, and a full-width one would read
+   as another declaration separator. */
+.sig > .colon::after {
+  content: ""; display: inline-block; vertical-align: .1em;
+  width: min(100% - 2.4ch, 30rem); margin-left: .45ch;
+  border-top: 1px solid var(--line);
+}
+
+/* The conclusion: aligned with the binders and the only part at full contrast.
+   For a theorem this is the statement; the name above it is its address. */
+.sig-type {
+  display: block; padding-left: 1.6ch;
+  white-space: pre-wrap; font-size: .9375rem; color: var(--fg);
+}
+
+/* A declaration with no binders — `Micro.Named : Type` — has no context to
+   separate from its conclusion, and the rule over it would be a lid on an
+   empty box. The colon goes back to being a colon, which is how Lean prints
+   this case anyway. Where `:has()` is not supported the block form shows,
+   which is correct and merely emptier. */
+.sig:not(:has(> .binder)) > .colon { display: inline; }
+.sig:not(:has(> .binder)) > .colon::after { content: none; }
+.sig:not(:has(> .binder)) > .sig-type { display: inline; padding-left: .6ch; }
 
 /* Hanging indent per term, so a wrapped subterm sits under its opener instead
    of at the left margin. This is the reason a signature stays readable at
@@ -332,14 +421,9 @@ code, pre, .sig, .tree, .toc a, .decl-name, kbd { font-family: var(--mono); }
   white-space: pre-wrap;
   vertical-align: top;
 }
-/* A binder is the unit a line breaks at first. */
-.binder { display: inline-block; vertical-align: top; }
-.binder.implicit { color: var(--fg-dim); }
+.binder { vertical-align: top; }
 .colon { color: var(--fg-faint); }
 .extends { color: var(--fg-faint); font-weight: 600; }
-/* A top-level term is not always wrapped in a `.fn` — `Type u_1` reaches here
-   as bare text — so the whitespace rule has to be on the container too. */
-.sig-type { display: block; padding-left: 1.5ex; white-space: pre-wrap; }
 
 /* Links in a signature are structure, not decoration: colouring every constant
    turns the type into confetti. Underline only, colour on hover. */
@@ -363,27 +447,27 @@ code, pre, .sig, .tree, .toc a, .decl-name, kbd { font-family: var(--mono); }
    arguments, its type and an optional docstring, so `.ctors`/`.ctor` share the
    field rules rather than restating them. The selectors are separate only
    because the HTML has to name what each list is. */
-.fields, .ctors { list-style: none; margin-top: .75rem; }
+.fields, .ctors { list-style: none; margin-top: 1rem; }
 .field, .ctor {
-  padding: .4rem 0 .4rem .85rem;
+  padding: .4rem 0 .4rem .9rem;
   border-left: 2px solid var(--line);
   scroll-margin-top: calc(var(--topbar-h) + 1rem);
 }
 .field + .field, .ctor + .ctor { margin-top: .15rem; }
 .field-sig { font-family: var(--mono); font-size: .84rem; white-space: pre-wrap; }
-.field-name { font-weight: 600; }
+.field-name { font-weight: 700; }
 .field.inherited { border-left-style: dashed; }
 .field.inherited .field-name { font-weight: 500; color: var(--fg-dim); }
-.field-doc { margin-top: .2rem; font-size: .9rem; color: var(--fg-dim); }
-.ctor-note { margin-top: .6rem; font-size: .8rem; color: var(--fg-faint); }
+.field-doc { margin-top: .2rem; font-size: .88rem; color: var(--fg-dim); }
+.ctor-note { margin-top: .7rem; font-size: .8rem; color: var(--fg-faint); }
 .ctor-note code { font-family: var(--mono); }
 
 /* -- 11. equations / instances ------------------------------------------- */
 
-.extra { margin-top: .75rem; font-size: .85rem; }
+.extra { margin-top: .9rem; font-size: .85rem; }
 .extra > summary {
   cursor: pointer; width: fit-content; color: var(--fg-dim);
-  padding: .15rem .35rem; border-radius: 4px;
+  padding: .15rem .35rem; border-radius: var(--radius);
 }
 .extra > summary:hover { background: var(--bg-hover); color: var(--fg); }
 .extra > ul { list-style: none; padding: .4rem 0 0 1rem; }
@@ -392,18 +476,18 @@ code, pre, .sig, .tree, .toc a, .decl-name, kbd { font-family: var(--mono); }
 
 /* -- 12. docstrings ------------------------------------------------------ */
 
-.moddoc, .doc { max-width: 74ch; }
-.moddoc { padding-block: 1.25rem; }
-.doc { margin-top: .75rem; }
+.moddoc, .doc { max-width: 72ch; }
+.moddoc { padding-block: 1.4rem; }
+.doc { margin-top: 1rem; }
 
-.doc > * + *, .moddoc > * + * { margin-top: .75rem; }
+.doc > * + *, .moddoc > * + * { margin-top: .8rem; }
 .moddoc :is(h1, h2, h3, h4, h5, h6),
 .doc :is(h1, h2, h3, h4, h5, h6) {
-  line-height: 1.3; font-weight: 650; margin-top: 1.75rem;
+  line-height: 1.3; font-weight: 650; margin-top: 1.9rem;
   scroll-margin-top: calc(var(--topbar-h) + 1rem);
 }
-.moddoc h1, .doc h1 { font-size: 1.4rem; }
-.moddoc h2, .doc h2 { font-size: 1.15rem; }
+.moddoc h1, .doc h1 { font-size: 1.35rem; letter-spacing: -.01em; }
+.moddoc h2, .doc h2 { font-size: 1.1rem; }
 .moddoc h3, .doc h3 { font-size: 1rem; }
 .moddoc :is(h4, h5, h6), .doc :is(h4, h5, h6) { font-size: .95rem; }
 .moddoc > :first-child, .doc > :first-child { margin-top: 0; }
@@ -421,7 +505,7 @@ code, pre, .sig, .tree, .toc a, .decl-name, kbd { font-family: var(--mono); }
 .doc code, .moddoc code, .field-doc code {
   font-size: .875em;
   background: var(--bg-code);
-  padding: .12em .32em; border-radius: 4px;
+  padding: .12em .32em; border-radius: var(--radius);
   overflow-wrap: anywhere;
 }
 .doc pre, .moddoc pre {
@@ -450,58 +534,75 @@ code, pre, .sig, .tree, .toc a, .decl-name, kbd { font-family: var(--mono); }
 /* These three have no sidebar: the index *is* the module list, and the other
    two are one column of results. */
 body.plain .shell { grid-template-columns: minmax(0, 1fr); }
-body.plain .content { max-width: 60rem; }
+/* The front door is a masthead and the whole module index: it gets the width
+   that list needs to run in three columns rather than two and a void. */
+body.plain .content { max-width: 76rem; }
+body.plain .modhead h1 { font-size: clamp(1.75rem, 1.1rem + 2.6vw, 2.75rem); }
 
-.lede { margin-top: .6rem; max-width: 66ch; color: var(--fg-dim); }
+.lede { margin-top: .7rem; max-width: 66ch; color: var(--fg-dim); }
 
-.stats { display: flex; flex-wrap: wrap; gap: 1.25rem 2.5rem; margin-top: 1.5rem; }
-.stats dt {
-  font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
-  color: var(--fg-faint);
-}
-.stats dd { font-family: var(--mono); font-size: 1.4rem; font-weight: 700; line-height: 1.2; }
+/* Deliberately not a hero. Two counts are a fact about the package, not a claim
+   about it, and setting them large would be the site boasting at a reader who
+   came to look something up. */
+.stats { display: flex; flex-wrap: wrap; gap: .35rem 3rem; margin-top: 1.6rem; }
+.stats dt { color: var(--fg-faint); }
+.stats dd { font-family: var(--mono); font-size: 1.05rem; font-weight: 700; line-height: 1.4; }
 
-.section-title { margin-top: 2.5rem; font-size: 1.1rem; }
+.section-title { margin-top: 2.75rem; font-size: 1rem; letter-spacing: -.01em; }
 
-.modlist { list-style: none; margin-top: .75rem; columns: 20rem; column-gap: 2rem; }
+.modlist { list-style: none; margin-top: 1rem; columns: 19rem; column-gap: 2.5rem; }
 .modlist li { break-inside: avoid; }
 .modlist a {
-  display: block; padding: .18rem .35rem; border-radius: 4px;
-  font-family: var(--mono); font-size: .85rem;
+  display: block; padding: .2rem .4rem .2rem 1.45rem;
+  text-indent: -1.05rem; border-radius: var(--radius);
+  font-family: var(--mono); font-size: .82rem;
   text-decoration: none; color: var(--fg-dim); word-break: break-all;
 }
 .modlist .name { word-break: normal; }
 .modlist a:hover { background: var(--bg-hover); color: var(--fg); }
 
-.bigsearch { margin-top: 1.25rem; }
-.bigsearch input {
-  width: 100%; height: 2.9rem; padding: 0 .9rem; font-size: 1rem;
-  border: 1px solid var(--line); border-radius: var(--radius);
-  background: var(--bg); color: var(--fg);
-}
-.bigsearch input:focus { border-color: var(--focus); outline: none; }
-
-.results { list-style: none; margin-top: 1rem; }
+.results { list-style: none; margin-top: 1.25rem; }
 .results a {
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem;
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: .6rem;
   padding: .45rem .5rem; border-radius: var(--radius);
   font-family: var(--mono); font-size: .875rem;
   text-decoration: none; color: var(--fg); word-break: break-all;
 }
 .results a:hover { background: var(--bg-hover); }
+.results .kind { flex: none; width: 5rem; color: var(--fg-faint); }
 .results .where {
   margin-left: auto; font-family: var(--font); font-size: .78rem; color: var(--fg-faint);
   word-break: normal;
 }
-.results-note { margin-top: .75rem; color: var(--fg-faint); font-size: .85rem; }
+.results-note { margin-top: .9rem; color: var(--fg-faint); font-size: .85rem; }
 
 .missing-path {
   font-family: var(--mono); font-size: .9em;
-  background: var(--bg-code); padding: .15em .4em; border-radius: 4px;
+  background: var(--bg-code); padding: .15em .4em; border-radius: var(--radius);
   overflow-wrap: anywhere;
 }
 
-/* -- 14. narrow screens -------------------------------------------------- */
+/* -- 14. namespaces ------------------------------------------------------ */
+
+/* `break_within` wraps each dot-separated component in `.name`, so the last one
+   is the name and the rest is where it lives. On a page whose every heading
+   begins with the same two components, dimming the prefix is what lets a reader
+   find `errIndicator` without reading `InformationTheory.FiniteJointPMF.` first.
+
+   Only where a *full* name is displayed: inside a signature the components are
+   already dim as a whole, and a second gradient there would be noise. */
+.modhead h1 .name,
+.decl-name .name,
+.toc a .name,
+.modlist a .name { color: var(--fg-faint); font-weight: 500; }
+.modhead h1 .name:last-of-type,
+.decl-name .name:last-of-type { color: inherit; font-weight: inherit; }
+/* The two lists are set in `--fg-dim` as a whole, so "inherit" would leave the
+   name no darker than the namespace it is being separated from. */
+.toc a .name:last-of-type,
+.modlist a .name:last-of-type { color: var(--fg); font-weight: inherit; }
+
+/* -- 15. narrow screens -------------------------------------------------- */
 
 @media (min-width: 60.001rem) {
   #nav-toggle { display: none; }
@@ -516,7 +617,7 @@ body.plain .content { max-width: 60rem; }
     width: min(21rem, 84vw); height: auto;
     transform: translateX(-101%);
     transition: transform .18s ease;
-    box-shadow: 0 0 32px light-dark(rgb(0 0 0 / .16), rgb(0 0 0 / .5));
+    box-shadow: 0 0 32px light-dark(rgb(16 32 48 / .18), rgb(0 0 0 / .5));
   }
   body[data-nav="open"] .sidebar { transform: none; }
 
@@ -526,7 +627,13 @@ body.plain .content { max-width: 60rem; }
   }
   .scrim[hidden] { display: none; }
 
-  .content { padding-top: 1.25rem; }
+  /* The gutter costs the signature more width than the column is worth here,
+     so the kind goes back into the flex row it came out of. */
+  .decl { padding-left: 0; }
+  .decl-head .kind { position: static; width: auto; }
+  .decl:target::before { left: -.6rem; }
+
+  .content { padding-top: 1.5rem; }
   .search { flex-basis: 7rem; }
   /* Keep the way home reachable — shorten it instead of dropping it. */
   .home { max-width: 7rem; font-size: .9rem; }
@@ -536,7 +643,7 @@ body.plain .content { max-width: 60rem; }
   .decl-head .src { margin-left: 0; }
 }
 
-/* -- 15. print ----------------------------------------------------------- */
+/* -- 16. print ----------------------------------------------------------- */
 
 @media print {
   .topbar, .sidebar, .scrim, .skip { display: none; }
