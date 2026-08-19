@@ -286,18 +286,18 @@ Rust を 10 分回すのは無駄。
 
 ## 9. 結果 (2026-08-19)
 
-**P0〜P3 完了。** 数字はすべて実測。
+**P0〜P4 完了。** 数字はすべて実測。
 
 ### 出たもの
 
 | | 前 | 後 |
 |---|---|---|
-| ソース | `assets/app.js` 917 行 1 本 | `web/src/` **17 本** (+ `web/test/` 5 本) |
+| ソース | `assets/app.js` 917 行 1 本 + `frame.rs` の inline 2 行 | `web/src/` **20 本** (+ `web/test/` 6 本) |
 | 配るバイト | 32,173 B | **15,113 B** (−53.0%) |
 | 同 gzip | 10,508 B | **4,912 B** (−53.3%) |
 | 型検査 | 無し | `strict` + `noUncheckedIndexedAccess` + `exactOptionalPropertyTypes` ほか、2 プロジェクト |
 | lint / format | 無し | biome 2.5.9 (`preset: recommended` + `noNonNullAssertion` の 1 本だけ追加) |
-| テスト | 実ブラウザのみ | **vitest 42 本** + ブラウザゲートは据え置き |
+| テスト | 実ブラウザのみ | **vitest 48 本** + ブラウザゲートは据え置き |
 | サイズ予算 | 32 KiB (残り 595 B) | **20 KiB** (残り 5,367 B) |
 
 `the_assets_stay_within_their_budget` の上限は**下げた** — 詳細は `assets.rs` の

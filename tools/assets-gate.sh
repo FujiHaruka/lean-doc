@@ -3,8 +3,10 @@
 #
 # `crates/litedoc4-render/build.rs` bundles `web/src` into cargo's `OUT_DIR` on
 # every build, so a **syntax** error already fails `cargo build`. Everything
-# else about that code is invisible to Rust: types, lint, format, and the 42
-# tests over the index reader and the ranking. This is where those run.
+# else about that code is invisible to Rust: types, lint, format, and the tests
+# over the index reader, the ranking and the theme. This is where those run.
+# (The count is printed rather than written here — a number in a comment is a
+# number that goes stale silently.)
 #
 # A gate rather than a test, by CLAUDE.md's boundary: it needs node, which
 # `cargo test --workspace` must not.
