@@ -1,0 +1,258 @@
+依存宣言のリンクを検証つきで docs へ向けたときの実測 (A-1)
+==========================================================
+
+日付: 2026-08-19
+問い: `--deps-docs-url` を入れたとき、(1) 何件が docs へ行き何件がソースに落ちるか、
+      (2) 取得と全ビルドにいくら払うか、(3) 書いたリンクは本当に生きているか。
+先行: benchmarks/results/deps-link-rot-2026-08-19.txt (向ける前の腐敗率)
+
+機材 / 条件
+-----------
+- Apple M1 / 16 GB, macOS 25.6.0 (Darwin 25.6.0 arm64)
+- rustc 1.97.1 / litedoc4 0.1.4 (release ビルド、commit baab197 + 本項の変更)
+- 対象パッケージ: /Users/haruka/dev/lean-projects
+  HEAD c4f6af29704029b3c62eaa0842c3225ad0e689a0、422 モジュール / 宣言 4,584
+  lean-toolchain leanprover/lean4:v4.31.0
+  lake-manifest.json の mathlib 固定 rev = fabf563a7c95a166b8d7b6efca11c8b4dc9d911f
+  (inputRev v4.31.0、2026-06-15)
+- 抽出器: extractor/build/extract (2026-08-19T09:51:38Z ビルド)、--jobs 4
+- 参照した宣言表: https://leanprover-community.github.io/mathlib4_docs/
+    declarations/declaration-data.bmp
+  last-modified: Wed, 19 Aug 2026 09:03:31 GMT
+  content-encoding: gzip / content-length 5,659,512 B (非圧縮 66,715,005 B)
+- 暖機: §3 §4 §5 は同一セッションの連続実行で、olean は page cache に載っている
+  (cold の数字は §4 の「初回」に分けて書いた)。ネットワークは §3 のとおり
+  1 回目だけ遅く、以降は CDN が暖まっている。
+
+1. 何件が docs へ行き、何件がソースに落ちたか 【実測】
+-------------------------------------------------------
+  3 つの root を同じサイトに向けた 1 回のビルド (litedoc4 build --deps-docs-url
+  Mathlib= / Init= / Lean= すべて mathlib4_docs) の出力そのもの:
+
+    root      要求した名前  表に在った  ソースに落ちた  持ち帰ったモジュール
+    Mathlib        396          396          0                8,350
+    Init           130          127          3                  649
+    Lean             1            1          0                1,218
+    合計           527          524          3
+
+  要求集合 527 は先行ログ §1 の母数と同じ (この 422 モジュールが外部に張る全リンク)。
+  解決結果のファイル <out>/work/deps-docs-map.json は 911,114 B。
+
+  モジュールは要求集合を持てないので root ごと全件保持する (deps_docs.rs の見出し
+  「what is kept in memory」)。8,350 + 649 + 1,218 = 10,217 件で、これが上の
+  911 KB のほとんど。
+
+2. 落ちた 3 件は「腐ったリンク」ではなかった 【実測】
+-----------------------------------------------------
+    Eq.rec / List.recOn / Nat.rec  (IR ではいずれも Init.Prelude)
+
+  この 3 件は自動生成の再帰子で、**doc-gen4 が宣言として表に出していない**。
+  モジュールが消えたのでも改名されたのでもない。
+
+  ここが重要なのは、**ページだけ見る検査ならこの 3 件を通してしまう**こと:
+
+    GET /Init/Prelude.html          -> HTTP 200, 123,911 B
+      id="Nat.succ"     在る
+      id="Eq.rec"       無い
+      id="Nat.rec"      無い
+      id="List.recOn"   無い
+
+  つまり「生きているページの中に無いアンカー」は実在する形で、A-1 の
+  「表に在る名前だけ docs へ」という規則はこの 3 件で実際に発火している。
+  §6 のゲートがアンカーまで見るのはこの形を捕まえるため。
+
+3. 宣言表の取得コスト 【実測】
+------------------------------
+  同一 URL への curl、連続 5 回 (--compressed)、最後に 1 回だけ非圧縮:
+
+    回   転送量 (B)     時間 (s)
+     1    5,659,512      0.940      <- 1 回目 (DNS + TLS + CDN cold)
+     2    5,659,512      0.136
+     3    5,659,512      0.094
+     4    5,659,512      0.105
+     5    5,659,512      0.116
+    非圧縮 66,715,005     4.856      <- 1 回だけ
+
+  転送量は curl の size_download で、サーバの content-length と一致するので
+  **ワイヤ上のバイト数**。先行ログ §6 の 5,659,512 B と同じ値。
+  時間は先行ログの 0.63 s より速いが、これは回線と CDN の状態の差で、
+  同じ条件で測り直したものではない。**1 回目と 2 回目以降を混ぜない。**
+
+4. 全ビルドにいくら足すか 【実測】
+----------------------------------
+  同じセッションで `litedoc4 build --full` を **without / with を交互に 5 対**。
+  --full なので毎回 422 モジュールを抽出し直し、422 ページを描き直す。
+  /usr/bin/time -l 併用。
+
+    対  arm       build 全体   extract    real   user    sys   peak RSS
+     1  without      8.6814    7.9402     8.72  15.97   1.92   3,295.6 MB
+     1  with         9.7422    7.9457     9.77  16.32   1.97   3,289.0 MB
+     2  without      7.5683    6.8490     7.60  14.98   1.96   3,204.8 MB
+     2  with         7.8965    6.9408     7.93  15.38   2.03   3,180.9 MB
+     3  without      7.6200    6.8242     7.65  14.85   1.98   3,178.4 MB
+     3  with         8.7549    6.8283     8.79  15.12   1.98   3,188.8 MB
+     4  without      7.5796    6.8593     7.61  14.94   2.08   3,215.3 MB
+     4  with         7.8227    6.8619     7.86  15.09   2.03   3,226.2 MB
+     5  without      7.5848    6.8561     7.62  15.01   1.97   3,181.3 MB
+     5  with         8.5704    6.8039     8.60  15.14   2.00   3,183.4 MB
+
+  対ごとの差 (with - without):
+
+    対 1 +1.0608   対 2 +0.3282   対 3 +1.1349   対 4 +0.2431   対 5 +0.9856   (s)
+
+  読み方:
+  - **対 1 は捨てない、が cold として読む** (両 arm とも extract が 7.94 s と、
+    以降の 6.82-6.94 s より遅い)。対 2-5 の差の平均は **+0.673 s**、
+    build 全体 7.59 s に対して **+8.9%**。
+  - **arm 内のばらつきが arm 間の差より雄弁**: without の対 2-5 は
+    7.5683-7.6200 (幅 0.052 s) に収束するのに、with は 7.8227-8.7549
+    (幅 0.932 s)。**足しているのはネットワークの分散**で、計算ではない。
+    §3 の取得が 0.094-0.940 s で振れていることと整合する。
+  - **抽出時間は動かない** (差は -0.052 〜 +0.092 s、上のばらつきの内側)。
+    この機能は Lean を 1 秒も余計に走らせない。
+  - **IR の読み取り回数も動かない**: 両 arm とも
+    `work ... 422 module read(s) = 1.00 full pass(es)`。
+    開いた IR ファイル数だけ 431 -> 435 に増える (+4 = deps-index.json と
+    依存スライス 3 本。要求集合を作るための読みで、モジュールは 1 回も余分に読まない)。
+
+  cold の参考値 (別セッション、同じ機材、from scratch で --deps-docs-url あり):
+    extract 25.8762 s / build 全体 27.8749 s。
+    上の 10 回は暖まった木の上の --full なので、**この 25.9 s と並べない。**
+
+5. サイトのバイト数は減った 【実測】
+------------------------------------
+    render bytes   without 34,361,072      with 32,771,027   (-1,590,045 / -4.63%)
+    ファイル数     without 433             with 433
+
+  docs のリンク (…/mathlib4_docs/Mathlib/X.html#Name) が、版固定のソースリンク
+  (…/mathlib4/blob/<40 hex>/Mathlib/X.lean#L123-L456) より短いため。
+  **速さのためにやったことではない**が、太らないことは記録しておく。
+
+6. ゲート tools/deps-docs-gate.sh が何を見たか 【実測】
+-------------------------------------------------------
+  既定は **Mathlib と Init の 2 root を mathlib4_docs に向ける**。Init を入れるのは
+  §1 のとおり **この対象で fallback が発火する唯一の root** だからで、Mathlib だけの
+  既定にすると規則の片方 (表に無い名前はソースへ) を一度も通らないまま
+  「ok」と言うゲートになる。
+
+  規則の 2 つの枝を両方見る。
+
+  枝 1 — 検証できた名前のリンクが生きているか。
+    サイトが書いた <base>/ で始まる href を全部集め、**ページを GET して、
+    アンカーを返ってきた HTML の id 属性の中に探す**。
+  枝 2 — 表に無かった名前が本当にソースへ落ちているか。
+    (a) その名前の docs ページを指す href がサイトのどこにも無いこと
+        (href の fragment で判定。**ページが 200 でも捕まる** — 枝 1 には
+        見えない形)。
+    (b) その名前がリンクされている場合、href が版固定ソースであること。
+        比較する base はここで組み立てず **`litedoc4 links --out` に訊く**
+        (製品自身の答えと突き合わせる。URL を検査側で組み直すと、
+        間違った renderer と一致する検査器ができる)。
+        判定はアンカーの表示テキストなので、記号で表示される名前
+        (≤ など) は「テキストで見つからなかった」に数える。(a) にこの穴は無い。
+
+  既定 (Mathlib + Init) の 1 回の実行が実際に見た数:
+
+    HTML ファイル読み取り     426
+    <base> への href          804 種 (出現 91,504 回)
+    相異なるページ            442 (全部 HTTP 200、転送 5,504,284 B)
+    相異なるアンカー          503 (返ってきた HTML に対して照合)
+    Init                      130 要求: 127 -> docs, 3 -> ソース
+    Mathlib                   396 要求: 396 -> docs, 0 -> ソース
+    fallback の検査           3 件中 1 件がページからリンクされていて
+                              版固定ソースと照合、2 件はどのページからも
+                              リンクされていない、0 件は pinned source 無し
+    死にリンク                0
+    落ちなかった fallback     0 件 / 0 箇所
+
+  **503 と 523 (= 396 + 127) の差 20 件は「サイトが href を書かなかった名前」**
+  (Mathlib 11 + Init 9)。Mathlib 側の 11 件は
+    Equiv.mk / ExistsUnique / MeasurableEquiv.funUnique / MeasurableEquiv.mk /
+    MeasurableEquiv.piEquivPiSubtypeProd / MeasurableEquiv.refl /
+    MeasureTheory.ProbabilityMeasure / Multiset.sum / Nat.Partrec.Code.evaln /
+    PMF.uniformOfFintype / Submodule.mk
+  で、なぜ書かれないかはここでは調べていない。**枝 1 の分母をサイトが書いた
+  href に取るのはこの差があるから**で、地図の名前数 (523) を分母にすると
+  **書かれてすらいないリンクを「検査した」と数える**ことになる。
+  523 - 20 = 503 で、上の数字は自分で閉じている。
+
+  コスト (--reuse でビルドを飛ばした検査だけの時間):
+    初回 5.37 s -> 4.72 s -> 4.77 s (442 ページ、--compressed、並列 6)。
+    ビルドから通しでは cold な初回が 41.5 s。
+    作業領域は --keep が無ければ消える (サイト 1 本で約 33 MB)。
+  参考: Mathlib だけに向けた場合は href 685 種 / 424 ページ / 385 アンカー、
+    検査だけで 2.0-5.2 s。この構成では fallback 集合が空になるので、ゲートは
+      DEPS DOCS GATE: ok (branch 2 not exercised — no name fell back)
+    と言う。**「ok」と「枝 2 を通っていない ok」を書き分ける** 【実測】。
+
+  自己検査: 要求集合はゲート側が IR の deps スライスから `Want::of` と同じ手順で
+  作り直し、**製品が記録した requestedNames と件数が一致しなければ落ちる**。
+  一致しない fallback 集合は検査ではなく創作なので。実際に地図の
+  requestedNames を 130 -> 999 に書き換えて確認した:
+    GATE ERROR  Init: this script re-derived 130 requested name(s) and the run
+      recorded 999 — the fallback set below would be invented
+    DEPS DOCS GATE: FAIL   終了コード 1
+  (書き換えたのはスクラッチパッドに控えを取った地図で、そこから書き戻した。)
+
+  このゲートが**見ていない**もの:
+  - **fallback 以外のソースリンク**。枝 2 は落ちた名前のソースリンクしか見ない。
+    docs に向けなかった root の版固定 URL は `litedoc4 links` (U1)、相対リンクは
+    tools/site-gate.sh の担当。
+  - **このパッケージが参照しない名前**。docstring だけが言及する依存宣言は
+    .lidx 経由で届くので要求集合に入らず、ソースリンクのまま。
+  - **サイトがリンクしなかった検証済みの名前** (上の 20 件)。
+  - **明日**。mathlib4_docs は master から建て直されるので、通ったことは
+    「走った分のこと」しか言わない。
+  - **ページの中身の正しさ**。id="X" が在ることは「X がそこに正しく書かれている」
+    ことではない。
+  - **docs に向けなかった root** (既定では Lean)。
+  - **宣言表との突き合わせは意図的にしていない**。表は build の入力なので、
+    表と照合すると「解決器が表を正しく写したか」を「リンクが生きているか」と
+    言い換えることになる。判定はサーバが返した HTML に対して行う。
+
+7. 一度落とした記録 【実測 2026-08-19】
+----------------------------------------
+  ゲートは自分で自分を検査しないので、壊した入力を 4 通り通した。
+  壊したのは**この作業領域にあるコピーだけ**で、リポジトリも対象パッケージも
+  書き換えていない (`git checkout <file>` は使っていない)。
+
+  (a) --inject anchor — 生きているモジュールの中で改名された宣言の形。
+      地図の 1 件のアンカーだけを差し替えて再描画:
+        injected  AEMeasurable (Mathlib):
+          Mathlib/MeasureTheory/Measure/MeasureSpaceDef.html#AEMeasurable
+          -> Mathlib/MeasureTheory/Measure/MeasureSpaceDef.html#litedoc4GateNoSuchDeclaration
+      出た 1 行:
+        DEAD  https://leanprover-community.github.io/mathlib4_docs/Mathlib/
+          MeasureTheory/Measure/MeasureSpaceDef.html#litedoc4GateNoSuchDeclaration
+          page HTTP 200, no id="litedoc4GateNoSuchDeclaration" on it
+          (written by InformationTheory/Fano/Measure.html)
+        injected: a link this run wrote to a dependency's documentation site does
+          not exist there (1 of 804 distinct link(s))
+      **ページは HTTP 200 のまま。**ページだけ見る検査はここで通ってしまう。
+
+  (b) --inject page — 同じ 1 件を存在しないページに向けた:
+        DEAD  .../Mathlib/Litedoc4Gate/NoSuchModule.html#AEMeasurable  page HTTP 404
+          (written by InformationTheory/Shannon/AWGN/AchievabilityCodeExistence.html)
+
+  (c) --inject fallback — **枝 2 の落とし方**。検証済みかつサイトがリンクしている
+      名前を 1 件、**参照側の地図から消す**。ページは本物のまま (再描画しない)
+      なので、その href は**ページも 200、アンカーも在る**完全に生きたリンクで、
+      枝 1 からは何も見えない。参照側だけが「この名前は落ちたはず」と言う:
+        injected  AEMeasurable (Mathlib): … -> (removed from the reference map)
+        LEAKED  AEMeasurable  the table did not hold this name, and
+          InformationTheory/Shannon/AWGN/AchievabilityCodeExistence.html links it
+          at https://leanprover-community.github.io/mathlib4_docs/Mathlib/
+          MeasureTheory/Measure/MeasureSpaceDef.html#AEMeasurable instead of
+          Mathlib's version-pinned source
+        injected: a name the declaration table did not hold was linked at the
+          documentation site anyway (1 of 4 fallen-back name(s), 3 occurrence(s))
+      **同じ実行の枝 1 は死にリンク 0 のまま** (アンカー 503 件照合、dead 0)。
+      枝 2 が無ければこれは黙って通る、という形をそのまま示している。
+      参照側で作るのは意図的で、「あらゆる意味で生きている docs リンク」は
+      本当に文書化されている名前からしか作れないため。
+
+  (d) 通しで落ちることの確認。上の自己検査 (requestedNames の書き換え) で
+      スクリプト自体が
+        DEPS DOCS GATE: FAIL — see .../report-real.txt
+      を出して**終了コード 1** で終わることを確認した (パイプを噛ませずに読んだ値)。
+      正常な木では終了コード 0 / "DEPS DOCS GATE: ok"。

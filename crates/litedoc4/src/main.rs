@@ -75,6 +75,7 @@ usage: litedoc4 build  --root <repo> --out <dir> [--link-index <file>]
        litedoc4 incremental --ir <dir> --pages <dir> --ledger <file> --work <dir>
                        --modules <file> --source-url <url> --link-index <file>
                        --state <dir> [--make-link-index] [--root <repo>]
+                       [--deps-docs-map <file>]
                        (--extractor <program> [--extractor-arg <arg>]...
                         | --serve --extractor-bin <path> --target <repo>
                           [--lake <path>] [--jobs <n>])
@@ -100,11 +101,13 @@ usage: litedoc4 build  --root <repo> --out <dir> [--link-index <file>]
        litedoc4 ledger build --modules <file> --target <repo> --out <ledger.json>
                        [--algorithm sha256|lake] [--concurrency <n>]
                        [--ir <dir>] [--source-url <url>] [--link-index <file>]
-                       [--root <repo>] [--lake <path>] [--timings <file>]
+                       [--root <repo>] [--lake <path>] [--deps-docs-map <file>]
+                       [--timings <file>]
        litedoc4 ledger check --ledger <ledger.json> [--modules <file>]
                        [--algorithm sha256|lake] [--concurrency <n>] [--ir <dir>]
                        [--source-url <url>] [--link-index <file>]
-                       [--root <repo>] [--lake <path>] [--changed-out <file>]
+                       [--root <repo>] [--lake <path>] [--deps-docs-map <file>]
+                       [--changed-out <file>]
                        [--removed-out <file>] [--render-all-out <file>]
                        [--timings <file>]
        litedoc4 ledger touch --ledger <ledger.json> --module <Module> [--out <file>]
@@ -119,7 +122,7 @@ usage: litedoc4 build  --root <repo> --out <dir> [--link-index <file>]
        litedoc4 prune --pages <dir> [--remove <file>] [--ir <dir>] [--dry-run]
                        [--json <file>]
        litedoc4 links  --root <repo> [--lake <path>] [--link-index <file>]
-                       [--out <file>]
+                       [--deps-docs-map <file>] [--out <file>]
 
   --root         (`build`, `modules`) the Lean package: the sources are globbed
                  under it, its oleans are hashed, `lake env` runs inside it, and
@@ -170,11 +173,16 @@ usage: litedoc4 build  --root <repo> --out <dir> [--link-index <file>]
                  table is. Default <url>/declarations/declaration-data.bmp. A
                  local path is read as a file, which is how a run with no
                  outbound network uses this.
-  --deps-docs-map  (`site`, `render`) the resolved map `build` wrote under
-                 <out>/work. It carries the base URL and the verified names, so
-                 the three commands that render cannot disagree about the links
-                 (the reason there is no --title, frame.rs:66-70). Nothing here
-                 reads a table or the network.
+  --deps-docs-map  (`site`, `render`, `incremental`, `ledger`, `links`) the
+                 resolved map `build` wrote under <out>/work. It carries the base
+                 URL and the verified names, so the commands that render cannot
+                 disagree about the links (the reason there is no --title,
+                 frame.rs:66-70). Nothing here reads a table or the network.
+                 It is an input to renderKey, so `ledger build` and `ledger
+                 check` need it for the same reason --root and --link-index are
+                 theirs: without it they compute a different key from the one the
+                 run that wrote the pages recorded, and then report a changed or
+                 unchanged key for a reason that is not true.
   --link-index-omit  (`extract`, with --link-index) the modules whose own
                  declaration groups are left out of that map, one name per
                  line — normally the package's own module list. The renderer
@@ -429,11 +437,21 @@ fn with_dependency_docs(
 /// the renderer makes — rather than from joining strings here, because a checker
 /// that builds the URL its own way would agree with a renderer that builds it
 /// wrongly.
+///
+/// The two documentation columns (A-1) mirror the two source ones **module for
+/// module**, and are filled from
+/// [`litedoc4_render::ExternalLinks::docs_url_for`] — again the renderer's own
+/// call. Each says where a reader of that exact module is sent; a single column
+/// that meant the source URL sometimes and the documentation URL other times
+/// would be this command reporting two facts in one place, which is the shape
+/// the map exists to prevent.
 struct LinkRow {
     root: String,
     base: String,
     url: Option<String>,
+    docs_url: Option<String>,
     deep: Option<(String, String)>,
+    deep_docs_url: Option<String>,
 }
 
 /// The lexicographically first module of `root` below the root itself.
@@ -457,13 +475,18 @@ fn link_rows(
     links
         .iter()
         .map(|(root, base)| {
-            let deep = index
-                .and_then(|index| sample_module(index, root))
-                .and_then(|module| links.url_for(&module, None).map(|url| (module, url)));
+            let sample = index.and_then(|index| sample_module(index, root));
+            let deep = sample
+                .as_ref()
+                .and_then(|module| links.url_for(module, None).map(|url| (module.clone(), url)));
             LinkRow {
                 // `M7-b`: a root is a top-level `Foo.lean`, so the root module's
                 // own file is the one file every resolved root is known to have.
                 url: links.url_for(root, None),
+                docs_url: links.docs_url_for(root, None),
+                deep_docs_url: sample
+                    .as_deref()
+                    .and_then(|module| links.docs_url_for(module, None)),
                 root: root.to_owned(),
                 base: base.to_owned(),
                 deep,
@@ -491,6 +514,7 @@ fn links(args: &[String]) -> Result<(), Failure> {
     let mut lake: Option<PathBuf> = None;
     let mut out: Option<PathBuf> = None;
     let mut link_index: Option<PathBuf> = None;
+    let mut deps_docs_map: Option<PathBuf> = None;
 
     let mut rest = args.iter();
     while let Some(arg) = rest.next() {
@@ -505,6 +529,7 @@ fn links(args: &[String]) -> Result<(), Failure> {
             "--lake" => lake = Some(value("--lake")?.into()),
             "--out" => out = Some(value("--out")?.into()),
             "--link-index" => link_index = Some(value("--link-index")?.into()),
+            "--deps-docs-map" => deps_docs_map = Some(value("--deps-docs-map")?.into()),
             "--help" | "-h" => {
                 println!("{USAGE}");
                 return Ok(());
@@ -523,10 +548,14 @@ fn links(args: &[String]) -> Result<(), Failure> {
         None => None,
     };
 
-    let external = resolve_external_links(Some(&root), lake.as_deref());
+    let external = with_dependency_docs(
+        resolve_external_links(Some(&root), lake.as_deref()),
+        deps_docs_map.as_deref(),
+    )?;
     let rows = link_rows(&external, index.as_ref());
     let pinned = rows.iter().filter(|row| row.url.is_some()).count();
     let sampled = rows.iter().filter(|row| row.deep.is_some()).count();
+    let documented = rows.iter().filter(|row| row.docs_url.is_some()).count();
 
     for row in &rows {
         // Tab-separated, `-` for "nothing here" — the shape `cut` and `awk` read
@@ -537,16 +566,28 @@ fn links(args: &[String]) -> Result<(), Failure> {
             .as_ref()
             .map_or(("-", "-"), |(module, url)| (module.as_str(), url.as_str()));
         println!(
-            "{}\t{}\t{}\t{module}\t{deep}",
+            "{}\t{}\t{}\t{module}\t{deep}\t{}\t{}",
             row.root,
             if row.base.is_empty() { "-" } else { &row.base },
             row.url.as_deref().unwrap_or("-"),
+            row.docs_url.as_deref().unwrap_or("-"),
+            row.deep_docs_url.as_deref().unwrap_or("-"),
         );
     }
     if index.is_some() {
         println!(
             "external  {sampled}/{} root(s) with a deeper module",
             rows.len()
+        );
+    }
+    // Printed only with a map, because without one the answer is 0 for every
+    // root and a zero nobody asked for reads like a failure (M7's rule for the
+    // unpinned-root note, one feature over).
+    if deps_docs_map.is_some() {
+        println!(
+            "external  {documented}/{} root(s) whose own documentation site answers for their \
+             root module",
+            rows.len(),
         );
     }
 
@@ -556,12 +597,15 @@ fn links(args: &[String]) -> Result<(), Failure> {
             "roots": rows.len(),
             "pinned": pinned,
             "sampled": sampled,
+            "documented": documented,
             "rows": rows.iter().map(|row| serde_json::json!({
                 "root": row.root,
                 "base": row.base,
                 "url": row.url,
+                "docsUrl": row.docs_url,
                 "module": row.deep.as_ref().map(|(module, _)| module),
                 "moduleUrl": row.deep.as_ref().map(|(_, url)| url),
+                "moduleDocsUrl": row.deep_docs_url,
             })).collect::<Vec<_>>(),
         });
         let text = serde_json::to_string_pretty(&record).expect("strings serialise") + "\n";
@@ -963,6 +1007,7 @@ fn ledger(args: &[String]) -> Result<(), Failure> {
     let mut link_index: Option<PathBuf> = None;
     let mut package: Option<PathBuf> = None;
     let mut lake: Option<PathBuf> = None;
+    let mut deps_docs_map: Option<PathBuf> = None;
     let mut algorithm: Option<Algorithm> = None;
     let mut concurrency: usize = 1;
     let mut module: Option<String> = None;
@@ -1001,6 +1046,12 @@ fn ledger(args: &[String]) -> Result<(), Failure> {
             // repository — go on producing the key it produced before M7.
             "--root" => package = Some(value("--root")?.into()),
             "--lake" => lake = Some(value("--lake")?.into()),
+            // A-1, and it is here for exactly the reason `--link-index` and
+            // `--root` are: the resolved documentation map is part of the render
+            // key, so a `ledger` run that cannot see it computes a different key
+            // from the one `build` recorded and then reports "changed" or
+            // "unchanged" for a reason that is not true.
+            "--deps-docs-map" => deps_docs_map = Some(value("--deps-docs-map")?.into()),
             "--algorithm" => algorithm = Some(Algorithm::new(value("--algorithm")?)),
             "--concurrency" => {
                 let raw = value("--concurrency")?;
@@ -1030,7 +1081,10 @@ fn ledger(args: &[String]) -> Result<(), Failure> {
             };
             let names = read_module_list(&modules).map_err(refused)?;
             let algorithm = algorithm.unwrap_or_else(Algorithm::sha256);
-            let external = resolve_external_links(package.as_deref(), lake.as_deref());
+            let external = with_dependency_docs(
+                resolve_external_links(package.as_deref(), lake.as_deref()),
+                deps_docs_map.as_deref(),
+            )?;
             let summary = build_ledger(&BuildOptions {
                 modules: &names,
                 target: &target,
@@ -1062,7 +1116,10 @@ fn ledger(args: &[String]) -> Result<(), Failure> {
                 Some(list) => Some(read_module_list(&list).map_err(refused)?),
                 None => None,
             };
-            let external = resolve_external_links(package.as_deref(), lake.as_deref());
+            let external = with_dependency_docs(
+                resolve_external_links(package.as_deref(), lake.as_deref()),
+                deps_docs_map.as_deref(),
+            )?;
             let summary = check_ledger(&CheckOptions {
                 ledger: &path,
                 algorithm: algorithm.as_ref(),

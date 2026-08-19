@@ -860,6 +860,7 @@ pub(crate) fn incremental(args: &[String]) -> Result<(), Failure> {
     let mut target: Option<PathBuf> = None;
     let mut lake: Option<PathBuf> = None;
     let mut package: Option<PathBuf> = None;
+    let mut deps_docs_map: Option<PathBuf> = None;
 
     let mut rest = args.iter();
     while let Some(arg) = rest.next() {
@@ -909,6 +910,16 @@ pub(crate) fn incremental(args: &[String]) -> Result<(), Failure> {
             // ledger that licenses those pages has to have been built the same
             // way, which is why `ledger` takes the same flag under the same name.
             "--root" => package = Some(value("--root")?.into()),
+            // A-1. This command **renders**, and it is also the command that
+            // compares the render key with the ledger's, so it needs the same
+            // resolved documentation map `build` wrote for both: without it the
+            // pages of the round lose the links the rest of the tree has, and
+            // the key says every page has to be re-rendered — for ever, since
+            // the run that re-renders them writes no map either. It is read, not
+            // resolved: nothing here touches the network, and re-deriving it
+            // would be the second way to attach it (`deps_docs.rs`, "why an
+            // artifact and not the same flags on three commands").
+            "--deps-docs-map" => deps_docs_map = Some(value("--deps-docs-map")?.into()),
             // **A flag of `--serve` only, and that is constraint 6 spelled out**
             // (plan §6): the resident server's job count is its start-up `cfg`
             // (`Extract.lean:2751`), so it is the pipeline's to choose exactly
@@ -1106,7 +1117,10 @@ pub(crate) fn incremental(args: &[String]) -> Result<(), Failure> {
     let module_list = read_module_list(&modules).map_err(refused)?;
     // M7-c, once, before anything else runs: the same value `detect` hashes into
     // the render key and step 7 renders with.
-    let external_links = crate::resolve_external_links(package.as_deref(), lake.as_deref());
+    let external_links = crate::with_dependency_docs(
+        crate::resolve_external_links(package.as_deref(), lake.as_deref()),
+        deps_docs_map.as_deref(),
+    )?;
     // **Built before the run starts, so the generation is the world `detect` is
     // about to look at.** [`Resident::new`] starts nothing; it records the
     // oleans, and every later check — before the spawn, after `ready`, around

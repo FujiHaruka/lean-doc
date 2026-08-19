@@ -977,6 +977,134 @@ fn the_documentation_map_reaches_the_render_key() {
     assert!(!stdout(&without).contains("deps    Dep:"), "{}", stdout(&without));
 }
 
+/// **`litedoc4 ledger` computes the key `build` recorded — with the map, and
+/// only with it.**
+///
+/// `ledger build` and `ledger check` render nothing, so no page of theirs can
+/// show which links a site carries; what they produce is the key that decides
+/// whether those pages are re-rendered at all. A `ledger` run that cannot see
+/// the resolved documentation map therefore hashes a *different*
+/// `externalLinks` from the run that wrote the pages, and then answers about a
+/// difference that is not there — the silent divergence this flag closes.
+///
+/// Both directions are asserted, because only the pair distinguishes "the flag
+/// is read" from "the key does not depend on it": with the map the whole
+/// `renderKey` is `build`'s object for object, and without it `check` says the
+/// render key moved and every page has to be rendered again.
+#[test]
+fn the_ledger_command_reproduces_the_builds_render_key_only_with_the_map() {
+    let live = Live::new("ledger-deps-docs");
+    live.set_world(&docs_world());
+    let table = write_dependency(&live);
+    let built = live.build(&[
+        "--deps-docs-url",
+        "Dep=https://docs.invalid/dep",
+        "--deps-docs-index",
+        &format!("Dep={}", table.display()),
+    ]);
+    assert_eq!(code(&built), 0, "{}", stderr(&built));
+    let recorded = live.ledger()["renderKey"].clone();
+    assert!(
+        recorded["externalLinks"].is_string(),
+        "the build recorded no externalLinks to reproduce: {recorded}",
+    );
+
+    let map = live.out.join("work/deps-docs-map.json");
+    assert!(map.is_file(), "the resolved map was not written");
+    let map = map.display().to_string();
+    // Exactly what `build` handed its own detect stage: same IR, same
+    // --source-url, same dependency closure, same package.
+    let modules = live.out.join("work/modules.txt").display().to_string();
+    let ir = live.out.join("ir").display().to_string();
+    let repo = live.repo.display().to_string();
+    let lidx = live.lidx.display().to_string();
+    let common = |extra: &[&str]| -> Vec<String> {
+        let mut args: Vec<String> = [
+            "--ir",
+            &ir,
+            "--source-url",
+            URL,
+            "--link-index",
+            &lidx,
+            "--root",
+            &repo,
+        ]
+        .iter()
+        .map(|arg| (*arg).to_owned())
+        .collect();
+        args.extend(extra.iter().map(|arg| (*arg).to_owned()));
+        args
+    };
+
+    // `ledger build`, with the map and without it.
+    let rebuilt = |name: &str, extra: &[&str]| -> Value {
+        let out = live.trees.path.join(name);
+        let mut args: Vec<String> = [
+            "ledger",
+            "build",
+            "--modules",
+            &modules,
+            "--target",
+            &repo,
+            "--out",
+            &out.display().to_string(),
+        ]
+        .iter()
+        .map(|arg| (*arg).to_owned())
+        .collect();
+        args.extend(common(extra));
+        let borrowed: Vec<&str> = args.iter().map(String::as_str).collect();
+        let done = litedoc4(&borrowed);
+        assert_eq!(code(&done), 0, "{}", stderr(&done));
+        serde_json::from_str(&fs::read_to_string(&out).expect("the ledger was written"))
+            .expect("the ledger is JSON")
+    };
+    assert_eq!(
+        rebuilt("ledger-with.json", &["--deps-docs-map", &map])["renderKey"],
+        recorded,
+        "`ledger build --deps-docs-map` did not reproduce the key `build` recorded, so the two \
+         disagree about which links the pages carry",
+    );
+    assert_ne!(
+        rebuilt("ledger-without.json", &[])["renderKey"],
+        recorded,
+        "`ledger build` without the map recorded the same key as a build that had one, so the \
+         flag reaches nothing and the map's names are not in the key",
+    );
+
+    // `ledger check` against the ledger `build` wrote: the same divergence, seen
+    // from the side that decides whether to re-render.
+    let checked = |extra: &[&str]| -> String {
+        let mut args: Vec<String> = [
+            "ledger",
+            "check",
+            "--ledger",
+            &live.out.join("ledger.json").display().to_string(),
+            "--modules",
+            &modules,
+        ]
+        .iter()
+        .map(|arg| (*arg).to_owned())
+        .collect();
+        args.extend(common(extra));
+        let borrowed: Vec<&str> = args.iter().map(String::as_str).collect();
+        let done = litedoc4(&borrowed);
+        assert_eq!(code(&done), 0, "{}", stderr(&done));
+        stdout(&done)
+    };
+    let agreed = checked(&["--deps-docs-map", &map]);
+    assert!(
+        !agreed.contains("render key changed"),
+        "nothing moved and `check` with the map still wants every page re-rendered: {agreed}",
+    );
+    let blind = checked(&[]);
+    assert!(
+        blind.contains("render key changed (externalLinks)"),
+        "`check` without the map reported the key `build` recorded, which would license a site \
+         whose links it never saw: {blind}",
+    );
+}
+
 // ---------------------------------------------------------------- the lakefile
 
 /// The one shape that is read, and every refusal, each naming `--lib`.
