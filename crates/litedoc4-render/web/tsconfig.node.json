@@ -1,0 +1,8 @@
+{
+  "//": "Everything that runs under node instead of in the page: the vite config and the tests. Same strictness, plus the node types src/ is deliberately denied.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["test", "vite.config.ts"]
+}

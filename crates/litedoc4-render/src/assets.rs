@@ -9,12 +9,22 @@
 //!
 //! # Why the bytes are in the binary rather than next to it
 //!
-//! `include_str!`, so installation stays `cargo install` and — the part that is
-//! about correctness rather than convenience — **the assets cannot be a version
-//! behind the renderer**. The CSS is coupled to class names [`crate::decl`] and
-//! [`crate::frame`] emit; a stylesheet shipped separately can be the one from
-//! before those names moved, and the failure is a page that renders with half
-//! its rules silently not matching. Two things in one binary cannot drift.
+//! `include_str!`, so a build produces one file to install and — the part that
+//! is about correctness rather than convenience — **the assets cannot be a
+//! version behind the renderer**. The CSS is coupled to class names
+//! [`crate::decl`] and [`crate::frame`] emit; a stylesheet shipped separately
+//! can be the one from before those names moved, and the failure is a page that
+//! renders with half its rules silently not matching. Two things in one binary
+//! cannot drift.
+//!
+//! # Two of the three are written by hand; `app.js` is built
+//!
+//! `style.css` and `favicon.svg` are the bytes in `assets/`. **`app.js` is
+//! not** — it is the bundle `build.rs` compiles from the TypeScript in `web/`,
+//! read out of cargo's `OUT_DIR` (`docs/plans/assets-typescript.md` 決定 1).
+//! The same argument as above, one level down: a committed bundle can be a
+//! version behind `web/src`, and one that is built on the way past cannot.
+//! What it costs is node, at build time, for whoever builds from source.
 //!
 //! # These are **not** in `renderKey`, and that is a decision
 //!
@@ -66,7 +76,9 @@ use crate::site::Error;
 /// different accessors.
 pub const ASSETS: [(&str, &str); 3] = [
     ("style.css", include_str!("../assets/style.css")),
-    ("app.js", include_str!("../assets/app.js")),
+    // Not in `assets/` and not in git: `build.rs` bundles `web/src` into
+    // `OUT_DIR` on the way here.
+    ("app.js", include_str!(concat!(env!("OUT_DIR"), "/app.js"))),
     ("favicon.svg", include_str!("../assets/favicon.svg")),
 ];
 
@@ -253,11 +265,19 @@ mod tests {
     ///
     /// Raising a limit is allowed. Raising it *without reading what grew* is
     /// the thing this is here to make awkward.
+    ///
+    /// **`app.js`'s limit came *down* on 2026-08-19**, from 32 KiB to 20 KiB.
+    /// The rule above is why it had to move at all: the file is now a minified
+    /// bundle rather than the source, so the same behaviour measures
+    /// 【実測: 32,173 → 15,109 B, gzip 10,508 → 4,908 B】 and a 32 KiB ceiling
+    /// had stopped being "a round number above" anything. What it measures also
+    /// changed for the better — this is exactly the bytes a reader downloads,
+    /// where before it was that plus the comments explaining the code to us.
     #[test]
     fn the_assets_stay_within_their_budget() {
         const BUDGET: [(&str, usize); 3] = [
             ("style.css", 32 * 1024),
-            ("app.js", 32 * 1024),
+            ("app.js", 20 * 1024),
             ("favicon.svg", 4 * 1024),
         ];
         for (path, limit) in BUDGET {
