@@ -1190,3 +1190,11 @@ revision を運びページのバイトに届く**ので、これは表示上の
 新しいゲートは `tools/assets-gate.sh` (lint / types / tests / bundle の 4 段)。
 **5 通りの落とし方でそれぞれ別の段が落ちること**、および
 **故意の欠陥 7 種で vitest が 7 種とも赤くなること**を確認済み。
+
+`<head>` の同期スクリプト (`THEME_BOOT`) も TS になり、**保存キー
+`"litedoc4-theme"` の 2 言語重複が消えた**。site のファイルは 3 本のまま —
+2 本目の bundle (168 B) を Rust が `include_str!` して inline する。
+
+**biome を `tools/*.ts` / `benchmarks/tools/*.ts` (Deno、14 本 / 5,065 行) に
+広げるかは、測って「広げない」に決着**【実測】: format 差分 **844 行** /
+lint 指摘 **83 件** / **そのうち欠陥 0 件**。11 件の非定型指摘を 1 件ずつ読んだ結果。
