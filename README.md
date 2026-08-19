@@ -23,8 +23,8 @@ instance lists, "Imported by", hyperlinked signatures, and a dark theme.
 - **you want to search dependency declarations** — search covers your package only
 - **you are on a Lean newer than 4.33.0** — only 4.31.0, 4.32.2 and 4.33.0 have been built
   (measured 2026-08-18, `benchmarks/results/lean-433-fix-2026-08-18.txt`). The extractor is
-  compiled against your toolchain, so a version it cannot handle surfaces as a build
-  failure, not as bad output — that is how 4.33.0 announced itself
+  compiled against your toolchain, so a version it cannot handle surfaces as a build failure,
+  not as bad output
 - **you are on Windows, Intel macOS, or Linux/arm64** — releases carry Linux/x86-64 and
   Apple Silicon; anything else builds from source, which needs Rust and a C compiler
 
@@ -36,8 +36,8 @@ Already hosting doc-gen4 output? Page paths (`Foo/Bar.html`) and declaration anc
 
 ## Speed
 
-Apple M1 / 16 GB, warm page cache, wall clock. One Mathlib-dependent package throughout, measured
-at two of its revisions — 432 modules then, 422 later — so every row names the one it ran on:
+Apple M1 / 16 GB, warm page cache, wall clock. One Mathlib-dependent package throughout, at two
+of its revisions (432 and 422 modules); each row names the one it ran on:
 
 | | doc-gen4 | litedoc4 |
 |---|---:|---:|
@@ -188,13 +188,8 @@ not GitHub (another host is refused rather than guessed).
 byte-identical IR, and 4.33.0 differs only where Lean itself reclassified instances
 (`implicit_reducible` → `instance_reducible`, 4 declarations in the fixture). Only 4.31.0 has
 been run over a Mathlib-sized package.
-Pin the action to a tag (`@v0.1.4`); `@main` moves.
-
-**Renamed from `lean-doc` on 2026-08-18** — repository, crates, CLI, and Lake package name.
-**`v0.1.4` is the first release under the new name**, and the first tag whose tree carries
-`lakefile.lean`. `v0.1.3` and earlier ship `lean-doc-*.tar.gz` and cannot be `require`d, so
-pin to `v0.1.4` or later. What was deliberately *not* renamed, and why, is in
-[`docs/plans/rename.md`](docs/plans/rename.md).
+Pin the action and the `require` to a tag — `v0.1.4` or later, since that is the oldest release
+usable as a Lake dependency. `@main` moves.
 
 The extractor is not distributed as a binary. It **could** be — it is decided by the toolchain
 alone, it is portable, and against the wrong toolchain it fails loudly rather than writing a
