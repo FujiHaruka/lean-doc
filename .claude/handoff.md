@@ -18,10 +18,11 @@
 - Progress ledger:
   - r1: 計画 `561db4c` / 数式クレート確定 `?` / **A-1 本体 `baab197`**
     (依存リンクを検証つきで docs へ。既定は不変、テスト 394 緑、clippy 緑)。
-    A-1 のゲート `tools/deps-docs-gate.sh` + 残り経路 + 実測ログ
-    (`benchmarks/results/deps-docs-2026-08-19.txt`) は未コミットで検証中。
-    ゲートはフォールバック枝 (表に無い名前 → ソース) を既定で通っていなかったので
-    Init を既定に入れて両枝を発火させる修正を依頼中
+    **A-1 完了 `7ef9488`** (push 済み) — ゲート `tools/deps-docs-gate.sh` が両枝を通り、
+    `incremental`/`ledger`/`links` に `--deps-docs-map`、実測ログ
+    `benchmarks/results/deps-docs-2026-08-19.txt`。
+    527 名中 524 が docs、3 がソース (doc-gen4 が公開しない再帰子)。
+  - r1 続き: **A-2 (watch) 実装中**
 
 ## Where we are
 
@@ -33,8 +34,8 @@ issue 108 件 + PR。依存リンクの腐敗率は実測済み
 
 ## Next step
 
-A-1 の残り (ゲート `tools/deps-docs-gate.sh` / `incremental`・`ledger`・`links` への
-`--deps-docs-map` / 実測ログ) を終えたら **A-2 (g) watch** へ。
+**A-2 (g) watch** の検証 → コミット。その後 **束 B** (B-0 の調査 → c → e → f)。
+束 B は IR schema 4 → 5 を**1 回で**上げる。
 
 ## Files to read first
 
