@@ -46,6 +46,15 @@
 #                is where most consumers will run this. It also exercises the
 #                musl binary itself, which the macOS box cannot execute.
 #
+#                **What it grades depends on the ref**, and the gate says which
+#                on every run: the version in `Cargo.toml` is what the release is
+#                looked up by, so on a release tag items 1 and 2 download and
+#                cache, and on a `main` that is ahead of every release there is
+#                no asset and they grade the documented fall-through instead —
+#                printing `download path : NOT EXERCISED` and carrying the same
+#                words into the final verdict. Read the verdict line, not the
+#                green tick.
+#
 #   The consumers are generated here rather than committed: `e2e/consumer/`
 #   requires by path and is the local fixture, and a second committed copy that
 #   differs only in its require line would drift from it silently.
@@ -330,7 +339,10 @@ jobs:
             || { echo "::error::it refused and still created --out"; exit 1; }
 
   download:
-    name: the release is fetched and verified, on Linux
+    # Named for what it grades in **both** worlds. "the release is fetched and
+    # verified" was true only on a release tag, and a job title is the one line
+    # a reader of a green run sees without opening it.
+    name: the release path, or its fall-through when no release carries this version
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:

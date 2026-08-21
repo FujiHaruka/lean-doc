@@ -571,3 +571,106 @@ C-1 (a 数式)  →  C-2 (d 逆引き)  →  C-3 (i 設定)  →  C-4 (再凍結
   `EOF while parsing a value at line 1 column 0` を踏んだ。
   `watch` の欠陥ではなく増分パイプライン側の性質なので、A-2 では直していない。
   **直す価値があるかは未検証** — 単一プロセスで完走する限り露出しない。
+
+## 9. 版は互換トークンである【決定 2026-08-21、CI が捕まえた】
+
+**`[workspace.package] version` を `0.1.4` → `0.2.0` に上げた。**
+
+### 何が起きたか【実測 2026-08-21、`lake package (self-test)`】
+
+束 B で IR schema を 4 → 5 に上げた (B-1 `sorry` / B-2 `attrs` を `[name, value]` に /
+B-3 `selectionRange` と `generated`)。**版は `0.1.4` のまま動かさなかった。**
+`v0.1.4` には Release があり、`lakefile.lean` の `resolveLitedoc4` は
+**要求された ref ではなくこの木の `Cargo.toml` の版**で Release を引く。結果、
+schema 5 の IR を書く extractor に **schema 4 しか読めない v0.1.4 のバイナリ**が渡された:
+
+```
+litedoc4: parsing …/site2/ir/modules/Consumer.Basic.json:
+  invalid type: sequence, expected a string at line 1 column 946
+```
+
+`tools/lake-download-gate.sh` の項目 1・2 が落ち、`LAKE DOWNLOAD GATE: FAILED (2 of 5)`。
+**古いバイナリが「`attrs` が文字列から配列になった」ことを名指ししている。**
+
+### この番号を動かすもの【決定】
+
+> **IR schema を変えたら、同じコミットで `[workspace.package] version` を動かす。**
+
+- **schema** とは `extractor/Extract.lean` の `schemaVersion` **とその下の形すべて**。
+  整数が動かなくても、フィールドを足せば・`attrs` の形を変えれば schema 変更。
+  Release されたバイナリが読み戻すもの (台帳・`.lidx`) も同じ扱い。
+- **版は飾りではない。**「Release されたバイナリはこの木の IR を読めるか」に答える
+  **互換トークン**で、それを読むのは `lakefile.lean` の段 2/3 と `action.yml` の
+  `[ "$REF" = "v$V" ]` の 2 箇所。**判断は 1 箇所に集まっていたが、その 1 箇所が読む数値が
+  動かなかった。**
+- **Release の無い版が正しい状態**であって、穴ではない。段 3 は資産が無いと言って
+  段 4 (PATH) → 段 5 (`cargo build`) に落ちる。未 Release の checkout が受け取るべきものは
+  まさにそれ。
+- **`README.md` / `lakefile.lean` / `action.yml` / `ci-action.yml` の `v0.1.4` は動かさない** —
+  あれは**最新の Release** を指していて、利用者が出会う最終状態。この木の版ではない
+  (CLAUDE.md「利用者向けドキュメントは最終状態だけを書く」)。`ci-action.yml` の
+  `released` ジョブは `@v0.1.4` の**タグ側の木**を checkout するので、そこでは
+  ref と `Cargo.toml` が一致したままで、この変更の影響を受けない。
+- **既知の穴 (未実装)**: `release.yml` は tag と `Cargo.toml` の版が**一致することを検査
+  していない**。ずれた tag を打つと資産は publish されるが `resolveLitedoc4` が
+  引かない版に入るので、Release が黙って無効になる (壊れはしない — `cargo` に落ちる)。
+
+### ゲートを「走らせなかった」と言えるようにした
+
+版を上げると `v0.2.0` の資産は存在せず、項目 1・2 は**ダウンロードを実行できない**。
+`ok` を返すのは「走らせていない枝に緑を出すゲート」、`FAILED` を返すのは
+「壊れていない機構を壊れたと言う」。どちらも嘘なので**世界を 2 つに分けた**
+(`tools/deps-docs-gate.sh` の branch 2 と同じ形):
+
+| 判定 | 条件 | 項目 1・2 |
+|---|---|---|
+| Release がある | 資産 URL が **200** | 今までどおり: 取得・検証・キャッシュ |
+| Release が無い | 資産 URL が **404** | **文書化された落ち方**: 段 3 が資産の不在を告げ、PATH が答え、サイトが書かれ、キャッシュには何も残らない |
+| 訊けない | curl が非ゼロ / 200 でも 404 でもない | **exit 2**。オフラインは第 3 の世界ではなく、このゲートの失敗 |
+
+- 判定は**最初に 1 回**。`curl -sSL --head -w '%{http_code}'` で **`-f` は使わない** —
+  `-f` を付けると 404 が curl の終了コードに化けて、区別したかった 1 点が消える。
+- 項目 2 は**鏡像**にした: Release があれば「2 回目は curl を呼んではいけない」、
+  無ければ「項目 1 が何もキャッシュしていないので **curl を呼ばなければならない**」。
+  空の curl ログは「失敗したダウンロードがキャッシュ扱いされた」ことを意味する。
+- **要約と最終行の両方**が `NOT EXERCISED` と言う
+  (`LAKE DOWNLOAD GATE: ok (items 1 and 2 not exercised — …)`)。
+  緑の最後の 1 行しか読まない者にも、どちらの世界だったかが伝わる必要がある。
+- 項目 3 の書庫は Release があればそれ、無ければその場で作る。`fetchRelease` は
+  **展開の前に**ハッシュするので、項目 3 が見ているものは変わらない。
+
+### 実測 (すべて 2026-08-21、Apple M1 / macOS 26.0 / Lean v4.31.0)
+
+| 走らせたもの | 結果 |
+|---|---|
+| Release の**無い**世界 (`0.2.0`) | `world: NO release carries v0.2.0 … answered 404` → **5 項目すべて緑、exit 0**、最終行に `(items 1 and 2 not exercised — …)` |
+| **一度落とす** (項目 1 の PATH から `pathbin` を外し、落ち先を壊す) | **exit 1**、`ITEM 1 FAIL  lake run docs exited 4 with no release to download — a checkout ahead of every release cannot build docs` |
+| Release の**ある**世界 (`Cargo.toml` を一時的に `0.1.4` に戻す) | `world: a release carries v0.1.4 … answered 200` → **項目 1・2 が実際にダウンロードして落ちる**、exit 1 |
+
+**3 行目が今回の欠陥の再現**であり、同時に「200 側の枝は選ばれ、実際に走る」ことの証拠。
+ログには `downloading …/v0.1.4/litedoc4-aarch64-apple-darwin.tar.gz` /
+`961382 bytes, sha256 275f48b8… matches …/checksums.txt` / `(downloaded, v0.1.4)` が並び、
+**取得も検証もキャッシュも成功したうえで**、その先で落ちる:
+
+```
+litedoc4: parsing …/site1/ir/modules/Consumer.Basic.json:
+  unknown field `selectionRange`, expected one of `name`, `kind`, … at line 1 column 916
+```
+
+**CI が名指ししたのは `attrs` (B-2)、ここで名指しされたのは `selectionRange` (B-3)** —
+同じ非互換で、パーサが**先に当たったフィールド**が違うだけ。B-3 を足したぶん破綻が
+前に来ている。**片方を直せば済むという意味には読まない。**
+
+`0.2.0` を名乗る木では 200 側は通らないので、**この枝が CI で走るのは次に tag を打った
+とき** (`ci-lake.yml` の `download` ジョブ)。手元で確かめるには上の 3 行目と同じことをする —
+`Cargo.toml` の版を一時的に Release のあるものに戻す。
+
+**上流の同型欠陥も潰した (2026-08-21)**: `release.yml` は**タグと
+`[workspace.package] version` が一致するか検査していなかった**。`v0.3.0` を
+`0.2.0` と書いてある木から打つと、資産は `0.3.0` の下に publish される一方、
+`resolveLitedoc4` が訊くのは `v0.2.0` なので、**そのリリースは誰にも引かれない**
+(利用者は「この版の資産は無い」と言って `cargo build` に落ちるだけなので、
+**何も大きな音を立てずに無効になる**)。これは今回直した欠陥と同じ形の 1 段上流
+— 「版番号は互換のトークンだ」という前提が、別の場所でも検査されていなかった。
+タグのときに一致しなければ**その場で落ちる**ようにした
+(分岐は 3 通り実行して確認: 一致 → 通す / 不一致 → 拒否 / タグでない → 通す)。

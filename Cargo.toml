@@ -3,7 +3,35 @@ resolver = "3"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.1.4"
+# ------------------------------------------------------------ WHAT MOVES THIS
+#
+# This is not decoration. It is the token that tells a consumer whether a
+# **released binary** can read the IR **this tree's extractor** writes.
+#
+#   `lakefile.lean`'s `resolveLitedoc4` looks the Rust half up by *this* number
+#   — not by the ref the consumer required — and downloads the GitHub Release
+#   tagged `v<version>` when one exists. `action.yml` does the same thing with
+#   `[ "$REF" = "v$V" ]`. So a checkout whose extractor writes a newer IR while
+#   this still names a released version hands that consumer an older binary and
+#   a newer IR, and the failure surfaces as a parse error deep inside a build.
+#
+# SO: **change the IR schema and move this in the same commit.** The IR schema
+# is `extractor/Extract.lean`'s `schemaVersion` *and the shape of everything
+# under it* — adding a field, or changing `attrs` from a string to a pair, is a
+# schema change whether or not the integer moved. Anything else `litedoc4`
+# writes that a released binary would have to read back counts too (the ledger,
+# `.lidx`).
+#
+# Not hypothetical: schema 4 → 5 was written with this left at 0.1.4, and
+# `tools/lake-download-gate.sh` caught the released v0.1.4 binary refusing a
+# schema-5 `attrs` — `invalid type: sequence, expected a string`
+# (docs/plans/feature-sweep.md §9).
+#
+# A version no release carries is the **correct** state for an unreleased
+# checkout, not a gap: source 3 finds no asset, says so, and falls through to
+# PATH and then `cargo build` — which is the only binary guaranteed to match
+# these sources.
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.97"
 # Portions are derived from doc-gen4, which is Apache-2.0; NOTICE lists every

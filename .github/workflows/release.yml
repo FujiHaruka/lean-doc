@@ -137,8 +137,24 @@ jobs:
         run: |
           # A tag is authoritative when there is one; otherwise the workspace
           # version, so a dry run produces the same names a release would.
+          W="$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)"
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then V="${GITHUB_REF_NAME#v}"
-          else V="$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)"; fi
+          else V="$W"; fi
+          # **A tag that disagrees with the workspace version publishes an inert
+          # release.** `lakefile.lean`'s `resolveLitedoc4` looks a binary up by
+          # the version in the *required tree's* `Cargo.toml`, so assets under
+          # any other number are a URL nobody asks for: the consumer announces
+          # "no asset for this version" and falls through to `cargo build`.
+          # Nothing breaks loudly, which is why this has to be checked here —
+          # it is the same defect as shipping a v0.1.4 binary to a tree whose
+          # extractor writes a newer IR schema, one step upstream
+          # (docs/plans/feature-sweep.md §9).
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "$V" != "$W" ]; then
+            echo "::error::tag v$V does not match [workspace.package] version $W in Cargo.toml." \
+                 "The assets would publish under $V while every consumer asks for v$W," \
+                 "so the release would be inert. Move the version, or move the tag." >&2
+            exit 1
+          fi
           echo "version=$V" >> "$GITHUB_OUTPUT"
           # **The asset name carries no version.** That is what makes
           #   releases/latest/download/litedoc4-<target>.tar.gz
