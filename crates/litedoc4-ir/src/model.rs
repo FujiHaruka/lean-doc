@@ -140,6 +140,46 @@ impl ModuleFile {
             Some(SorryKind::Transitive) => SorryFact::Transitive,
         }
     }
+
+    /// Whether the source names one of this file's declarations at a place of
+    /// its own — [`Decl::selection_range`]'s three-valued reading.
+    ///
+    /// Below schema 5 the key cannot exist, so the answer is
+    /// [`DeclNaming::Unknown`] without looking. This is the only thing that
+    /// should read [`Decl::selection_range`].
+    pub fn naming_of(&self, decl: &Decl) -> DeclNaming {
+        if self.schema_version < crate::SELECTION_RANGE_SCHEMA_VERSION {
+            return DeclNaming::Unknown;
+        }
+        match decl.selection_range {
+            None => DeclNaming::Unknown,
+            Some(sel) => {
+                if sel.line == decl.line
+                    && sel.col == decl.col
+                    && sel.end_line == decl.end_line
+                    && sel.end_col == decl.end_col
+                {
+                    DeclNaming::Unnamed
+                } else {
+                    DeclNaming::Named(sel)
+                }
+            }
+        }
+    }
+
+    /// What realized one of this file's declarations, if the extractor could
+    /// say so without guessing — [`Decl::generated`]'s three-valued reading.
+    ///
+    /// This is the only thing that should read [`Decl::generated`].
+    pub fn generated_by<'a>(&self, decl: &'a Decl) -> GeneratedFact<'a> {
+        if self.schema_version < crate::SELECTION_RANGE_SCHEMA_VERSION {
+            return GeneratedFact::Unknown;
+        }
+        match decl.generated.as_ref() {
+            None => GeneratedFact::Unclaimed,
+            Some(generated) => GeneratedFact::By(generated),
+        }
+    }
 }
 
 /// [`ModuleFile::sorry_of`]'s answer: the two claims of doc-gen4 #270, plus the
@@ -213,9 +253,19 @@ pub struct Decl {
     pub col: u32,
     pub end_line: u32,
     pub end_col: u32,
-    /// Position in the order the extractor enumerated the module. Two
-    /// declarations in this package share a `(line, col)`, so the range alone
-    /// does not order the page.
+    /// Schema 5 (`docs/plans/feature-sweep.md` B-3): the *other* range
+    /// `findDeclarationRanges?` returns.
+    ///
+    /// **Read it through [`ModuleFile::naming_of`], not directly.** A schema-4
+    /// file has no such key, so `None` here means "nobody was asked" rather
+    /// than any fact about the declaration — the same three-valued shape
+    /// [`Decl::sorry`] has, for the same reason.
+    #[serde(default)]
+    pub selection_range: Option<SelectionRange>,
+    /// Position in the order the extractor enumerated the module. Two pairs of
+    /// declarations in this package share a `(line, col)` — four declarations
+    /// 【実測 2026-08-21, `docs/plans/b0-generated-decls.md` §3】 — so the range
+    /// alone does not order the page.
     pub index: u32,
     pub members: Vec<Member>,
     pub doc: Option<String>,
@@ -247,6 +297,122 @@ pub struct Decl {
     /// no key to omit. On its own this field cannot tell the two apart.
     #[serde(default)]
     pub sorry: Option<SorryKind>,
+    /// Schema 5 (B-3): the declaration `@[ext]` realized this one **from**, one
+    /// step, as `["ext", name]` on the wire.
+    ///
+    /// **Read it through [`ModuleFile::generated_by`], not directly**, for the
+    /// third time and the third reason: the writer omits the key when it has
+    /// nothing to say, so `None` is "not realized by `@[ext]`" only in a file
+    /// that says `schemaVersion` 5.
+    ///
+    /// Only `@[ext]` is ever named here, and the boundary is not a matter of
+    /// taste: `simps` / `to_additive` / `mk_iff` / `to_dual` / `alias` keep
+    /// their maps in Mathlib's environment extensions, and an extractor that
+    /// imported Mathlib would stop building against a Mathlib-free package.
+    /// The measured cost of that boundary is that **7 of 94 `ext`-shaped
+    /// declarations in the Mathlib sample are realized through `to_additive` /
+    /// `to_dual` and get no key** 【実測 2026-08-21 →
+    /// `benchmarks/results/generated-decls-2026-08-21.txt`】; none of them gets
+    /// a *wrong* one.
+    #[serde(default)]
+    pub generated: Option<Generated>,
+}
+
+/// [`Decl::selection_range`]'s payload: `[line, col, endLine, endCol]`.
+///
+/// The name is the interesting half. For a declaration the source names, the
+/// elaborator records the `declId` here and this range is a proper sub-range of
+/// [`Decl::line`]`..`[`Decl::end_line`]. For a declaration nothing in the
+/// source names, the elaborator that built it had one syntax tree to point at
+/// and Lean defaults the selection range to the whole range
+/// (`Lean/Elab/DeclarationRange.lean:53`), so the two are **equal**.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SelectionRange {
+    pub line: u32,
+    pub col: u32,
+    pub end_line: u32,
+    pub end_col: u32,
+}
+
+impl<'de> Deserialize<'de> for SelectionRange {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let (line, col, end_line, end_col) = <(u32, u32, u32, u32)>::deserialize(deserializer)?;
+        Ok(Self {
+            line,
+            col,
+            end_line,
+            end_col,
+        })
+    }
+}
+
+/// [`ModuleFile::naming_of`]'s answer: whether the source gives this
+/// declaration a place of its own.
+///
+/// **This is not "generated" and must not be read as it**
+/// 【実測 2026-08-21 → `benchmarks/results/generated-decls-2026-08-21.txt`】.
+/// Over 2,786 Mathlib declarations, [`DeclNaming::Unnamed`] also covers
+/// structure and class field projections and macro-defined declarations
+/// (209 of 779), and it does **not** cover the `to_additive` twins whose
+/// additive name the author wrote out (376 declarations whose range is an
+/// attribute token are [`DeclNaming::Named`]). What it is good for is the
+/// second half of a rule whose first half already knows which declaration it is
+/// looking at — see [`Decl::generated`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DeclNaming {
+    /// No `selectionRange` key. Nothing is known — in particular this is
+    /// **not** [`DeclNaming::Unnamed`].
+    Unknown,
+    /// The selection range is a proper sub-range of the declaration's range:
+    /// there is a `declId` (or, for an anonymous `instance`, a keyword) at that
+    /// position and the elaborator recorded it.
+    Named(SelectionRange),
+    /// The two ranges are equal: whatever built this declaration had a single
+    /// syntax tree to point at.
+    Unnamed,
+}
+
+/// [`Decl::generated`]'s payload: `[origin, name]` on the wire.
+///
+/// Two strings rather than one because the origin is the half that decides what
+/// a reader may claim. Today it is always `ext`; a second origin would arrive
+/// as a second value here rather than as a second key.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Generated {
+    /// The attribute that realized the declaration. `ext`, and nothing else so
+    /// far.
+    pub origin: String,
+    /// What the realization took as **input**, one step: `P.ext` names the
+    /// structure `P`, `P.ext_iff` names `P.ext`. Following the chain — and
+    /// stopping when a step has no key, which is what a hand-written `P.ext`
+    /// looks like — is the reader's business.
+    pub from: String,
+}
+
+impl<'de> Deserialize<'de> for Generated {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let (origin, from) = <(String, String)>::deserialize(deserializer)?;
+        Ok(Self { origin, from })
+    }
+}
+
+/// [`ModuleFile::generated_by`]'s answer.
+///
+/// Three values, and the middle one is the reason: **"the extractor said
+/// nothing" is not "the author wrote it"**. The extractor only knows the one
+/// attribute whose map is in Lean core, so [`GeneratedFact::Unclaimed`] covers
+/// hand-written declarations *and* everything `simps` / `to_additive` /
+/// `mk_iff` / `to_dual` / `alias` realized. A reader that prints "written by
+/// hand" for this value is making a claim the IR does not carry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GeneratedFact<'a> {
+    /// The file predates the key. Nothing is known.
+    Unknown,
+    /// Schema 5 or newer, and the writer said nothing: not realized by
+    /// `@[ext]`. See above for what that does **not** mean.
+    Unclaimed,
+    /// Realized by an attribute the extractor can name, from this declaration.
+    By(&'a Generated),
 }
 
 /// Which of doc-gen4 #270's two claims a declaration makes.

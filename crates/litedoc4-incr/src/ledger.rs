@@ -77,8 +77,15 @@ pub const LEDGER_SCHEMA: u64 = 2;
 /// bump an IR extracted before the change is reused, renders the same bytes
 /// today, and silently has nothing for bundle C to link `@[deprecated Foo]` to.
 ///
+/// **v3** is B-3, and it is the same case a second time: `selectionRange` and
+/// `generated` are new keys under a schema number that was already 5. Neither
+/// changes a rendered byte today, so the failure this bump prevents is again
+/// silent — a reused IR would carry no origin for bundle C to fold `@[ext]`'s
+/// theorems by, and would say so by omitting exactly the key whose omission
+/// means "not realized by `@[ext]`".
+///
 /// [`litedoc4_global::STATE_DERIVATION`]: ../litedoc4_global/constant.STATE_DERIVATION.html
-pub const EXTRACTOR_ID: &str = "litedoc4 extractor v2";
+pub const EXTRACTOR_ID: &str = "litedoc4 extractor v3";
 
 /// `renderKey.renderer`: which implementation will run when the key says
 /// "re-render everything".

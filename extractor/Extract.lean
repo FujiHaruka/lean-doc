@@ -1494,6 +1494,21 @@ structure DeclOut where
   dropped it, so the IR could not produce a `gh_link`. -/
   endLine : Nat := 0
   endCol : Nat := 0
+  /-- Schema 5: `DeclarationRanges.selectionRange` — the *other* range
+  `findDeclarationRanges?` returns, which `range` above has always thrown away.
+
+  For a declaration the source names, this is the `declId`
+  (`Lean.Elab.addDeclarationRangesForBuiltin` passes it explicitly), so it is a
+  proper sub-range of `range`. For a declaration nothing in the source names,
+  the elaborator that built it calls `addDeclarationRangesFromSyntax` with one
+  syntax tree and `selectionRange` is **defaulted to `range`**
+  (`Lean/Elab/DeclarationRange.lean:50-55`). The two being equal is therefore a
+  fact about *how the declaration got its position*, which is what B-3 needs and
+  what `(line, col)` alone could not say (`docs/plans/b0-generated-decls.md`). -/
+  selLine : Nat := 0
+  selCol : Nat := 0
+  selEndLine : Nat := 0
+  selEndCol : Nat := 0
   equations : Array String
   eqFailed : Bool := false
   members : Array Member := #[]
@@ -1522,6 +1537,9 @@ structure DeclOut where
   after the analysis (`sorryTag`), not by `analyze`, so that `--jobs` cannot
   reach it. `none` without `--tagged-code` and under `--no-sorry`. -/
   sorryTag : Option String := none
+  /-- Schema 5 (B-3): the declaration `@[ext]` realized this one from. See
+  `extOriginOf`, which is the only thing that fills it. -/
+  extOrigin : Option Name := none
 
 def DeclOut.toJson (d : DeclOut) : Json :=
   Json.mkObj [
@@ -1619,6 +1637,58 @@ def timedPp (act : MetaM α) : AnalyzeM α := do
   modify fun c => { c with ppNanos := c.ppNanos + (t1 - t0) }
   return r
 
+/-- Schema 5, B-3: the declaration `@[ext]` realized this one *from*, or nothing.
+
+**This is the only origin litedoc4 emits**, and not because the others are
+uninteresting: `simps` / `to_additive` / `mk_iff` / `to_dual` / `alias` keep
+their maps in **Mathlib's** environment extensions, and an extractor that
+imports Mathlib stops building against a Mathlib-free package — which is the
+one thing `e2e/micro` and its CI gate exist to keep working
+(`docs/plans/b0-generated-decls.md` §11). `extExtension` is in Lean core.
+
+Two conditions, and **both are load-bearing**:
+
+* **The name has one of the two shapes core builds, and the environment agrees.**
+  `realizeExtTheorem` names its theorem `structName ++ "ext"` and refuses to run
+  unless `isStructure structName`; `realizeExtIffTheorem` names its theorem
+  `extName ++ "_iff"` (`Lean/Elab/Tactic/Ext.lean:107,142`). Neither name is
+  guessed at — these are the two lines of core that construct them.
+* **`selectionRange == range`.** Being in the extension is *not* the same as
+  being generated: `@[ext] theorem MulHom.ext` is hand written and is in the
+  extension. A hand-written declaration has a `declId` for the elaborator to
+  record as its selection range, so the two ranges differ. A realized one is
+  positioned by `addDeclarationRangesFromSyntax name (← getRef)` with no
+  selection syntax at all, and `Lean/Elab/DeclarationRange.lean:53` then
+  defaults `selectionRange` to `range`.
+
+What comes back is the declaration the realization **took as input, one step**:
+`P.ext` came from the structure `P`, `P.ext_iff` came from `P.ext`. The chain is
+left for the reader to follow. Collapsing `P.ext_iff` onto `P` here would make
+it claim a structure as its origin in the case where `P.ext` is hand written,
+which is precisely the case the second condition exists to keep apart.
+
+**`selectionRange == range` on its own is not "generated"** and must not be used
+as if it were 【実測 2026-08-21 → `benchmarks/results/generated-decls-2026-08-21.txt`】:
+over 2,786 Mathlib declarations it also fires on structure and class field
+projections and on macro-defined declarations, and it does *not* fire on the
+`to_additive` twins whose additive name the author wrote out. It is a necessary
+condition here, joined to a name the environment can confirm. -/
+def extOriginOf (name : Name) (sameRange : Bool) : CoreM (Option Name) := do
+  unless sameRange do return none
+  match name with
+  | .str parent "ext" =>
+    if isStructure (← getEnv) parent && (← Lean.Meta.Ext.isExtTheorem name) then
+      return some parent
+    else
+      return none
+  | .str parent "ext_iff" =>
+    let extName := Name.str parent "ext"
+    if (← getEnv).contains extName && (← Lean.Meta.Ext.isExtTheorem extName) then
+      return some extName
+    else
+      return none
+  | _ => return none
+
 /-- doc-gen4's `Info.ofConstantVal` + `NameInfo.ofTypedName` for one name. -/
 def baseInfo (cfg : Cfg) (probe : PpProbe) (refs : RefSink) (module : Name) (kind : String)
     (cv : ConstantVal) : AnalyzeM DeclOut := do
@@ -1641,10 +1711,22 @@ def baseInfo (cfg : Cfg) (probe : PpProbe) (refs : RefSink) (module : Name) (kin
     modify fun c => { c with
       attrNanos := c.attrNanos + (t1 - t0), attrCount := c.attrCount + 1,
       attrDecls := c.attrDecls + (if attrs.isEmpty then 0 else 1) }
+  let sameRange :=
+    ranges.range.pos.line == ranges.selectionRange.pos.line
+      && ranges.range.pos.column == ranges.selectionRange.pos.column
+      && ranges.range.endPos.line == ranges.selectionRange.endPos.line
+      && ranges.range.endPos.column == ranges.selectionRange.endPos.column
+  -- Costs an environment lookup only for the two name shapes `@[ext]` builds;
+  -- every other name falls out of `extOriginOf` on the first `match`.
+  let extOrigin ← extOriginOf cv.name sameRange
   return {
-    name := cv.name, module, kind, sig, doc, attrs,
+    name := cv.name, module, kind, sig, doc, attrs, extOrigin,
     line := ranges.range.pos.line, col := ranges.range.pos.column,
     endLine := ranges.range.endPos.line, endCol := ranges.range.endPos.column,
+    selLine := ranges.selectionRange.pos.line,
+    selCol := ranges.selectionRange.pos.column,
+    selEndLine := ranges.selectionRange.endPos.line,
+    selEndCol := ranges.selectionRange.endPos.column,
     equations := #[]
   }
 
@@ -2378,7 +2460,15 @@ Version 5 also **changes** a field rather than adding one: `attrs` elements are
 is a change the version number cannot announce on its own — the number was
 already 5 when the elements were still strings — so `litedoc4-incr`'s
 `EXTRACTOR_ID` carries it instead, and the reader accepts both shapes because a
-schema-4 file is still readable and still says `4`. -/
+schema-4 file is still readable and still says `4`.
+
+`B-3` adds two more keys under the same 5, and bumps `EXTRACTOR_ID` again for
+the same reason: `selectionRange`, written for **every** declaration of a tagged
+file, and `generated`, written only for the declarations `@[ext]` realized (see
+`extOriginOf`). The first costs **+0.96%** of the IR on the target
+【実測 -> `benchmarks/results/generated-decls-2026-08-21.txt`】 and is paid on
+every declaration on purpose — an omission rule would give its absence two
+meanings. -/
 def irSchemaVersion (tagged : Bool) : Nat := if tagged then 5 else 1
 
 /-- Where `--write-ir` writes. **`--ir-dir` and nothing else** — no default, and
@@ -2524,6 +2614,14 @@ def declToIrJson (tagged : Bool) (index : Nat) (d : DeclOut) (refs : Array (Name
       [ ("index", Json.num index),
         ("endLine", Json.num d.endLine),
         ("endCol", Json.num d.endCol),
+        -- Schema 5, B-3. One four-element array rather than four keys: the
+        -- reader is hand-written either way, and `[line, col, endLine, endCol]`
+        -- costs four names less per declaration on the wire. Always present in
+        -- a tagged file — an omission rule ("only when it differs from
+        -- `range`") would make the *absent* key mean two things, which is the
+        -- mistake `sorry` was shaped to avoid.
+        ("selectionRange", Json.arr #[Json.num d.selLine, Json.num d.selCol,
+                                      Json.num d.selEndLine, Json.num d.selEndCol]),
         ("modifiers", Json.arr (d.modifiers.map Json.str)),
         ("binderCode", Json.arr (d.sig.binderSpans.map spansToJson)),
         ("typeCode", spansToJson d.sig.typeSpans),
@@ -2549,6 +2647,14 @@ def declToIrJson (tagged : Bool) (index : Nat) (d : DeclOut) (refs : Array (Name
     -- thing on the reading side that is allowed to collapse the two.
     (match (if tagged then d.sorryTag else none) with
      | some tag => [("sorry", Json.str tag)]
+     | none => []) ++
+    -- Schema 5, B-3, same rule again: present only when there is something to
+    -- say. `[origin, name]` rather than a bare name because the origin is the
+    -- half that decides what the reader may claim — `"ext"` is the one
+    -- attribute whose map is in Lean core (`extOriginOf`), and a second origin
+    -- would arrive as a second first element rather than as a second key.
+    (match (if tagged then d.extOrigin else none) with
+     | some origin => [("generated", Json.arr #[Json.str "ext", Json.str origin.toString])]
      | none => []) ++
     (if tagged then
       match d.instClass with

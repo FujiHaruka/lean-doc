@@ -19,7 +19,8 @@
 use std::path::PathBuf;
 
 use litedoc4_ir::{
-    Attr, Decl, IrTree, Member, ModuleFile, SorryFact, SorryKind, Span, SpanKind, Utf16Text,
+    Attr, Decl, DeclNaming, Generated, GeneratedFact, IrTree, Member, ModuleFile, SelectionRange,
+    SorryFact, SorryKind, Span, SpanKind, Utf16Text,
 };
 
 const DEFAULT_IR: &str = "/private/tmp/lean-doc-relay/w7h/base-ir";
@@ -591,4 +592,187 @@ fn an_attributes_text_is_the_string_schema_4_carried() {
     };
     assert_eq!(tag.text(), "simp");
     assert_eq!(valued.text(), "instance 100");
+}
+
+/// One module file at the given schema, holding declarations written out
+/// verbatim, so that a test can put a `selectionRange` on the wire that no
+/// writer would.
+fn module_with_decls(schema: u32, decls: &[String]) -> Result<ModuleFile, serde_json::Error> {
+    serde_json::from_str(&format!(
+        r#"{{"schemaVersion":{schema},"module":"Pkg.M","imports":[],"moduleDocs":[],
+            "tactics":[],"declarations":[{}]}}"#,
+        decls.join(",")
+    ))
+}
+
+/// One declaration at `(10,0)-(14,20)` with the given extra keys appended.
+fn decl_json(name: &str, extra: &str) -> String {
+    format!(
+        r#"{{"name":"{name}","kind":"theorem","modifiers":[],"binders":[],
+            "implicits":[],"binderCode":[],"type":"","typeCode":[],"line":10,"col":0,
+            "endLine":14,"endCol":20,"index":0,"members":[],"doc":null,"equations":[],
+            "equationCode":[],"refs":[]{extra}}}"#
+    )
+}
+
+/// The three states of `selectionRange`, and the one that is not a state.
+///
+/// `Named` and `Unnamed` are what the key says; `Unknown` is what its absence
+/// says, and it is **not** `Unnamed` — a file that never carried the key is not
+/// a file reporting that the elaborator had no name position. Same shape as
+/// `sorry_of`, same reason.
+#[test]
+fn a_selection_range_is_read_as_three_states() {
+    let module = module_with_decls(
+        5,
+        &[
+            decl_json("Pkg.M.authored", r#","selectionRange":[10,8,10,16]"#),
+            decl_json("Pkg.M.realized", r#","selectionRange":[10,0,14,20]"#),
+            decl_json("Pkg.M.silent", ""),
+        ],
+    )
+    .expect("the literal is a module file");
+
+    let got: Vec<DeclNaming> = module
+        .declarations
+        .iter()
+        .map(|decl| module.naming_of(decl))
+        .collect();
+    assert_eq!(
+        got,
+        vec![
+            DeclNaming::Named(SelectionRange {
+                line: 10,
+                col: 8,
+                end_line: 10,
+                end_col: 16,
+            }),
+            DeclNaming::Unnamed,
+            DeclNaming::Unknown,
+        ],
+        "the selection range's three readings collapsed"
+    );
+
+    // The same bytes below schema 5 say nothing at all: there the key could not
+    // have been written, so its *value* cannot be a fact about the declaration.
+    let old = module_with_decls(
+        4,
+        &[decl_json(
+            "Pkg.M.realized",
+            r#","selectionRange":[10,0,14,20]"#,
+        )],
+    )
+    .expect("the literal is a module file");
+    assert_eq!(old.naming_of(&old.declarations[0]), DeclNaming::Unknown);
+}
+
+/// A `selectionRange` of any arity but four is an error, not a best guess.
+///
+/// Three numbers read as a range would silently invent an end column, and five
+/// would drop whatever a future writer put last — either way a declaration's
+/// position would be decided by this reader rather than by the extractor.
+#[test]
+fn a_malformed_selection_range_is_rejected() {
+    for bad in [
+        r#"[10,8,10]"#,
+        r#"[10,8,10,16,1]"#,
+        r#"[]"#,
+        r#"{"line":10,"col":8,"endLine":10,"endCol":16}"#,
+        r#"[10,"8",10,16]"#,
+        r#"[10,-8,10,16]"#,
+    ] {
+        let err = module_with_decls(
+            5,
+            &[decl_json("Pkg.M.f", &format!(r#","selectionRange":{bad}"#))],
+        )
+        .expect_err(&format!("{bad} was accepted as a selection range"))
+        .to_string();
+        assert!(!err.is_empty(), "{bad} failed without saying anything");
+    }
+}
+
+/// `generated` names an origin and the declaration it was realized from, and
+/// its absence is read three ways for the reason the other two keys are.
+///
+/// The middle state is the one worth a test of its own: `Unclaimed` is **not**
+/// "the author wrote it". The extractor can only name `@[ext]`, so everything
+/// `simps` / `to_additive` / `mk_iff` realized lands here too.
+#[test]
+fn a_generated_key_names_its_origin_and_its_absence_is_not_a_denial() {
+    let module = module_with_decls(
+        5,
+        &[
+            decl_json(
+                "Pkg.M.Pair.ext",
+                r#","selectionRange":[10,0,14,20],"generated":["ext","Pkg.M.Pair"]"#,
+            ),
+            decl_json(
+                "Pkg.M.Pair.ext_iff",
+                r#","generated":["ext","Pkg.M.Pair.ext"]"#,
+            ),
+            decl_json("Pkg.M.handwritten", ""),
+        ],
+    )
+    .expect("the literal is a module file");
+
+    let ext = Generated {
+        origin: "ext".to_owned(),
+        from: "Pkg.M.Pair".to_owned(),
+    };
+    let ext_iff = Generated {
+        origin: "ext".to_owned(),
+        from: "Pkg.M.Pair.ext".to_owned(),
+    };
+    let got: Vec<GeneratedFact<'_>> = module
+        .declarations
+        .iter()
+        .map(|decl| module.generated_by(decl))
+        .collect();
+    assert_eq!(
+        got,
+        vec![
+            GeneratedFact::By(&ext),
+            GeneratedFact::By(&ext_iff),
+            GeneratedFact::Unclaimed,
+        ]
+    );
+
+    // The chain is one step at a time and stops where the key does: `ext_iff`
+    // names the theorem, not the structure.
+    assert_eq!(
+        module.declarations[1].generated.as_ref().unwrap().from,
+        "Pkg.M.Pair.ext"
+    );
+
+    let old = module_with_decls(
+        4,
+        &[decl_json(
+            "Pkg.M.Pair.ext",
+            r#","generated":["ext","Pkg.M.Pair"]"#,
+        )],
+    )
+    .expect("the literal is a module file");
+    assert_eq!(
+        old.generated_by(&old.declarations[0]),
+        GeneratedFact::Unknown,
+        "a schema-4 file cannot have been asked"
+    );
+}
+
+/// A `generated` array of any arity but two is an error, not a best guess.
+#[test]
+fn a_malformed_generated_key_is_rejected() {
+    for bad in [
+        r#"["ext"]"#,
+        r#"["ext","Pkg.M.Pair","extra"]"#,
+        r#"[]"#,
+        r#""ext""#,
+        r#"{"origin":"ext","from":"Pkg.M.Pair"}"#,
+    ] {
+        module_with_decls(
+            5,
+            &[decl_json("Pkg.M.f", &format!(r#","generated":{bad}"#))],
+        )
+        .expect_err(&format!("{bad} was accepted as a generated key"));
+    }
 }

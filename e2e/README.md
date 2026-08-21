@@ -45,6 +45,7 @@ curated な単体テストは**手で書いた IR** でこれらの分岐に到�
 | `Micro/Unicode.lean` | **U1 / U2 の罠** — `𝒜` (U+1D49C) は BMP 外なので、UTF-16 順ソートと UTF-8 順ソートが食い違う唯一の領域。docstring 内の markdown (heading / code span / リスト) も |
 | `Micro/Shapes.lean` | **`class` / `class inductive` / 非 `mk` constructor / `extends` の継承 field / field の implicit binder** |
 | `Micro/Dep.lean` + `../micro-dep/` | **版固定できない依存** — path require なので manifest entry に `url` も `rev` も無い。モジュール名は **`«Dep-Aux»`** (ギュメが要る形)。**版固定できない依存へのリンク**と**`.lidx` の綴り差**がここを通る (下記) |
+| `Micro/Gen.lean` | **`@[ext]` が実現する宣言と、しない宣言** — inline の `@[ext]` / 後から来る `attribute [ext] Trip` / **1 つの位置に 2 つの親の子が 4 つ** (`attribute [ext] Quad Quint`) / `extends` の親射影 / そして**手書きの `@[ext] theorem`**。最後のものが要点で、**拡張に居ることは「生成された」を意味しない**ことをここだけが示す |
 | `Micro/Sorry.lean` | **`sorry` の 3 形** (doc-gen4 #270) — 直接 `sorry` を書いた定理 / それに依存するだけの定理 / どちらでもない定理。**`sorry` は elaborate 済みの項の性質**なので、手書き IR では「抽出器が正しい値を入れたか」を検査できない。ここが唯一の経路 |
 
 ## 初回に出たもの【実測 2026-08-16】
@@ -162,6 +163,15 @@ curated な単体テストは**手で書いた IR** でこれらの分岐に到�
    `"transitive"` / キー無し**の 3 通りに分かれること。**名前で照合し、比較した本数を数える**
    (期待値が 1 つも走らなくても「問題なし」に見えるので)。加えて**他の宣言が `sorry` を
    名乗っていないこと** — 全部に `"transitive"` を返す分類器は前 2 つを通る
+8. **属性が name と value に分かれて届く** — 宣言ごとの `attrs` を丸ごと照合し、
+   IR 全体で**どの要素も 2 要素の文字列配列**であること、**属性名ごとの主張数**も数える
+9. **生成宣言の由来** — `Micro/Gen.lean` の 9 宣言が `["ext", <実現の入力>]` を名乗り、
+   **手書きの `Micro.Gen.Solo.ext` は名乗らない**こと。名前で照合し、比較した本数と
+   由来を主張した総数を数える。加えて**`selectionRange == range` の 42 件のうち
+   33 件は名乗っていない**ことを数える — この等式を「生成」と読み替えた実装は
+   42 件を名乗ってここで落ちる。最後に**由来より前に並ぶ生成宣言が 0 件**であること
+   (B-0 §13.2 の反証条件。3 版ぶんは
+   [`../benchmarks/results/generated-decls-2026-08-21.txt`](../benchmarks/results/generated-decls-2026-08-21.txt))
 
 **3 が外部オラクルの代わりになる**もの — 「何バイトであるべきか」を誰にも聞かずに、
 ハッシュ順・時刻・パスの混入を落とせる。
@@ -192,7 +202,12 @@ curated な単体テストは**手で書いた IR** でこれらの分岐に到�
 ## 触るときの注意
 
 - **`micro/` の宣言を消さない。** 1 つ 1 つが「対象が持たない形」を担当している。
-  足すのは歓迎 (担当を上の表に書くこと)
+  足すのは歓迎 (担当を上の表に書くこと)。ただし**属性を持つ宣言を足すとゲート 8 の
+  属性名ごとの本数が動く** — ゲートが名指しするので、その数を直す
+  (structure を 1 つ足すと射影のぶん `reducible` が増える)
+- **`Micro/Gen.lean` の `Micro.Gen.Solo.ext` を `@[ext] structure Solo` に「まとめない」。**
+  手書きの ext 定理は**環境拡張には入る**ので、拡張だけを見る規則を落とすのはこの 1 形だけ。
+  まとめるとゲート 9 の否定側の期待が消える (Mathlib 標本ではこの形が 20 件ある【実測】)
 - **`Micro/Sorry.lean` の `sorry` を「直さない」。** `sorryHole` は**入力**で、
   他の 2 つはそれと違う答えでなければならない。`lake build` の
   ``declaration uses `sorry` `` 警告はこのフィクスチャの一部

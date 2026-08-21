@@ -70,13 +70,16 @@ pub mod utf16;
 pub use error::{Error, Result};
 pub use metrics::{IrFile, IrReads};
 pub use model::{
-    Attr, Decl, DepMap, DepMapEntry, Index, IndexEntry, Member, ModuleDoc, ModuleFile, Ref,
-    SorryFact, SorryKind, Tactic,
+    Attr, Decl, DeclNaming, DepMap, DepMapEntry, Generated, GeneratedFact, Index, IndexEntry,
+    Member, ModuleDoc, ModuleFile, Ref, SelectionRange, SorryFact, SorryKind, Tactic,
 };
 pub use name::{
     escape_component, escape_module, is_id_first, is_id_rest, module_components, module_path,
     unescape_component,
 };
-pub use reader::{IrTree, MIN_SCHEMA_VERSION, SORRY_SCHEMA_VERSION, read_module_file};
+pub use reader::{
+    IrTree, MIN_SCHEMA_VERSION, SELECTION_RANGE_SCHEMA_VERSION, SORRY_SCHEMA_VERSION,
+    read_module_file,
+};
 pub use span::{Span, SpanKind};
 pub use utf16::{Utf16Text, cmp_utf16, sort_utf16};

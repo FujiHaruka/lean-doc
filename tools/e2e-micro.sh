@@ -49,6 +49,12 @@
 #   8 ATTRS          every kind of attribute the extractor collects arrives in
 #                    the IR as a `[name, value]` pair, split where the extractor
 #                    knows the boundary and nowhere else.
+#   9 GENERATED      the declarations `@[ext]` realizes name what they were
+#                    realized from, by name and one step; the hand-written ext
+#                    theorem sitting in the same environment extension does not;
+#                    and the 33 declarations whose two ranges are equal without
+#                    being realized keep the rule from collapsing into range
+#                    equality.
 #
 # WHY GATE 5 EXISTS, AND WHY IT IS NOT A STOPWATCH
 #   This project's product is speed and it had no regression gate at all. It
@@ -90,7 +96,7 @@ while [ $# -gt 0 ]; do
     --out) OUT="$2"; shift 2 ;;
     --extractor) EXTRACTOR="$2"; shift 2 ;;
     --keep) KEEP=1; shift ;;
-    -h|--help) sed -n '1,76p' "$0"; exit 0 ;;
+    -h|--help) sed -n '1,82p' "$0"; exit 0 ;;
     *) echo "unknown flag: $1" >&2; exit 2 ;;
   esac
 done
@@ -108,10 +114,10 @@ fi
 
 say() { printf '\n=== %s\n' "$1"; }
 
-say "1/11 build the fixture package (Lean core only)"
+say "1/12 build the fixture package (Lean core only)"
 (cd "$FIXTURE" && "$LAKE" build)
 
-say "2/11 build the extractor inside the fixture's environment"
+say "2/12 build the extractor inside the fixture's environment"
 # The extractor is `import Lean` and nothing else, which is what lets it be
 # built against a package that has no Mathlib. `-rdynamic` is load-bearing:
 # `importModules (loadExts := true)` resolves symbols in the running executable
@@ -136,7 +142,7 @@ if [ -z "$EXTRACTOR" ]; then
   fi
 fi
 
-say "3/11 GATE 1 — one command"
+say "3/12 GATE 1 — one command"
 rm -rf "$OUT/first"
 "$LITEDOC4" build --root "$FIXTURE" --lib Micro --out "$OUT/first" \
   --extractor-bin "$EXTRACTOR" | tee "$OUT/first.log"
@@ -155,7 +161,7 @@ cp -R "$OUT/first/site" "$OUT/first-snapshot"
 # was learned from — a copy taken afterwards is a copy of the wrong run.
 cp "$OUT/first/litedoc4-build.json" "$OUT/first-build.json"
 
-say "4/11 GATE 2 — the second run changes nothing"
+say "4/12 GATE 2 — the second run changes nothing"
 "$LITEDOC4" build --root "$FIXTURE" --lib Micro --out "$OUT/first" \
   --extractor-bin "$EXTRACTOR" | tee "$OUT/second.log"
 
@@ -171,7 +177,7 @@ if ! grep -qE 'incremental|0 module\(s\)|nothing to' "$OUT/second.log"; then
   sed -n '1,20p' "$OUT/second.log" >&2
 fi
 
-say "5/11 GATE 3 — a second full build is byte identical"
+say "5/12 GATE 3 — a second full build is byte identical"
 rm -rf "$OUT/again"
 "$LITEDOC4" build --root "$FIXTURE" --lib Micro --out "$OUT/again" \
   --extractor-bin "$EXTRACTOR" >"$OUT/again.log"
@@ -185,7 +191,7 @@ if ! diff -r "$OUT/first/ir" "$OUT/again/ir"; then
   exit 1
 fi
 
-say "6/11 GATE 4 — --jobs does not change the output"
+say "6/12 GATE 4 — --jobs does not change the output"
 # The extractor splits declarations across threads inside one environment
 # (approach.md §5.1). That the IR comes out identical was measured once at stage
 # 7d; that the *site* does has never been checked, and a parallel step that
@@ -203,7 +209,7 @@ if ! diff -r "$OUT/first/site" "$OUT/jobs4/site"; then
   exit 1
 fi
 
-say "7/11 GATE 5 — the work, as integers"
+say "7/12 GATE 5 — the work, as integers"
 # Four markers: the first full build (snapshotted before the second run
 # overwrote it), the incremental run over an unchanged world, and the two other
 # full builds. Python because this repository's other gates use it and because a
@@ -312,7 +318,7 @@ if problems:
     sys.exit(1)
 PY
 
-say "8/11 GATE 7 — the three sorry shapes are three different answers"
+say "8/12 GATE 7 — the three sorry shapes are three different answers"
 # doc-gen4 #270 asks for two claims and not one: a declaration that uses `sorry`
 # itself, and a declaration that merely depends on such a one. `Micro/Sorry.lean`
 # holds one of each plus a control, and **this is the only place the extractor's
@@ -383,7 +389,7 @@ print(f"sorry        {checked} shapes compared over {len(found)} declarations: "
       ", ".join(f"{name.rpartition('.')[2]}={found[name]}" for name in sorted(expected)))
 PY
 
-say "9/11 GATE 8 — attributes arrive split into name and value"
+say "9/12 GATE 8 — attributes arrive split into name and value"
 # Schema 5 carries each attribute as a two-element `[name, value]` array where
 # schema 4 carried one concatenated string (`docs/plans/feature-sweep.md` B-2).
 # The split is made in the extractor because that is the only side that knows
@@ -447,7 +453,9 @@ expected = {
 
 # Declarations claiming each attribute name, over every module of the fixture.
 name_counts = {
-    "reducible": 9,
+    # 19 rather than 9 since `Micro/Gen.lean` arrived: every structure
+    # projection is `@[reducible]`, and that module declares six structures.
+    "reducible": 19,
     "implicit_reducible": 6,
     "inline": 2,
     "simp": 1,
@@ -527,7 +535,199 @@ print(f"attrs        {checked} declarations compared, {sum(counts.values())} pai
       f"{len(counts)} attribute name(s), {valued} with a value")
 PY
 
-say "10/11 GATE 6 — one edited module does not re-render the package"
+say "10/12 GATE 9 — the origin of a realized declaration, and the three ways of not having one"
+# `docs/plans/b0-generated-decls.md` measured that Lean gives a declaration it
+# realizes from an attribute the position of **the attribute token**, and that no
+# rule over `(line, col)` gets from there to the parent: in a 144-group Mathlib
+# sample the parent was in the group 0 times and 47 groups spanned two or more
+# namespaces. B-3's answer is that the extractor names the origin itself, from
+# core's `extExtension` plus `selectionRange`.
+#
+# `Micro/Gen.lean` holds the four positions and the counter-example. Reads the
+# IR, not the site: bundle B is extraction and IR only.
+#
+# FIVE THINGS, AND THE LAST THREE ARE WHY THE FIRST IS NOT ENOUGH
+#   the origins       each named declaration's `generated`, compared whole,
+#                     positives *and* negatives. `Micro.Gen.Solo.ext` is the
+#                     sharp one: it is hand written and sits in the same
+#                     environment extension as the realized theorems, so a rule
+#                     that only asked the extension would claim it.
+#   the count         how many expectations actually ran — GATE 7's lesson.
+#   the strays        nobody else claims an origin. 9 in the whole fixture, and
+#                     the number is asserted rather than the absence of
+#                     surprises: a rule that answered "realized by ext" for
+#                     everything passes every positive expectation above.
+#   the trap          `selectionRange == range` is **42** declarations here and
+#                     only 9 of them are realized by `@[ext]` — the other 33 are
+#                     projections, constructors and a `scoped notation`. A rule
+#                     that read the range equality as "generated" would claim 42
+#                     and fail here 【実測 2026-08-21, and the same shape over
+#                     2,786 Mathlib declarations →
+#                     benchmarks/results/generated-decls-2026-08-21.txt】.
+#   the falsifier     every origin named is a declaration this IR has, and none
+#                     of the realized ones sorts *before* it. B-0 §13.2 records
+#                     that as a property of one Lean version's `declRange`
+#                     rather than a law, so it is counted rather than assumed;
+#                     the three-toolchain version of this count is in the log
+#                     above.
+python3 - "$OUT/first/ir" <<'PY'
+import json
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+index = json.loads((root / "index.json").read_text(encoding="utf-8"))
+if index.get("schemaVersion") != 5:
+    sys.exit(f"{root}/index.json: schemaVersion is {index.get('schemaVersion')!r}, not 5")
+
+# Exact, by name, and negatives are expectations too. Each `None` below is a
+# *different* way of not being realized by `@[ext]`.
+expected = {
+    # `@[ext]` written on the structure: both theorems land inside its range.
+    "Micro.Gen.Pair.ext": ["ext", "Micro.Gen.Pair"],
+    "Micro.Gen.Pair.ext_iff": ["ext", "Micro.Gen.Pair.ext"],
+    # `attribute [ext] Trip` on a later line: both land outside its range.
+    "Micro.Gen.Trip.ext": ["ext", "Micro.Gen.Trip"],
+    "Micro.Gen.Trip.ext_iff": ["ext", "Micro.Gen.Trip.ext"],
+    # `attribute [ext] Quad Quint`: one position, two parents, four theorems.
+    # No rule over positions splits this group; each still names its own.
+    "Micro.Gen.Quad.ext": ["ext", "Micro.Gen.Quad"],
+    "Micro.Gen.Quad.ext_iff": ["ext", "Micro.Gen.Quad.ext"],
+    "Micro.Gen.Quint.ext": ["ext", "Micro.Gen.Quint"],
+    "Micro.Gen.Quint.ext_iff": ["ext", "Micro.Gen.Quint.ext"],
+    # Realized from a *hand-written* ext theorem, so it names the theorem.
+    "Micro.Gen.Solo.ext_iff": ["ext", "Micro.Gen.Solo.ext"],
+    # Hand written, and in `extExtension` exactly like the realized ones.
+    "Micro.Gen.Solo.ext": None,
+    # Realized, but by `extends` rather than by `@[ext]`.
+    "Micro.Gen.PairPlus.toPair": None,
+    # A projection: `selectionRange == range`, and not realized by `@[ext]`.
+    "Micro.Gen.Pair.fst": None,
+    # The parent itself.
+    "Micro.Gen.Pair": None,
+}
+
+GENERATED = 9        # declarations with an origin, over the whole fixture
+SELECTION_EQ_RANGE = 42   # declarations whose two ranges are equal
+
+found = {}
+positions = {}
+malformed = []
+selection_eq = []
+for entry in index["modules"]:
+    module = json.loads((root / entry["file"]).read_text(encoding="utf-8"))
+    if module.get("schemaVersion") != 5:
+        sys.exit(f"{entry['file']}: schemaVersion is {module.get('schemaVersion')!r}, not 5")
+    for decl in module["declarations"]:
+        found[decl["name"]] = decl.get("generated")
+        positions[decl["name"]] = (module["module"], decl["line"], decl["col"])
+        sel = decl.get("selectionRange")
+        ok = (
+            isinstance(sel, list)
+            and len(sel) == 4
+            and all(isinstance(part, int) for part in sel)
+        )
+        if not ok:
+            malformed.append((decl["name"], "selectionRange", sel))
+            continue
+        if sel == [decl["line"], decl["col"], decl["endLine"], decl["endCol"]]:
+            selection_eq.append(decl["name"])
+        gen = decl.get("generated")
+        if gen is not None and not (
+            isinstance(gen, list)
+            and len(gen) == 2
+            and all(isinstance(part, str) for part in gen)
+        ):
+            malformed.append((decl["name"], "generated", gen))
+
+problems = []
+checked = 0
+for name, want in sorted(expected.items()):
+    if name not in found:
+        problems.append(f"{name} is not in the IR at all — the fixture lost a shape")
+        continue
+    checked += 1
+    got = found[name]
+    if got != want:
+        problems.append(
+            f"{name}: generated is {json.dumps(got)}, expected {json.dumps(want)}"
+        )
+
+if checked != len(expected):
+    problems.append(f"{checked} of {len(expected)} declarations were actually compared")
+
+for decl_name, key, value in malformed[:5]:
+    problems.append(f"{decl_name}: {key} is {json.dumps(value)}, not the shape the writer emits")
+if len(malformed) > 5:
+    problems.append(f"... and {len(malformed) - 5} more malformed keys")
+
+claimed = sorted(name for name, value in found.items() if value is not None)
+if len(claimed) != GENERATED:
+    problems.append(
+        f"{len(claimed)} declaration(s) claim an origin, expected {GENERATED}: "
+        + ", ".join(claimed[:8])
+    )
+strays = [name for name in claimed if expected.get(name) is None]
+if strays:
+    problems.append(f"{len(strays)} unexpected declaration(s) claim an origin: {', '.join(strays[:5])}")
+
+# The trap. If these two numbers ever become equal, something started reading
+# range equality as "generated".
+if len(selection_eq) != SELECTION_EQ_RANGE:
+    problems.append(
+        f"{len(selection_eq)} declaration(s) have selectionRange == range, "
+        f"expected {SELECTION_EQ_RANGE}"
+    )
+equal_and_claimed = [name for name in selection_eq if found.get(name) is not None]
+if len(equal_and_claimed) != GENERATED:
+    problems.append(
+        f"{len(equal_and_claimed)} of the {len(selection_eq)} declarations with "
+        f"selectionRange == range claim an origin, expected {GENERATED}"
+    )
+if len(selection_eq) == len(equal_and_claimed):
+    problems.append(
+        "every declaration whose two ranges are equal claims an origin — the "
+        "rule has collapsed into range equality, which is not what it means"
+    )
+
+# The falsifier, on this fixture. The three-toolchain form of the same count is
+# in benchmarks/results/generated-decls-2026-08-21.txt.
+before = []
+for name in claimed:
+    origin = found[name][1]
+    if origin not in positions:
+        problems.append(f"{name} names {origin} as its origin, which is not in this IR")
+        continue
+    # Follow the chain to something that is not itself realized.
+    seen = set()
+    while found.get(origin) is not None and origin not in seen:
+        seen.add(origin)
+        origin = found[origin][1]
+        if origin not in positions:
+            break
+    if origin not in positions:
+        problems.append(f"{name}'s origin chain leaves this IR at {origin}")
+        continue
+    if positions[name][0] == positions[origin][0] and positions[name][1:] < positions[origin][1:]:
+        before.append(f"{name} at {positions[name][1:]} sorts before {origin} at {positions[origin][1:]}")
+if before:
+    problems.append(
+        "a realized declaration sorts before its origin, which B-0 §6 measured "
+        "as 0 on both samples: " + "; ".join(before[:3])
+    )
+
+if problems:
+    for problem in problems:
+        print(f"GATE 9 FAIL  {problem}", file=sys.stderr)
+    sys.exit(1)
+
+print(f"generated    {checked} declarations compared, {len(claimed)} realized by @[ext] over "
+      f"{len(found)} declarations; {len(selection_eq)} have selectionRange == range and "
+      f"{len(selection_eq) - len(claimed)} of those are not realized; "
+      f"{len(before)} sort before their origin")
+PY
+
+say "11/12 GATE 6 — one edited module does not re-render the package"
 # The question the other five cannot ask. GATE 2 asks what an *unchanged* world
 # costs; this asks what a one-declaration edit costs, which is the shape a user
 # actually produces and the one where the dependency map used to force every page
@@ -610,7 +810,7 @@ fi
 # the same answer.
 "$HERE/onemod-gate.sh" "$OUT/first/litedoc4-build.json" "$OUT/first/work/serve.out"
 
-say "11/11 summary"
+say "12/12 summary"
 printf 'site files : %s\n' "$(find "$OUT/first/site" -type f | wc -l | tr -d ' ')"
 printf 'ir files   : %s\n' "$(find "$OUT/first/ir" -type f | wc -l | tr -d ' ')"
 printf 'out        : %s\n' "$OUT"
