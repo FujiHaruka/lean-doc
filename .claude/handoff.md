@@ -1,10 +1,11 @@
-# Handoff — 2026-08-19 (機能スイープ: doc-gen4 の要望 8 件)
+# Handoff — 2026-08-22
 
 ## State
 
-- Branch: main / clean / `561db4c` まで
-- Active phase: `docs/plans/feature-sweep.md` の **束 A から着手**
-- 計測環境: 触っていない (計装・olean 暖機とも前回のまま)
+- Branch: main / clean / `9f36f32` まで push 済み
+- Active phase: `docs/plans/feature-sweep.md` の **束 A・B 完了、束 C から**
+- CI: `9f36f32` CI 緑 / `e591562` lake package 緑 (版を 0.2.0 に上げた修正が効いた)
+- 計測環境: 計装は触っていない。olean は暖まっている。`/private/tmp/lean-doc-relay` は 5.5 MB
 
 ## Relay control
 
@@ -16,55 +17,47 @@
 - Predecessor: none
 - Stop-on: completion | user-decision | no-progress×2 | leg-cap
 - Progress ledger:
-  - r1: 計画 `561db4c` / 数式クレート確定 `?` / **A-1 本体 `baab197`**
-    (依存リンクを検証つきで docs へ。既定は不変、テスト 394 緑、clippy 緑)。
-    **A-1 完了 `7ef9488`** (push 済み) — ゲート `tools/deps-docs-gate.sh` が両枝を通り、
-    `incremental`/`ledger`/`links` に `--deps-docs-map`、実測ログ
-    `benchmarks/results/deps-docs-2026-08-19.txt`。
-    527 名中 524 が docs、3 がソース (doc-gen4 が公開しない再帰子)。
-  - r1 続き: **A-2 完了 `19ffb9f`** + 整形 `09a39d4` (CI が `cargo fmt --all --check` で
-    2 回赤くなった — 検証手順に fmt が無かった。計画 §5 を ci.yml が SoT に書き換え)。
-    **束 A 完了。** watch は warm 5.5-6.2 s / cold 13.7 s、86-89% が Lean の環境ロード。
-    **常駐 extractor はパスをまたげないことが実測で判明** — 計画の前提が誤りだった。
-  - r1 続き: **B-0 完了 `419061c`** — `(line,col)` では親子は決まらない (規則 5 つ全滅、
-    47 群が名前空間をまたぐ)。**#163 の症状は再現しない** (両標本 0 件)、
-    **#184 は litedoc4 では欠陥ではない**。B-3 を縮めて計画に書き直した。
-    分母 3 箇所にリビジョンを添えた (数字は書き換えていない)。
-  - r1 続き: **B-1 完了 `8318e6c`** — schema 5、`sorry: direct|transitive`。
-    **`collectAxioms` は推移閉包を歩かない** (olean に計算済み) ので実測 0.006 s = 0.10%。
-    天井 (早期脱出なし) は +10.0% で撤退ラインちょうど。`e2e/micro` に GATE 7。
-    **`MIN_SCHEMA_VERSION` は 4 のまま** — `global-expected.json` が schema 4 IR を
-    入力として抱えている。**5 に上げるのは C-4 と同じコミットで。**
-  - r1 続き: **B-2 完了 `4e79978`** — `[name, value]` の 2 要素配列 (`Ref` に倣う)、
-    IR 増分 +0.0054%、描画は 1 バイトも動かず。GATE 8 を一度落として確認。
-    **#331 は決着** — Lean には「宣言 → 属性」の一般 API が無く (`AttributeImpl` に
-    読み出しが無い)、Mathlib 依存なしには閉じない。§8 に理由ごと記録。
-  - r1 続き: **B-3 完了 `82c049a`。束 B 完了。** 判別器は 3 標本で独立オラクルと一致
-    (94/94, 3/3, 10/10、誤った親 0)。反証条件は 3 版とも 0 件。
-    **B-0 の判定を 1 つ反証して訂正** (`selectionRange == range` だけでは生成を決められない)。
-  - r1 続き: **版を 0.2.0 に上げた `e591562`** — CI の lake ゲートが、schema 5 の IR に
-    v0.1.4 のバイナリを配る非互換を捕まえた。**版番号は extractor とバイナリの互換トークン。**
-    `release.yml` にタグと版の一致検査も足した (同型欠陥の 1 段上流)。
+  - r1: 計画 `561db4c` / **束 A** = A-1 `baab197`+`7ef9488`、A-2 `19ffb9f` /
+    **B-0** `419061c` / **束 B** = B-1 `8318e6c`、B-2 `4e79978`、B-3 `82c049a` /
+    版 0.2.0 `e591562`。**束 C だけが残っている。**
 
 ## Where we are
 
-計画は `docs/plans/feature-sweep.md` (322 行、`561db4c`)。調査の出所は doc-gen4 の
-issue 108 件 + PR。依存リンクの腐敗率は実測済み
-(`benchmarks/results/deps-link-rot-2026-08-19.txt`)。
-
-**h (`git@` URL) は既に実装済みだったので範囲外**にした (`build.rs:1069 github_path`)。
+束 A (依存リンク検証 / watch) と束 B (sorry / 属性 / 生成宣言、IR schema 4 → 5) が入り、
+**描画は 1 バイトも動いていない** — 凍結フィクスチャは全部通ったまま。
+束 C は**描画が動く唯一の束**で、最後に再凍結を 1 回だけ行う。
 
 ## Next step
 
-**束 C** — a (数式 MathML) / d (逆引き) / c・e・f の描画 / i (設定) / C-4 再凍結。
-**C-4 で `MIN_SCHEMA_VERSION` を 5 に上げる。**
-**計画が 676 行**なので、束 C が終わったら `/compact-plan` (600 行の閾値超え)。
-そのあと**束 C** — a (数式 MathML) / d (逆引き) / c・e・f の描画 / i (設定) / C-4 再凍結。
-**C-4 で `MIN_SCHEMA_VERSION` を 5 に上げる。**
+**束 C を C-1 (a 数式 MathML) から始める。** 計画 §4 C-1。
+`pulldown-latex` v0.8.0 (依存 `bumpalo` 1 本) をビルド時に走らせて MathML を焼く。
+撤退ラインは「対象の docstring で落ちる/崩れる → クライアント側 KaTeX」。
+**先に測る**: 対象 422 モジュールで数式を含む docstring の件数と変換成功率。
+
+順序は C-1 → C-2 (d 逆引き) → C-3 (i 設定) → **C-4 再凍結**。
+C-4 では `LITEDOC4_BLESS=1` の再生成手段を HEAD に置き、差分を全件レビューし、
+PROVENANCE.md を書き換え、**`MIN_SCHEMA_VERSION` を 5 に上げる** (B-1 が保留した)。
 
 ## Files to read first
 
-- `docs/plans/feature-sweep.md` — この作業の SoT。§3 Approach と §6 決定
-- `benchmarks/results/deps-link-rot-2026-08-19.txt` — A-1 の根拠になる数字
-- `crates/litedoc4-render/src/external.rs` — 依存リンクの値型。「第 3 の状態」の議論
-- `crates/litedoc4-render/src/autolink.rs` の `NameIndex::link_to` — リンク 3 形の唯一の判断箇所
+- `docs/plans/feature-sweep.md` — この作業の SoT。§3 Approach / §4 C-1〜C-4 / §6 決定 / §9 版
+- `docs/plans/b0-generated-decls.md` — 生成宣言の判定。B-3 が §11 を反証訂正している
+- `crates/litedoc4-render/tests/data/PROVENANCE.md` — C-4 が何を守るか。**JSON を手で編集しない**
+- `crates/litedoc4-md/src/` — docstring の描画経路。C-1 が触る
+- `benchmarks/results/` の `deps-docs` / `watch` / `sorry` / `attrs` / `generated-decls` — 数字の出所
+
+## Load-bearing context
+
+- **計画が 676 行**で 600 の閾値超え。だが `/compact-plan` を**まだかけていない**のは、
+  この文書が【実測/外挿/仮定】ラベルと反証条件で埋まっていて、要約が最初に落とすのがそこだから
+  (CLAUDE.md「要約と分割は別の手段」)。**畳むなら束 C 完了後に、A・B の実装メモだけを**。
+- **IR を変えたら `target/release/litedoc4` を建て直す。** 古いバイナリが新しい IR を読むと
+  名前を出して落ちる (`benchmarks/results/attrs-2026-08-21.txt` §4)。1 度これで診断を空振りした。
+- **版番号は extractor とバイナリの互換トークン** — IR schema を動かしたら同じコミットで版も動かす。
+  `release.yml` がタグとの不一致を拒否するようになった。
+- **`tools/assets-gate.sh` は `mise exec --` 越しに呼ぶ** (素だと exit 137、assets の話は何も出ない)。
+- **zsh には `PIPESTATUS` が無く、`nomatch` はコマンド列ごと落とす** — 存在確認をグロブでやらない。
+- **長命プロセス (`litedoc4 watch`) はセッションが落ちても生き残り**、ゲートを嘘の失敗にする。
+  `pgrep -f 'litedoc4 watch'` を先に見る。
+- 束 C の各項目は**描画を動かす**ので、`*-expected.json` が落ちる。**C-4 まで落ちたままにしない** —
+  各項目のうちに落ちる理由を 1 行で言えるようにしておき、C-4 でまとめて再凍結する。
