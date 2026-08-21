@@ -36,10 +36,11 @@
 //!    inherited branch's optional `id` is not the direct branch's `id`, and
 //!    the two are written out separately for that reason.
 
+use std::borrow::Cow;
 use std::collections::HashSet;
 use std::fmt;
 
-use litedoc4_ir::{Decl, Member, ModuleFile, Span, Utf16Text};
+use litedoc4_ir::{Attr, Decl, Member, ModuleFile, Span, Utf16Text};
 use litedoc4_md::Renderer as DocRenderer;
 
 use crate::autolink::{NameIndex, module_link, page_root};
@@ -587,10 +588,16 @@ impl<'a> DeclRenderer<'a> {
         let head = decl_head_html(decl, &self.module.module, self.source_url);
         let signature = decl_signature(decl, &self.module.module, &self.code);
 
+        // `Attr::text` rejoins the schema-5 `(name, value)` pair into the one
+        // string schema 4 carried, which is what keeps this byte-identical
+        // across the shape change (`docs/plans/feature-sweep.md` B-2). Acting on
+        // the parts — linking `@[deprecated Foo]` to `Foo`, styling by name — is
+        // bundle C's, and it happens here.
         let mut attrs = String::new();
         if !decl.attrs.is_empty() {
             attrs.push_str("<div class=\"attrs\">");
-            escape_html_into(&mut attrs, &format!("@[{}]", decl.attrs.join(", ")));
+            let texts: Vec<Cow<'_, str>> = decl.attrs.iter().map(Attr::text).collect();
+            escape_html_into(&mut attrs, &format!("@[{}]", texts.join(", ")));
             attrs.push_str("</div>");
         }
 
@@ -1020,7 +1027,16 @@ mod tests {
         let mut d = decl("Pkg.M.f", "definition");
         d.line = 7;
         d.end_line = 9;
-        d.attrs = vec!["simp".to_owned(), "reducible".to_owned()];
+        d.attrs = vec![
+            Attr {
+                name: "simp".to_owned(),
+                value: String::new(),
+            },
+            Attr {
+                name: "reducible".to_owned(),
+                value: String::new(),
+            },
+        ];
         d.doc = Some("hello".to_owned());
         let page = Page::new(index(&[]), module_with(vec![d]));
         let html = page.render(0).expect("nothing to place");

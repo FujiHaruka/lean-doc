@@ -46,6 +46,9 @@
 #   7 SORRY          the three shapes of doc-gen4 #270 — a direct `sorry`, a
 #                    declaration that only depends on one, and neither — come
 #                    out of the extractor as three different answers, by name.
+#   8 ATTRS          every kind of attribute the extractor collects arrives in
+#                    the IR as a `[name, value]` pair, split where the extractor
+#                    knows the boundary and nowhere else.
 #
 # WHY GATE 5 EXISTS, AND WHY IT IS NOT A STOPWATCH
 #   This project's product is speed and it had no regression gate at all. It
@@ -87,7 +90,7 @@ while [ $# -gt 0 ]; do
     --out) OUT="$2"; shift 2 ;;
     --extractor) EXTRACTOR="$2"; shift 2 ;;
     --keep) KEEP=1; shift ;;
-    -h|--help) sed -n '1,73p' "$0"; exit 0 ;;
+    -h|--help) sed -n '1,76p' "$0"; exit 0 ;;
     *) echo "unknown flag: $1" >&2; exit 2 ;;
   esac
 done
@@ -105,10 +108,10 @@ fi
 
 say() { printf '\n=== %s\n' "$1"; }
 
-say "1/10 build the fixture package (Lean core only)"
+say "1/11 build the fixture package (Lean core only)"
 (cd "$FIXTURE" && "$LAKE" build)
 
-say "2/10 build the extractor inside the fixture's environment"
+say "2/11 build the extractor inside the fixture's environment"
 # The extractor is `import Lean` and nothing else, which is what lets it be
 # built against a package that has no Mathlib. `-rdynamic` is load-bearing:
 # `importModules (loadExts := true)` resolves symbols in the running executable
@@ -133,7 +136,7 @@ if [ -z "$EXTRACTOR" ]; then
   fi
 fi
 
-say "3/10 GATE 1 — one command"
+say "3/11 GATE 1 — one command"
 rm -rf "$OUT/first"
 "$LITEDOC4" build --root "$FIXTURE" --lib Micro --out "$OUT/first" \
   --extractor-bin "$EXTRACTOR" | tee "$OUT/first.log"
@@ -152,7 +155,7 @@ cp -R "$OUT/first/site" "$OUT/first-snapshot"
 # was learned from — a copy taken afterwards is a copy of the wrong run.
 cp "$OUT/first/litedoc4-build.json" "$OUT/first-build.json"
 
-say "4/10 GATE 2 — the second run changes nothing"
+say "4/11 GATE 2 — the second run changes nothing"
 "$LITEDOC4" build --root "$FIXTURE" --lib Micro --out "$OUT/first" \
   --extractor-bin "$EXTRACTOR" | tee "$OUT/second.log"
 
@@ -168,7 +171,7 @@ if ! grep -qE 'incremental|0 module\(s\)|nothing to' "$OUT/second.log"; then
   sed -n '1,20p' "$OUT/second.log" >&2
 fi
 
-say "5/10 GATE 3 — a second full build is byte identical"
+say "5/11 GATE 3 — a second full build is byte identical"
 rm -rf "$OUT/again"
 "$LITEDOC4" build --root "$FIXTURE" --lib Micro --out "$OUT/again" \
   --extractor-bin "$EXTRACTOR" >"$OUT/again.log"
@@ -182,7 +185,7 @@ if ! diff -r "$OUT/first/ir" "$OUT/again/ir"; then
   exit 1
 fi
 
-say "6/10 GATE 4 — --jobs does not change the output"
+say "6/11 GATE 4 — --jobs does not change the output"
 # The extractor splits declarations across threads inside one environment
 # (approach.md §5.1). That the IR comes out identical was measured once at stage
 # 7d; that the *site* does has never been checked, and a parallel step that
@@ -200,7 +203,7 @@ if ! diff -r "$OUT/first/site" "$OUT/jobs4/site"; then
   exit 1
 fi
 
-say "7/10 GATE 5 — the work, as integers"
+say "7/11 GATE 5 — the work, as integers"
 # Four markers: the first full build (snapshotted before the second run
 # overwrote it), the incremental run over an unchanged world, and the two other
 # full builds. Python because this repository's other gates use it and because a
@@ -309,7 +312,7 @@ if problems:
     sys.exit(1)
 PY
 
-say "8/10 GATE 7 — the three sorry shapes are three different answers"
+say "8/11 GATE 7 — the three sorry shapes are three different answers"
 # doc-gen4 #270 asks for two claims and not one: a declaration that uses `sorry`
 # itself, and a declaration that merely depends on such a one. `Micro/Sorry.lean`
 # holds one of each plus a control, and **this is the only place the extractor's
@@ -380,7 +383,151 @@ print(f"sorry        {checked} shapes compared over {len(found)} declarations: "
       ", ".join(f"{name.rpartition('.')[2]}={found[name]}" for name in sorted(expected)))
 PY
 
-say "9/10 GATE 6 — one edited module does not re-render the package"
+say "9/11 GATE 8 — attributes arrive split into name and value"
+# Schema 5 carries each attribute as a two-element `[name, value]` array where
+# schema 4 carried one concatenated string (`docs/plans/feature-sweep.md` B-2).
+# The split is made in the extractor because that is the only side that knows
+# where the boundary is: `deprecated`'s value contains spaces, parentheses and
+# quotes, `specialize`'s contains brackets, and a reader given the concatenation
+# would have to guess.
+#
+# `Micro/Attrs.lean` holds one declaration per *kind* of attribute the four
+# collectors produce. The measurement target has none of the hard shapes — 163
+# occurrences over 6 distinct strings, all bare names but one `deprecated`
+# 【実測 2026-08-21】 — so this fixture is where they exist at all.
+#
+# Reads the IR, not the site: bundle B is extraction and IR only, and the page
+# still prints the rejoined string. Runs before GATE 6, which appends a probe
+# declaration to the fixture and rebuilds it.
+#
+# THREE THINGS, AND THE LAST TWO ARE WHY THE FIRST IS NOT ENOUGH
+#   the pairs        each named declaration's `attrs`, compared whole. Positive
+#                    expectations, and the count of them is asserted for the
+#                    reason GATE 7 gives: an expectation that never ran reports
+#                    nothing.
+#   the shape        *every* attrs entry in the whole IR is two strings. One
+#                    collector left writing a concatenated string is invisible to
+#                    the expectations above if it is not one of theirs.
+#   the counts       how many declarations claim each attribute name, over the
+#                    whole IR. This is GATE 7's stray check in the form this
+#                    field needs: attributes are not rare here, so "nobody else
+#                    claims one" is false, and a collector that answered `simp`
+#                    for everything would sail past two positive expectations.
+#                    The numbers are this fixture's; adding a declaration with an
+#                    attribute means updating one, and the gate names which.
+python3 - "$OUT/first/ir" <<'PY'
+import json
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+index = json.loads((root / "index.json").read_text(encoding="utf-8"))
+if index.get("schemaVersion") != 5:
+    sys.exit(f"{root}/index.json: schemaVersion is {index.get('schemaVersion')!r}, not 5")
+
+# Exact and ordered. Order is doc-gen4's `customs ++ tags ++ enums ++
+# parametric`, with the instance attributes appended after all four, and it is
+# what the printed `@[a, b]` line looks like — so it is part of the answer.
+DEPRECATED_VALUE = 'Micro.Attrs.scale (since := "2026-08-21")'
+expected = {
+    # getCustomAttrs — the simp extension, and the reducibility status
+    "Micro.Attrs.scale_zero": [["simp", ""]],
+    "Micro.Attrs.Weight": [["reducible", ""]],
+    # getTags — a tag attribute has no value at all
+    "Micro.Attrs.zero": [["match_pattern", ""]],
+    # getEnumValues — the enum's own name *is* the attribute
+    "Micro.Attrs.scale": [["inline", ""]],
+    # getParametricValues — the two that make the split necessary
+    "Micro.Attrs.applyTwice": [["specialize", "#[]"]],
+    "Micro.Attrs.scaleOld": [["deprecated", DEPRECATED_VALUE]],
+    # InstanceInfo.ofDefinitionInfo — appended after the four collectors
+    "Micro.Attrs.tinyNat": [["implicit_reducible", ""], ["instance", "100"]],
+    "Micro.Attrs.tinyBool": [["implicit_reducible", ""], ["defaultInstance", "1000"]],
+}
+
+# Declarations claiming each attribute name, over every module of the fixture.
+name_counts = {
+    "reducible": 9,
+    "implicit_reducible": 6,
+    "inline": 2,
+    "simp": 1,
+    "match_pattern": 1,
+    "specialize": 1,
+    "deprecated": 1,
+    "instance": 1,
+    "defaultInstance": 1,
+}
+# Attributes that carry a value at all. A writer that put the whole
+# concatenation in the name half would still produce well-shaped pairs and would
+# still be caught by `name_counts`; this is the same claim said as one number,
+# and it is the one that goes to zero if the value half is ever dropped.
+VALUED = 4
+
+problems = []
+found = {}
+malformed = []
+counts = {}
+valued = 0
+for entry in index["modules"]:
+    module = json.loads((root / entry["file"]).read_text(encoding="utf-8"))
+    for decl in module["declarations"]:
+        attrs = decl.get("attrs", [])
+        found[decl["name"]] = attrs
+        for attr in attrs:
+            ok = (
+                isinstance(attr, list)
+                and len(attr) == 2
+                and all(isinstance(part, str) for part in attr)
+            )
+            if not ok:
+                malformed.append((decl["name"], attr))
+                continue
+            counts[attr[0]] = counts.get(attr[0], 0) + 1
+            if attr[1]:
+                valued += 1
+
+checked = 0
+for name, want in sorted(expected.items()):
+    if name not in found:
+        problems.append(f"{name} is not in the IR at all — the fixture lost a shape")
+        continue
+    checked += 1
+    got = found[name]
+    if got != want:
+        problems.append(f"{name}: attrs are {json.dumps(got)}, expected {json.dumps(want)}")
+
+if checked != len(expected):
+    problems.append(f"{checked} of {len(expected)} declarations were actually compared")
+
+for decl_name, attr in malformed[:5]:
+    problems.append(
+        f"{decl_name}: attrs entry {json.dumps(attr)} is not a two-element "
+        "[name, value] array of strings — a schema-4 string reached a schema-5 IR"
+    )
+if len(malformed) > 5:
+    problems.append(f"... and {len(malformed) - 5} more malformed attrs entries")
+
+for attr_name in sorted(set(counts) | set(name_counts)):
+    got = counts.get(attr_name, 0)
+    want = name_counts.get(attr_name, 0)
+    if got != want:
+        problems.append(
+            f"{attr_name}: {got} declaration(s) claim it, expected {want}"
+        )
+
+if valued != VALUED:
+    problems.append(f"{valued} attribute(s) carry a value, expected {VALUED}")
+
+if problems:
+    for problem in problems:
+        print(f"GATE 8 FAIL  {problem}", file=sys.stderr)
+    sys.exit(1)
+
+print(f"attrs        {checked} declarations compared, {sum(counts.values())} pair(s) over "
+      f"{len(counts)} attribute name(s), {valued} with a value")
+PY
+
+say "10/11 GATE 6 — one edited module does not re-render the package"
 # The question the other five cannot ask. GATE 2 asks what an *unchanged* world
 # costs; this asks what a one-declaration edit costs, which is the shape a user
 # actually produces and the one where the dependency map used to force every page
@@ -463,7 +610,7 @@ fi
 # the same answer.
 "$HERE/onemod-gate.sh" "$OUT/first/litedoc4-build.json" "$OUT/first/work/serve.out"
 
-say "10/10 summary"
+say "11/11 summary"
 printf 'site files : %s\n' "$(find "$OUT/first/site" -type f | wc -l | tr -d ' ')"
 printf 'ir files   : %s\n' "$(find "$OUT/first/ir" -type f | wc -l | tr -d ' ')"
 printf 'out        : %s\n' "$OUT"

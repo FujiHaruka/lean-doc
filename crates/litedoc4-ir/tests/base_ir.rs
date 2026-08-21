@@ -19,7 +19,7 @@
 use std::path::PathBuf;
 
 use litedoc4_ir::{
-    Decl, IrTree, Member, ModuleFile, SorryFact, SorryKind, Span, SpanKind, Utf16Text,
+    Attr, Decl, IrTree, Member, ModuleFile, SorryFact, SorryKind, Span, SpanKind, Utf16Text,
 };
 
 const DEFAULT_IR: &str = "/private/tmp/lean-doc-relay/w7h/base-ir";
@@ -472,4 +472,123 @@ fn an_unknown_sorry_value_is_rejected() {
         "equationCode":[],"refs":[],"sorry":"maybe"}"#;
     let err = serde_json::from_str::<Decl>(json).unwrap_err();
     assert!(err.to_string().contains("maybe"), "{err}");
+}
+
+/// One declaration whose `attrs` array is written out verbatim, so that a test
+/// can put a shape on the wire that no writer would.
+fn decl_with_attrs_json(attrs: &str) -> String {
+    format!(
+        r#"{{"name":"Pkg.M.f","kind":"theorem","modifiers":[],"binders":[],
+            "implicits":[],"binderCode":[],"type":"","typeCode":[],"line":1,"col":0,
+            "endLine":1,"endCol":1,"index":0,"members":[],"doc":null,"equations":[],
+            "equationCode":[],"refs":[],"attrs":{attrs}}}"#
+    )
+}
+
+/// Both wire shapes parse, and the schema-4 one comes out **name-only**.
+///
+/// The reader has to take a string, because `MIN_SCHEMA_VERSION` is still 4 and
+/// because curated schema-4 IR is frozen as *test input* inside
+/// `litedoc4-global/tests/data/global-expected.json`. What it must not do is
+/// split that string on a space to invent a value: the boundary is a fact about
+/// the attribute (`deprecated`'s value has spaces in it) that only the extractor
+/// has, so a schema-4 file carries a name and an empty value — and says so.
+#[test]
+fn an_attribute_reads_from_both_wire_shapes() {
+    let schema5: Decl = serde_json::from_str(&decl_with_attrs_json(
+        r#"[["simp",""],["deprecated","Pkg.M.g (since := \"2026-05-21\")"]]"#,
+    ))
+    .expect("the schema-5 shape is a two-element array");
+    assert_eq!(
+        schema5.attrs,
+        vec![
+            Attr {
+                name: "simp".to_owned(),
+                value: String::new(),
+            },
+            Attr {
+                name: "deprecated".to_owned(),
+                value: r#"Pkg.M.g (since := "2026-05-21")"#.to_owned(),
+            },
+        ]
+    );
+
+    let schema4: Decl = serde_json::from_str(&decl_with_attrs_json(
+        r#"["simp","deprecated Pkg.M.g (since := \"2026-05-21\")"]"#,
+    ))
+    .expect("the schema-4 shape is a bare string");
+    assert_eq!(
+        schema4.attrs,
+        vec![
+            Attr {
+                name: "simp".to_owned(),
+                value: String::new(),
+            },
+            Attr {
+                // The whole string, *not* split at the first space.
+                name: r#"deprecated Pkg.M.g (since := "2026-05-21")"#.to_owned(),
+                value: String::new(),
+            },
+        ],
+        "a schema-4 string was split downstream"
+    );
+
+    // And the two agree about what a renderer prints, which is what makes the
+    // shape change invisible to bundle B's output.
+    let printed = |decl: &Decl| {
+        decl.attrs
+            .iter()
+            .map(|attr| attr.text().into_owned())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(printed(&schema5), printed(&schema4));
+}
+
+/// An `attrs` array of any arity but two is an error, not a best guess.
+///
+/// A one-element array read as a name would be indistinguishable from the
+/// schema-4 string it is not; a three-element one read as a pair would drop
+/// whatever a future writer put third. Both are the "推測しない" rule from
+/// CLAUDE.md applied to the wire.
+#[test]
+fn an_attribute_array_of_the_wrong_arity_is_rejected() {
+    for attrs in [
+        r#"[["simp"]]"#,
+        r#"[[]]"#,
+        r#"[["instance","100","extra"]]"#,
+    ] {
+        let err = serde_json::from_str::<Decl>(&decl_with_attrs_json(attrs))
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains("two-element"),
+            "{attrs} was accepted or failed for the wrong reason: {err}"
+        );
+    }
+
+    // Neither is a shape that is not a string or an array at all.
+    let err =
+        serde_json::from_str::<Decl>(&decl_with_attrs_json(r#"[{"name":"simp","value":""}]"#))
+            .unwrap_err()
+            .to_string();
+    assert!(err.contains("two-element"), "{err}");
+}
+
+/// `Attr::text` is the schema-4 string, both ways round.
+///
+/// This is the only thing that lets a schema-5 pair and the schema-4 string it
+/// replaced render the same bytes, so it is asserted rather than left to the
+/// renderer's test to imply.
+#[test]
+fn an_attributes_text_is_the_string_schema_4_carried() {
+    let tag = Attr {
+        name: "simp".to_owned(),
+        value: String::new(),
+    };
+    let valued = Attr {
+        name: "instance".to_owned(),
+        value: "100".to_owned(),
+    };
+    assert_eq!(tag.text(), "simp");
+    assert_eq!(valued.text(), "instance 100");
 }

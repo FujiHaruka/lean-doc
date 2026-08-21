@@ -69,8 +69,16 @@ pub const LEDGER_SCHEMA: u64 = 2;
 ///
 /// Bump the version when a re-extraction can produce different IR bytes.
 ///
+/// **v2** is B-2 (`docs/plans/feature-sweep.md`): `attrs` elements became
+/// `[name, value]` arrays where they had been one concatenated string. That is
+/// the case this constant exists for and `irSchemaVersion` cannot cover —
+/// the schema was already 5 when the elements were still strings, so the only
+/// thing that separates the two IRs is which extractor wrote them. Without the
+/// bump an IR extracted before the change is reused, renders the same bytes
+/// today, and silently has nothing for bundle C to link `@[deprecated Foo]` to.
+///
 /// [`litedoc4_global::STATE_DERIVATION`]: ../litedoc4_global/constant.STATE_DERIVATION.html
-pub const EXTRACTOR_ID: &str = "litedoc4 extractor v1";
+pub const EXTRACTOR_ID: &str = "litedoc4 extractor v2";
 
 /// `renderKey.renderer`: which implementation will run when the key says
 /// "re-render everything".

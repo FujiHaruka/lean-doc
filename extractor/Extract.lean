@@ -742,6 +742,22 @@ so that one loop can serve both `EnumAttributes` and `ParametricAttribute`. That
 indirection is not reproduced here: the lists have 1 and 5 entries and are
 `def`s, so the loop is written out. What has to stay identical is the strings
 and their order.
+
+## Schema 5: the name and the value are separate
+
+doc-gen4 concatenates them — `parametricGetValue` returns
+`<attribute name> <value>` as one string, and that is what schema 4 carried. The
+pair is split here instead, and written on the wire as a two-element array
+`["deprecated", "Foo (since := \"…\")"]`, the same shape `refs` uses. **The
+split happens at this end because this is the only end that knows where the
+boundary is**: an attribute value can contain spaces (`deprecated`) and brackets
+(`specialize`), so a reader given the concatenation would have to guess, and a
+guess made downstream is a second answer to a question already answered here.
+
+Every collector below therefore returns `Array (String × String)`. A tag
+attribute has no value and carries `""` — which is a different thing from a
+value that happens to be empty in the printed form, but nothing in doc-gen4's
+fixed list distinguishes those either, and the concatenation could not have.
 -/
 
 def tagAttributes : Array TagAttribute :=
@@ -777,28 +793,35 @@ def deprecationString (entry : Linter.DeprecationEntry) : String := Id.run do
   string := string.trimAsciiEnd.copy
   return string
 
-def getTags (decl : Name) : MetaM (Array String) := do
+def getTags (decl : Name) : MetaM (Array (String × String)) := do
   let env ← getEnv
-  return tagAttributes.filter (TagAttribute.hasTag · env decl) |>.map (·.attr.name.toString)
+  return tagAttributes.filter (TagAttribute.hasTag · env decl)
+    |>.map (fun a => (a.attr.name.toString, ""))
 
-/-- doc-gen4's `enumAttributes`: exactly one entry, `Compiler.inlineAttrs`. -/
-def getEnumValues (decl : Name) : MetaM (Array String) := do
+/-- doc-gen4's `enumAttributes`: exactly one entry, `Compiler.inlineAttrs`.
+
+The enum's own string *is* the attribute name (`inline`, `macro_inline`, …), so
+this is a name with no value rather than a value with no name — doc-gen4 prints
+it alone for the same reason. -/
+def getEnumValues (decl : Name) : MetaM (Array (String × String)) := do
   let env ← getEnv
   match EnumAttributes.getValue Compiler.inlineAttrs env decl with
-  | some v => return #[inlineAttrString v]
+  | some v => return #[(inlineAttrString v, "")]
   | none => return #[]
 
-/-- doc-gen4's `parametricAttributes`, in its order. Each value is printed as
-`<attribute name> <value>` (`parametricGetValue`). -/
-def getParametricValues (decl : Name) : MetaM (Array String) := do
+/-- doc-gen4's `parametricAttributes`, in its order. These are the four entries
+that actually carry a value; doc-gen4's `parametricGetValue` glues it to the name
+as `<attribute name> <value>` and the pair is kept apart here (see the heading).
+-/
+def getParametricValues (decl : Name) : MetaM (Array (String × String)) := do
   let env ← getEnv
-  let mut res : Array String := #[]
+  let mut res : Array (String × String) := #[]
   if let some v := ParametricAttribute.getParam? externAttr env decl then
-    res := res.push (externAttr.attr.name.toString ++ " " ++ externAttrString v)
+    res := res.push (externAttr.attr.name.toString, externAttrString v)
   if let some v := ParametricAttribute.getParam? Compiler.implementedByAttr env decl then
-    res := res.push (Compiler.implementedByAttr.attr.name.toString ++ " " ++ toString v)
+    res := res.push (Compiler.implementedByAttr.attr.name.toString, toString v)
   if let some v := ParametricAttribute.getParam? exportAttr env decl then
-    res := res.push (exportAttr.attr.name.toString ++ " " ++ toString v)
+    res := res.push (exportAttr.attr.name.toString, toString v)
   if let some v := ParametricAttribute.getParam? Compiler.specializeAttr env decl then
     -- `Compiler.specializeAttr : ParametricAttribute (Array Nat)` in Lean
     -- v4.31.0, so the string is core's `ToString (Array α)`, i.e. `#[0, 1]`.
@@ -806,9 +829,9 @@ def getParametricValues (decl : Name) : MetaM (Array String) := do
     -- this entry; it is dead code there, because that is not the attribute's
     -- parameter type. Reproducing the dead instance would produce the wrong
     -- string, so it is not reproduced.
-    res := res.push (Compiler.specializeAttr.attr.name.toString ++ " " ++ toString v)
+    res := res.push (Compiler.specializeAttr.attr.name.toString, toString v)
   if let some v := ParametricAttribute.getParam? Linter.deprecatedAttr env decl then
-    res := res.push (Linter.deprecatedAttr.attr.name.toString ++ " " ++ deprecationString v)
+    res := res.push (Linter.deprecatedAttr.attr.name.toString, deprecationString v)
   return res
 
 /-- doc-gen4's `customAttrs` (`hasSimp`, `hasCsimp`, `getReducibility`) in order.
@@ -838,22 +861,22 @@ The slicing is spelled `drop`/`dropEnd`/`toString` because that is what compiles
 warning-free on all three toolchains: `String.drop` returns a `String.Slice` here,
 `Slice.dropRight` is deprecated in favour of `dropEnd`, and `String.mk` is
 deprecated in favour of `ofList` — all measured, not assumed. -/
-def getCustomAttrs (decl : Name) : MetaM (Array String) := do
-  let mut res : Array String := #[]
+def getCustomAttrs (decl : Name) : MetaM (Array (String × String)) := do
+  let mut res : Array (String × String) := #[]
   let thms ← simpExtension.getTheorems
   if thms.isLemma (.decl decl) then
-    res := res.push "simp"
+    res := res.push ("simp", "")
   if Compiler.hasCSimpAttribute (← getEnv) decl then
-    res := res.push "csimp"
+    res := res.push ("csimp", "")
   let status ← getReducibilityStatus decl
   if status != .semireducible then
     let bracketed := status.toAttrString
     unless bracketed.startsWith "[" && bracketed.endsWith "]" do
       throwError "ReducibilityStatus.toAttrString returned {bracketed}, expected [name]"
-    res := res.push ((bracketed.drop 1).dropEnd 1).toString
+    res := res.push (((bracketed.drop 1).dropEnd 1).toString, "")
   return res
 
-def getAllAttributes (decl : Name) : MetaM (Array String) := do
+def getAllAttributes (decl : Name) : MetaM (Array (String × String)) := do
   let tags ← getTags decl
   let enums ← getEnumValues decl
   let parametric ← getParametricValues decl
@@ -909,11 +932,12 @@ def getInstPriority (name : Name) : MetaM (Option Nat) := do
     | throwError "instance not in instance extension: {name}"
   if instEntry.priority == 1000 then return none else return some instEntry.priority
 
-def getDefaultInstanceAttr (decl : Name) (className : Name) : MetaM (Option String) := do
+def getDefaultInstanceAttr (decl : Name) (className : Name) :
+    MetaM (Option (String × String)) := do
   let insts ← getDefaultInstances className
   for (inst, prio) in insts do
     if inst == decl then
-      return some s!"defaultInstance {prio}"
+      return some ("defaultInstance", toString prio)
   return none
 
 /-! ## Referenced constants — the demand side of the link map
@@ -1483,8 +1507,12 @@ structure DeclOut where
   Empty without `--tagged-code`; see `declModifiers`. -/
   modifiers : Array String := #[]
   /-- Schema 4: `getAllAttributes` plus, for instances, the two attributes
-  `InstanceInfo.ofDefinitionInfo` appends. Empty without `--tagged-code`. -/
-  attrs : Array String := #[]
+  `InstanceInfo.ofDefinitionInfo` appends. Empty without `--tagged-code`.
+
+  Schema 5 splits each entry into `(name, value)`; `value` is `""` for the
+  attributes that do not take one. See the attributes heading for why the split
+  is made here and not by the reader. -/
+  attrs : Array (String × String) := #[]
   /-- Schema 4, instances only: `isClass?` of the instance's type. -/
   instClass : Option Name := none
   /-- Schema 4, instances only: `getInstanceTypes`. Never printed on a module
@@ -1605,7 +1633,7 @@ def baseInfo (cfg : Cfg) (probe : PpProbe) (refs : RefSink) (module : Name) (kin
     | throwError "{cv.name} is a declaration without position"
   -- doc-gen4 collects the attributes here, inside `Info.ofTypedName`
   -- (`Process/NameInfo.lean:118-126`), for every declaration it keeps.
-  let mut attrs : Array String := #[]
+  let mut attrs : Array (String × String) := #[]
   if cfg.wantAttrs then
     let t0 ← IO.monoNanosNow
     attrs ← getAllAttributes cv.name
@@ -1797,7 +1825,7 @@ def withInstanceIndex (cfg : Cfg) (type : Expr) (d : DeclOut) : AnalyzeM DeclOut
   let t0 ← IO.monoNanosNow
   let mut attrs := d.attrs
   if let some priority ← getInstPriority d.name then
-    attrs := attrs.push s!"instance {priority}"
+    attrs := attrs.push ("instance", toString priority)
   let some className ← isClass? type
     | throwError "isClass? on {d.name} returned none"
   if let some instAttr ← getDefaultInstanceAttr d.name className then
@@ -2343,7 +2371,14 @@ cannot carry, since there the key could not exist. The reading side keeps the
 two apart with `ModuleFile::sorry_of`, which answers `Unknown` below schema 5;
 `litedoc4-ir`'s `MIN_SCHEMA_VERSION` deliberately stays at 4 until the fixture
 re-freeze (see its doc comment for why). Nothing has to migrate either way: the
-extract key carries `irSchemaVersion`, so this bump re-extracts. -/
+extract key carries `irSchemaVersion`, so this bump re-extracts.
+
+Version 5 also **changes** a field rather than adding one: `attrs` elements are
+`[name, value]` arrays where schema 4 had one concatenated string (`B-2`). That
+is a change the version number cannot announce on its own — the number was
+already 5 when the elements were still strings — so `litedoc4-incr`'s
+`EXTRACTOR_ID` carries it instead, and the reader accepts both shapes because a
+schema-4 file is still readable and still says `4`. -/
 def irSchemaVersion (tagged : Bool) : Nat := if tagged then 5 else 1
 
 /-- Where `--write-ir` writes. **`--ir-dir` and nothing else** — no default, and
@@ -2497,7 +2532,16 @@ def declToIrJson (tagged : Bool) (index : Nat) (d : DeclOut) (refs : Array (Name
     -- Schema 4, emitted only when there is something to say. 4,750 declarations
     -- with `"attrs":[]` would be 52 KB of nothing; a reader distinguishes
     -- "absent" from "old schema" by `schemaVersion`, not by the key.
-    (if tagged && !d.attrs.isEmpty then [("attrs", Json.arr (d.attrs.map Json.str))] else []) ++
+    --
+    -- Schema 5 changes the element from a string to `[name, value]` — the shape
+    -- `refs` above already uses, rather than an object with keys, because the
+    -- reader is hand-written either way and two element names would be two more
+    -- strings per attribute on the wire. The reason the pair exists at all is
+    -- that only this side knows where the boundary between the two is; see the
+    -- attributes heading.
+    (if tagged && !d.attrs.isEmpty then
+       [("attrs", Json.arr (d.attrs.map fun (n, v) => Json.arr #[Json.str n, Json.str v]))]
+     else []) ++
     -- Schema 5, same rule: present only when there is something to say. The
     -- absent key means "no sorry" and it means that **because the file says
     -- `schemaVersion` 5** — in a schema-4 file the key could not exist, so the

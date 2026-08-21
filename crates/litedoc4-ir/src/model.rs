@@ -16,8 +16,11 @@
 //! a sorted map). That matters for writing, which this crate does not do; for
 //! reading it is irrelevant, and nothing here depends on field order.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
+use std::fmt;
 
+use serde::de::{self, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
 use crate::{Span, Utf16Text};
@@ -223,8 +226,12 @@ pub struct Decl {
     pub refs: Vec<Ref>,
     /// Schema 4. Omitted by the writer when empty, so an empty vector here
     /// means "no attributes", never "unknown".
+    ///
+    /// The **element** shape moved in schema 5 (`docs/plans/feature-sweep.md`
+    /// B-2): `[name, value]` where schema 4 had `"name value"`. Both parse —
+    /// see [`Attr`].
     #[serde(default)]
-    pub attrs: Vec<String>,
+    pub attrs: Vec<Attr>,
     /// Schema 4, instances only: the class this instance is for. `None` for
     /// everything else, and then `inst_types` is empty as well.
     #[serde(default)]
@@ -260,6 +267,110 @@ pub enum SorryKind {
     Direct,
     /// It does not, but something it depends on does.
     Transitive,
+}
+
+/// One attribute on a declaration: the attribute's name, and the value the
+/// extractor printed for it.
+///
+/// On the wire (schema 5) it is a two-element array, `["deprecated", "Foo
+/// (since := \"2026-05-21\")"]` — the shape [`Ref`] already uses, rather than an
+/// object, because the reader is hand-written either way and keys would be two
+/// more strings per attribute in every module file.
+///
+/// # Why the two shapes
+///
+/// Schema 4 wrote one concatenated string per attribute, `"deprecated Foo"`,
+/// and **that file still parses**: a bare string arrives here as a name with an
+/// empty [`Attr::value`]. It has to, because
+/// [`crate::MIN_SCHEMA_VERSION`] is still 4 and because curated schema-4 IR is
+/// frozen inside `litedoc4-global/tests/data/global-expected.json` **as test
+/// input**, where hand-editing it is the thing C-4's procedure exists to avoid.
+///
+/// # What the reader must not do
+///
+/// Split a schema-4 string on its first space. An attribute value can contain
+/// spaces (`deprecated`) and brackets (`specialize #[0, 1]`), so where the
+/// boundary is is a fact about the attribute rather than about the string, and
+/// the extractor is the only side that has it. Guessing here would be a second
+/// answer to a question already answered there; a schema-4 file simply does not
+/// carry the answer, and says so by leaving `value` empty.
+///
+/// The consequence for a consumer that wants to *act* on an attribute — link
+/// `@[deprecated Foo]` to `Foo`, style by name — is that it must check
+/// [`Attr::value`] is non-empty rather than assume the pair was split.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Attr {
+    /// `simp`, `deprecated`, `instance`, ... Never empty in practice; the
+    /// extractor's four collectors all name their attribute.
+    pub name: String,
+    /// Empty for the attributes that take no argument, and for **every**
+    /// attribute of a schema-4 file.
+    pub value: String,
+}
+
+impl Attr {
+    /// The one string schema 4 carried: the name alone, or `name value`.
+    ///
+    /// This is what makes the shape change invisible to a renderer that only
+    /// prints attributes — a schema-4 string round-trips through
+    /// [`Attr::name`] unchanged, and a schema-5 pair rejoins to what the same
+    /// extractor used to write.
+    pub fn text(&self) -> Cow<'_, str> {
+        if self.value.is_empty() {
+            Cow::Borrowed(&self.name)
+        } else {
+            Cow::Owned(format!("{} {}", self.name, self.value))
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Attr {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        deserializer.deserialize_any(AttrVisitor)
+    }
+}
+
+/// Accepts the two wire shapes and **nothing else**.
+///
+/// In particular an array of any arity but two is an error rather than a
+/// best-effort read: a one-element array would otherwise become a name with no
+/// value, which is indistinguishable from a legitimate schema-4 string, and a
+/// three-element one would silently drop whatever the writer added.
+struct AttrVisitor;
+
+impl<'de> Visitor<'de> for AttrVisitor {
+    type Value = Attr;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(
+            "an attribute: a two-element [name, value] array (schema 5), \
+             or a string (schema 4)",
+        )
+    }
+
+    fn visit_str<E: de::Error>(self, value: &str) -> Result<Attr, E> {
+        Ok(Attr {
+            name: value.to_owned(),
+            value: String::new(),
+        })
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Attr, A::Error> {
+        let name: String = seq
+            .next_element()?
+            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+        let value: String = seq
+            .next_element()?
+            .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+        let mut extra = 2;
+        while seq.next_element::<de::IgnoredAny>()?.is_some() {
+            extra += 1;
+        }
+        if extra > 2 {
+            return Err(de::Error::invalid_length(extra, &self));
+        }
+        Ok(Attr { name, value })
+    }
 }
 
 /// A structure field, constructor or parent, as listed under a declaration.

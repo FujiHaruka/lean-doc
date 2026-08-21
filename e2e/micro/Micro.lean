@@ -1,3 +1,4 @@
+import Micro.Attrs
 import Micro.Basic
 import Micro.Dep
 import Micro.Notation
