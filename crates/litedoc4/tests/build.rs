@@ -762,7 +762,8 @@ fn write_dependency(live: &Live) -> PathBuf {
 
     // The IR the fake extractor copies: `Dep.elsewhere` is a name this package
     // refers to, so it is what the table is asked about.
-    let slice = br#"{"schemaVersion":4,"package":"Dep","declarations":{"Dep.elsewhere":"Dep.Home"}}"#;
+    let slice =
+        br#"{"schemaVersion":4,"package":"Dep","declarations":{"Dep.elsewhere":"Dep.Home"}}"#;
     write(&live.world.join("ir/deps/Dep.json"), slice);
     write(
         &live.world.join("ir/deps-index.json"),
@@ -966,7 +967,10 @@ fn the_documentation_map_reaches_the_render_key() {
     assert_eq!(code(&without), 0, "{}", stderr(&without));
     let plain = live.ledger()["renderKey"]["externalLinks"].clone();
 
-    assert!(documented.is_string() && plain.is_string(), "{documented} / {plain}");
+    assert!(
+        documented.is_string() && plain.is_string(),
+        "{documented} / {plain}"
+    );
     assert_ne!(
         documented, plain,
         "the ledger records the same key with and without the documentation map, so a run that \
@@ -974,7 +978,11 @@ fn the_documentation_map_reaches_the_render_key() {
     );
     // …and the map is not in the tree any more, so the run cannot be read as
     // still using it.
-    assert!(!stdout(&without).contains("deps    Dep:"), "{}", stdout(&without));
+    assert!(
+        !stdout(&without).contains("deps    Dep:"),
+        "{}",
+        stdout(&without)
+    );
 }
 
 /// **`litedoc4 ledger` computes the key `build` recorded — with the map, and

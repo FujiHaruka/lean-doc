@@ -1115,7 +1115,9 @@ mod tests {
             index
                 .link_to(".././", "Mathlib.Order.Basic", Some("LE.ext"))
                 .as_deref(),
-            Some("https://leanprover-community.github.io/mathlib4_docs/Mathlib/Order/Basic.html#LE.ext"),
+            Some(
+                "https://leanprover-community.github.io/mathlib4_docs/Mathlib/Order/Basic.html#LE.ext"
+            ),
         );
         assert_eq!(
             index.link_to_module("./", "Mathlib.Order.Basic").as_deref(),

@@ -314,10 +314,7 @@ pub(crate) fn resolve(
         let found = match read(&group[0].index, &want, &asked) {
             Ok(found) => found,
             Err(Problem::Missing(message)) => {
-                return Err(Failure::Refused {
-                    code: 3,
-                    message,
-                });
+                return Err(Failure::Refused { code: 3, message });
             }
             Err(Problem::Unreadable(why)) => {
                 for site in &group {
@@ -331,7 +328,11 @@ pub(crate) fn resolve(
             }
         };
         for site in group {
-            let declarations = found.declarations.get(&site.root).cloned().unwrap_or_default();
+            let declarations = found
+                .declarations
+                .get(&site.root)
+                .cloned()
+                .unwrap_or_default();
             let modules = found.modules.get(&site.root).cloned().unwrap_or_default();
             resolved.push(Resolved {
                 requested_names: want.count(&site.root),
@@ -419,8 +420,8 @@ fn read(source: &Source, want: &Want, roots: &BTreeSet<String>) -> Result<Found,
             // A path that is not there is `Unreadable`, not `Missing`: the
             // machine is fine and the file the caller named is not, which is the
             // same state a 404 is and takes the same answer.
-            let file = File::open(path)
-                .map_err(|source| Problem::Unreadable(source.to_string()))?;
+            let file =
+                File::open(path).map_err(|source| Problem::Unreadable(source.to_string()))?;
             parse_table(BufReader::new(file), want, roots).map_err(Problem::Unreadable)
         }
         Source::Url(url) => fetch(url, want, roots),
@@ -490,11 +491,7 @@ fn fetch(url: &str, want: &Want, roots: &BTreeSet<String>) -> Result<Found, Prob
 /// Every value this run has no use for goes through [`IgnoredAny`], which walks
 /// the JSON without building it — that is what keeps a 66 MB table from
 /// becoming a 66 MB `Value` and then a map fifty times larger than the answer.
-fn parse_table<R: Read>(
-    reader: R,
-    want: &Want,
-    roots: &BTreeSet<String>,
-) -> Result<Found, String> {
+fn parse_table<R: Read>(reader: R, want: &Want, roots: &BTreeSet<String>) -> Result<Found, String> {
     let mut found = Found::default();
     let mut de = serde_json::Deserializer::from_reader(reader);
     Table {
@@ -727,8 +724,11 @@ pub(crate) fn read_map(path: &Path) -> Result<Vec<Resolved>, Failure> {
         code: 3,
         message: format!("{}: {why}", path.display()),
     };
-    let text = std::fs::read_to_string(path)
-        .map_err(|source| refuse(format!("{source}. `litedoc4 build --deps-docs-url …` writes it")))?;
+    let text = std::fs::read_to_string(path).map_err(|source| {
+        refuse(format!(
+            "{source}. `litedoc4 build --deps-docs-url …` writes it"
+        ))
+    })?;
     let record: serde_json::Value =
         serde_json::from_str(&text).map_err(|source| refuse(source.to_string()))?;
     let version = record.get("version").and_then(serde_json::Value::as_u64);
@@ -755,9 +755,10 @@ pub(crate) fn read_map(path: &Path) -> Result<Vec<Resolved>, Failure> {
             };
             map.iter()
                 .map(|(key, value)| {
-                    value.as_str().map(|link| (key.clone(), link.to_owned())).ok_or_else(|| {
-                        refuse(format!("`{name}.{key}` is not a string"))
-                    })
+                    value
+                        .as_str()
+                        .map(|link| (key.clone(), link.to_owned()))
+                        .ok_or_else(|| refuse(format!("`{name}.{key}` is not a string")))
                 })
                 .collect()
         };
@@ -868,7 +869,10 @@ mod tests {
                 "{\"declarations\":{\"Dep.wanted\":\"./x.html\"},\"modules\":{}}",
                 "invalid type",
             ),
-            ("{\"declarations\":{},\"modules\":{}} {}", "trailing content"),
+            (
+                "{\"declarations\":{},\"modules\":{}} {}",
+                "trailing content",
+            ),
         ];
         let want = want(&[("Dep.wanted", "Dep")]);
         for (text, expected) in cases {
@@ -902,11 +906,7 @@ mod tests {
 
     #[test]
     fn the_index_defaults_to_the_sites_own_declaration_table() {
-        let sites = parse(
-            &["Dep=https://host.invalid/docs/".to_owned()],
-            &[],
-        )
-        .expect("one site");
+        let sites = parse(&["Dep=https://host.invalid/docs/".to_owned()], &[]).expect("one site");
         assert_eq!(sites[0].root, "Dep");
         assert_eq!(sites[0].base, "https://host.invalid/docs/");
         assert_eq!(
@@ -1013,10 +1013,8 @@ mod tests {
     /// An artifact of another shape is refused by name rather than half-read.
     #[test]
     fn a_resolved_map_of_another_shape_is_refused() {
-        let dir = std::env::temp_dir().join(format!(
-            "litedoc4-deps-docs-bad-{}",
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("litedoc4-deps-docs-bad-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("a writable temporary directory");
         for (body, expected) in [
             ("not json", "expected"),

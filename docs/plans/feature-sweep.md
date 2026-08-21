@@ -379,8 +379,13 @@ C-1 (a 数式)  →  C-2 (d 逆引き)  →  C-3 (i 設定)  →  C-4 (再凍結
 
 **完了条件** (全部満たすまで終わりではない):
 
-1. `cargo test --workspace` / `cargo clippy -- -D warnings` / `cargo doc` (RUSTDOCFLAGS=-D warnings) /
-   `cargo machete` が緑。
+1. **CI が回すものを全部**、手元でも緑。**一覧は `.github/workflows/ci.yml` が SoT**で、
+   記憶で並べない (2026-08-21 に `cargo fmt --all --check` を落として main を赤くした):
+   `tools/assets-gate.sh` / **`cargo fmt --all --check`** / `cargo clippy --workspace
+   --all-targets -- -D warnings` / `cargo doc --workspace --no-deps --document-private-items` /
+   `cargo machete` / `cargo test --workspace --no-fail-fast` /
+   `tools/corpus-gate.sh --verify-list` / `tools/provenance-gate.sh`、
+   別ジョブで `tools/e2e-micro.sh` と `tools/browser-gate.sh`。
 2. 既存ゲート (`tools/*-gate.sh`) が全部緑。
 3. **新しいゲートは一度落としてから緑**。落とした記録を残す。
 4. **ゲートが走った本数を数える** — inventory と実際に結果を報告した本数を突き合わせる。

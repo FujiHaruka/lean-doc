@@ -265,10 +265,7 @@ fn route(root: &Path, target: &str) -> Route {
 fn segments(target: &str) -> Result<Vec<String>, Route> {
     // The query and the fragment are not part of the file name. A fragment never
     // reaches a server, but a hand-written request can carry one.
-    let path = target
-        .split(['?', '#'])
-        .next()
-        .unwrap_or_default();
+    let path = target.split(['?', '#']).next().unwrap_or_default();
     if !path.starts_with('/') {
         return Err(Route::Bad(
             "a request target has to be an absolute path (this server answers `GET /x.html`, not \
@@ -277,7 +274,8 @@ fn segments(target: &str) -> Result<Vec<String>, Route> {
     }
     let mut out: Vec<String> = Vec::new();
     for raw in path.split('/') {
-        let decoded = decode(raw).ok_or(Route::Bad("a % escape in the path is not two hex digits"))?;
+        let decoded =
+            decode(raw).ok_or(Route::Bad("a % escape in the path is not two hex digits"))?;
         match decoded.as_str() {
             "" | "." => {}
             ".." => {
@@ -422,10 +420,8 @@ mod tests {
 
     impl Site {
         fn new(what: &str) -> Self {
-            let root = std::env::temp_dir().join(format!(
-                "litedoc4-httpd-{}-{what}",
-                std::process::id(),
-            ));
+            let root =
+                std::env::temp_dir().join(format!("litedoc4-httpd-{}-{what}", std::process::id(),));
             let _ = fs::remove_dir_all(&root);
             fs::create_dir_all(root.join("Pkg")).expect("the directory is creatable");
             fs::write(root.join("index.html"), "<h1>index</h1>").expect("writable");
@@ -511,7 +507,11 @@ mod tests {
     #[test]
     fn a_symlink_out_of_the_site_is_refused_even_though_every_component_is_innocent() {
         let site = Site::new("symlink");
-        let outside = site.root.parent().expect("a parent").join("symlink-secret.txt");
+        let outside = site
+            .root
+            .parent()
+            .expect("a parent")
+            .join("symlink-secret.txt");
         fs::write(&outside, "not yours").expect("writable");
         #[cfg(unix)]
         std::os::unix::fs::symlink(&outside, site.root.join("escape.txt")).expect("symlink");
@@ -525,15 +525,27 @@ mod tests {
 
     #[test]
     fn the_content_type_follows_the_extension_and_falls_back_to_bytes() {
-        assert_eq!(content_type(Path::new("a/b.html")), "text/html; charset=utf-8");
-        assert_eq!(content_type(Path::new("a/b.HTML")), "text/html; charset=utf-8");
-        assert_eq!(content_type(Path::new("style.css")), "text/css; charset=utf-8");
+        assert_eq!(
+            content_type(Path::new("a/b.html")),
+            "text/html; charset=utf-8"
+        );
+        assert_eq!(
+            content_type(Path::new("a/b.HTML")),
+            "text/html; charset=utf-8"
+        );
+        assert_eq!(
+            content_type(Path::new("style.css")),
+            "text/css; charset=utf-8"
+        );
         assert_eq!(
             content_type(Path::new("declarations/name-map.json")),
             "application/json; charset=utf-8",
         );
         assert_eq!(content_type(Path::new("favicon.svg")), "image/svg+xml");
-        assert_eq!(content_type(Path::new("LICENSE")), "application/octet-stream");
+        assert_eq!(
+            content_type(Path::new("LICENSE")),
+            "application/octet-stream"
+        );
     }
 
     /// One real connection, because the routing above says nothing about the
@@ -551,13 +563,19 @@ mod tests {
 
         let ok = request(port, "GET /Pkg/Basic.html HTTP/1.1");
         assert!(ok.starts_with("HTTP/1.1 200 OK\r\n"), "{ok}");
-        assert!(ok.contains("Content-Type: text/html; charset=utf-8\r\n"), "{ok}");
+        assert!(
+            ok.contains("Content-Type: text/html; charset=utf-8\r\n"),
+            "{ok}"
+        );
         assert!(ok.contains("Content-Length: 18\r\n"), "{ok}");
         assert!(ok.contains("Cache-Control: no-store\r\n"), "{ok}");
         assert!(ok.ends_with("<h1>Pkg.Basic</h1>"), "{ok}");
 
         let missing = request(port, "GET /Pkg/Nope.html HTTP/1.1");
-        assert!(missing.starts_with("HTTP/1.1 404 Not Found\r\n"), "{missing}");
+        assert!(
+            missing.starts_with("HTTP/1.1 404 Not Found\r\n"),
+            "{missing}"
+        );
         assert!(
             missing.ends_with("<h1>not found</h1>"),
             "the site's own 404 page, so a wrong URL looks the way it will once published: \
@@ -565,7 +583,10 @@ mod tests {
         );
 
         let refused = request(port, "GET /../secret.txt HTTP/1.1");
-        assert!(refused.starts_with("HTTP/1.1 403 Forbidden\r\n"), "{refused}");
+        assert!(
+            refused.starts_with("HTTP/1.1 403 Forbidden\r\n"),
+            "{refused}"
+        );
 
         let head = request(port, "HEAD /Pkg/Basic.html HTTP/1.1");
         assert!(head.starts_with("HTTP/1.1 200 OK\r\n"), "{head}");
@@ -582,7 +603,8 @@ mod tests {
 
     #[test]
     fn a_site_that_is_not_there_yet_says_so_rather_than_answering_nothing() {
-        let root = std::env::temp_dir().join(format!("litedoc4-httpd-{}-absent", std::process::id()));
+        let root =
+            std::env::temp_dir().join(format!("litedoc4-httpd-{}-absent", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         let answer = respond(&root, "/");
         assert_eq!(answer.status, 503);

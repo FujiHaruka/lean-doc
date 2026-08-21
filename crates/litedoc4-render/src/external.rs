@@ -698,7 +698,10 @@ mod tests {
             "Mathlib".to_owned(),
             DepDocs::new(
                 DOCS,
-                [("Mathlib.Order.le_refl", "./Mathlib/Order/Basic.html#le_refl")],
+                [(
+                    "Mathlib.Order.le_refl",
+                    "./Mathlib/Order/Basic.html#le_refl",
+                )],
                 [("Mathlib.Order.Basic", "./Mathlib/Order/Basic.html")],
             ),
         )])
@@ -780,7 +783,11 @@ mod tests {
     fn a_docs_root_the_source_map_does_not_hold_arrives_with_an_empty_base() {
         let map = ExternalLinks::default().with_docs([(
             "Dep".to_owned(),
-            DepDocs::new(DOCS, [("Dep.thing", "./Dep.html#thing")], [("Dep", "./Dep.html")]),
+            DepDocs::new(
+                DOCS,
+                [("Dep.thing", "./Dep.html#thing")],
+                [("Dep", "./Dep.html")],
+            ),
         )]);
         assert_eq!(map.base_for("Dep"), Some(""));
         assert_eq!(map.url_for("Dep.Aux", None), None);
@@ -797,10 +804,8 @@ mod tests {
         let one = DepDocs::new(DOCS, [("A.b", "./A.html#b")], [("A", "./A.html")]);
         let none: [(&str, &str); 0] = [];
         let two = DepDocs::new("https://other.invalid", [("A.b", "./Z.html#b")], none);
-        let map = ExternalLinks::new([("A", "")]).with_docs([
-            ("A".to_owned(), one),
-            ("A".to_owned(), two),
-        ]);
+        let map = ExternalLinks::new([("A", "")])
+            .with_docs([("A".to_owned(), one), ("A".to_owned(), two)]);
         assert_eq!(map.docs_for("A").unwrap().base(), DOCS);
         assert_eq!(map.iter_docs().count(), 1);
     }

@@ -1115,11 +1115,8 @@ fn incremental_generation(
 /// `--deps-docs-url` it is the identity — no fetch, no artifact, no line — which
 /// is what makes the feature's default "nothing changes".
 fn resolve_docs(request: &Request, ir: &Path) -> Result<litedoc4_render::ExternalLinks, Failure> {
-    let resolved = crate::deps_docs::resolve(
-        &request.deps_docs,
-        ir,
-        Some(&request.layout.deps_docs_map),
-    )?;
+    let resolved =
+        crate::deps_docs::resolve(&request.deps_docs, ir, Some(&request.layout.deps_docs_map))?;
     Ok(crate::deps_docs::attach(&request.external_links, resolved))
 }
 

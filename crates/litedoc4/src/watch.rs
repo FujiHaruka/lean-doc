@@ -226,7 +226,9 @@ pub(crate) fn watch(args: &[String]) -> Result<(), Failure> {
     if request.source_url.is_none() {
         let derived = crate::build::derive_source_url(&request.root)?;
         crate::pipeline::check_source_url(&derived)?;
-        println!("watch   source {derived} (derived once, now — a commit during this session does not move it)");
+        println!(
+            "watch   source {derived} (derived once, now — a commit during this session does not move it)"
+        );
         request.source_url = Some(derived);
     }
 
@@ -234,7 +236,10 @@ pub(crate) fn watch(args: &[String]) -> Result<(), Failure> {
     // reader is still looking, not after a two-minute full generation.
     let listener = crate::httpd::bind(port)?;
     let site = request.layout.site.clone();
-    println!("watch   site   http://127.0.0.1:{port}/  ({})", site.display());
+    println!(
+        "watch   site   http://127.0.0.1:{port}/  ({})",
+        site.display()
+    );
     println!(
         "watch   root   {} — this command does **not** run `lake build`. Run it in another \
          window; watch notices the oleans it writes.",
@@ -440,10 +445,7 @@ fn announce(rebuilds: u64, now: Option<&Reading>) {
              site. This imports the package's Lean environment once and extracts every module, \
              which is the slowest thing this command does; the lines below are that run's own",
         ),
-        Some(reading) => println!(
-            "watch   #{rebuilds} the ledger reports {}",
-            reading.what(),
-        ),
+        Some(reading) => println!("watch   #{rebuilds} the ledger reports {}", reading.what(),),
     }
 }
 
@@ -572,7 +574,10 @@ impl Reading {
         lines.push(format!("re-extract {}", check.re_extract.join(",")));
         lines.push(format!("removed {}", check.removed.join(",")));
         lines.push(format!("renderKey {}", check.render_key_changed.join(",")));
-        lines.push(format!("extractKey {}", check.extract_key_changed.join(",")));
+        lines.push(format!(
+            "extractKey {}",
+            check.extract_key_changed.join(",")
+        ));
         Self {
             digest: sha256_text(&lines.join("\n")),
             modules: check.modules,
@@ -598,7 +603,10 @@ impl Reading {
             parts.push(format!("{} removed", self.removed));
         }
         if !self.render_all.is_empty() {
-            parts.push(format!("the render key moved ({})", self.render_all.join(",")));
+            parts.push(format!(
+                "the render key moved ({})",
+                self.render_all.join(",")
+            ));
         }
         if parts.is_empty() {
             return "nothing stale".to_owned();
@@ -695,7 +703,10 @@ mod tests {
     #[test]
     fn the_port_is_a_number_in_range_or_a_refusal_that_names_it() {
         let flags = Flags::default();
-        assert_eq!(flags.port().expect("the default"), crate::httpd::DEFAULT_PORT);
+        assert_eq!(
+            flags.port().expect("the default"),
+            crate::httpd::DEFAULT_PORT
+        );
         for (raw, needle) in [
             ("banana", "not `banana`"),
             ("70000", "not `70000`"),
