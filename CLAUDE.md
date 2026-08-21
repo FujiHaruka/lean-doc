@@ -315,6 +315,14 @@ lint と別に CI が持っているもの: **rustdoc のリンク**
   スクラッチのコピーか `git stash` で。
 - **ブラウザゲートの後に puppeteer が port 8899 を掴んだまま残ることがある** —
   `AddrInUse` が出たら `pkill -f check-site-browser.ts`。
+- **`litedoc4 watch` は長命なので、セッションが落ちても生き残る**【実測 2026-08-21】。
+  中断されたセッションの `watch` が同じ `--out` を書き続けていて、後から回した
+  `tools/watch-gate.sh` が**書きかけの IR を読んで落ちた**
+  (`EOF while parsing a value at line 1 column 0`) — 続けて cleanup の `rm` が
+  「Directory not empty」で失敗した (消す先から相手が作り直すため)。
+  **症状は「ゲートが壊れた」ように見えるが、壊れているのは環境。**
+  長命プロセスを起こすゲートを回す前に `pgrep -f 'litedoc4 watch'` を見る。
+  一般形: **作業領域を共有する長命プロセスは、失敗を作業領域のせいに見せかける。**
 - **CI の実測値を main を赤くせずに取るには、ブランチ push + `gh workflow run ci.yml --ref <branch>`**
   (検証用ワークフローは `workflow_dispatch` のみ。`ci.yml` だけが push / PR で走る)。
 - **パイプを噛ませた瞬間、見ている終了コードは最後のコマンドのものになる。**
