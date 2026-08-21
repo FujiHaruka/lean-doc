@@ -557,6 +557,7 @@ fn pages_carry_the_reference_trees_content() {
     let e = expected();
     let work = TempDir::new("reference");
     let summary = render_site(&RenderOptions {
+        config: &litedoc4_render::SiteConfig::EMPTY,
         ir: &ir,
         pages: &work.path,
         source_url: &e.source_url,
@@ -714,6 +715,7 @@ fn pages_carry_the_doc_gen4_trees_declarations() {
     // oracle skip on a machine that has the target checked out but no relay
     // directory, which is the machine it is most worth running on.
     render_site(&RenderOptions {
+        config: &litedoc4_render::SiteConfig::EMPTY,
         ir: &ir,
         pages: &work.path,
         source_url: &e.source_url,
@@ -870,6 +872,7 @@ impl Case {
         };
         let e = expected();
         render_site(&RenderOptions {
+            config: &litedoc4_render::SiteConfig::EMPTY,
             ir: &ir,
             pages: &pages,
             source_url: &e.source_url,

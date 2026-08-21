@@ -39,6 +39,7 @@ use std::path::{Path, PathBuf};
 use litedoc4_ir::IrTree;
 
 use crate::autolink::NameIndex;
+use crate::config::SiteConfig;
 use crate::decl::UnplaceableName;
 use crate::external::ExternalLinks;
 use crate::frame::SiteMeta;
@@ -109,6 +110,14 @@ pub struct RenderOptions<'a> {
     /// because the two mean the same thing here and one of them cannot be
     /// misread as "the default".
     pub external_links: &'a ExternalLinks,
+    /// What `<root>/litedoc4.toml` said, already read (feature-sweep C-3).
+    ///
+    /// A borrow rather than a path because **resolving it is not this
+    /// function's job**: three commands render, and if each read the file for
+    /// itself there would be three places that decide what "root" means. The
+    /// binary reads it once (`litedoc4::site_config`) and hands the answer to
+    /// whichever half is about to run.
+    pub config: &'a SiteConfig,
     /// The dependency closure's `name -> module` map.
     ///
     /// `None` is a decision, not a default: without it 150 of the target
@@ -177,7 +186,13 @@ pub fn render_site(options: &RenderOptions<'_>) -> Result<RenderSummary, Error> 
     let suppressed = Suppressed::of_site(&modules);
     // Over **every** module of the IR, not the subset being rendered: an
     // incremental round that re-renders one page must not retitle the site.
-    let site = SiteMeta::of_modules(modules.iter().map(|module| module.module.as_str()));
+    // The intro is `index.html`'s and `litedoc4-global` renders it; a module
+    // page carries only the title.
+    let site = SiteMeta::of(
+        options.config,
+        None,
+        modules.iter().map(|module| module.module.as_str()),
+    );
 
     let mut summary = RenderSummary {
         modules_in_ir: modules.len(),

@@ -178,6 +178,11 @@ const REV_HEX_DIGITS: usize = 40;
 
 /// Everything one incremental round needs to know.
 pub(crate) struct Incremental<'a> {
+    /// `<root>/litedoc4.toml`, read by `crate::site_config` (feature-sweep
+    /// C-3). Carried rather than re-read: the incremental round and the full
+    /// generation have to answer "what is this site called" the same way, and
+    /// two readers is two answers.
+    pub config: &'a litedoc4_render::SiteConfig,
     pub ir: &'a Path,
     pub pages: &'a Path,
     pub ledger: &'a Path,
@@ -641,6 +646,12 @@ pub(crate) fn run_incremental(
     // is the half of the render set no changed module can produce.
     write_file(&work.global_set, "")?;
     let mut derive = GlobalOptions::new(options.ir, options.pages);
+    // The same value the render half got. Without this line the incremental
+    // round rewrites `index.html`, `search.html` and `foundational_types.html`
+    // with the *derived* title while the full generation used the configured
+    // one — which `tools/e2e-micro.sh`'s GATE 2 caught on the first run of this
+    // feature 【実測 2026-08-22】: "the second run changed the site".
+    derive.config = options.config;
     derive.state = Some(options.state);
     derive.timings = Some(&work.global_timings);
     if have_before {
@@ -744,6 +755,7 @@ pub(crate) fn run_incremental(
         let only = ModuleSet::These(render_set);
         let at = Instant::now();
         let rendered = render_site(&RenderOptions {
+            config: options.config,
             ir: options.ir,
             pages: options.pages,
             source_url: options.source_url,
@@ -1154,8 +1166,10 @@ pub(crate) fn incremental(args: &[String]) -> Result<(), Failure> {
             link_index: make_link_index.then_some(link_index.as_path()),
         })?)?)),
     };
+    let config = crate::site_config(package.as_deref())?;
     let outcome = run_incremental(
         &Incremental {
+            config: &config,
             ir: &ir,
             pages: &pages,
             ledger: &ledger,

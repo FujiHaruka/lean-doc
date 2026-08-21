@@ -646,6 +646,13 @@ body.plain .modhead h1 { font-size: clamp(1.75rem, 1.1rem + 2.6vw, 2.75rem); }
   .decl-head .src { margin-left: 0; }
 }
 
+/* -- 15a. the index page's intro ----------------------------------------- */
+
+/* `litedoc4.toml`'s `index`, on the site's index page and nowhere else
+   (feature-sweep C-3). It is rendered by the docstring renderer, so it reuses
+   `.doc`'s typography and only needs to be told where it sits. */
+.intro { margin-block: 1.4rem; }
+
 /* -- 15b. mathematics ---------------------------------------------------- */
 
 /* `litedoc4-md` writes MathML into docstrings at build time (feature-sweep

@@ -64,7 +64,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use litedoc4_ir::{DepMap, cmp_utf16};
-use litedoc4_render::{SiteMeta, css_kind};
+use litedoc4_render::{SiteConfig, SiteMeta, css_kind};
 use serde_json::{Map, Value};
 
 use crate::entry;
@@ -187,7 +187,12 @@ impl Artifacts {
     /// it (before being sorted). Passing the facts in any other order is a
     /// different answer.
     #[must_use]
-    pub fn derive(facts: &[ModuleFacts], dep_maps: &[DepMap]) -> Self {
+    pub fn derive(
+        facts: &[ModuleFacts],
+        dep_maps: &[DepMap],
+        config: &SiteConfig,
+        intro: Option<&str>,
+    ) -> Self {
         // name -> (module, kind). Last writer wins, which is why this is fed in
         // index order; `render.ts` resolves the same collision the same way.
         let mut name_map: HashMap<&str, (&str, &str)> = HashMap::new();
@@ -394,7 +399,7 @@ impl Artifacts {
             ("instancesFor".to_owned(), instances_for_out),
         ]);
 
-        let site = SiteMeta::of_modules(own_sorted.iter().copied());
+        let site = SiteMeta::of(config, intro, own_sorted.iter().copied());
         Self {
             name_map_json: to_json(&flat),
             index_html: entry::index_html(&site, &pages, counts.declarations),
@@ -564,7 +569,7 @@ mod tests {
     /// well formed, styled, populated and wrong.
     #[test]
     fn the_module_index_lists_importers_not_imports() {
-        let artifacts = Artifacts::derive(&chain(), &[]);
+        let artifacts = Artifacts::derive(&chain(), &[], &SiteConfig::EMPTY, None);
         let json = parsed(&artifacts.modules_json);
         let modules = json["modules"].as_array().expect("an array of modules");
         let names: Vec<&str> = modules
@@ -595,7 +600,7 @@ mod tests {
     /// `litedoc4-render/web/src/types.ts` is the other side of it.
     #[test]
     fn the_search_index_is_the_shape_the_script_reads() {
-        let artifacts = Artifacts::derive(&chain(), &[]);
+        let artifacts = Artifacts::derive(&chain(), &[], &SiteConfig::EMPTY, None);
         let index = search_index::decode(&artifacts.search_index_bin)
             .expect("a file this crate just wrote");
         // The module array is `modules.json`'s, and only its. The subscripts
@@ -640,7 +645,7 @@ mod tests {
     /// the old "read it back off the artifact" trick used to give for free.
     #[test]
     fn the_counts_are_what_the_files_hold() {
-        let artifacts = Artifacts::derive(&chain(), &[]);
+        let artifacts = Artifacts::derive(&chain(), &[], &SiteConfig::EMPTY, None);
         let instances = parsed(&artifacts.instances_json);
         assert_eq!(
             artifacts.counts.declarations,
@@ -670,7 +675,7 @@ mod tests {
     /// Every path is written, distinct, relative and inside the site root.
     #[test]
     fn the_file_list_and_the_paths_agree() {
-        let artifacts = Artifacts::derive(&chain(), &[]);
+        let artifacts = Artifacts::derive(&chain(), &[], &SiteConfig::EMPTY, None);
         let files = artifacts.files();
         assert_eq!(files.len(), ARTIFACT_PATHS.len());
         for (i, (path, body)) in files.iter().enumerate() {
@@ -692,7 +697,7 @@ mod tests {
     /// failure rather than a surprise in a deployment.
     #[test]
     fn the_doc_gen4_only_artifacts_are_gone() {
-        let artifacts = Artifacts::derive(&chain(), &[]);
+        let artifacts = Artifacts::derive(&chain(), &[], &SiteConfig::EMPTY, None);
         for dropped in [
             "declarations/declaration-data.bmp",
             "navbar.html",
@@ -720,7 +725,7 @@ mod tests {
         above.decls = vec![("Pkg.\u{1D49C}.a".to_owned(), "definition".to_owned())];
         let mut inside = facts("Pkg.\u{FB00}", &[]);
         inside.decls = vec![("Pkg.\u{FB00}.a".to_owned(), "definition".to_owned())];
-        let artifacts = Artifacts::derive(&[inside, above], &[]);
+        let artifacts = Artifacts::derive(&[inside, above], &[], &SiteConfig::EMPTY, None);
         // The binary index carries its names as UTF-8, so the same search for
         // the two characters answers the same question about it.
         let index = String::from_utf8_lossy(&artifacts.search_index_bin).into_owned();

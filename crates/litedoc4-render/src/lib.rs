@@ -107,6 +107,7 @@
 pub mod assets;
 pub mod autolink;
 pub mod code;
+pub mod config;
 pub mod decl;
 pub mod escape;
 pub mod external;
@@ -126,6 +127,7 @@ pub use code::{
     CodeRenderer, Refs, Rendered, break_within, css_kind, decl_refs, find_linkable_parent,
     kind_description, module_from_private_prefix, private_to_user_name,
 };
+pub use config::{CONFIG_FILE, SiteConfig};
 pub use decl::{
     DeclRenderer, EQUATION_LIMIT, UnplaceableName, class_instances_html, contained_names,
     decl_head_html, decl_name_to_link, decl_signature, equations_html, instances_for_html,

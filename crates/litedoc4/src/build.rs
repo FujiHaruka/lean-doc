@@ -1050,6 +1050,7 @@ fn full_generation(
     // that reaches the file — so resolving here costs no consistency.
     let external_links = resolve_docs(request, &layout.ir)?;
 
+    let config = crate::site_config(Some(&request.root))?;
     let site = crate::generate_site(
         &layout.ir,
         &layout.site,
@@ -1057,6 +1058,7 @@ fn full_generation(
         &external_links,
         Some(&request.link_index),
         Some(&layout.state),
+        &config,
     )?;
     Ok(Done {
         what: "full",
@@ -1090,8 +1092,10 @@ fn incremental_generation(
     // verified on the next run rather than this one — at which point the map
     // moves, the render key moves, and every page is re-rendered with it.
     let external_links = resolve_docs(request, &layout.ir)?;
+    let config = crate::site_config(Some(&request.root))?;
     let run = crate::pipeline::run_incremental(
         &Incremental {
+            config: &config,
             ir: &layout.ir,
             pages: &layout.site,
             ledger: &layout.ledger,

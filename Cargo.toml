@@ -75,6 +75,16 @@ serde_json = { version = "1", features = ["preserve_order"] }
 # `default-features = false` turns off nothing today — the crate's features are
 # `serde` and `ariadne`, both off by default — and says so if that changes.
 math-core = { version = "0.7.0", default-features = false }
+# `litedoc4.toml`, the per-package site configuration (feature-sweep C-3).
+#
+# `basic-toml` and not `toml`: the latter brings `toml_parser`, `serde_spanned`,
+# `toml_datetime` and **two** versions of `winnow`; this one's whole dependency
+# is `serde`, which is already here. What it costs is TOML 0.5's surface rather
+# than 1.0's — no mixed-type arrays, fewer datetime spellings — and the config
+# it parses is two string keys, so the difference is not reachable from it. A
+# file that uses something it does not know is a **parse error the build
+# reports**, not a value quietly ignored.
+basic-toml = "0.1.10"
 
 # ---------------------------------------------------------------------- lints
 #

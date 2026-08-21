@@ -31,6 +31,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use litedoc4_ir::IrTree;
+use litedoc4_render::SiteConfig;
 use serde::Serialize;
 
 use crate::artifacts::Artifacts;
@@ -60,6 +61,13 @@ pub struct GlobalOptions<'a> {
     pub delta_json: Option<&'a Path>,
     /// `--timings <p>`: one JSON line of counts and durations.
     pub timings: Option<&'a Path>,
+    /// What `<root>/litedoc4.toml` said, already read (feature-sweep C-3).
+    ///
+    /// `index.html` is written here and by nothing else, so this is where the
+    /// configured title and the configured intro reach a page. A borrow rather
+    /// than a path for the reason [`litedoc4_render::RenderOptions::config`]
+    /// gives: one reader, several commands.
+    pub config: &'a SiteConfig,
 }
 
 impl<'a> GlobalOptions<'a> {
@@ -74,6 +82,7 @@ impl<'a> GlobalOptions<'a> {
             print_set: None,
             delta_json: None,
             timings: None,
+            config: &SiteConfig::EMPTY,
         }
     }
 }
@@ -165,7 +174,18 @@ pub fn build_global(options: &GlobalOptions<'_>) -> Result<GlobalSummary, Error>
     let read = started.elapsed();
 
     let dep_maps = tree.load_dep_maps()?;
-    let artifacts = Artifacts::derive(&run.facts, &dep_maps);
+    // The intro is Markdown in the package, rendered here because this is the
+    // only stage that writes the page it goes on.
+    //
+    // **With no link resolver.** A name in a package's own index page is prose
+    // until something can say where it lives, and the answer for a name from a
+    // dependency needs the map that `render` holds and this stage does not. A
+    // code span that stays a code span is right; a link to a page nobody wrote
+    // is the failure M8's UI-2 measured 160 of.
+    let intro = options.config.index_markdown.as_deref().map(|markdown| {
+        litedoc4_md::Renderer::new("./", &litedoc4_md::NoLinks).docstring(markdown)
+    });
+    let artifacts = Artifacts::derive(&run.facts, &dep_maps, options.config, intro.as_deref());
 
     for (relative, body) in artifacts.files() {
         let path = options.out.join(relative);

@@ -1,0 +1,96 @@
+# C-3 (i) サイト設定 — 実測
+
+日付      2026-08-22
+機材      Apple M1 / macOS 26.0 / Rust 1.97.1
+対象      e2e/micro (10 モジュール / 92 宣言、Mathlib 非依存)
+          + /Users/haruka/dev/lean-projects (422 モジュール、下の §4)
+
+計画      docs/plans/feature-sweep.md C-3【決定 3】
+
+
+## 1. 何を入れたか
+
+`<root>/litedoc4.toml` を **HTML を書く 4 つのコマンド全部**が読む。
+
+  title = "MyPkg"          # 上部バーと <title> の後半
+  index = "docs/index.md"  # サイトの index ページに差し込む Markdown
+
+`--title` フラグは置かない (`frame.rs` の「3 経路のどれかで付け忘れると
+2 つが食い違う」が正しいため)。**ファイルはパッケージの一部**なので、
+パッケージを指しているコマンドはどれも同じものを読む。
+
+読むのは `litedoc4::site_config` **1 箇所だけ**。4 つのコマンドが
+それぞれ `SiteConfig::read` を呼ぶ設計にしない — 「パッケージの root とは何か」を
+決める場所が 4 つになり、それは却下したフラグと同じ形になる。
+
+
+## 2. 依存の増分
+
+  basic-toml 0.1.10 (MIT OR Apache-2.0)  **+1 crate**
+
+`toml` ではない理由: あちらは `toml_parser` / `serde_spanned` /
+`toml_datetime` と **winnow を 2 版**連れてくる (計 +6)。`basic-toml` の依存は
+`serde` だけで、これは既に木に在る。**代償は TOML 1.0 ではなく 0.5 相当の面**だが、
+読むのは文字列 2 キーなので差に手が届かない。**知らない書き方はパース
+エラーとして報告される** — 黙って既定値に落ちない。
+
+  ワークスペースの closure   48 -> 49 crate
+
+
+## 3. 実際に出た欠陥【実測 2026-08-22】
+
+**設定を入れた最初の e2e で GATE 2 (「2 回目の実行は何も変えない」) が落ちた。**
+
+  the second run changed the site
+  diff … index.html / search.html / foundational_types.html
+    <title>Micro Fixture</title>   (1 回目 = full generation)
+    <title>Micro</title>           (2 回目 = incremental)
+
+原因は `crates/litedoc4/src/pipeline.rs` の増分ラウンドが `GlobalOptions` に
+設定を渡していなかったこと。**render 側は渡していたので、モジュールページは
+正しく、全体アーティファクトだけが古い題名で上書きされていた。**
+
+これは C-3 がまさに潰そうとしている形 (「経路によって答えが違う」) が、
+**実装の初回で実際に出た**もの。**既存のゲートが捕まえた** — 新しく書いた
+config-gate ではなく、2026-08-16 からある GATE 2 が。
+
+
+## 4. ゲート
+
+### `tools/config-gate.sh` — 4 経路が同じ答えを出すか
+
+  config       title 'Micro Fixture' on 10 module page(s) x 3 commands;
+               index.html identical across 3 commands
+
+比較しているのは**描かれたバイト**であって「ファイルを読んだか」ではない。
+読んだうえで値を落とすコマンドは後者を通り、前者で落ちる。
+
+**空の設定では意味が無い**ので、`litedoc4.toml` が 2 キーとも設定していなければ
+ゲート自身が落ちる。`e2e/micro/litedoc4.toml` はそのために置いてある。
+
+**3 通りの落とし方を全部確認した**【実測 2026-08-22】 — `--blind <cmd>` で
+1 つのコマンドだけ `--root` 無しで回す:
+
+  --blind site    Micro.html: the three commands disagree —
+                  {'build': 'Micro · Micro Fixture', 'site': 'Micro',
+                   'render': 'Micro · Micro Fixture'}
+  --blind render  … {'render': 'Micro'} …
+  --blind global  index.html differs between ('build','site','global'):
+                  … 'global': ('Micro', None)
+
+**index の Markdown が描画を通ったこと**も見る (先頭が `#` のままなら落とす)。
+
+### 既存ゲートへの影響
+
+  e2e-micro.sh   15 段すべて緑 (GATE 12 を足して 14 -> 15)
+  browser-gate   緑
+  cargo test     3 本が落ちたまま (C-1 の数式 2 本、C-2 の page_parts 1 本)。
+                 **C-3 は 1 本も増やしていない。**
+
+
+## 5. 撤退ライン
+
+「設定ファイルが 3 経路で食い違う設計にしかならない → 項目ごと落とす」。
+**引かなかった** — 食い違いは 1 度出たが、原因は設計ではなく配線 1 行で、
+`derive.config = options.config;` で消えた。食い違いを見るものが
+`config-gate.sh` として残っている。

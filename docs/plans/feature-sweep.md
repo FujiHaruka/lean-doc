@@ -579,6 +579,28 @@ Mathlib 依存パッケージの docstring は数式を含む。
   `<title>` と index の中身が一致すること。**一度落とす方法**: 1 経路だけ設定を読ませない。
 - **撤退ライン**: 設定ファイルが 3 経路で食い違う設計にしかならない → **項目ごと落とす**
   (今の派生タイトルのままにする)。食い違うくらいなら設定できない方がよい。
+  **引かなかった。**
+
+#### 結果【2026-08-22 完了】
+
+数字とログは `benchmarks/results/config-2026-08-22.txt`。
+
+- **HTML を書くコマンドは 3 つではなく 4 つだった** — `build` / `site` / `render` に
+  加えて **`global`** が `index.html` / `search.html` / `foundational_types.html` を書く。
+  `global` に **`--root` を足した**。
+- 読むのは `litedoc4::site_config` **1 箇所だけ**。
+- **設定を入れた最初の e2e で実際に食い違いが出た**【実測】 —
+  増分ラウンドの `GlobalOptions` に設定を渡し忘れていて、
+  **2 回目の実行が全体アーティファクトを派生タイトルで上書きしていた**。
+  捕まえたのは新しい config-gate ではなく **既存の GATE 2**
+  (「2 回目の実行は何も変えない」)。配線 1 行で消えた。
+- 依存 **+1 crate** (`basic-toml`)。`toml` は winnow 2 版を含む +6 なので採らない。
+  **TOML 0.5 相当の面**だが、読むのは文字列 2 キー。
+- ゲートは `tools/config-gate.sh` (e2e の GATE 12)。
+  **`--blind site|render|global` で 3 通りの落とし方を全部確認した。**
+  空の設定では自分で落ちる (「比較していないのに緑」を作らない)。
+- `e2e/micro/litedoc4.toml` と `e2e/micro/docs/index.md` を置いた —
+  **何も設定していないパッケージでは 4 経路が自明に一致してしまう**ため。
 
 ### C-4 フィクスチャの再凍結
 
@@ -684,6 +706,20 @@ litedoc4: parsing …/site2/ir/modules/Consumer.Basic.json:
 
 `tools/lake-download-gate.sh` の項目 1・2 が落ち、`LAKE DOWNLOAD GATE: FAILED (2 of 5)`。
 **古いバイナリが「`attrs` が文字列から配列になった」ことを名指ししている。**
+
+### 束 C は `RENDERER_ID` を動かす【2026-08-22】
+
+版番号とは**別の互換トークン**が 1 つある — `litedoc4_incr::RENDERER_ID`。
+「今このページを描き直したらバイトが変わるか」を答えるもので、
+**IR が動かなくても描画が動けば上げる**。束 C は 3 つとも描画を動かす
+(C-1 の MathML / C-2 の `Used by` / C-3 の題名) ので **v2 → v3**。
+
+**上げ忘れたときの壊れ方が静か**なのが要点: v2 のバイナリが描いたサイトの上で
+増分ビルドを回すと、**全ページが最新だと判定されて古いバイトが残る**。
+出力は「0 pages rendered」で、成功に見える。
+
+**IR schema は動いていない** (5 のまま) ので、`extractor/Extract.lean` の
+`schemaVersion` とワークスペースの版 (0.2.0) は動かさない。
 
 ### この番号を動かすもの【決定】
 
