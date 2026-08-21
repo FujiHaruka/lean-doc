@@ -108,8 +108,9 @@ pub struct ModuleFile {
     /// Tactic docstrings declared by this module.
     ///
     /// `render.ts` does not model this field at all; `global.ts` counts it for
-    /// `tactics.html`, so it is modelled here. **Empty for all 432 modules of
-    /// the target package** — the shape below follows the writer
+    /// `tactics.html`, so it is modelled here. **Empty for every module of the
+    /// target package** (432 at the revision this was measured at, 422 on
+    /// 2026-08-21) — the shape below follows the writer
     /// (`Extract.lean:2007-2011`), not observed data.
     pub tactics: Vec<Tactic>,
     pub declarations: Vec<Decl>,

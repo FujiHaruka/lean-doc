@@ -15,8 +15,10 @@
 //! **across every module** for that reason: a structure declared in `A` can
 //! have its projections attributed to `B`, and building the set per module
 //! leaves those on `B`'s page. [`Suppressed::of_site`] takes the whole site for
-//! this reason, and 190 of the target package's 4,750 declarations are in it
-//! 【実測】.
+//! this reason, and 190 of the target package's declarations are in it
+//! 【実測: 4,750 declarations / 432 modules at the revision M5 measured, and
+//! **still 190** at 4,584 / 422 on 2026-08-21 — the count is the same, the
+//! denominator is not, so the denominator carries its revision】.
 //!
 //! # The order is a stable sort on three keys, and the third one is not `index`
 //!
@@ -203,8 +205,9 @@ pub fn page_html(
 /// The components are the **unescaped** ones (M5-b): doc-gen4 builds this path
 /// out of `Name.toString (escape := false)` (`Output/Base.lean:188`), so a
 /// module Lean spells `Alpha.«Odd-Name»` has its page at `Alpha/Odd-Name.html`.
-/// For every module name that is a plain identifier — all 432 of the
-/// measurement target's — this is `module.split('.')` unchanged.
+/// For every module name that is a plain identifier — all of the measurement
+/// target's, 432 of them at the revision this was measured at and 422 on
+/// 2026-08-21 — this is `module.split('.')` unchanged.
 #[must_use]
 pub fn page_path(module: &str) -> std::path::PathBuf {
     let mut path = std::path::PathBuf::new();
