@@ -173,13 +173,19 @@ const MARKER: &str = "litedoc4-build.json";
 const DEFAULT_MAX_ROUNDS: usize = 5;
 
 /// Where every piece of one package's documentation state lives.
-struct Layout {
+pub(crate) struct Layout {
     out: PathBuf,
-    site: PathBuf,
-    ir: PathBuf,
+    /// The site — what ships, and what `watch` serves.
+    pub(crate) site: PathBuf,
+    /// The IR tree, carried between runs. `watch`'s trigger names it because the
+    /// extract key is computed against it.
+    pub(crate) ir: PathBuf,
     state: PathBuf,
     work: PathBuf,
-    ledger: PathBuf,
+    /// Which oleans the IR was built from. `watch` asks this file — through
+    /// `litedoc4_incr::check_ledger`, not by reading it — whether there is
+    /// anything to do.
+    pub(crate) ledger: PathBuf,
     marker: PathBuf,
     /// `<out>/link-index.lidx`, where the dependency map goes when this command
     /// derives it (M5-b). Overridden by `--link-index`, which names one
@@ -247,8 +253,27 @@ enum Plan {
 
 // ------------------------------------------------------------------- the CLI
 
-/// `litedoc4 build`.
+/// `litedoc4 build`: parse the command line, then do it once.
 pub(crate) fn build(args: &[String]) -> Result<(), Failure> {
+    run(&parse(args, None)?)?;
+    Ok(())
+}
+
+/// The command line of `build` — **and of `watch`**, which is the same request
+/// asked over and over (A-2).
+///
+/// One parser, not two 【判断】. `watch` takes every flag `build` takes and
+/// answers the same refusals, because it *is* `build` in a loop: a second parser
+/// would be a second place for `--out` to mean something, and the first thing to
+/// drift would be one of the by-name refusals below, which are the part a caller
+/// reads only when they are already confused. `watch` passes its own two flags
+/// through [`crate::watch::Flags`]; `None` here means they are refused by name,
+/// which is the same treatment every other misplaced flag gets.
+pub(crate) fn parse(
+    args: &[String],
+    mut watch: Option<&mut crate::watch::Flags>,
+) -> Result<Request, Failure> {
+    let watching = watch.is_some();
     let mut root: Option<PathBuf> = None;
     let mut out: Option<PathBuf> = None;
     let mut libs: Vec<String> = Vec::new();
@@ -298,9 +323,53 @@ pub(crate) fn build(args: &[String]) -> Result<(), Failure> {
                 })?;
             }
             "--timings" => timings = Some(value("--timings")?.into()),
-            "--full" => full = true,
-            "--deps-docs-url" => deps_docs_urls.push(value("--deps-docs-url")?),
-            "--deps-docs-index" => deps_docs_indexes.push(value("--deps-docs-index")?),
+            // A-2. `watch`'s own two, and they are refused by name on `build`
+            // for the same reason `build`'s are refused on `site`: each is a
+            // real flag of a command next door, so what the caller needs to hear
+            // is which command owns it.
+            "--port" => {
+                let raw = value("--port")?;
+                match watch.as_deref_mut() {
+                    Some(flags) => flags.port = Some(raw),
+                    None => {
+                        return usage(
+                            "--port is a `watch` flag: `build` writes a site and exits, so there \
+                             is nothing left running to serve it. `litedoc4 watch --root … --out \
+                             … --port <n>` is the one that serves",
+                        );
+                    }
+                }
+            }
+            "--interval" => {
+                let raw = value("--interval")?;
+                match watch.as_deref_mut() {
+                    Some(flags) => flags.interval = Some(raw),
+                    None => {
+                        return usage(
+                            "--interval is a `watch` flag: it is how often the loop asks the \
+                             ledger, and `build` asks once",
+                        );
+                    }
+                }
+            }
+            "--full" => {
+                only_in_build(
+                    watching,
+                    "--full",
+                    "it means \"regenerate everything, ignoring what is under --out\", and a loop \
+                     that did that every pass would never do anything else. Run `litedoc4 build \
+                     --full` once, then start watching",
+                )?;
+                full = true;
+            }
+            "--deps-docs-url" => {
+                only_in_build(watching, "--deps-docs-url", DEPS_DOCS_IN_WATCH)?;
+                deps_docs_urls.push(value("--deps-docs-url")?);
+            }
+            "--deps-docs-index" => {
+                only_in_build(watching, "--deps-docs-index", DEPS_DOCS_IN_WATCH)?;
+                deps_docs_indexes.push(value("--deps-docs-index")?);
+            }
             // Refused by name: it is `site` and `render`'s flag, and it names
             // the file *this* command writes. Accepting it here would let a run
             // render against a map another run resolved, which is the one thing
@@ -356,9 +425,13 @@ pub(crate) fn build(args: &[String]) -> Result<(), Failure> {
                      generation it cannot vouch for",
                 ));
             }
+            // **`Answered(0)`, not `Ok(())`**: this function's `Ok` is a
+            // request to run, and `--help` is not one. `main` turns an
+            // `Answered` into that exit code with nothing on stderr, which is
+            // what asking for the usage is.
             "--help" | "-h" => {
                 println!("{USAGE}");
-                return Ok(());
+                return Err(Failure::Answered(0));
             }
             other => return usage(format!("unknown argument `{other}`")),
         }
@@ -459,6 +532,14 @@ pub(crate) fn build(args: &[String]) -> Result<(), Failure> {
         });
     }
 
+    // A-2: `watch`'s own two flags, checked **here** — after the required ones
+    // and before the `lake` below. A misspelled port is a usage error, and a
+    // usage error that arrives after a subprocess has run is one the caller
+    // waited for.
+    if let Some(flags) = watch {
+        flags.check()?;
+    }
+
     let layout = Layout::new(&out);
     let derived = link_index.is_none();
     let link_index = absolute(&link_index.unwrap_or_else(|| layout.link_index.clone()));
@@ -471,7 +552,7 @@ pub(crate) fn build(args: &[String]) -> Result<(), Failure> {
     // is not a pair", and both are things to say while nothing has been written.
     let deps_docs = crate::deps_docs::parse(&deps_docs_urls, &deps_docs_indexes)?;
     crate::deps_docs::check_roots(&deps_docs, &external_links)?;
-    run(&Request {
+    Ok(Request {
         root,
         layout,
         libs,
@@ -492,26 +573,54 @@ pub(crate) fn build(args: &[String]) -> Result<(), Failure> {
     })
 }
 
+/// Why `watch` does not resolve a dependency's documentation site.
+///
+/// Stated once because two flags say it. The resolution is one fetch of a 5.7 MB
+/// declaration table verified against the IR tree 【実測 2026-08-19,
+/// `benchmarks/results/deps-docs-2026-08-19.txt` §3】, and a loop has only two
+/// ways to hold it: fetch it again on every rebuild — which puts a network round
+/// trip on the edit-to-page path this command exists to shorten — or resolve it
+/// once and let it go stale against an IR tree that is changing under it.
+const DEPS_DOCS_IN_WATCH: &str = "it resolves a dependency's declaration table over the network, \
+     once, against the IR tree of that run. A loop would either re-fetch 5.7 MB on every rebuild \
+     or serve pages resolved against an IR tree that has moved since. Use `litedoc4 build` for a \
+     site with documentation links";
+
+/// A flag `build` has and `watch` does not, refused by name.
+fn only_in_build(watching: bool, flag: &str, why: &str) -> Result<(), Failure> {
+    if watching {
+        return usage(format!("{flag} is not a `watch` flag: {why}"));
+    }
+    Ok(())
+}
+
 /// One `build` invocation, after the command line has been checked.
-struct Request {
-    root: PathBuf,
-    layout: Layout,
-    libs: Vec<String>,
+///
+/// **`watch` holds one of these for the whole session and calls [`run`] with it
+/// over and over** (A-2), which is why nothing in here is derived per run by the
+/// caller: the two answers that would otherwise be re-derived — the libraries
+/// and the source URL — are pinned by [`crate::watch`] at start-up so that the
+/// loop's trigger and the run it triggers cannot disagree about what they are
+/// looking at.
+pub(crate) struct Request {
+    pub(crate) root: PathBuf,
+    pub(crate) layout: Layout,
+    pub(crate) libs: Vec<String>,
     /// Where each **dependency's** source lives (M7-c), resolved **once** — in
     /// [`build`], from `--root`'s manifest and toolchain — and then used by both
     /// the renderer and `renderKey.externalLinks`. Resolving it twice is how the
     /// two would come to disagree, and a disagreement there re-renders every page
     /// on every run for ever.
-    external_links: litedoc4_render::ExternalLinks,
+    pub(crate) external_links: litedoc4_render::ExternalLinks,
     /// `--deps-docs-url` / `--deps-docs-index` (A-1), parsed and checked against
     /// the map above. Empty is the default and means the map is used exactly as
     /// M7-c left it.
     deps_docs: Vec<crate::deps_docs::Site>,
     /// The dependency map the pages are rendered against, absolute.
-    link_index: PathBuf,
+    pub(crate) link_index: PathBuf,
     /// Whether this run *writes* that file (M5-b) or only reads it.
     derived_link_index: bool,
-    source_url: Option<String>,
+    pub(crate) source_url: Option<String>,
     extractor: Option<String>,
     extractor_args: Vec<String>,
     extractor_bin: Option<PathBuf>,
@@ -523,7 +632,13 @@ struct Request {
     full: bool,
 }
 
-fn run(request: &Request) -> Result<(), Failure> {
+/// One whole run: the plan, the two paths, the assets, the ledger, the record.
+///
+/// Returns [`Ran`] rather than `()` because `watch` calls this in a loop and has
+/// to say what each pass did (A-2). The numbers are [`WorkCounts`]' own — the
+/// same values the `work` line and the marker carry — so the loop's report and
+/// the run's report cannot drift.
+pub(crate) fn run(request: &Request) -> Result<Ran, Failure> {
     let started = Instant::now();
     let layout = &request.layout;
     // The IR read counters are the *process's*, and this command is one run per
@@ -691,7 +806,27 @@ fn run(request: &Request) -> Result<(), Failure> {
         write_file(path, &line)?;
         println!("{}", line.trim_end());
     }
-    Ok(())
+    Ok(Ran {
+        what: done.what,
+        modules_extracted: work.modules_extracted,
+        pages_rendered: work.pages_rendered,
+        extractor_requests: work.extractor_requests,
+        seconds: total,
+    })
+}
+
+/// What one call to [`run`] did, for a caller that makes many of them.
+///
+/// Four numbers and a clock, and **not one of them is counted here**: they are
+/// [`WorkCounts`]', which are in turn the stages' own (see that type). `watch`
+/// prints them per pass; the clock is last because it is the one a gate may not
+/// assert on — this workload's wall clock moves 5x with the page cache.
+pub(crate) struct Ran {
+    pub what: &'static str,
+    pub modules_extracted: usize,
+    pub pages_rendered: usize,
+    pub extractor_requests: usize,
+    pub seconds: f64,
 }
 
 /// What a run produced, in the shape the two paths have in common.
@@ -1118,7 +1253,7 @@ fn open_extractor(
 /// The revision is `HEAD`, and an uncommitted working tree is reported rather
 /// than refused: the pages will link to the last commit, which is a fact worth
 /// one line of output and is not this command's to fix.
-fn derive_source_url(root: &Path) -> Result<String, Failure> {
+pub(crate) fn derive_source_url(root: &Path) -> Result<String, Failure> {
     let rev = git(root, &["rev-parse", "HEAD"])?;
     let remote = git(root, &["config", "--get", "remote.origin.url"])?;
     let Some(path) = github_path(&remote) else {

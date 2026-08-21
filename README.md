@@ -176,6 +176,35 @@ The site is `<out>/site`; `--out` itself must live outside `--root`. Running the
 incremental, so keep `<out>` between runs; `--full` starts over. The extractor is built against
 your package's toolchain — rebuild it (~15 s) when that changes.
 
+### While you are working on the package
+
+```sh
+./target/release/litedoc4 watch --root /path/to/your-package --out /path/to/docs \
+  --extractor-bin ./extractor/build/extract --jobs 4
+```
+
+`watch` serves the site on `http://127.0.0.1:8484/` (`--port`) and rebuilds it whenever your
+package's `.olean` files change. **It does not run `lake build`** — run that in another window;
+`watch` notices the oleans it writes. That keeps the division of labour every other command here
+has: you build the package, litedoc4 reads it.
+
+It asks the same question `build` asks — which modules the ledger says are stale — once a second
+(`--interval`), and rebuilds only when the answer has stopped moving, so a `lake build` still
+writing oleans is never read half-finished. Every rebuild prints how many modules were
+re-extracted, how many pages were re-rendered and how long it took; a wait says what it is
+waiting for.
+
+The pages it serves are the bytes it wrote, with no live-reload script injected — what you look
+at is what you will publish — so reload the tab yourself. A port that is already in use is
+refused by name rather than moved to the next free one.
+
+One edited module reaches its page in **5.5–6.2 s** (median 5.65 s over 15 cycles; the first
+cycle of a session costs 13.7 s). **86–89 % of that is Lean loading its environment**, which a
+rebuild has to redo because Lean cannot swap a module out of an imported one — so that figure is
+a floor, not something tuning the loop moves. It does not include your own `lake build`, which
+runs before any of it. Apple M1, 422 modules, warm page cache; raw logs in
+[`benchmarks/`](benchmarks/).
+
 Run `litedoc4` with no arguments for the full flag list. The two you may need:
 `--lib <Name>` if your libraries are not in `lakefile.toml`, `--source-url <url>` if `origin` is
 not GitHub (another host is refused rather than guessed).

@@ -58,10 +58,12 @@ use litedoc4_render::{ModuleSet, RenderOptions, RenderSummary, render_site};
 mod build;
 mod deps_docs;
 mod extract;
+mod httpd;
 mod lakefile;
 mod packages;
 mod pipeline;
 mod resident;
+mod watch;
 
 const USAGE: &str = "\
 usage: litedoc4 build  --root <repo> --out <dir> [--link-index <file>]
@@ -81,6 +83,11 @@ usage: litedoc4 build  --root <repo> --out <dir> [--link-index <file>]
                           [--lake <path>] [--jobs <n>])
                        [--mode self|referrers|importers|all] [--max-rounds <n>]
                        [--timings <file>]
+       litedoc4 watch  --root <repo> --out <dir> [--port <n>] [--interval <ms>]
+                       [--lib <Name>]... [--source-url <url>]
+                       (--extractor-bin <path> [--lake <path>] [--jobs <n>]
+                        | --extractor <program> [--extractor-arg <arg>]...)
+                       [--mode self|referrers|importers|all] [--max-rounds <n>]
        litedoc4 modules --root <repo> [--lib <Name>]... [--out <file>]
        litedoc4 extract --modules <file> --ir-dir <dir> --timings <file>
                        [--extractor-bin <path>] [--target <repo>] [--lake <path>]
@@ -141,6 +148,16 @@ usage: litedoc4 build  --root <repo> --out <dir> [--link-index <file>]
                  site, <out>/{ir,state,work} the caches, <out>/ledger.json the
                  ledger. Required, with no default — <root>/.lake/build/doc is
                  doc-gen4's own output tree — and it may not be inside --root
+  --port         (`watch`) the port the site is served on (default 8484). A
+                 port that is taken is refused by name, never moved to the next
+                 free one: an address that changes between runs leaves the tab
+                 you already have open pointing at nothing.
+  --interval     (`watch`) how often the loop asks the ledger, in milliseconds
+                 (default 1000, minimum 100). `watch` **does not run `lake
+                 build`** — run that in another window and it notices the oleans
+                 it writes. It acts only after one quiet interval, so a build
+                 still writing oleans is never extracted mid-flight, and it says
+                 so while it waits.
   --full         (`build`) regenerate everything, ignoring what is under --out.
                  The escape hatch for an input no ledger key covers. The
                  dependency map used to be one; since M5-b its bytes are in
@@ -622,6 +639,7 @@ fn links(args: &[String]) -> Result<(), Failure> {
 fn run(args: &[String]) -> Result<(), Failure> {
     match args.first().map(String::as_str) {
         Some("build") => build::build(&args[1..]),
+        Some("watch") => watch::watch(&args[1..]),
         Some("incremental") => pipeline::incremental(&args[1..]),
         Some("modules") => pipeline::modules(&args[1..]),
         Some("links") => links(&args[1..]),

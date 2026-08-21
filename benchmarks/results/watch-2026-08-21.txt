@@ -1,0 +1,314 @@
+`litedoc4 watch` の編集 → ページ更新サイクルの実測 (A-2)
+========================================================
+
+日付: 2026-08-21
+問い: (1) 1 モジュールが stale になってからページが更新されるまで実際に何秒か、
+      (2) 何もないとき (idle) のループはいくら払うか、
+      (3) 常駐 extractor はパスをまたいで効くか。
+先行: docs/plans/feature-sweep.md §4 A-2 /
+      crates/litedoc4/src/resident.rs の見出し (stage 6a) /
+      benchmarks/results/deps-docs-2026-08-19.txt (同じ対象の全ビルド)
+
+0. この数字に入っていないもの 【最初に読む】
+--------------------------------------------
+- **利用者自身の `lake build` は入っていない。** watch は建てない【決定、§4 A-2】。
+  実際に人が待つのは「`lake build` ＋ 下の数字」で、**Mathlib 依存パッケージでは
+  前者の方が大きい**。ここでは 1 モジュールの `lake build` は測っていない。
+- **`--interval` のぶんの遅れは入っている** (既定 1000 ms)。ループは
+  「気づくまで最大 1 interval」＋「静けさの確認に 1 interval」を払う。
+  下げたときにどう動くかは §3。
+- **ブラウザの reload は入っていない。** サーバは生成済みのバイトを返すだけで、
+  live-reload スクリプトは注入しない【判断、§4 A-2】。押すのは人。
+- **1 回だけの数字は 1 つも書いていない。** 連続 8 回 × 2 セッション、
+  6 回 × 1 セッション。cold と warm は分けて書く。
+
+機材 / 条件
+-----------
+- Apple M1 / 16 GB, macOS 26.6.1 (Darwin 25.6.0 arm64)
+- rustc 1.97.1 / litedoc4 0.1.4 (release、commit 58fc3a0 + A-2 の変更)
+- 対象パッケージ: /Users/haruka/dev/lean-projects
+  HEAD c4f6af29704029b3c62eaa0842c3225ad0e689a0、**422 モジュール** / 宣言 4,584
+  lean-toolchain leanprover/lean4:v4.31.0
+  lake-manifest.json の mathlib 固定 rev = fabf563a7c95a166b8d7b6efca11c8b4dc9d911f
+  olean 合計 **228,448,584 B** (ledger が sha256 で読む量)
+- 抽出器: extractor/build/extract (2026-08-19T18:51:38Z ビルド)、--jobs 4
+- watch の起動: `litedoc4 watch --root <target> --out <out> --lib InformationTheory
+  --extractor-bin extractor/build/extract --lake ~/.elan/bin/lake --jobs 4 --port <p>`
+- 作業領域: /private/tmp/lean-doc-relay/watch-measure (計測専用。ゲートの既定
+  /private/tmp/lean-doc-relay/watch-gate とは**別**にした — 同じ領域を 2 つの
+  watch が持つと壊れる。§7)
+- 暖機: **§1 §2B §3 は同一セッションの連続実行で olean は page cache に載っている。**
+  cold は §2A の 1 回目と §5 の 1 回目だけ。**混ぜていない。**
+- 「編集」の代わりに `litedoc4 ledger touch` でモジュールを 1 つ stale にした。
+  対象リポジトリには書き込まない (CLAUDE.md)。**`touch(1)` では ledger は動かない** —
+  ledger は内容を sha256 で見るので mtime は無関係。
+
+1. 何もしていないときのループ 【実測】
+---------------------------------------
+  1 パス = `litedoc4_incr::check_ledger` 1 回 = 422 モジュール / 228,448,584 B の
+  sha256。`litedoc4 ledger check` を同じ入力で連続 5 回 (concurrency 1):
+
+    回   real (s)
+     1    0.37      <- cold
+     2    0.13
+     3    0.13
+     4    0.13
+     5    0.13
+
+  内訳 (--timings、5 回目相当):
+    readLedgerSeconds 0.000310 / keySeconds 0.008462 / hashSeconds 0.137543 /
+    compareSeconds 0.000062 / totalSeconds 0.146381
+    hashedBytes 228,448,584 / files 422 / renderAll true (--root 無しで測ったため
+    externalLinks 鍵が動く。時間には影響しない)
+
+  **watch が実際に払う値** (ループ内の heartbeat が印字する。--interval 1000、
+  200 秒 idle):
+
+    watch   idle — 422 module(s) up to date, 57 pass(es) so far, 0 rebuild(s), 0.068 s to ask
+    watch   idle — 422 module(s) up to date, 113 pass(es) so far, 0 rebuild(s), 0.069 s to ask
+    watch   idle — 422 module(s) up to date, 169 pass(es) so far, 0 rebuild(s), 0.055 s to ask
+
+  200 秒で 169 パス = **1 パス 1.068 s** (sleep 1000 ms ＋ ask 0.055-0.069 s)。
+  ループ自身の RSS は **50,944 KB** (常駐 extractor は子プロセスなのでこれに入らない。
+  idle のパスは 3 GB のプロセスを 1 本も起こさない)。
+
+  読み方:
+  - **watch の実測は 0.055-0.069 s で、上の `ledger check` の 0.13 s より速い。**
+    watch は `hash_concurrency()` (この機材で 8) を使い、CLI の既定は 1 だから。
+    **同じ仕事を違う並列度で測った 2 つの数字なので、並べるときに並列度を落とさない。**
+  - **既定 1000 ms なら 1 コアの約 6.4%** (0.068 / 1.068)。これがポーリングの値段で、
+    隠さずに heartbeat の行に出している。
+  - `ledger check --root ...` は `lake env lean --githash` を起こすので
+    0.17-0.18 s になる【実測、3 回】。**watch はこれを毎パス払わない** —
+    依存リンクの解決は起動時 1 回に固定してある (§4 A-2「起動時に確定させる」)。
+  - **watch には「no-op 再ビルド」が無い。** `build` を空打ちすると 0.31 s
+    かかる (計画 §4 A-2 の数字) が、watch は stale が無ければパイプラインを
+    1 段も起動しない。idle の値段は上の 0.055-0.069 s だけ。
+
+2. 編集 → ページ更新のサイクル 【実測】
+---------------------------------------
+  1 セッション (= 1 つの watch プロセス) の中で 8 回連続。毎回**別のモジュール**を
+  stale にする (同じモジュールを 2 回続けると読みが 1 bit も変わらず、ループは
+  「前のパスが処理済みの答え」として正しく飛ばす → §6)。
+
+    cycle_s   = ledger touch から `watch #N reload` が出るまで (壁時計)
+    build_s   = その中で `build incremental in X s` が報告した値
+    extract_s = そのうち常駐 extractor が答えるのにかかった値
+                (`served 1 module(s) from the resident environment in Xs`)
+
+  セッション A (--interval 1000、cargo build 直後で page cache が乱れている):
+
+    round  cycle_s  build_s  extract_s  module
+      1    13.731   12.6539   11.979    Shannon.ArithmeticCoding   <- cold
+      2     6.154    4.1159    3.619    Fano.BinaryJensen
+      3     5.580    3.4706    3.044    Fano.CondEntropy
+      4     5.676    3.5411    3.059    Fano.DPI
+      5     5.523    3.4821    3.055    Fano.Entropy
+      6     5.690    3.5916    3.108    Fano.Measure
+      7     5.624    3.6017    3.118    Polymatroid.Basic
+      8     5.713    3.6092    3.119    Probability.Mixture
+
+  セッション B (--interval 1000、直前に全生成を回した完全な warm、別プロセス):
+
+    round  cycle_s  build_s  extract_s  module
+      1     5.629    3.5457    3.112    Shannon.ArithmeticCoding
+      2     5.725    3.5936    3.171    Fano.BinaryJensen
+      3     5.545    3.5243    3.105    Fano.CondEntropy
+      4     5.648    3.5513    3.129    Fano.DPI
+      5     5.676    3.5941    3.110    Fano.Entropy
+      6     5.788    3.7096    3.205    Fano.Measure
+      7     5.633    3.5274    3.102    Polymatroid.Basic
+      8     5.593    3.5035    3.085    Probability.Mixture
+
+  読み方:
+  - **cold は 13.73 s、warm は 5.52-5.79 s**【実測】。
+    cold は A の 1 回目だけで、**B に cold の回は無い** — 直前の全生成で
+    olean が page cache に載っているため。**この 2 つを平均しない。**
+  - warm 15 回 (A の 2-8 と B の 1-8) は **5.52-6.15 s、中央値 5.65 s** に収束する。
+    A の 2 回目 (6.154) だけ他より 0.4 s 遅く、これは A の 1 回目が cold だった
+    余韻 (extract_s も 3.619 と他の 3.04-3.21 より遅い)。
+  - **cycle_s − build_s ≈ 2.0-2.1 s** で、これが**ループのぶん**:
+    気づくまで最大 1 interval ＋ 静けさの確認に 1 interval。§3 で下げると消える。
+  - **build_s のうち extract_s が 86-89%** (warm で 3.05-3.21 / 3.47-3.71)。
+    残りは detect (§1 の 0.13 s) と描画 1 ページと全体成果物の更新。
+    **つまり 1 モジュール編集の値段はほぼ「Lean 環境を import し直す時間」**で、
+    そこが §4 の本題。
+
+3. `--interval` を下げると何が消えるか 【実測】
+-----------------------------------------------
+  同じ対象、同じ warm、`--interval 200` で 6 回連続:
+
+    round  cycle_s  build_s  extract_s  module
+      1     4.026    3.6212    3.131    Shannon.ArithmeticCoding
+      2     4.084    3.5519    3.068    Fano.BinaryJensen
+      3     4.125    3.6586    3.166    Fano.CondEntropy
+      4     3.890    3.4896    3.068    Fano.DPI
+      5     3.979    3.4747    3.055    Fano.Entropy
+      6     3.973    3.5493    3.129    Fano.Measure
+
+  読み方:
+  - **cycle_s − build_s = 0.32-0.49 s**。§2 の 2.0-2.1 s から**約 1.6 s 減った**。
+    減った量は **2 × (1000 − 200) ms = 1.6 s** とほぼ一致する【実測】 —
+    ループが払うのは「気づくまで 1 interval」＋「静けさの確認に 1 interval」だという
+    読みがこれで裏づけられる。
+  - **build_s と extract_s は動かない** (3.47-3.66 / 3.06-3.17 で §2 の範囲の中)。
+    interval は**待ち時間だけ**を変え、仕事量を変えない。
+  - 代わりに払うのは §1 のポーリング: 200 ms 間隔なら 1 コアの約 25%
+    (0.068 / 0.268)。**既定を 200 ms にしなかったのはこれが理由**で、
+    1000 ms なら約 6.4% (0.068 / 1.068)。
+
+4. 常駐 extractor はパスをまたがない — 買えないものを買ったと書かない 【実測+判断】
+------------------------------------------------------------------------------------
+  計画 §4 A-2 は「常駐しているので 2 回目以降は環境ロードを払わない」と書いていた。
+  **これは誤りで、実装で覆した。** 各パスのログが毎回
+
+    serve   ready <ns> 6011 422 (4 jobs, generation 6767e10794a0aed8)
+    ...
+    serve   stopped after 1 request(s)
+
+  を出す — **1 パスにつきサーバ 1 本、起動して止まる**。§2 の extract_s
+  (warm 3.05-3.21 s / cold 11.98 s) は**その import 込み**の値。
+
+  持ち越せない理由は速度ではなく正しさ:
+  - Lean は import 済み環境からモジュールを差し替えられない
+    (`Extract.lean:2716-2721`)。
+  - **パスが抽出するのは olean が動いたときだけ**。つまり前のパスから持ち越した
+    サーバは、定義上「いま stale になった世界を抱えたサーバ」。
+  - stage 6a が実測している: そういうサーバを使うと**どのラウンドも安全ではない**
+    (round 2 も含む) → `crates/litedoc4/src/resident.rs` の見出し。
+
+  **持ち越しても得はしない**という方向も確かめてある: 抽出しないパスは
+  `Resident` が遅延起動なので**サーバを 1 本も起動しない** (§1 の idle の値段が
+  0.13 s で、3 GB のプロセスは現れない)。常駐が買っているものは変わらず買えていて、
+  それは**1 パスの中**の ownership/merge ラウンドが 1 回の import を共有すること。
+
+  **帰結を隠さずに書くと**: 1 モジュール編集 5.65 s のうち約 3.1 s は
+  「正しさのために毎回払うと決めた import」であって、実装の下手さではない。
+  ここを削るには Lean 側が環境の部分差し替えを持つ必要がある。
+
+5. 全生成 (最初の 1 回) 【実測】
+--------------------------------
+  watch の初回パスは `build` の全生成そのもの。同じ対象・同じ日:
+
+    条件                                     build 全体   extract
+    cold (このセッション最初の全生成)          26.0307 s   25.0985 s
+    cold (ゲートの 1/5 段、別プロセス)         26.3363 s   —
+    warm (何度も回した後の page cache)         10.9600 s   10.1660 s
+
+  **5 倍まではいかないが 2.4 倍動く。** CLAUDE.md の「olean は mmap なので
+  page cache で 5 倍動く」がそのまま出ている。**壁時計をゲートに使わない**理由。
+
+6. 決定的な整数 — 動かないのはこちら 【実測】
+----------------------------------------------
+  上の 22 回のパスすべてで、`<out>/litedoc4-build.json` の `work` は同じ:
+
+    modulesExtracted   1
+    pagesRendered      1
+    extractorRequests  1
+    globalCacheHits    422   /  globalCacheMisses 0
+    irReads.module     1268  (= 3.00 full pass(es))
+
+  そして `<out>/work/render-set.txt` は毎回 touch したモジュール 1 行だけ。
+  **ゲートが見るのはこの整数で、上の秒数ではない** (`tools/watch-gate.sh`)。
+
+  ついでに測れた性質: **同じモジュールを 2 回続けて `ledger touch` すると
+  再ビルドは 1 回しか起きない**【実測】。2 回目の読みは 1 bit も変わらない
+  (olean のハッシュも、再抽出リストも同じ) ので、ループは「前のパスが処理済みの
+  答え」として飛ばす。本物の編集ではこれは起きない — `lake build` が olean の
+  内容ハッシュを動かし、それが読みの digest に入っているため。
+  §2 で毎回別モジュールを触っているのはこのため。
+
+7. ゲート `tools/watch-gate.sh` が何を見たか 【実測】
+-----------------------------------------------------
+  3 通り走らせた。**終了コードはパイプを噛ませずに読んだ値。**
+
+  (a) 既定 — `WATCH GATE: ok — 12 check(s), 0 failed` / **終了コード 0**
+      12 検査の内訳: サーバが / に 200 を返す / marker が完了と言う /
+      modulesExtracted == 1 / pagesRendered == 1 / extractorRequests == 1 /
+      render-set が触ったモジュール 1 件 / impact の選択数 == renderer の書いた数 /
+      pagesRendered < 422 / 触ったモジュールのページが 200 /
+      無いページが 404 / `..` が 403 / 常駐 extractor が残っていない。
+      rebuild wall は**印字するだけで何も判定しない**。既定の実行を 3 回
+      (このセッション 2 回、別セッション 1 回) 回して **3.632 / 3.802 / 4.034 s**
+      — **これが壁時計をゲートに使わない理由そのもの**で、同じ 12 検査は
+      3 回とも同じ整数で緑だった。
+
+  (b) `--inject wrong-module` — **終了コード 1**。別のモジュールを stale にして、
+      期待値は元のままにする。出た行:
+
+        ok    work.modulesExtracted is 1, expected 1
+        ok    work.pagesRendered is 1, expected 1
+        ok    work.extractorRequests is 1, expected 1
+        FAIL  the render set is InformationTheory.Shannon.BroadcastChannel.Basic,
+              expected InformationTheory.Shannon.ArithmeticCoding
+        checks  7, failed 1
+        WATCH GATE: FAIL — 12 check(s), 1 failed
+
+      **整数 3 つは緑のまま。** 「1 モジュール抽出して 1 ページ描いた」は真で、
+      しかし**別のモジュールについて**真だった。名前の照合だけが捕まえる。
+      これがこのゲートに 4 つ目の検査がある理由。
+
+  (c) `--inject no-touch` — **終了コード 1**。何も stale にせずに再ビルドを待つ:
+
+        watch-gate FAIL  30s passed and the first rebuild never happened
+
+      同時に「何もしていない watch は 30 秒で 1 度も再ビルドしない」ことの実測でもある。
+
+  (d) **取り残しの watch が居るときの拒否** — **終了コード 2**、2 経路とも。
+      別の `litedoc4 watch` を先に起こしてからゲートを回した:
+
+        watch-gate REFUSED  pid 82588 is a `litedoc4 watch` already on port 8485
+          — stop it, or pass --port N
+          /Users/…/litedoc4 watch --root … --out … --port 8485
+        watch-gate REFUSED  something is already listening on port 8485
+          COMMAND    PID   USER   FD   TYPE  … TCP 127.0.0.1:8485 (LISTEN)
+
+      作業領域が同じ場合も同じく exit 2:
+
+        watch-gate REFUSED  pid 82588 is a `litedoc4 watch` already using this
+          work area (/private/tmp/lean-doc-relay/watch-measure) — stop it, or
+          pass --out DIR
+
+      **殺していない** (拒否のあとも pid 82588 は生きていた)。
+      これが要るのは、`watch` が起動したシェルより長生きするため:
+      取り残しが居ると (1) ゲートのビルドが読んでいる IR を書き換えて
+      `EOF while parsing a value at line 1 column 0` になり、
+      (2) 後始末の削除中にファイルを作り直して `rm: Directory not empty` になる
+      【実測 2026-08-21、この 2 つを実際に踏んだ】。**どちらも「ゲートが壊れている」
+      ように見える。**
+
+  (e) **拒否した作業領域を消していた** 【実測 2026-08-21、直した】。
+      (d) の拒否経路でも `trap cleanup EXIT` が `rm -rf "$OUT"` を走らせていて、
+      **他のプロセスが使っているディレクトリを消した**。所有権のフラグを
+      ゲート通過後に立て、それが立つまで cleanup は何も消さないようにした。
+      確認は canary ファイルを置いて拒否させ、残っていることを見た。
+
+  壊したのは**この作業領域のコピーだけ**。リポジトリ・対象パッケージ・その ledger は
+  書き換えていない (`git checkout <file>` は使っていない)。作業領域は `--keep`
+  が無ければ消える (サイト 1 本で約 35 MB)。
+
+8. このログが見ていないもの
+----------------------------
+- **利用者の `lake build`** (§0)。ここでの「編集」は ledger への注入。
+- **本物の編集の再抽出コスト**。`ledger touch` は olean を動かさないので、
+  抽出し直した IR は前と同じバイト列になる。**Lean が読む olean の中身が
+  変わったときの抽出時間は測っていない** — ただし extract_s は
+  「環境 import ＋ 1 モジュール抽出」なので、支配項 (import) は同じ。
+- **複数モジュールが同時に stale になったとき**。ここは常に 1 モジュール。
+- **`lake build` が走っている最中の挙動**。ループは「答えが動いている間は待つ」
+  設計だが、**本物の in-flight ビルドに対しては実測していない** (注入では
+  olean が動かないため、settling は 1 パスで終わる)。**未検証。**
+- **ブラウザ**。サーバは curl でしか叩いていない。
+- **Linux / Windows**。ポーリングと `std::net` は OS を選ばないが、
+  ここで走らせたのは macOS だけ。
+- **長時間**。最長で 200 秒 idle + 8 サイクル。メモリの伸びは見ていない。
+- **再ビルドの途中で殺したときの中身**。SIGTERM を再ビルド中に送ると
+  watch は即座に消え、常駐 extractor は**進行中のリクエストを終えてから**
+  自分の出口で消える【実測 2026-08-21】 — パイプの書き手が居なくなれば EOF に
+  なるという `resident.rs` の設計どおりで、放置されはしない。
+  **ただし IR の書き込みは atomic ではない** (`litedoc4-incr::merge` の
+  `fs::copy` / `fs::write` は一時名 + rename ではなく直接上書き)。つまり
+  **中断された再ビルドは半分書かれた IR ファイルを残しうる**。
+  これは増分パイプラインの性質であって watch のものではないので、
+  ここでは直していない。**未検証**: 実際に半端な IR が残る確率と、
+  次のパスがそれをどう扱うか。
