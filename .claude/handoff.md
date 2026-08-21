@@ -30,7 +30,12 @@
     47 群が名前空間をまたぐ)。**#163 の症状は再現しない** (両標本 0 件)、
     **#184 は litedoc4 では欠陥ではない**。B-3 を縮めて計画に書き直した。
     分母 3 箇所にリビジョンを添えた (数字は書き換えていない)。
-  - r1 続き: **B-1 (sorry) 実装中** — schema 4 → 5 の bump はここ 1 回だけ
+  - r1 続き: **B-1 完了 `8318e6c`** — schema 5、`sorry: direct|transitive`。
+    **`collectAxioms` は推移閉包を歩かない** (olean に計算済み) ので実測 0.006 s = 0.10%。
+    天井 (早期脱出なし) は +10.0% で撤退ラインちょうど。`e2e/micro` に GATE 7。
+    **`MIN_SCHEMA_VERSION` は 4 のまま** — `global-expected.json` が schema 4 IR を
+    入力として抱えている。**5 に上げるのは C-4 と同じコミットで。**
+  - r1 続き: **B-2 (属性の構造化) 実装中**
 
 ## Where we are
 
@@ -42,9 +47,9 @@ issue 108 件 + PR。依存リンクの腐敗率は実測済み
 
 ## Next step
 
-**B-1 (sorry) の検証 → コミット** → B-2 (属性の構造化) → B-3 (縮めた版: `@[ext]` のみ)。
-**schema を上げるのは B-1 の 1 回だけ**、以降は `#[serde(default)]` で足す。
-束 B は描画を触らない (c/e/f の描画は束 C)。
+**B-2 の検証 → コミット** → B-3 (縮めた版: `@[ext]` 由来のみ畳む)。
+そのあと**束 C** — a (数式 MathML) / d (逆引き) / c・e・f の描画 / i (設定) / C-4 再凍結。
+**C-4 で `MIN_SCHEMA_VERSION` を 5 に上げる。**
 
 ## Files to read first
 
