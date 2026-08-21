@@ -25,6 +25,7 @@
 //! | [`html`] | `DocGen4/Output/DocString.lean`: the tree to HTML |
 //! | [`escape`] | `Html.escape`, which is four characters and not five |
 //! | [`gc`] | the Unicode general category tables the two of those need |
+//! | [`math`] | `$…$` to MathML, which doc-gen4 left to MathJax in the browser |
 //!
 //! ```
 //! use litedoc4_md::{NoLinks, Renderer};
@@ -60,6 +61,7 @@ pub mod ffi;
 pub mod flags;
 pub mod gc;
 pub mod html;
+pub mod math;
 mod parse;
 
 pub use ast::{AttrText, Block, Document, Li, Text};
@@ -67,4 +69,5 @@ pub use error::{Error, Result};
 pub use escape::{escape_html, escape_html_into};
 pub use flags::DOCSTRING_FLAGS;
 pub use html::{LinkResolver, NoLinks, Renderer, attr_text_to_string, heading_id};
+pub use math::to_mathml;
 pub use parse::{parse, parse_with_flags};

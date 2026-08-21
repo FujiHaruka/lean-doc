@@ -260,6 +260,24 @@ Released under Apache 2.0 license as described in the file LICENSE. / Authors: H
 | `crates/litedoc4-md/src/gc.rs` (UnicodeBasic の出力を列挙したデータ) | UnicodeBasic = Apache 2.0 | 1,691 行 | 無し (冒頭に rev `a2e430a4…` の記録のみ) |
 | `crates/litedoc4-global/src/v8_gc.rs` (V8 を総当たりした出力データ) | V8 = BSD-3 | 818 行 | 無し (deno 2.7.14 / V8 rev の記録のみ) |
 
+**2026-08-22 に 1 件増えた** — `math-core` (MIT © 2024 Hiromu Sugiura / Thomas MK)。
+これは**性質が上の 5 件と違い、2 つに分かれる**:
+
+| | 何をしたか | 義務の形 |
+|---|---|---|
+| `crates/litedoc4-md/src/math.rs` | **リンクしただけ** (crates.io の release に依存)。ソースは 1 行も持ち込んでいない | MIT の permission notice。**バイナリに入るので NOTICE に全文**を置く — md4c と同じ理由で、release アーカイブが配るのは NOTICE であって checkout ではない |
+| `crates/litedoc4-render/assets/style.css` §15b | **CSS を複製した** (`css/mathmlfixes.css`)。整形し、webfont 規則と `merror` 規則を落とした | ソースの複製なので NOTICE に由来と改変の明記。`style.css` は doc-gen4 の名前も既に載せているので、**inventory は 2 文字列を要求する** (「MIT」だけだと別の段落で満たされてしまう) |
+
+**依存クレートを NOTICE に載せる基準はここで決まった**【決定 2026-08-22】 —
+「バイナリに入るか」。`serde` や `sha2` を載せていないのは基準の抜けではなく、
+**Apache-2.0 / MIT-OR-Apache-2.0 のデュアルライセンスで Apache 側を選べば
+§4 の義務が LICENSE と NOTICE で既に満たされている**ため。MIT 単独のものは
+選択肢が無いので個別に載る。`math-core` の推移的依存 18 件のうち
+**MIT 単独は `strum` / `strum_macros` / `phf` 系 / `math-core-renderer-internal`**
+で、これらは**コードとして持ち込んでいない**が同じくバイナリに入る。
+**未処理** — `cargo deny` はライセンスの許可判定しかしておらず、
+notice の網羅は見ていない。→ §8 に検証項目として置いた。
+
 `gc.rs` / `v8_gc.rs` は**プログラムの出力**であって元のソースではない。
 `tests/data/docgen4-*.json` も同じ性質。ソースの複製とは扱いが違うが、
 **由来の記録は等しく要る** — 再生成の手順が分からなくなる方が実害が大きい。
@@ -278,3 +296,10 @@ Released under Apache 2.0 license as described in the file LICENSE. / Authors: H
   **撤去の理由は方針であって法務ではない。**
 - **`benchmarks/doc-gen4-instrumentation.patch` を配布した場合。** context 187 行が
   doc-gen4 のソース逐語なので、patch 単体で §4(a)(c) が発動する
+- **【未検証、2026-08-22 起票】NOTICE が「バイナリに入る MIT 単独クレート」を
+  網羅していない。** §7 の表に書いたとおり、載せる基準は「バイナリに入るか」に決めたが、
+  実際に載っているのは**コードを持ち込んだ 5 件と `math-core` だけ**で、
+  `strum` / `phf` 系のような MIT 単独の推移的依存は載っていない。
+  `cargo deny` は許可リストとの照合しかしないので**この抜けは緑のまま通る**。
+  潰し方は「closure のライセンスを列挙して MIT 単独を抽出する」ゲートを 1 本足すこと。
+  **「たぶん大丈夫」と読まない** — 依存が 30 から 48 に増えた直後の状態である

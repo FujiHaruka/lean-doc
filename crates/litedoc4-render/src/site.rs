@@ -139,6 +139,14 @@ pub struct RenderSummary {
     pub link_index_entries: usize,
     pub known_modules: usize,
     pub bytes_written: u64,
+    /// Math spans that could not be converted to MathML and were written back
+    /// as their LaTeX source ([`crate::RenderedPage::math_failures`]).
+    ///
+    /// Zero is the number to expect: the target package's three spans and
+    /// 99.58% of Mathlib's 2,123 convert 【実測 2026-08-22 →
+    /// `benchmarks/results/mathml-2026-08-22.txt`】. A non-zero value is a
+    /// docstring to look at, not a bug in the build.
+    pub math_failures: usize,
 }
 
 /// Reads the IR, builds the maps, and writes one page per wanted module.
@@ -185,12 +193,14 @@ pub fn render_site(options: &RenderOptions<'_>) -> Result<RenderSummary, Error> 
         if !options.only.contains(&module.module) {
             continue;
         }
-        let html = page_html(module, &index, source_url, &suppressed, &site).map_err(|source| {
+        let page = page_html(module, &index, source_url, &suppressed, &site).map_err(|source| {
             Error::Unplaceable {
                 module: module.module.clone(),
                 source,
             }
         })?;
+        let html = page.html;
+        summary.math_failures += page.math_failures;
         let path = options.pages.join(page_path(&module.module));
         if let Some(dir) = path.parent() {
             fs::create_dir_all(dir).map_err(|source| Error::Io {

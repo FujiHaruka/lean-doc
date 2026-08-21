@@ -909,6 +909,11 @@ fn print_render_summary(lead: &str, summary: &RenderSummary) {
         "{lead}known {}  link index {}  known modules {}",
         summary.known_entries, summary.link_index_entries, summary.known_modules,
     );
+    // Printed even when it is zero. The thing it reports is a *silent* fallback
+    // — a formula that stayed `$…$` still renders a valid page — so a line that
+    // appears only on failure is indistinguishable from a line that stopped
+    // being printed (CLAUDE.md「skip で緑を返さない」).
+    println!("{lead}math spans kept as LaTeX {}", summary.math_failures);
 }
 
 /// The whole-package derivation's counts, including the delta when there is one.

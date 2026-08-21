@@ -138,6 +138,6 @@ pub use frame::{
 };
 pub use link_index::LinkIndex;
 pub use order::{cmp_name, cmp_name_components, cmp_string, name_lt, sort_names, string_lt};
-pub use page::{PageItem, Suppressed, page_html, page_items, page_path};
+pub use page::{PageItem, RenderedPage, Suppressed, page_html, page_items, page_path};
 pub use site::{ModuleSet, RenderOptions, RenderSummary, render_site};
 pub use whitespace::{WsRewrite, apply_ws_widths};

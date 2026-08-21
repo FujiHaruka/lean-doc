@@ -390,6 +390,14 @@ pub(crate) struct Summary {
     /// than work that was done, under a name that says otherwise. The set's own
     /// size is on the `impact` line, where it belongs.
     pub pages_rendered: usize,
+    /// Math spans the renderer could not convert to MathML and wrote back as
+    /// `$…$` ([`litedoc4_render::RenderSummary::math_failures`]).
+    ///
+    /// Recorded rather than only printed because the fallback leaves a **valid
+    /// page**: nothing downstream — not the byte count, not the page count, not
+    /// the exit code — moves when a formula fails. A gate that wants to assert
+    /// "the mathematics came out as mathematics" has nothing else to read.
+    pub math_fallbacks: usize,
     /// The whole-package derivation's `contentHash` cache, as
     /// [`litedoc4_global::GlobalSummary`] counted it — the same values the
     /// `global  cache H hit / M miss` line prints.
@@ -728,6 +736,7 @@ pub(crate) fn run_incremental(
     // so this skip is an optimisation — it saves reading the whole IR to write no
     // file — and **not** the guard the prototype needed it to be.
     let mut pages_rendered = 0usize;
+    let mut math_fallbacks = 0usize;
     if render_set.is_empty() {
         write_file(&work.render_timings, "{\"skipped\":\"empty render set\"}\n")?;
         println!("render  nothing to render");
@@ -747,12 +756,14 @@ pub(crate) fn run_incremental(
         // and the run's `work` record. Counting the render set instead would put a
         // second, larger number under the same word.
         pages_rendered = rendered.pages_written;
+        math_fallbacks = rendered.math_failures;
         let record = serde_json::json!({
             "command": "render",
             "pagesWritten": rendered.pages_written,
             "modulesInIr": rendered.modules_in_ir,
             "declarationsRendered": rendered.declarations_rendered,
             "pageBytes": rendered.bytes_written,
+            "mathFallbacks": rendered.math_failures,
             "renderSeconds": at.elapsed().as_secs_f64(),
         });
         write_file(
@@ -772,6 +783,7 @@ pub(crate) fn run_incremental(
             ir_changed: ir_changed.len(),
             global_stale: global_affected.len(),
             pages_rendered,
+            math_fallbacks,
             cache_hits: derived.cache_hits,
             cache_misses: derived.cache_misses,
             mode: mode.name().to_owned(),
@@ -1474,6 +1486,7 @@ fn write_timings(
         ("irChanged", summary.ir_changed),
         ("globalStale", summary.global_stale),
         ("pagesRendered", summary.pages_rendered),
+        ("mathFallbacks", summary.math_fallbacks),
     ] {
         record.insert(name.to_owned(), serde_json::json!(value));
     }

@@ -8,6 +8,9 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
+# `$…$` to MathML at build time (`src/math.rs`, feature-sweep C-1). The root
+# `Cargo.toml` says why it is this crate and not `pulldown-latex`.
+math-core = { workspace = true }
 
 [dev-dependencies]
 serde = { workspace = true }

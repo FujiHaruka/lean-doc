@@ -1,0 +1,212 @@
+# C-1 (a) docstring の数式 — 実測
+
+日付      2026-08-22
+機材      Apple M1 (8 core) / 16 GB / macOS 26.0 / APFS
+Rust      1.97.1
+対象      /Users/haruka/dev/lean-projects (InformationTheory, 422 モジュール)
+母数 2    /Users/haruka/dev/lean-projects/.lake/packages/mathlib/Mathlib
+          (Lean 4 ソース 8,169 ファイル)
+暖機      olean は warm。IR は本計測の直前に抽出 (24.0 s real / 15.0 user /
+          3.4 sys / peak RSS 3.40 GB、422 モジュール、jobs 4)
+計測器    scratchpad の probe 2 本。どちらも litedoc4-md の parse を通し、
+          md4c の MD_FLAG_LATEXMATHSPANS が見つけた span だけを数える
+          (`$` の grep ではない)
+
+計画      docs/plans/feature-sweep.md C-1
+
+
+## 1. 数式はどれだけあるか【実測】
+
+### 対象パッケージ (IR 422 モジュール)
+
+  docstring                       5,079
+  数式を含む docstring                3   (0.06%)
+  数式を含むモジュール                2   (/422)
+  インライン span ($…$)               0
+  ブロック span ($$…$$)               3
+  変換成功                          3/3   (100%)
+
+**対象には数式がほとんど無い。** C-1 の価値はこの対象では測れない。
+`$$|A|^{n-1} \le \prod …$$` の形が Loomis–Whitney と Brascamp–Lieb の
+2 モジュールに 3 つあるだけで、他の 420 モジュールは 1 つも持たない。
+
+### Mathlib のソース (8,169 ファイル)
+
+  docstring                      91,815
+  数式を含む docstring              651   (0.71%)
+  数式を含むファイル                300   (/8,169)
+  インライン span ($…$)           1,946
+  ブロック span ($$…$$)             177
+  span 合計                       2,123
+  LaTeX の総バイト数              39,970
+
+**利用者側の母数はこちら。** litedoc4 は Mathlib 自体を描かないが、
+Mathlib の docstring は「Mathlib に依存するパッケージ」が書く docstring の
+書き方の母集団であり、doc-gen4 #178 が指しているのもこの corpus。
+
+
+## 2. 変換クレートの比較【実測】
+
+| | pulldown-latex 0.8.0 | math-core 0.7.0 |
+|---|---|---|
+| 変換成功 | 2,114 / 2,123 (99.576%) | 2,113 / 2,123 (99.529%) |
+| **エスケープされない `<` / `&` を出す span** | **61 (2.9%)、文字数 77** | **0** |
+| MathML の総バイト数 | 426,631 | 374,151 |
+| 依存の増分 (このワークスペース) | +2 (bumpalo) | +18 |
+
+`pulldown-latex` は `\text{…}` の中だけをエスケープし、演算子・識別子の生文字は
+`encode_utf8` で直書きする (`src/mathml.rs:673-`)。結果:
+
+  $a < b$   ->  <math display="inline"><mi>a</mi><mo><</mo><mi>b</mi></math>
+
+現行ブラウザは `<` の直後が `<` なので text として読み、描画自体は通る。
+このリポジトリに HTML 検証ゲートは無いので**既存のどのゲートでも捕まらない**。
+それでも不正な markup であり、計画 C-1 の「壊れた MathML を出さない」に反する。
+
+【決定、ユーザー判断 2026-08-22】**`math-core` に差し替えた。**
+計画 §6 決定 4 が `pulldown-latex` を名指していたが、決定の実質は
+「ビルド時に MathML へ焼く / クライアント JS も実行時 node も足さない」であり、
+クレートの選定は【調査 2026-08-19】だった。実測が覆したので計画側を直す。
+
+### 変換できない span
+
+pulldown-latex (9 件 / 7 種):
+  {n \choose k} が 2、\colim が 3、壊れた LaTeX が 4
+    x = x' + \sum (i=0}^{q-1} σ_{n-i}(y_i)      <- 括弧が閉じない
+    \lim_{x\to\infty^{-1}|x|_m=+\infty          <- 閉じない
+    n$th differential in                        <- 数式モード内の $
+    (これらは Mathlib 側のソースが壊れている)
+
+math-core (10 件 / 9 種):
+  \colim が 2、\dotsc / \dotsm を含む式が 4、\cr が 1、\begin{align} の & が 1、
+  壊れた LaTeX が 2 (上の 4 件のうち 2 件は math-core が通す)
+
+**どちらも「落ちる」ことはない** — 例外もパニックも 0。失敗は Result で返り、
+`to_mathml` が `None` にし、ページには `$…$` が残る。
+
+
+## 3. corpus が実際に出す MathML の構成【実測】
+
+math-core が 2,113 span を変換した結果に含まれる要素:
+
+  <munder>                   175
+  <mover>                     44
+  accent="true"               42
+  <mtext>                     16
+  <mtable> / <mtd>             4
+  <menclose>                   0
+  math-core-serif-font         0
+  math-core-sans-serif-font    0
+  math-core-unknown-cmd        0
+
+CSS の取捨はこの数字で決めた (`crates/litedoc4-render/assets/style.css` §15b):
+
+- `mtd` の padding と accent の margin は**発火する**ので入れた。
+- `merror.math-core-unknown-cmd` は `ignore_unknown_commands: false` により
+  **構造的に出得ない**ので落とした。
+- `<menclose>` の Chromium polyfill は corpus に 0 件だが**出得る**
+  (`\cancel{…}` を書けば出る)ので残した。無いと Chromium が何も描かない。
+- webfont は入れなかった。upstream は Libertinus / Computer Modern の woff2 を
+  要求するが、`style.css` の冒頭が「no webfont」であり、1 サイトあたり
+  400〜700 KB を書体のために払うことになる。`font-family: math` を使う。
+
+
+## 4. 生成時間とバイト数への影響【実測】
+
+`litedoc4 site` を同じ IR (422 モジュール) に対して 5 回ずつ、
+2 つのバイナリを交互に。両方 release ビルド。
+
+  before = d0538b4 の target/release/litedoc4 (C-1 以前)
+  after  = 本変更を入れたもの
+
+  renderSeconds (JSON より):
+    before   0.4069  0.3558  0.3583  0.3449  0.3505   -> 中央値 0.3558
+    after    0.3537  0.3674  0.3546  0.3548  0.3824   -> 中央値 0.3548
+
+  壁時計 (/usr/bin/time -p real):
+    before   0.92  0.47  0.48  0.46  0.49
+    after    0.88  0.49  0.47  0.48  0.51
+
+**差は雑音の中。** round 1 は cold (0.92 / 0.88 s)、round 2 以降が warm で
+0.46〜0.51 s に収束している。**cold と warm を混ぜていない。**
+数式が 3 つしか無い対象で 2,123 span ぶんの費用は出ないので、
+**この数字は「速くなった/遅くなった」の主張には使えない** — 言えるのは
+「422 モジュールの描画に測れる増分が無い」ことだけ。
+
+  pageBytes:
+    before   33,141,494
+    after    33,142,958      +1,464 B (+0.0044%)
+
+  ページの差分 (438 ファイル中):
+    2 ファイル  InformationTheory/Shannon/BrascampLieb.html
+                InformationTheory/Shannon/LoomisWhitney.html
+
+**他の 436 ファイルは 1 バイトも動いていない。** `litedoc4 site` は静的アセットを
+書かないので、この比較に style.css は入っていない (それは `build` の仕事)。
+
+
+## 5. 依存の増分
+
+  ワークスペースの closure   30 -> 48 crate
+
+  新規 (18): math-core, math-core-renderer-internal, bitflags, dtoa,
+  percent-encoding, rustc-hash, stable-arena, static_assertions, strum,
+  strum_macros, phf, phf_macros, phf_generator, phf_shared, fastrand,
+  siphasher, heck, syn v2 (既存の syn v3 と重複)
+
+  ライセンスは全て MIT / Apache-2.0 / Unlicense-OR-MIT。
+  `cargo deny check` は緑 (advisories ok, bans ok, licenses ok, sources ok)。
+
+  **未処理**: NOTICE が「バイナリに入る MIT 単独クレート」を網羅していない。
+  → docs/provenance.md §8 に検証項目として起票した。
+
+
+## 6. ゲート
+
+`tools/e2e-micro.sh` GATE 10 を足した (`e2e/micro/Micro/Math.lean` が入力)。
+
+一度落とした記録【実測 2026-08-22】 — `to_mathml` を常に `None` を返すよう
+書き換えて回した:
+
+  GATE 10 FAIL  work.mathFallbacks: 5, expected 1
+  GATE 10 FAIL  inline <math>: 0, expected 3
+  GATE 10 FAIL  <math display="block">: 0, expected 1
+  GATE 10 FAIL  `$a < b$` was written back as LaTeX — it is supposed to convert
+  (スクリプトは exit 1、"E2E MICRO: ok" は印字されない)
+
+戻して回すと:
+
+  math         4 formula(s) rendered, 1 kept as LaTeX, 0 unescaped character(s)
+
+`benchmarks/tools/check-site-browser.ts` に検査 8b を足した。**「markup が正しい」と
+「ブラウザが描く」は別の問い**で、後者を見るものは他に無い — MathML Core を実装しない
+ブラウザでは `<math>` は幅 0 になり、ページは valid のまま数式だけが消える。
+
+  ok   MathML is laid out — 4 formulas, widest 680px, first child <msup>
+
+一度落とした記録【実測 2026-08-22】 — サイトのコピーを作り、`<math>…</math>` を
+中身のテキストだけの `<span>` に置換して回した:
+
+  FAIL MathML is laid out — Micro/Math.html holds no <math> element
+  BROWSER GATE: 1 failed   (exit 1)
+
+このゲートは CI の e2e-micro ジョブが `first/site` に対して回すので、
+**`Micro/Math.lean` が入った時点で 3 OS のうち ubuntu で自動的に回る。**
+Chrome (puppeteer) のみ。**Firefox / Safari は未判定。**
+
+
+## 7. 凍結フィクスチャ
+
+`cargo test --workspace` は **2 本落ちる**。C-4 で再凍結するまで落ちたまま。
+
+  litedoc4-md tests/docgen4.rs::every_case_matches_doc_gen4
+    327 件中 5 件が doc-gen4 と食い違う。全て数式の case:
+      curated: inline math / display math / math with markdown inside
+      html: escapes in math / html: table, markup in cells
+    doc-gen4 は `<p>$x^2$</p>`、こちらは `<p><math><msup>…`。
+    **これは仕様どおりの乖離** — doc-gen4 は MathJax に任せ、litedoc4 は焼く。
+
+  litedoc4-md tests/ts_docstring.rs::the_prototype_is_the_one_that_differs
+    表のセル内の `$e$` 1 件。同じ理由。
+
+他は全て緑 (24 個のテストバイナリ中 22 個が ok)。

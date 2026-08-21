@@ -646,6 +646,97 @@ body.plain .modhead h1 { font-size: clamp(1.75rem, 1.1rem + 2.6vw, 2.75rem); }
   .decl-head .src { margin-left: 0; }
 }
 
+/* -- 15b. mathematics ---------------------------------------------------- */
+
+/* `litedoc4-md` writes MathML into docstrings at build time (feature-sweep
+   C-1), so there is no MathJax and no KaTeX here — the browser lays this out
+   itself. What it still needs is the CSS `math-core`'s output assumes.
+
+   Taken from `math-core`'s own `css/mathmlfixes.css` (MIT, Copyright 2024
+   Charles Edward Gagnon / Thomas MK; see NOTICE and docs/provenance.md),
+   reformatted, with two changes and no others:
+
+     - **no webfont.** Upstream names a Libertinus or Computer Modern `.woff2`
+       next to the stylesheet; this file's first line says no webfont, and the
+       cost is 400-700 KB per site for a typeface. `font-family: math` is the
+       CSS generic for "the math font this browser already has".
+     - `merror.math-core-unknown-cmd` is gone. `litedoc4_md::to_mathml` leaves
+       `ignore_unknown_commands` at `false`, so an unknown command is an error
+       the renderer answers `None` to rather than markup — nothing here can
+       produce that element.
+
+   The `menclose` block is kept even though the measurement corpus produces
+   none 【実測 2026-08-22: 0 of 2,113 converted spans】. It is not dead the way
+   the `merror` rule is: a docstring that writes `\cancel{…}` produces it, and
+   without these rules Chromium draws nothing at all. */
+
+math { font-family: math; }
+/* Prose inside a formula is prose: `\text{…}` should not switch typeface. */
+math mtext { font-family: inherit; }
+
+/* The MathML Core default, which Firefox does not apply, and unpadded edges so
+   that a matrix does not sit inside a margin of its own. */
+mtd { padding: .5ex .4em; }
+mtr > mtd:first-child { padding-left: 0; }
+mtr > mtd:last-child { padding-right: 0; }
+
+/* Chromium only — it implements no `<menclose>`, so the element is drawn out of
+   the `mrow`s `math-core` emits beside it. */
+@supports (not (-webkit-backdrop-filter: blur(1px))) and (not (-moz-appearance: none)) {
+  menclose { position: relative; padding: .5ex 0; }
+  menclose[notation~="box" i] { border: .04em solid; padding: .3rem; }
+  menclose[notation~="actuarial" i] {
+    padding: .03889rem .03889rem 0 .03889rem;
+    border-width: .08em .08em 0 0;
+    border-style: solid;
+    margin-right: .03889rem;
+  }
+  menclose[notation~="phasorangle" i] {
+    border-bottom: .067em solid;
+    padding: .2em .2em .1em .6em;
+  }
+  mrow.menclose-phasorangle {
+    display: inline-block;
+    position: absolute;
+    left: .5px;
+    bottom: -.04em;
+    height: 100%;
+    aspect-ratio: .5;
+    background-color: currentcolor;
+    clip-path: polygon(.05em 100%, 0 calc(100% - .05em), calc(100% - .05em) 0, 100% .05em);
+  }
+  mrow.menclose-updiagonalstrike,
+  mrow.menclose-downdiagonalstrike {
+    display: inline-block;
+    position: absolute;
+    left: .5px;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    background-color: currentcolor;
+  }
+  mrow.menclose-updiagonalstrike {
+    clip-path: polygon(.05em 100%, 0 calc(100% - .05em), calc(100% - .05em) 0, 100% .05em);
+  }
+  mrow.menclose-downdiagonalstrike {
+    clip-path: polygon(0 .05em, .05em 0, 100% calc(100% - .05em), calc(100% - .05em) 100%);
+  }
+}
+
+/* Chromium and Safari — the accent gap Firefox already produces. 42 of the
+   corpus's spans carry an accent 【実測 2026-08-22】. */
+@supports (not (-moz-appearance: none)) {
+  mover[accent="true" i] > mo:nth-child(2) { margin-bottom: .15ex; }
+}
+
+/* A displayed formula is a block in the docstring's flow, not a run of text.
+   `overflow-x` because a formula cannot be wrapped and must not widen the
+   page — the same problem `.doc pre` has. */
+:is(.moddoc, .doc, .field-doc) math[display="block"] {
+  overflow-x: auto;
+  margin: .6rem 0;
+}
+
 /* -- 16. print ----------------------------------------------------------- */
 
 @media print {

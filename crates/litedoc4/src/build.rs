@@ -771,6 +771,7 @@ pub(crate) fn run(request: &Request) -> Result<Ran, Failure> {
     let work = WorkCounts {
         modules_extracted: done.extracted,
         pages_rendered: done.pages_rendered,
+        math_fallbacks: done.math_fallbacks,
         extractor_requests: extractor.requests(),
         cache_hits: done.cache_hits,
         cache_misses: done.cache_misses,
@@ -836,6 +837,9 @@ struct Done {
     extracted: usize,
     rounds: usize,
     pages_rendered: usize,
+    /// Math spans that fell back to `$…$`, from whichever path rendered
+    /// ([`litedoc4_render::RenderSummary::math_failures`]).
+    math_fallbacks: usize,
     ledger_modules: usize,
     /// The whole-package derivation's `contentHash` cache, exactly as the
     /// `global  cache H hit / M miss` line reports it.
@@ -900,6 +904,13 @@ struct WorkCounts {
     modules_extracted: usize,
     /// Pages the renderer wrote.
     pages_rendered: usize,
+    /// Math spans written back as their LaTeX source rather than as MathML.
+    ///
+    /// In the record because the fallback leaves a **valid page**: no other
+    /// number here moves when a formula fails, so a gate asserting that a
+    /// package's mathematics came out as mathematics has nothing else to read
+    /// (`docs/plans/feature-sweep.md` C-1).
+    math_fallbacks: usize,
     /// Extractions asked for: processes on `--extractor`, requests on the
     /// resident path.
     extractor_requests: usize,
@@ -913,6 +924,7 @@ impl WorkCounts {
         serde_json::json!({
             "modulesExtracted": self.modules_extracted,
             "pagesRendered": self.pages_rendered,
+            "mathFallbacks": self.math_fallbacks,
             "extractorRequests": self.extractor_requests,
             "globalCacheHits": self.cache_hits,
             "globalCacheMisses": self.cache_misses,
@@ -940,10 +952,12 @@ impl WorkCounts {
             None => "n/a".to_owned(),
         };
         format!(
-            "work    extract {} / render {} / requests {} / cache {} hit {} miss / \
+            "work    extract {} / render {} / math-fallback {} / requests {} / \
+             cache {} hit {} miss / \
              ir {} file(s) ({} module read(s) = {passes} full pass(es))",
             self.modules_extracted,
             self.pages_rendered,
+            self.math_fallbacks,
             self.extractor_requests,
             self.cache_hits,
             self.cache_misses,
@@ -1049,6 +1063,7 @@ fn full_generation(
         extracted: modules.len(),
         rounds: 1,
         pages_rendered: site.rendered.pages_written,
+        math_fallbacks: site.rendered.math_failures,
         ledger_modules: detected.modules.len(),
         cache_hits: site.derived.cache_hits,
         cache_misses: site.derived.cache_misses,
@@ -1096,6 +1111,7 @@ fn incremental_generation(
         extracted: run.summary.changed + run.summary.stale_found,
         rounds: run.summary.rounds,
         pages_rendered: run.summary.pages_rendered,
+        math_fallbacks: run.summary.math_fallbacks,
         ledger_modules: run.detected.modules.len(),
         cache_hits: run.summary.cache_hits,
         cache_misses: run.summary.cache_misses,
