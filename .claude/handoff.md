@@ -22,7 +22,11 @@
     `incremental`/`ledger`/`links` に `--deps-docs-map`、実測ログ
     `benchmarks/results/deps-docs-2026-08-19.txt`。
     527 名中 524 が docs、3 がソース (doc-gen4 が公開しない再帰子)。
-  - r1 続き: **A-2 (watch) 実装中**
+  - r1 続き: **A-2 完了 `19ffb9f`** + 整形 `09a39d4` (CI が `cargo fmt --all --check` で
+    2 回赤くなった — 検証手順に fmt が無かった。計画 §5 を ci.yml が SoT に書き換え)。
+    **束 A 完了。** watch は warm 5.5-6.2 s / cold 13.7 s、86-89% が Lean の環境ロード。
+    **常駐 extractor はパスをまたげないことが実測で判明** — 計画の前提が誤りだった。
+  - r1 続き: **B-0 (自動生成宣言の親子判定) 調査中** → `docs/plans/b0-generated-decls.md`
 
 ## Where we are
 
@@ -34,8 +38,8 @@ issue 108 件 + PR。依存リンクの腐敗率は実測済み
 
 ## Next step
 
-**A-2 (g) watch** の検証 → コミット。その後 **束 B** (B-0 の調査 → c → e → f)。
-束 B は IR schema 4 → 5 を**1 回で**上げる。
+**B-0 の結論を読んで束 B の schema 内容を確定** → c (sorry) → e (属性) → f (自動生成)。
+**IR schema 4 → 5 は 1 回で上げる。**
 
 ## Files to read first
 
