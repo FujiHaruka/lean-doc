@@ -148,6 +148,21 @@ pub fn class_instances_html(name: &str) -> String {
     fill_block(name, "instances", "Instances")
 }
 
+/// Which declarations of this package mention this one — doc-gen4 #77 / #63,
+/// `docs/plans/feature-sweep.md` C-2. Same shape again, third map.
+///
+/// **Emitted for every declaration, whether or not it has users.** Knowing
+/// which have users is a fact about the whole package, and a renderer that
+/// consulted it would make each page's *bytes* depend on every other module:
+/// editing one module would then restale every page it refers into — 15 of the
+/// target's 422 at worst, 2 at the median 【実測 2026-08-22】 — through an
+/// impact direction that does not exist today. The block that says "None" is
+/// the price of not adding one.
+#[must_use]
+pub fn used_by_html(name: &str) -> String {
+    fill_block(name, "used-by", "Used by")
+}
+
 fn fill_block(name: &str, fill: &str, summary: &str) -> String {
     let mut out = String::with_capacity(name.len() + 120);
     out.push_str("<details class=\"extra\" data-fill=\"");
@@ -643,6 +658,9 @@ impl<'a> DeclRenderer<'a> {
             // theorem / axiom / opaque / constructor
             _ => {}
         }
+        // Last, and for every kind: "Used by" is the one block that asks a
+        // question about a declaration rather than about what kind it is.
+        extra.push_str(&used_by_html(&decl.name));
 
         let mut out = String::with_capacity(
             head.len() + attrs.len() + signature.len() + doc.len() + body.len() + extra.len() + 64,
@@ -1072,9 +1090,12 @@ mod tests {
         d.doc = Some(String::new());
         let page = Page::new(index(&[]), module_with(vec![d]));
         let html = page.render(0).expect("nothing to place");
-        // The signature's two closing `</div>`s, and then straight to the end
-        // of the block: nothing between them.
-        assert!(html.ends_with("</div></div></section>"), "{html}");
+        // The signature's two closing `</div>`s, and then straight to the
+        // `Used by` block every declaration ends in (C-2): nothing between them.
+        assert!(
+            html.contains("</div></div><details class=\"extra\" data-fill=\"used-by\""),
+            "{html}"
+        );
         assert!(!html.contains("<p>"), "{html}");
     }
 
@@ -1097,11 +1118,17 @@ mod tests {
                 "{kind}: {html}"
             );
             if extra.is_empty() {
-                assert!(!html.contains("<details"), "{kind}: {html}");
+                // Every kind now ends in a `Used by` block (C-2), so "no extra"
+                // means *that one and nothing else* rather than no `<details>`.
+                assert_eq!(html.matches("<details").count(), 1, "{kind}: {html}");
             } else {
                 assert!(html.contains(extra), "{kind}: {html}");
                 assert!(html.contains("data-name=\"X\""), "{kind}: {html}");
             }
+            assert!(
+                html.contains("data-fill=\"used-by\""),
+                "{kind} should carry a Used by block: {html}"
+            );
         }
     }
 

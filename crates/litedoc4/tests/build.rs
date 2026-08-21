@@ -371,11 +371,12 @@ fn the_first_run_builds_and_the_second_one_does_nothing() {
     assert!(log.contains("plan    full generation"), "{log}");
     assert!(log.contains("lib     Pkg (from"), "{log}");
     let after_first = tree(&live.site());
-    // 3 module pages + the 8 whole-package artifacts + the 3 static assets:
+    // 3 module pages + the 9 whole-package artifacts + the 3 static assets:
     // the target's 440 + 3 (M8-d made it 439 + 3 by dropping the five
     // doc-gen4-only artifacts; `docs/plans/search-v2.md` P0 adds
-    // `instances.json`) with its 432 pages replaced by 3.
-    assert_eq!(after_first.len(), 14, "{:?}", after_first.keys());
+    // `instances.json` and feature-sweep C-2 adds
+    // `declarations/used-by.json`) with its 432 pages replaced by 3.
+    assert_eq!(after_first.len(), 15, "{:?}", after_first.keys());
     assert_eq!(live.extractions(), vec![3], "the first run extracts all");
 
     let second = live.build(&[]);
@@ -511,7 +512,7 @@ fn a_failed_run_does_not_move_the_ledger() {
     // 3 (the repair, which is a full generation).
     assert_eq!(live.extractions(), vec![3, 1, 3]);
     let after = tree(&live.site());
-    assert_eq!(after.len(), 14);
+    assert_eq!(after.len(), 15);
     assert_ne!(
         live.ledger(),
         ledger_before,
@@ -551,7 +552,7 @@ fn a_first_run_that_fails_leaves_no_ledger() {
     let repair = live.build(&[]);
     assert_eq!(code(&repair), 0, "{}", stderr(&repair));
     assert_eq!(live.extractions(), vec![3, 3]);
-    assert_eq!(tree(&live.site()).len(), 14);
+    assert_eq!(tree(&live.site()).len(), 15);
 }
 
 /// The other half of the ordering: a run whose **renderer** fails leaves no
@@ -574,7 +575,7 @@ fn a_run_that_fails_in_the_renderer_leaves_no_ledger() {
     // The repair is a full one, and it succeeds once the IR is readable again.
     let repair = live.build(&[]);
     assert_eq!(code(&repair), 0, "{}", stderr(&repair));
-    assert_eq!(tree(&live.site()).len(), 14);
+    assert_eq!(tree(&live.site()).len(), 15);
     assert!(live.out.join("ledger.json").is_file());
 }
 
@@ -662,8 +663,8 @@ fn a_deleted_module_leaves_the_site_and_the_ledger() {
         .map(|entry| entry["module"].as_str().expect("a name"))
         .collect();
     assert_eq!(named, ["Pkg", "Pkg.B"]);
-    // 2 pages + 8 artifacts + 3 static assets.
-    assert_eq!(tree(&live.site()).len(), 13);
+    // 2 pages + 9 artifacts + 3 static assets.
+    assert_eq!(tree(&live.site()).len(), 14);
 }
 
 /// **The gate of M8-a** (`docs/plans/ui-redesign.md` §5): a build into an empty
@@ -1585,9 +1586,9 @@ fn the_timings_record_names_the_path() {
     assert_eq!(record["path"], json!("full"));
     assert_eq!(record["modules"], json!(3));
     assert_eq!(record["extracted"], json!(3));
-    // 3 pages + 8 artifacts + 3 static assets: counted **after** the assets are
+    // 3 pages + 9 artifacts + 3 static assets: counted **after** the assets are
     // written, so the number is the tree that shipped and not a stage of it.
-    assert_eq!(record["pagesInSite"], json!(14));
+    assert_eq!(record["pagesInSite"], json!(15));
     assert_eq!(record["pagesRendered"], json!(3));
 
     assert_eq!(code(&live.build(&["--timings", &path])), 0);
@@ -1596,7 +1597,7 @@ fn the_timings_record_names_the_path() {
     assert_eq!(record["path"], json!("incremental"));
     assert_eq!(record["extracted"], json!(0));
     assert_eq!(record["pagesRendered"], json!(0));
-    assert_eq!(record["pagesInSite"], json!(14));
+    assert_eq!(record["pagesInSite"], json!(15));
     for phase in [
         "extractSeconds",
         "renderSeconds",

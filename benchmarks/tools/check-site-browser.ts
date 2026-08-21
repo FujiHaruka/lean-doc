@@ -420,6 +420,60 @@ async function main() {
       await page.close();
     }
 
+    // 4b — a `Used by` block fills in on open, from the file of its own.
+    //
+    // Feature-sweep C-2. The same shape as check 4 and for the same reason: the
+    // markup ships empty, so "the block is on the page" and "the block answers"
+    // are different questions and only this one asks the second. The fixture
+    // declaration is chosen because something in the package really does use it
+    // — a block that filled with "None" everywhere would pass a test that only
+    // looked for text.
+    {
+      const page = await browser.newPage();
+      const usedByPage = pages.find((p) => p.endsWith("Basic.html")) ?? first;
+      await page.goto(`${base}/${usedByPage}`, { waitUntil: "networkidle0" });
+      const filled = await page.evaluate(async () => {
+        const hosts = [...document.querySelectorAll<HTMLElement>('[data-fill="used-by"]')];
+        if (hosts.length === 0) return { hosts: 0, named: 0, empty: 0 };
+        for (const host of hosts) (host as HTMLDetailsElement).open = true;
+        // The fill is a `toggle` listener that awaits a fetch; poll rather than
+        // guess a delay.
+        for (let tick = 0; tick < 60; tick++) {
+          const items = document.querySelectorAll('[data-fill="used-by"] li');
+          if (items.length >= hosts.length) break;
+          await new Promise((done) => setTimeout(done, 50));
+        }
+        let named = 0;
+        let empty = 0;
+        for (const host of hosts) {
+          const items = [...host.querySelectorAll("li")];
+          if (items.some((li) => li.querySelector("a"))) named++;
+          else if (items.some((li) => li.textContent === "None")) empty++;
+        }
+        return { hosts: hosts.length, named, empty };
+      });
+      counts["used-by blocks"] = filled.hosts;
+      counts["used-by blocks with a name"] = filled.named;
+      if (filled.hosts === 0) {
+        bad("Used by fills in", `${usedByPage} carries no used-by block`);
+      } else if (filled.named + filled.empty < filled.hosts) {
+        bad(
+          "Used by fills in",
+          `${filled.hosts - filled.named - filled.empty} of ${filled.hosts} blocks stayed empty ` +
+            "— neither a name nor `None` arrived",
+        );
+      } else if (filled.named === 0) {
+        bad(
+          "Used by fills in",
+          `all ${filled.hosts} blocks answered "None" — the map reached the page but says nothing, ` +
+            "which is what a wrong key looks like",
+        );
+      } else {
+        ok("Used by fills in", `${filled.named} of ${filled.hosts} blocks name a user`);
+      }
+      await page.close();
+    }
+
     // 5 — the theme toggle actually changes the document.
     {
       const page = await browser.newPage();

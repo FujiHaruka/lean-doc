@@ -36,7 +36,7 @@
 //! key, and using it would produce a site whose Instances For blocks are empty
 //! on every module the cache hit.
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
 use litedoc4_ir::{Decl, ModuleFile, SpanKind, cmp_utf16};
 use serde::{Deserialize, Serialize};
@@ -94,6 +94,29 @@ pub struct ModuleFacts {
     /// 2026-08-16】. The plan's guess — every constant in the printed type —
     /// agrees with **0 of 59**.
     pub instances_for: Vec<(String, String)>,
+    /// **Which of this module's declarations mention each constant** — the
+    /// forward half of doc-gen4 #77's "Used by", inverted by
+    /// [`crate::Artifacts`] (`docs/plans/feature-sweep.md` C-2).
+    ///
+    /// Key: the constant's name, exactly as `litedoc4_ir::Ref` carries it.
+    /// Value: **indices into [`ModuleFacts::decls`]**, ascending and
+    /// deduplicated. Indices rather than names because names are what makes this
+    /// field large: 54,424 edges over 422 modules cost 469 KB as indices and
+    /// about four times that as names 【実測 2026-08-22】, on a state file that
+    /// was 838 KB. They cannot go stale relative to `decls` — the two are
+    /// written in the same cache entry from the same pass, which is the argument
+    /// [`ModuleFacts::content_hash`] makes for itself.
+    ///
+    /// # Not filtered to this package, on purpose
+    ///
+    /// A reference whose defining module belongs to a *dependency* is stored
+    /// too, and dropped when the map is inverted (the inverter keeps only names
+    /// this package declares). Filtering here would be smaller — 182 KB — and
+    /// **wrong across a restructure**: whether a module is "ours" is not a
+    /// property of the module, so a cached entry built when it was a dependency
+    /// would keep answering that after it became part of the package, with an
+    /// unchanged `contentHash` and nothing to notice it.
+    pub refs: BTreeMap<String, Vec<u32>>,
 }
 
 impl ModuleFacts {
@@ -123,8 +146,27 @@ impl ModuleFacts {
         // an IR that did carry `doc` would fail to parse rather than change
         // behaviour here silently.
 
+        let mut refs: BTreeMap<String, Vec<u32>> = BTreeMap::new();
+
         for decl in &module.declarations {
+            // The index this declaration will have in `decls`, taken before the
+            // push so that `refs` names the same element after it.
+            #[expect(
+                clippy::cast_possible_truncation,
+                reason = "a module with 2^32 declarations is not a module"
+            )]
+            let index = decls.len() as u32;
             decls.push((decl.name.clone(), decl.kind.clone()));
+            for reference in &decl.refs {
+                let users = refs.entry(reference.name.clone()).or_default();
+                // `Decl::refs` is deduplicated per declaration, so this can only
+                // repeat when two declarations share a name — which the
+                // extractor does not produce, but which costs one comparison to
+                // survive.
+                if users.last() != Some(&index) {
+                    users.push(index);
+                }
+            }
             if decl.kind == "instance" {
                 // `if (cls)` is a truthiness test: a constant named by the empty
                 // string drops the instance rather than falling through to the
@@ -160,6 +202,7 @@ impl ModuleFacts {
             instances,
             tokens,
             instances_for,
+            refs,
         }
     }
 }

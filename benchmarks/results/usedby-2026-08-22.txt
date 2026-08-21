@@ -1,0 +1,156 @@
+# C-2 (d) 宣言単位の逆引き — 実測
+
+日付      2026-08-22
+機材      Apple M1 (8 core) / 16 GB / macOS 26.0 / APFS
+Rust      1.97.1
+対象      /Users/haruka/dev/lean-projects (InformationTheory)
+          IR 422 モジュール / 4,584 宣言 (`mathml-2026-08-22.txt` と同じ抽出)
+暖機      warm (同一セッション、連続 5 回。round 1 は cold)
+
+計画      docs/plans/feature-sweep.md C-2
+
+
+## 1. 逆引きの母数【実測】
+
+  自パッケージのモジュール            422
+  自パッケージの宣言                4,584
+  Decl::refs の総数                54,424
+  うち自パッケージ内を指すもの     10,176   (18.70%)
+  逆引きが 1 件以上つく宣言           849   (18.5% of 4,584)
+  used-by.json の辺 (宣言ごとに重複排除後)  10,163
+  被参照数  最大 349 / 中央値 6.5 / >100 が 7 件 / >50 が 32 件
+
+**81.5% の宣言は誰にも使われていない。** doc-gen4 が #77 を閉じた理由
+(「Mathlib 全体では母数が爆発する」) は自パッケージ限定では当たらない。
+
+
+## 2. 設計を決めた数字【実測】
+
+計画は「宣言ごとに `Used by (N)` を HTML に焼く」だった。3 案を測って
+**`instances` / `instances-for` と同じ「空マークアップ + app.js が開いた時に埋める」**
+に決めた (→ 計画 §4 C-2)。
+
+| | HTML 増 | 別ファイル | 1 モジュール編集で古くなるページ |
+|---|---|---|---|
+| インライン展開 | **+2.10 MB** | 無し | **最大 15 / 中央値 2** (422 中) |
+| 採用: 空 details + 別ファイル | +645 KB | 730 KB | **0** |
+
+- インラインをやめた決め手は**バイト数ではなく機構**。ページの内容がサイト全体の
+  事実に依存すると、「A を編集したら A が参照している先のページも古い」という
+  **impact の新しい向き**が要る。今の `self` / `referrers` / `importers` の
+  どれでもない。
+- **同じ問題をこの木は既に 2 回解いている** (`instances_for_html` の doc コメントが
+  そのまま当てはまる)。3 つ目の答え方を足さない。
+- 代償: **JS 無しでは件数も一覧も見えない。** `Instances For` と同じ性質。
+
+
+## 3. 実際に増えた量【実測】
+
+C-1 だけのビルドと C-1+C-2 のビルドを、同じ IR に対して `litedoc4 site` で比較。
+
+  サイト全体      34.02 MB -> 35.40 MB     +1.375 MB (+4.04%)
+    うち HTML     33,253,462 -> 33,898,593   +645,131 B
+                  (4,584 宣言 x 約 141 B の空 <details>)
+    うち新ファイル declarations/used-by.json    729,654 B
+    ファイル数    430 -> 431
+
+  global の state  838,324 -> 1,310,764 B   +472,440 B (+56.4%)
+    ModuleFacts.refs を足した分。**フィルタせずに持っている**ので
+    54,424 辺ぶん。自パッケージ内に絞れば 182 KB で済むが、
+    「自分のものか」はモジュールの性質ではないので、依存から
+    パッケージへ移った瞬間に contentHash 据え置きのまま嘘になる。
+
+  used-by.json の別案: name を intern すると 317 KB (gzip 49 KB)。
+  **撤退ライン (1 MB) はまだ踏んでいない**ので採らない。
+
+
+## 4. 時間【実測】
+
+同じ IR に `litedoc4 site` を 5 回。**cold と warm を混ぜていない** (round 1 が cold)。
+
+  renderSeconds
+    C-1    0.4069  0.3558  0.3583  0.3449  0.3505   -> warm 中央値 0.3558
+    C-2    0.4286  0.3768  0.3526  0.3873  0.3562   -> warm 中央値 0.3665
+
+  globalSeconds
+    C-1    0.0837  0.0845  0.0838  0.0840  0.1085   -> warm 中央値 0.0842
+    C-2    0.0973  0.0966  0.1003  0.0991  0.1016   -> warm 中央値 0.0991
+
+  totalSeconds
+    C-1    warm 中央値 0.4421
+    C-2    warm 中央値 0.4656                        +5.3%
+
+**遅くなった。隠さない。** global が +0.015 s (+18%) で、内訳は
+(a) `ModuleFacts.refs` を 422 モジュールぶん組み立てる、
+(b) state を 838 KB から 1.31 MB 書く、
+(c) 730 KB の JSON を作る。render の +0.011 s は 4,584 個の `<details>`。
+**壁時計はゲートに使わない** (page cache で 5 倍動く) ので、この数字は
+報告のためのもので判定には使っていない。
+
+
+## 5. ゲート
+
+### `tools/usedby-gate.sh` — 不変量、外部オラクル無し
+
+  A の IR が B を参照する ⟺ B の used-by.json のエントリに A が居る
+
+**両方向を別々に落として確認した**【実測 2026-08-22】。
+
+  1. 前向き (取りこぼし): 1 キー (`Combinatorics.Polymatroid`) を消して回した
+       USEDBY GATE FAIL  9 reference(s) the IR has and used-by.json does not: …
+       exit 1
+  2. 後ろ向き (でっち上げ): 1 キーに存在しない利用者を注入して回した
+       USEDBY GATE FAIL  1 entry/entries in used-by.json that no IR reference
+                         supports: Nobody.Uses.This -> Combinatorics.Polymatroid
+       exit 1
+
+**両方向が同時に落ちたら対象ではなく比較器を疑う** (2026-08-17 に踏んだ形)。
+このゲートは片方ずつ落ちることを確認済み。
+
+通常の出力:
+
+  対象     usedby  422 module(s), 4584 declaration(s); 849 target(s) /
+                   10163 edge(s) agree in both directions
+  micro    usedby   10 module(s),   92 declaration(s);  64 target(s) /
+                    151 edge(s) agree in both directions
+
+期待側は **Python の dict of sets** で組み立てている。Rust 側 (`HashMap` +
+モジュールごとの `BTreeMap<String, Vec<u32>>`) と設計も言語も別
+(CLAUDE.md「オラクルを同じ言語・同じ設計で書き直さない」)。
+**辺が 0 件なら落ちる** — 何も比較していない緑を返さないため。
+
+### `benchmarks/tools/check-site-browser.ts` 検査 4b
+
+「マークアップが在る」と「開いたら埋まる」は別の問い。空で出荷するので後者を
+見るものが他に無い。
+
+  ok   Used by fills in — 7 of 8 blocks name a user
+
+一度落とした記録【実測 2026-08-22】 — サイトのコピーの `used-by.json` を `{}` に
+差し替えて回した:
+
+  FAIL Used by fills in — all 8 blocks answered "None" — the map reached the
+       page but says nothing, which is what a wrong key looks like
+  BROWSER GATE: 1 failed   (exit 1)
+
+**「空でも None と答えるので緑」にならない**ことがこの落とし方の要点。
+
+
+## 6. 落ちている凍結フィクスチャ
+
+`cargo test --workspace` は **3 本**落ちる (33 本は緑)。C-4 で再凍結するまで。
+
+  litedoc4-md   tests/docgen4.rs      数式 5 case (C-1)
+  litedoc4-md   tests/ts_docstring.rs 数式 1 case (C-1)
+  litedoc4-render tests/page_parts.rs 187 case 全部 (C-2) —
+      全宣言に `Used by` の <details> が付いたため
+
+**C-2 で新しく落ちたのは 3 本目だけ。** 1・2 本目は C-1 のもの。
+
+なお `crates/litedoc4-global/tests/state_and_delta.rs` の
+`the_state_file_is_the_prototypes_bytes` が固定している **861,999 B は
+`refs` を足したことで動く**。この機材に 432 モジュールの corpus
+(`/private/tmp/lean-doc-relay/w7h/base-ir`) がもう無いので**測り直せていない** —
+テストは `#[ignore]` で、fixture が無いと byte 比較に届く前に
+「no prototype state at …」で落ちるので、**黙って嘘をつく状態にはなっていない**。
+→ 計画 §4 C-2 の残件。

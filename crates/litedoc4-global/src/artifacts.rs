@@ -83,7 +83,7 @@ pub fn page_path(module: &str) -> String {
     path
 }
 
-/// The eight files, as bytes, before anything is written.
+/// The nine files, as bytes, before anything is written.
 ///
 /// Held in memory rather than streamed: the largest is a few hundred kilobytes
 /// on the target package【実測】, and having them as values is what lets the
@@ -111,6 +111,19 @@ pub struct Artifacts {
     /// `<details>` blocks. Split from the search index in P0 of
     /// `docs/plans/search-v2.md`.
     pub instances_json: String,
+    /// **Which declarations of this package mention each of its declarations**
+    /// — doc-gen4 #77 / #63, `docs/plans/feature-sweep.md` C-2.
+    ///
+    /// Fetched only when a reader opens a `Used by` block, for the same reason
+    /// the instance maps are a file of their own: it is the largest artifact
+    /// here (730 KB on the target【実測 2026-08-22】) and most readers never
+    /// open one.
+    ///
+    /// Names that this package does not declare are **not** keys: a reference
+    /// into Mathlib has users here, but this package cannot know how many, so
+    /// answering "used by 3" for it would be a wrong number rather than a
+    /// partial one.
+    pub used_by_json: String,
     /// The same `name -> module` map [`Artifacts::name_map_json`] is the
     /// serialisation of, as data.
     ///
@@ -142,11 +155,18 @@ pub struct Counts {
     pub instance_classes: usize,
     /// Keys of `instances.json`'s `instancesFor`.
     pub instance_types: usize,
+    /// Keys of `declarations/used-by.json` — declarations of this package that
+    /// at least one other declaration of this package mentions.
+    pub used_by_targets: usize,
+    /// Pairs in it. **Not** the number of references the IR holds: a reference
+    /// into a dependency has no key here, and the target package's 54,424
+    /// references reduce to 10,163 pairs 【実測 2026-08-22】.
+    pub used_by_edges: usize,
 }
 
 /// The order the artifacts are listed and written in, and the paths they take
 /// under the site root.
-pub const ARTIFACT_PATHS: [&str; 8] = [
+pub const ARTIFACT_PATHS: [&str; 9] = [
     "declarations/name-map.json",
     "index.html",
     "404.html",
@@ -155,10 +175,11 @@ pub const ARTIFACT_PATHS: [&str; 8] = [
     "modules.json",
     "search-index.bin",
     "instances.json",
+    "declarations/used-by.json",
 ];
 
 impl Artifacts {
-    /// Derives all eight from the facts of every module, in index order, and
+    /// Derives all nine from the facts of every module, in index order, and
     /// the dependency slices, in index order.
     ///
     /// **Index order is behaviour, twice.** Two modules declaring the same name
@@ -313,6 +334,29 @@ impl Artifacts {
             })
             .collect();
 
+        // "Used by", inverted. **After** `name_map` is complete, because the
+        // filter is "does this package declare the target" and the answer is not
+        // known until every module has contributed — a module early in index
+        // order refers to names later ones declare.
+        let mut used_by: HashMap<&str, Vec<&str>> = HashMap::new();
+        for facts in facts {
+            for (target, users) in &facts.refs {
+                if !name_map.contains_key(target.as_str()) {
+                    continue;
+                }
+                let entry = used_by.entry(target).or_default();
+                for &user in users {
+                    // The index is this crate's own, written next to `decls` in
+                    // the same pass; a state file edited by hand could still put
+                    // one past the end, and a panic there would be a crash on
+                    // corrupt input rather than a diagnosis.
+                    if let Some((name, _)) = facts.decls.get(user as usize) {
+                        entry.push(name);
+                    }
+                }
+            }
+        }
+
         let instances_out = name_lists(&instances);
         let instances_for_out = name_lists(&instances_for);
         let counts = Counts {
@@ -320,6 +364,19 @@ impl Artifacts {
             dependency_names: dep_names.len(),
             instance_classes: instances.len(),
             instance_types: instances_for.len(),
+            used_by_targets: used_by.len(),
+            // Counted the way the file spells it — after the per-key dedup that
+            // `name_lists` does, not before. Two declarations of one module that
+            // mention the same name are one user.
+            used_by_edges: used_by
+                .values()
+                .map(|users| {
+                    let mut users = users.clone();
+                    users.sort_unstable();
+                    users.dedup();
+                    users.len()
+                })
+                .sum(),
         };
 
         // **No `modules` array here.** `modules.json` already carries one, in
@@ -347,15 +404,16 @@ impl Artifacts {
             modules_json: to_json(&modules_json),
             search_index_bin,
             instances_json: to_json(&instances_json),
+            used_by_json: to_json(&name_lists(&used_by)),
             name_map: flat_map,
             counts,
         }
     }
 
-    /// The eight files paired with the paths they go to, in [`ARTIFACT_PATHS`]
+    /// The nine files paired with the paths they go to, in [`ARTIFACT_PATHS`]
     /// order.
     #[must_use]
-    pub fn files(&self) -> [(&'static str, &[u8]); 8] {
+    pub fn files(&self) -> [(&'static str, &[u8]); 9] {
         [
             (ARTIFACT_PATHS[0], self.name_map_json.as_bytes()),
             (ARTIFACT_PATHS[1], self.index_html.as_bytes()),
@@ -365,6 +423,7 @@ impl Artifacts {
             (ARTIFACT_PATHS[5], self.modules_json.as_bytes()),
             (ARTIFACT_PATHS[6], self.search_index_bin.as_slice()),
             (ARTIFACT_PATHS[7], self.instances_json.as_bytes()),
+            (ARTIFACT_PATHS[8], self.used_by_json.as_bytes()),
         ]
     }
 }
@@ -475,6 +534,7 @@ mod tests {
             instances: Vec::new(),
             tokens: Vec::new(),
             instances_for: Vec::new(),
+            refs: BTreeMap::new(),
         }
     }
 

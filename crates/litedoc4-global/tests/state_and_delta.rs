@@ -1151,6 +1151,17 @@ fn the_state_file_is_the_prototypes_bytes() {
     assert_eq!(got.len(), summary.state_bytes);
     // 【実測 2026-08-16】the v1 file was 841,947 B; `instancesFor` on 432
     // modules costs 20,052 B, of which 432 x 17 is the empty key itself.
+    //
+    // **STALE, and knowingly so.** feature-sweep C-2 added `ModuleFacts::refs`,
+    // which on the 422-module IR this machine can still produce costs 472,440 B
+    // 【実測 2026-08-22 → `benchmarks/results/usedby-2026-08-22.txt` §3】. The
+    // 432-module corpus this number was taken on is gone from here
+    // (`/private/tmp/lean-doc-relay/w7h/base-ir`) and the target package no
+    // longer has 432 modules, so it cannot be re-measured — and inventing a
+    // number would be worse than leaving this one. It is not a silent lie: the
+    // test is `#[ignore]`d and panics at the `LITEDOC4_PROTOTYPE_STATE` read
+    // above, several lines before it reaches here, whenever the fixture is
+    // absent. Whoever restores the corpus re-measures this line first.
     assert_eq!(got.len(), 861_999);
 
     // The prototype's shape, from the facts the file above was built from.

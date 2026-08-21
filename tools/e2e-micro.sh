@@ -114,10 +114,10 @@ fi
 
 say() { printf '\n=== %s\n' "$1"; }
 
-say "1/13 build the fixture package (Lean core only)"
+say "1/14 build the fixture package (Lean core only)"
 (cd "$FIXTURE" && "$LAKE" build)
 
-say "2/13 build the extractor inside the fixture's environment"
+say "2/14 build the extractor inside the fixture's environment"
 # The extractor is `import Lean` and nothing else, which is what lets it be
 # built against a package that has no Mathlib. `-rdynamic` is load-bearing:
 # `importModules (loadExts := true)` resolves symbols in the running executable
@@ -142,7 +142,7 @@ if [ -z "$EXTRACTOR" ]; then
   fi
 fi
 
-say "3/13 GATE 1 — one command"
+say "3/14 GATE 1 — one command"
 rm -rf "$OUT/first"
 "$LITEDOC4" build --root "$FIXTURE" --lib Micro --out "$OUT/first" \
   --extractor-bin "$EXTRACTOR" | tee "$OUT/first.log"
@@ -161,7 +161,7 @@ cp -R "$OUT/first/site" "$OUT/first-snapshot"
 # was learned from — a copy taken afterwards is a copy of the wrong run.
 cp "$OUT/first/litedoc4-build.json" "$OUT/first-build.json"
 
-say "4/13 GATE 2 — the second run changes nothing"
+say "4/14 GATE 2 — the second run changes nothing"
 "$LITEDOC4" build --root "$FIXTURE" --lib Micro --out "$OUT/first" \
   --extractor-bin "$EXTRACTOR" | tee "$OUT/second.log"
 
@@ -177,7 +177,7 @@ if ! grep -qE 'incremental|0 module\(s\)|nothing to' "$OUT/second.log"; then
   sed -n '1,20p' "$OUT/second.log" >&2
 fi
 
-say "5/13 GATE 3 — a second full build is byte identical"
+say "5/14 GATE 3 — a second full build is byte identical"
 rm -rf "$OUT/again"
 "$LITEDOC4" build --root "$FIXTURE" --lib Micro --out "$OUT/again" \
   --extractor-bin "$EXTRACTOR" >"$OUT/again.log"
@@ -191,7 +191,7 @@ if ! diff -r "$OUT/first/ir" "$OUT/again/ir"; then
   exit 1
 fi
 
-say "6/13 GATE 4 — --jobs does not change the output"
+say "6/14 GATE 4 — --jobs does not change the output"
 # The extractor splits declarations across threads inside one environment
 # (approach.md §5.1). That the IR comes out identical was measured once at stage
 # 7d; that the *site* does has never been checked, and a parallel step that
@@ -209,7 +209,7 @@ if ! diff -r "$OUT/first/site" "$OUT/jobs4/site"; then
   exit 1
 fi
 
-say "7/13 GATE 5 — the work, as integers"
+say "7/14 GATE 5 — the work, as integers"
 # Four markers: the first full build (snapshotted before the second run
 # overwrote it), the incremental run over an unchanged world, and the two other
 # full builds. Python because this repository's other gates use it and because a
@@ -318,7 +318,7 @@ if problems:
     sys.exit(1)
 PY
 
-say "8/13 GATE 7 — the three sorry shapes are three different answers"
+say "8/14 GATE 7 — the three sorry shapes are three different answers"
 # doc-gen4 #270 asks for two claims and not one: a declaration that uses `sorry`
 # itself, and a declaration that merely depends on such a one. `Micro/Sorry.lean`
 # holds one of each plus a control, and **this is the only place the extractor's
@@ -389,7 +389,7 @@ print(f"sorry        {checked} shapes compared over {len(found)} declarations: "
       ", ".join(f"{name.rpartition('.')[2]}={found[name]}" for name in sorted(expected)))
 PY
 
-say "9/13 GATE 8 — attributes arrive split into name and value"
+say "9/14 GATE 8 — attributes arrive split into name and value"
 # Schema 5 carries each attribute as a two-element `[name, value]` array where
 # schema 4 carried one concatenated string (`docs/plans/feature-sweep.md` B-2).
 # The split is made in the extractor because that is the only side that knows
@@ -535,7 +535,7 @@ print(f"attrs        {checked} declarations compared, {sum(counts.values())} pai
       f"{len(counts)} attribute name(s), {valued} with a value")
 PY
 
-say "10/13 GATE 9 — the origin of a realized declaration, and the three ways of not having one"
+say "10/14 GATE 9 — the origin of a realized declaration, and the three ways of not having one"
 # `docs/plans/b0-generated-decls.md` measured that Lean gives a declaration it
 # realizes from an attribute the position of **the attribute token**, and that no
 # rule over `(line, col)` gets from there to the parent: in a 144-group Mathlib
@@ -727,7 +727,7 @@ print(f"generated    {checked} declarations compared, {len(claimed)} realized by
       f"{len(before)} sort before their origin")
 PY
 
-say "11/13 GATE 10 — docstring math becomes MathML, and unreadable math does not"
+say "11/14 GATE 10 — docstring math becomes MathML, and unreadable math does not"
 # `docs/plans/feature-sweep.md` C-1. Five assertions over `Micro/Math.html` plus
 # one over the run's marker, and that last one is what the others cannot make:
 #
@@ -812,7 +812,15 @@ print(f"math         {len(re.findall(r'<math', page))} formula(s) rendered, "
       f"{work['mathFallbacks']} kept as LaTeX, {len(strays)} unescaped character(s)")
 MATHPY
 
-say "12/13 GATE 6 — one edited module does not re-render the package"
+say "12/14 GATE 11 — every reverse reference agrees with the IR, both ways"
+# `docs/plans/feature-sweep.md` C-2 / doc-gen4 #77. The script is its own file
+# because it is worth running against the measurement target too, where the
+# numbers are 849 targets over 10,163 edges 【実測 2026-08-22】 rather than the
+# fixture's handful. Its heading says what it asserts and why both directions
+# are needed.
+"$HERE/usedby-gate.sh" --ir "$OUT/first/ir" --site "$OUT/first/site"
+
+say "13/14 GATE 6 — one edited module does not re-render the package"
 # The question the other five cannot ask. GATE 2 asks what an *unchanged* world
 # costs; this asks what a one-declaration edit costs, which is the shape a user
 # actually produces and the one where the dependency map used to force every page
@@ -895,7 +903,7 @@ fi
 # the same answer.
 "$HERE/onemod-gate.sh" "$OUT/first/litedoc4-build.json" "$OUT/first/work/serve.out"
 
-say "13/13 summary"
+say "14/14 summary"
 printf 'site files : %s\n' "$(find "$OUT/first/site" -type f | wc -l | tr -d ' ')"
 printf 'ir files   : %s\n' "$(find "$OUT/first/ir" -type f | wc -l | tr -d ' ')"
 printf 'out        : %s\n' "$OUT"
