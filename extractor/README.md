@@ -1,6 +1,6 @@
 # extractor — litedoc4 の抽出器 (Lean のまま)
 
-対象パッケージの olean を `importModules` で読み、モジュール単位の IR (schema 4) を書く。
+対象パッケージの olean を `importModules` で読み、モジュール単位の IR (schema 5) を書く。
 **これだけが Lean で、外側 (IR 消費・レンダリング・増分・検索索引) は Rust**
 (`docs/implementation-plan.md` §5.6)。抽出器が Lean なのは速度の話ではなく、
 **対象の Lean 環境の中でしか動けない**から — delaborator も `getEqnsFor?` も
@@ -13,7 +13,7 @@ M4-a で**移設ではなく移動**した (Lean のまま)。移動中 `experim
 
 | ファイル | 行 | |
 |---|---:|---|
-| `Extract.lean` | 2,954 | 抽出器本体。IR schema 4 + `--link-index` (M5-a) |
+| `Extract.lean` | 2,954 | 抽出器本体。IR schema 5 + `--link-index` (M5-a) |
 | `build.sh` | 39 | `lake env lean` → `lake env leanc -rdynamic` の 2 段 |
 | `build/` | — | 生成物 (171 MB のバイナリ + 2.7 MB の C)。**gitignored** |
 

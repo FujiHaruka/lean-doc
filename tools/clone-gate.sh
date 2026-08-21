@@ -156,7 +156,7 @@ set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SETUP_CLONE="$REPO/tools/setup-clone.sh"
 RUST_BIN="$REPO/target/release/litedoc4"
-# The Lean extractor (IR schema 4), built by extractor/build.sh. Its own CLI is
+# The Lean extractor (IR schema 5), built by extractor/build.sh. Its own CLI is
 # `extract <modules> <events> [flags]`; what turns that into the
 # `--modules --ir-dir --timings` contract the pipeline's `--extractor` speaks is
 # `litedoc4 extract` — the job the frozen `stage7g/extract-once.sh` used to do.
@@ -701,7 +701,7 @@ conditions () {
     printf 'move module       %s -> %s\n' "$A_MOD" "$X_MOD"
     printf 'delete module     %s\n' "$DEL_MOD"
     printf 'lean-toolchain    %s\n' "$(tr -d '\n' < "$CLONE/lean-toolchain" 2>/dev/null || echo '?')"
-    printf 'extractor         %s extract -> %s (IR schema 4)\n' "$RUST_BIN" "$EXTRACT_BIN"
+    printf 'extractor         %s extract -> %s (IR schema 5)\n' "$RUST_BIN" "$EXTRACT_BIN"
     printf 'jobs              %s\n' "$JOBS"
     printf 'link index        %s (%s B)\n' "$LIDX" "$(wc -c < "$LIDX" | tr -d ' ')"
     printf 'shared            %s\n' "$SHARED"

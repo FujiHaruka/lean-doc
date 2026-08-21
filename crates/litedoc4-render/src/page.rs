@@ -231,7 +231,7 @@ mod tests {
     /// A module with two docstrings and three declarations, one of which is
     /// another declaration's member.
     const MODULE_JSON: &str = r#"{
-        "schemaVersion": 4,
+        "schemaVersion": 5,
         "module": "Pkg.Two",
         "imports": [],
         "moduleDocs": [
@@ -261,7 +261,7 @@ mod tests {
     }"#;
 
     fn module() -> ModuleFile {
-        serde_json::from_str(MODULE_JSON).expect("the literal is schema 4")
+        serde_json::from_str(MODULE_JSON).expect("the literal is schema 5")
     }
 
     fn shown<'a>(items: &[PageItem<'a>]) -> Vec<&'a str> {
@@ -281,7 +281,7 @@ mod tests {
         // structure it is a member of. Collecting per module leaves it on the
         // page; collecting over the site does not.
         let other: ModuleFile = serde_json::from_str(
-            r#"{"schemaVersion": 4, "module": "Pkg.One", "imports": [],
+            r#"{"schemaVersion": 5, "module": "Pkg.One", "imports": [],
                 "moduleDocs": [], "tactics": [],
                 "declarations": [
                   {"name": "Pkg.One.s", "kind": "structure", "modifiers": [],
@@ -294,7 +294,7 @@ mod tests {
                    "doc": null, "equations": [], "equationCode": [], "refs": []}
                 ]}"#,
         )
-        .expect("the literal is schema 4");
+        .expect("the literal is schema 5");
 
         let site = Suppressed::of_site([&module, &other]);
         assert!(

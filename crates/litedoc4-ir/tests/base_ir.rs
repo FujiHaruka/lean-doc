@@ -18,7 +18,9 @@
 
 use std::path::PathBuf;
 
-use litedoc4_ir::{Decl, IrTree, Member, ModuleFile, Span, SpanKind, Utf16Text};
+use litedoc4_ir::{
+    Decl, IrTree, Member, ModuleFile, SorryFact, SorryKind, Span, SpanKind, Utf16Text,
+};
 
 const DEFAULT_IR: &str = "/private/tmp/lean-doc-relay/w7h/base-ir";
 
@@ -253,7 +255,7 @@ impl Counts {
 #[ignore = "corpus: needs LITEDOC4_BASE_IR (tools/corpus-gate.sh)"]
 fn reads_every_module_of_the_target_package() {
     let root = fixture();
-    let tree = IrTree::open(&root).expect("the fixture is a schema-4 IR");
+    let tree = IrTree::open(&root).expect("the fixture is a schema-5 IR");
     let index = tree.index();
 
     assert_eq!(index.schema_version, 4);
@@ -349,7 +351,7 @@ fn reads_every_module_of_the_target_package() {
 #[ignore = "corpus: needs LITEDOC4_BASE_IR (tools/corpus-gate.sh)"]
 fn astral_binders_slice_correctly() {
     let root = fixture();
-    let tree = IrTree::open(&root).expect("the fixture is a schema-4 IR");
+    let tree = IrTree::open(&root).expect("the fixture is a schema-5 IR");
     let mut checked = 0;
     for module in tree.modules() {
         let module = module.expect("module");
@@ -383,4 +385,91 @@ fn unknown_fields_are_rejected() {
     let json = r#"{"col":0,"line":1,"text":"hi","surprise":true}"#;
     let err = serde_json::from_str::<litedoc4_ir::ModuleDoc>(json).unwrap_err();
     assert!(err.to_string().contains("surprise"), "{err}");
+}
+
+/// One module file at the given schema, holding one declaration per
+/// `(name, sorry-key)` pair. `None` writes no key at all, which is the state
+/// the whole three-valued reading turns on.
+fn module_with_sorry(schema: u32, decls: &[(&str, Option<&str>)]) -> ModuleFile {
+    let declarations = decls
+        .iter()
+        .map(|(name, sorry)| {
+            let key = match sorry {
+                Some(value) => format!(r#","sorry":"{value}""#),
+                None => String::new(),
+            };
+            format!(
+                r#"{{"name":"{name}","kind":"theorem","modifiers":[],"binders":[],
+                    "implicits":[],"binderCode":[],"type":"","typeCode":[],"line":1,
+                    "col":0,"endLine":1,"endCol":1,"index":0,"members":[],"doc":null,
+                    "equations":[],"equationCode":[],"refs":[]{key}}}"#
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    serde_json::from_str(&format!(
+        r#"{{"schemaVersion":{schema},"module":"Pkg.M","imports":[],"moduleDocs":[],
+            "tactics":[],"declarations":[{declarations}]}}"#
+    ))
+    .expect("the literal is a module file")
+}
+
+/// Schema 5's two values survive the round trip and stay apart.
+///
+/// They are **different claims** (doc-gen4 #270): `direct` is a hole in this
+/// declaration, `transitive` is a hole underneath it. A reader that collapsed
+/// them would pass every test that only asks "is there a sorry".
+#[test]
+fn the_two_sorry_values_are_read_back_as_two() {
+    let module = module_with_sorry(
+        5,
+        &[
+            ("Pkg.M.hole", Some("direct")),
+            ("Pkg.M.uses", Some("transitive")),
+            ("Pkg.M.clean", None),
+        ],
+    );
+    let got: Vec<SorryFact> = module
+        .declarations
+        .iter()
+        .map(|decl| module.sorry_of(decl))
+        .collect();
+    assert_eq!(
+        got,
+        vec![SorryFact::Direct, SorryFact::Transitive, SorryFact::Clean],
+        "the two values did not come back as two"
+    );
+    assert_eq!(module.declarations[0].sorry, Some(SorryKind::Direct));
+    assert_eq!(module.declarations[1].sorry, Some(SorryKind::Transitive));
+    assert_eq!(module.declarations[2].sorry, None);
+}
+
+/// A schema-4 module file still parses — and says **`Unknown`**, not `Clean`.
+///
+/// The whole point of [`ModuleFile::sorry_of`]. `Decl::sorry` is `None` in both
+/// files below; only the schema separates "this package has no holes" from
+/// "this extractor was never asked", and reading the field directly cannot.
+#[test]
+fn a_schema_4_module_says_unknown_rather_than_clean() {
+    let old = module_with_sorry(4, &[("Pkg.M.clean", None)]);
+    let new = module_with_sorry(5, &[("Pkg.M.clean", None)]);
+
+    assert_eq!(old.declarations[0].sorry, None, "the key is absent in both");
+    assert_eq!(new.declarations[0].sorry, None, "the key is absent in both");
+
+    assert_eq!(old.sorry_of(&old.declarations[0]), SorryFact::Unknown);
+    assert_eq!(new.sorry_of(&new.declarations[0]), SorryFact::Clean);
+}
+
+/// A `sorry` value the extractor never writes is a loud failure, not a silent
+/// `None`. `#[serde(default)]` fills in a *missing* key; it must not swallow a
+/// present one that this crate does not understand.
+#[test]
+fn an_unknown_sorry_value_is_rejected() {
+    let json = r#"{"name":"Pkg.M.f","kind":"theorem","modifiers":[],"binders":[],
+        "implicits":[],"binderCode":[],"type":"","typeCode":[],"line":1,"col":0,
+        "endLine":1,"endCol":1,"index":0,"members":[],"doc":null,"equations":[],
+        "equationCode":[],"refs":[],"sorry":"maybe"}"#;
+    let err = serde_json::from_str::<Decl>(json).unwrap_err();
+    assert!(err.to_string().contains("maybe"), "{err}");
 }

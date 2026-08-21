@@ -2,6 +2,7 @@ import Micro.Basic
 import Micro.Dep
 import Micro.Notation
 import Micro.Shapes
+import Micro.Sorry
 import Micro.Unicode
 
 /-!

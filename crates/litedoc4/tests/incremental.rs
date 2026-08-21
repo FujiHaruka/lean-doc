@@ -903,7 +903,7 @@ fn write_world(root: &Path, world: &World) {
             "imports": module.imports,
             "module": module.name,
             "moduleDocs": [],
-            "schemaVersion": 4,
+            "schemaVersion": 5,
             "tactics": [],
         }))
         .expect("serialises");
@@ -942,7 +942,7 @@ fn write_world(root: &Path, world: &World) {
     let mut dependency_maps: Vec<Value> = Vec::new();
     for (package, declarations) in &by_root {
         let body = serde_json::to_string(&json!({
-            "declarations": declarations, "package": package, "schemaVersion": 4,
+            "declarations": declarations, "package": package, "schemaVersion": 5,
         }))
         .expect("serialises");
         let file = format!("deps/{package}.json");
@@ -964,7 +964,7 @@ fn write_world(root: &Path, world: &World) {
             "leanVersion": "4.31.0",
             "moduleCount": world.0.len(),
             "modules": index_entries,
-            "schemaVersion": 4,
+            "schemaVersion": 5,
         }))
         .expect("serialises")
         .as_bytes(),
@@ -1051,7 +1051,7 @@ done < "$MODULES"
   printf '"generator":"fake-extractor","hashAlgorithm":"lean-string-hash-64/hex16",'
   printf '"leanVersion":"4.31.0","moduleCount":%s,"modules":[' "$n"
   cat "$ENTRIES"
-  printf '],"schemaVersion":4}'
+  printf '],"schemaVersion":5}'
 } > "$IRDIR/index.json"
 rm -f "$ENTRIES"
 printf '{"targetModules":%s,"extractor":"fake"}\n' "$n" > "$TIMINGS"

@@ -25,7 +25,7 @@ pub enum Error {
         found: u32,
         required: u32,
     },
-    /// The IR was written with ablations: parts of schema 4 are missing on
+    /// The IR was written with ablations: parts of the schema are missing on
     /// purpose, and rendering it would produce a page that looks fine and is
     /// wrong.
     Ablated {

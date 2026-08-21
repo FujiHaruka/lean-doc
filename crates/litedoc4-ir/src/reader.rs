@@ -20,7 +20,25 @@ use crate::model::{DepMap, DepMapEntry, Index, IndexEntry, ModuleFile};
 /// The schema this reader understands. Schema 3 has no attributes, no instance
 /// index and no member binders / docstrings / origin, so a schema-3 IR cannot
 /// produce a byte-identical page.
+///
+/// **It did not move to 5 with the writer**, and the reason is worth stating
+/// because the reverse looks obvious. Schema 5 adds `sorry`, whose *absent* key
+/// means "no `sorry`" — a meaning a schema-4 file cannot carry, since there the
+/// key could not exist. Raising the floor is one way to keep the two apart;
+/// [`crate::ModuleFile::sorry_of`] is the other, and it is the one taken here,
+/// because raising the floor would mean hand-editing the curated schema-4 IR
+/// frozen inside `litedoc4-global/tests/data/global-expected.json` — the
+/// fixtures' re-freeze is a step of its own with a procedure of its own
+/// (`docs/plans/feature-sweep.md` §3 決定 1 / C-4), not something to do in
+/// passing. Nothing reads [`crate::Decl::sorry`] without going through
+/// `sorry_of`, so no consumer can conflate the two states in the meantime.
 pub const MIN_SCHEMA_VERSION: u32 = 4;
+
+/// The first schema whose module files carry [`crate::Decl::sorry`].
+///
+/// Below it the key's absence says nothing; at or above it, it says "no
+/// `sorry`". [`crate::ModuleFile::sorry_of`] is the only place this is applied.
+pub const SORRY_SCHEMA_VERSION: u32 = 5;
 
 /// An IR tree on disk: `index.json`, `modules/`, `deps/`.
 #[derive(Debug)]

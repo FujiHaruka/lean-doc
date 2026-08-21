@@ -1958,7 +1958,7 @@ fn curated_merge_branches() -> BTreeSet<&'static str> {
         written,
         format!(
             "{{\"declarations\":{{\"Dep.{LIGATURE}\":\"Dep.M\",\"Dep.{ASTRAL}\":\"Dep.M\"}},\
-             \"package\":\"Dep\",\"schemaVersion\":4}}"
+             \"package\":\"Dep\",\"schemaVersion\":5}}"
         ),
         "code point order: the prototype's UTF-16 sort would put the astral name first"
     );
@@ -2046,7 +2046,7 @@ fn curated_merge_branches() -> BTreeSet<&'static str> {
     result.expect("the merge runs");
     assert_eq!(
         fs::read_to_string(clash.base.join("deps/Dep.json")).expect("written"),
-        r#"{"declarations":{"Dep.x":"Dep.Second"},"package":"Dep","schemaVersion":4}"#,
+        r#"{"declarations":{"Dep.x":"Dep.Second"},"package":"Dep","schemaVersion":5}"#,
         "the later module in index order owns the name"
     );
     covered.extend(fired);
@@ -2112,7 +2112,7 @@ fn curated_merge_branches() -> BTreeSet<&'static str> {
     let broken = FakeIr::target_shaped("merge-broken-index");
     fs::write(
         broken.base.join("index.json"),
-        r#"{"schemaVersion":4,"modules":["Pkg.A"],"dependencyMaps":[]}"#,
+        r#"{"schemaVersion":5,"modules":["Pkg.A"],"dependencyMaps":[]}"#,
     )
     .expect("writable");
     let (result, fired) = run_merge(&MergeOptions {
@@ -2226,11 +2226,11 @@ fn curated_module_list_branches() -> BTreeSet<&'static str> {
     );
     assert_eq!(
         fs::read_to_string(with.base.join("deps/Dep.json")).expect("written"),
-        r#"{"declarations":{"Dep.x":"Dep.Second","Dep.z":"Dep.Third"},"package":"Dep","schemaVersion":4}"#,
+        r#"{"declarations":{"Dep.x":"Dep.Second","Dep.z":"Dep.Third"},"package":"Dep","schemaVersion":5}"#,
     );
     assert_eq!(
         fs::read_to_string(without.base.join("deps/Dep.json")).expect("written"),
-        r#"{"declarations":{"Dep.x":"Dep.First","Dep.z":"Dep.Third"},"package":"Dep","schemaVersion":4}"#,
+        r#"{"declarations":{"Dep.x":"Dep.First","Dep.z":"Dep.Third"},"package":"Dep","schemaVersion":5}"#,
         "the list reached only the index, so a merge that reordered nothing else would pass",
     );
     covered.extend(fired);
@@ -2379,7 +2379,7 @@ fn curated_verify_branches() -> BTreeSet<&'static str> {
 
 // -------------------------------------------------------------- the fake IR
 
-/// A synthetic IR tree pair: a `base` and an `inc`, both schema 4.
+/// A synthetic IR tree pair: a `base` and an `inc`, both schema 5.
 struct FakeIr {
     dir: TempDir,
     base: PathBuf,
@@ -2458,7 +2458,7 @@ impl FakeIr {
 
     fn write_module(&self, root: &Path, module: &str, declarations: &[Value]) {
         let body = json!({
-            "schemaVersion": 4,
+            "schemaVersion": 5,
             "module": module,
             "imports": [],
             "moduleDocs": [],
@@ -2520,12 +2520,12 @@ impl FakeIr {
             "leanVersion": "4.31.0",
             "moduleCount": entries.len(),
             "modules": entries,
-            "schemaVersion": 4,
+            "schemaVersion": 5,
         })
     }
 }
 
-/// One declaration, with the schema-4 keys the reader insists on.
+/// One declaration, with the schema-5 keys the reader insists on.
 fn decl(name: &str, refs: &[(&str, &str)]) -> Value {
     json!({
         "name": name,

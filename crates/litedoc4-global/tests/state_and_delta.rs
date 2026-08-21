@@ -900,7 +900,7 @@ fn mutate_added(ir: &Path) -> String {
 
 // ------------------------------------------------------------ a synthetic IR
 
-/// A declaration with every schema-4 key `litedoc4_ir` requires — the same
+/// A declaration with every schema-5 key `litedoc4_ir` requires — the same
 /// shape the (now frozen) `tests/oracle/gen-global-expected.ts` wrote.
 #[expect(
     clippy::needless_pass_by_value,
@@ -930,7 +930,7 @@ fn write_synthetic(root: &Path, modules: &[Synthetic], deps: &[(&str, Value)]) {
     for module in modules {
         let file = format!("modules/{}.json", module.module);
         let body = serde_json::to_string(&json!({
-            "schemaVersion": 4,
+            "schemaVersion": 5,
             "module": module.module,
             "imports": module.imports,
             "moduleDocs": [],
@@ -954,7 +954,7 @@ fn write_synthetic(root: &Path, modules: &[Synthetic], deps: &[(&str, Value)]) {
     for (package, map) in deps {
         let file = format!("deps/{package}.json");
         let body = serde_json::to_string(&json!({
-            "schemaVersion": 4, "package": package, "declarations": map,
+            "schemaVersion": 5, "package": package, "declarations": map,
         }))
         .expect("serialises");
         let path = root.join(&file);
@@ -977,7 +977,7 @@ fn write_synthetic(root: &Path, modules: &[Synthetic], deps: &[(&str, Value)]) {
             "leanVersion": "4.31.0",
             "moduleCount": modules.len(),
             "modules": entries,
-            "schemaVersion": 4,
+            "schemaVersion": 5,
         }),
     );
 }

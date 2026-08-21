@@ -135,7 +135,9 @@ Usage: extract <modules.txt> <out.jsonl> [options]
   --no-attrs          ablation: skip the attribute collection (stage 7b)
   --no-inst-index     ablation: skip the instance type index (stage 7b)
   --no-member-extra   ablation: skip the structure members' binders / docstring /
-                      origin (stage 7b). Any ablation marks the IR unrenderable.
+                      origin (stage 7b)
+  --no-sorry          ablation: skip the `sorry` / `sorryAx` classification
+                      (schema 5, B-1). Any ablation marks the IR unrenderable.
   --ir-dir <path>     where to write it. **Required with `--write-ir`** and it
                       has no default (see `getIrDir`).
                       **Never point this inside the measurement target.**
@@ -262,6 +264,11 @@ structure Cfg where
   noAttrs : Bool := false
   noInstIndex : Bool := false
   noMemberExtra : Bool := false
+  /-- `--no-sorry`: the same device for schema 5's `sorry` key (B-1). It is here
+  rather than as an opt-in `--sorry` so that the two arms of the measurement are
+  **the same binary** with one flag between them, which is what the other three
+  ablations are for. -/
+  noSorry : Bool := false
   /-- `--serve`: stay resident and take extraction requests on stdin, reusing
   one imported environment (stage 6). -/
   serve : Bool := false
@@ -289,10 +296,14 @@ def Cfg.wantAttrs (c : Cfg) : Bool := c.taggedCode && !c.noAttrs
 def Cfg.wantInstIndex (c : Cfg) : Bool := c.taggedCode && !c.noInstIndex
 def Cfg.wantMemberExtra (c : Cfg) : Bool := c.taggedCode && !c.noMemberExtra
 
+/-- Schema 5's `sorry` key, gated on `--tagged-code` like the three above. -/
+def Cfg.wantSorry (c : Cfg) : Bool := c.taggedCode && !c.noSorry
+
 def Cfg.ablations (c : Cfg) : Array String :=
   let a := if c.noAttrs then #["attrs"] else #[]
   let a := if c.noInstIndex then a.push "instIndex" else a
-  if c.noMemberExtra then a.push "memberExtra" else a
+  let a := if c.noMemberExtra then a.push "memberExtra" else a
+  if c.noSorry then a.push "sorry" else a
 
 /-! ## doc-gen4's blacklist, transcribed
 
@@ -1479,6 +1490,10 @@ structure DeclOut where
   /-- Schema 4, instances only: `getInstanceTypes`. Never printed on a module
   page — the browser builds those lists from `declaration-data.bmp`. -/
   instTypes : Array Name := #[]
+  /-- Schema 5: `"direct"`, `"transitive"` or `none`. Filled by a pass of its own
+  after the analysis (`sorryTag`), not by `analyze`, so that `--jobs` cannot
+  reach it. `none` without `--tagged-code` and under `--no-sorry`. -/
+  sorryTag : Option String := none
 
 def DeclOut.toJson (d : DeclOut) : Json :=
   Json.mkObj [
@@ -1868,6 +1883,68 @@ def analyze (cfg : Cfg) (module : Name) (name : Name) (ci : ConstantInfo) :
     else
       return some d
 
+/-! ## `sorry` / `sorryAx` — doc-gen4 issue #270
+
+**Two claims, not one.** "This proof is a hole" and "something underneath this
+proof is a hole" are read differently, so the IR carries `"direct"` or
+`"transitive"` and omits the key when neither holds. It does **not** carry the
+axiom set: every Mathlib-dependent declaration transitively uses
+`Classical.choice` / `propext` / `Quot.sound`, so the full list is a large field
+with almost no information in it (`docs/plans/feature-sweep.md` §4 B-1, 決定 2).
+
+**`Lean.collectAxioms` is not the closure walk it reads like.** Lean keeps a
+`PersistentEnvExtension` (`Lean/Util/CollectAxioms.lean`, `exportedAxiomsExt`)
+whose per-declaration axiom arrays are computed when a module's olean is
+*written*; for an **imported** constant `collectAxioms` is a binary search in
+that module's entry array and walks no expression at all. Everything this
+extractor analyzes is imported — `importModules` over the target's oleans — so
+the memo that a per-declaration closure walk would need has already been paid,
+once, by whoever built the oleans. Byte-identical in v4.31.0 / v4.32.2 /
+v4.33.0, so this is not a version-specific accident to guard against.
+
+**The direct half is the part that walks expressions, so it is only asked when
+the answer can be `"direct"`.** A declaration whose axiom array has no `sorryAx`
+cannot be either value and is answered by the binary search alone; the cost of
+the whole feature therefore scales with the number of *tainted* declarations,
+not with the package. That is what `--no-sorry` measures.
+-/
+
+/-- Does this declaration's **own** statement or proof mention `sorryAx`?
+
+`Expr.foldConsts` rather than `ConstantInfo.getUsedConstantsAsSet`: the question
+is a membership test rather than a set, and that function folds an inductive's
+constructors into its answer — which would make a type whose *constructor* is
+`sorry`'d claim the `sorry` as its own. -/
+def mentionsSorryAx (ci : ConstantInfo) : Bool :=
+  let has (e : Expr) : Bool := e.foldConsts false fun c acc => acc || c == ``sorryAx
+  has ci.type ||
+    match ci.value? (allowOpaque := true) with
+    | some v => has v
+    | none => false
+
+/-- `"direct"`, `"transitive"`, or nothing.
+
+A declaration that is both is `"direct"`: it is the stronger claim and the one a
+reader acts on. The fallthrough for a name the environment cannot find is
+`"transitive"` rather than `"direct"` for the same reason — `collectAxioms` has
+already said `sorryAx` is down there, and claiming the hole is *here* without
+having seen the term would be the stronger claim made on no evidence. -/
+def sorryTag (name : Name) : MetaM (Option String) := do
+  let axioms ← collectAxioms name
+  unless axioms.contains ``sorryAx do
+    return none
+  let some ci := (← getEnv).find? name
+    | return some "transitive"
+  return some (if mentionsSorryAx ci then "direct" else "transitive")
+
+/-- What the `sorry` pass did, for the events file and the summary. -/
+structure SorryStats where
+  /-- Declarations the pass looked at, i.e. the denominator. -/
+  asked : Nat := 0
+  direct : Nat := 0
+  transitive : Nat := 0
+  deriving Inhabited
+
 /-! ## Module docs and tactics — doc-gen4's `getAllModuleDocs`, restructured
 
 doc-gen4 (`DocGen4/Process/Analyze.lean`) loops over the relevant modules and calls
@@ -2254,11 +2331,20 @@ file, therefore part of every module hash: a schema change invalidates the cache
 
 Version 1 is stage 4's; version 2 is what stage 4b's `--tagged-code` wrote;
 version 3 is stage 7a's, which added the `splitWhitespaces` widths to `kind = 1`
-spans (see `spanToJson`); version 4 is this stage's, which adds the declaration's
+spans (see `spanToJson`); version 4 is stage 7b's, which adds the declaration's
 attributes, the instance type index, and the structure members' binders /
 docstring / origin. The flag picks the version rather than always bumping it, so
-that with the flag off this binary still reproduces stage 4's IR byte for byte. -/
-def irSchemaVersion (tagged : Bool) : Nat := if tagged then 4 else 1
+that with the flag off this binary still reproduces stage 4's IR byte for byte.
+
+**Version 5 is the product tree's first bump** (`docs/plans/feature-sweep.md` §3:
+束 B raises the schema once and later items add keys under the same version).
+It adds `sorry`, whose *absent* key means "no sorry" — a meaning a schema-4 file
+cannot carry, since there the key could not exist. The reading side keeps the
+two apart with `ModuleFile::sorry_of`, which answers `Unknown` below schema 5;
+`litedoc4-ir`'s `MIN_SCHEMA_VERSION` deliberately stays at 4 until the fixture
+re-freeze (see its doc comment for why). Nothing has to migrate either way: the
+extract key carries `irSchemaVersion`, so this bump re-extracts. -/
+def irSchemaVersion (tagged : Bool) : Nat := if tagged then 5 else 1
 
 /-- Where `--write-ir` writes. **`--ir-dir` and nothing else** — no default, and
 the `IR_DIR` environment variable is not consulted 【判断, M4-a】.
@@ -2412,6 +2498,14 @@ def declToIrJson (tagged : Bool) (index : Nat) (d : DeclOut) (refs : Array (Name
     -- with `"attrs":[]` would be 52 KB of nothing; a reader distinguishes
     -- "absent" from "old schema" by `schemaVersion`, not by the key.
     (if tagged && !d.attrs.isEmpty then [("attrs", Json.arr (d.attrs.map Json.str))] else []) ++
+    -- Schema 5, same rule: present only when there is something to say. The
+    -- absent key means "no sorry" and it means that **because the file says
+    -- `schemaVersion` 5** — in a schema-4 file the key could not exist, so the
+    -- same absence means "nobody was asked". `ModuleFile::sorry_of` is the only
+    -- thing on the reading side that is allowed to collapse the two.
+    (match (if tagged then d.sorryTag else none) with
+     | some tag => [("sorry", Json.str tag)]
+     | none => []) ++
     (if tagged then
       match d.instClass with
       | some c =>
@@ -3056,6 +3150,31 @@ def run (cfg : Cfg) (preEnv : Option Environment := none) : IO UInt32 := do
      ("blCalls", toString counters.blCalls),
      ("ablations", s!"\"{String.intercalate "," cfg.ablations.toList}\"")]
 
+  -- Schema 5's `sorry` key (doc-gen4 #270). A pass of its own, after the
+  -- analysis and **single-threaded**: `--jobs` must not be able to reach it, and
+  -- a phase of its own is what lets the cost be read off one run instead of
+  -- being inferred from the difference between two.
+  let mut sorryStats : SorryStats := {}
+  let tSy0 ← IO.monoNanosNow
+  if cfg.wantSorry then
+    let tags ← runMeta (results.mapM fun d => sorryTag d.name)
+    let mut tagged : Array DeclOut := Array.emptyWithCapacity results.size
+    let mut direct := 0
+    let mut transitive := 0
+    for h : i in [0 : results.size] do
+      let tag := tags[i]!
+      if tag == some "direct" then direct := direct + 1
+      if tag == some "transitive" then transitive := transitive + 1
+      tagged := tagged.push { results[i] with sorryTag := tag }
+    results := tagged
+    sorryStats := { asked := results.size, direct, transitive }
+  let tSy1 ← IO.monoNanosNow
+  sink.emit "stage4b.sorry" (tSy1 - tSy0)
+    [("wantSorry", if cfg.wantSorry then "true" else "false"),
+     ("sorryAsked", toString sorryStats.asked),
+     ("sorryDirect", toString sorryStats.direct),
+     ("sorryTransitive", toString sorryStats.transitive)]
+
   if let some p := cfg.declProfilePath then
     let h ← IO.FS.Handle.mk p .write
     for r in profile do
@@ -3245,6 +3364,8 @@ def run (cfg : Cfg) (preEnv : Option Environment := none) : IO UInt32 := do
     IO.println s!"  of which refs      {fmtDur counters.refNanos}  ({counters.refCount} occurrences; inside the two above)"
     if cfg.dumpRefsPath.isSome then
       IO.println s!"refs                 {refUnique} unique, {refOwn} in target modules, {refUnique - refOwn - refUnresolved} in dependencies, {refUnresolved} without a module"
+  if cfg.taggedCode then
+    IO.println s!"sorry                {fmtDur (tSy1 - tSy0)}  ({sorryStats.asked} asked, {sorryStats.direct} direct, {sorryStats.transitive} transitive)"
   if let some dir := irDirUsed then
     let total := irStats.moduleBytes + irStats.depBytes + irStats.indexBytes
     IO.println s!"writeIR              {fmtDur irStats.serializeNanos} serialize + {fmtDur irStats.hashNanos} hash + {fmtDur irStats.writeNanos} write"
@@ -3372,6 +3493,7 @@ where
   | "--no-attrs" :: rest => go { cfg with noAttrs := true } rest
   | "--no-inst-index" :: rest => go { cfg with noInstIndex := true } rest
   | "--no-member-extra" :: rest => go { cfg with noMemberExtra := true } rest
+  | "--no-sorry" :: rest => go { cfg with noSorry := true } rest
   | "--serve" :: rest => go { cfg with serve := true } rest
   -- Deliberately does *not* imply `--write-ir`: "the IR is off unless --write-ir"
   -- is the one rule that keeps the stage-3 baseline reproducible from this tree.

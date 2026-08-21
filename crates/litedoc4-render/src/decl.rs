@@ -692,7 +692,7 @@ mod tests {
         builder.build(LinkIndex::default(), ExternalLinks::default())
     }
 
-    /// A schema-4 declaration with everything empty, which the tests fill in.
+    /// A schema-5 declaration with everything empty, which the tests fill in.
     fn decl(name: &str, kind: &str) -> Decl {
         serde_json::from_str(&format!(
             r#"{{"name": {name:?}, "kind": {kind:?}, "modifiers": [], "binders": [],
@@ -701,21 +701,21 @@ mod tests {
                 "members": [], "doc": null, "equations": [], "equationCode": [],
                 "refs": []}}"#
         ))
-        .expect("the literal is schema 4")
+        .expect("the literal is schema 5")
     }
 
     fn module_with(decls: Vec<Decl>) -> ModuleFile {
         let mut module: ModuleFile = serde_json::from_str(
-            r#"{"schemaVersion": 4, "module": "Pkg.M", "imports": [],
+            r#"{"schemaVersion": 5, "module": "Pkg.M", "imports": [],
                 "moduleDocs": [], "tactics": [], "declarations": []}"#,
         )
-        .expect("the literal is schema 4");
+        .expect("the literal is schema 5");
         module.declarations = decls;
         module
     }
 
     fn member(json: &str) -> Member {
-        serde_json::from_str(json).expect("the literal is a schema-4 member")
+        serde_json::from_str(json).expect("the literal is a schema-5 member")
     }
 
     /// **The one mutant that survived.** `cargo mutants` over this file reports

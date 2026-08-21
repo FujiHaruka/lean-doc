@@ -547,7 +547,7 @@ fi
   printf 'target            %s (%s modules)\n' "$TARGET" "$NMODULES"
   printf 'lean-toolchain    %s\n' "$(tr -d '\n' < "$TARGET/lean-toolchain" 2>/dev/null || echo '?')"
   printf 'extractor         %s (%s)\n' "$EXTRACTOR_IMPL" "$EXTRACTOR"
-  printf 'extractor binary  %s (IR schema 4)\n' "$PRODUCT_EXTRACT_BIN"
+  printf 'extractor binary  %s (IR schema 5)\n' "$PRODUCT_EXTRACT_BIN"
   printf 'jobs              %s\n' "$JOBS"
   printf 'link index        %s (%s B)\n' "$LIDX" "$(wc -c < "$LIDX" | tr -d ' ')"
   printf 'base IR           %s\n' "$BASE_IR_SRC"

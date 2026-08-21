@@ -344,6 +344,9 @@ lint と別に CI が持っているもの: **rustdoc のリンク**
   署名が不正なので **SIGKILL (exit 137) で即死する**【実測 2026-08-19】。しかも
   `command -v node` は通り、`node -v` は**何も印字せずに**落ちるので、パイプ越しだと
   「空の出力」に見える。`cargo build` は build.rs で npm を呼ぶので**これに当たる**。
+  同じ理由で **`tools/assets-gate.sh` は `mise exec --` 越しに呼ぶ**【実測 2026-08-21】 —
+  中で `npx biome` を直に叩くので、素で呼ぶと **exit 137 (SIGKILL)** になり、
+  出力は assets について何も言わない。CI は job に `setup-node` があるので緑。
   使うのは mise 側: **`mise exec -- cargo build`** / `mise exec -- npm …`
   (`mise.toml` が node を固定している)。`mise` はシェル関数で、非対話シェルでは
   PATH を書き換えていない — だから `mise exec` を明示する。

@@ -162,7 +162,7 @@ usage: litedoc4 build  --root <repo> --out <dir> [--link-index <file>]
                  The escape hatch for an input no ledger key covers. The
                  dependency map used to be one; since M5-b its bytes are in
                  renderKey, so a map that moved re-renders on its own.
-  --ir           an IR tree written by the extractor (schema 4)
+  --ir           an IR tree written by the extractor (schema 5)
   --ir-dir       (`extract`) where the extractor writes that tree. Required and
                  with no default: the extractor's own default was one session's
                  scratchpad path and is gone (M4-a)

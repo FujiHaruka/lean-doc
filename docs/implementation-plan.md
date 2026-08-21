@@ -461,7 +461,7 @@ IR には 1 つ分しか入らないのに `.lidx` (= 環境全体) には 3 つ
 
 | crate | 中身 | 移設 M |
 |---|---|---|
-| `litedoc4-ir` | IR (schema 4) の読み書き + **キャッシュ層の抽象** + 台帳 + 鍵 | M1 |
+| `litedoc4-ir` | IR (現行 schema 5) の読み書き + **キャッシュ層の抽象** + 台帳 + 鍵 | M1 |
 | `litedoc4-md` | md4c の FFI + doc-gen4 と同じ AST → HTML の組み立て | M1 |
 | `litedoc4-render` | レンダラ (モジュールページ) | M1 |
 | `litedoc4-global` | 全域成果物 6 本 + 検索索引 | M2 |

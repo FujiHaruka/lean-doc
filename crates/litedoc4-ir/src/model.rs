@@ -1,4 +1,4 @@
-//! The IR's schema-4 shapes, as the extractor writes them.
+//! The IR's schema-5 shapes, as the extractor writes them.
 //!
 //! The authority for every field here is `experiments/stage7d/Extract.lean`
 //! (`declToIrJson` / `writeIRTree`), not the TypeScript prototype: the writer is
@@ -116,6 +116,44 @@ pub struct ModuleFile {
     pub declarations: Vec<Decl>,
 }
 
+impl ModuleFile {
+    /// What this file says about one of its declarations and `sorry`.
+    ///
+    /// **Three-valued, and it has to be** — the same lesson as
+    /// [`Member::is_direct`], in the other direction. A schema-5 writer omits
+    /// the key to mean "no `sorry`"; a schema-4 file has no key to omit, so the
+    /// same absence means "nobody was asked". Reading [`Decl::sorry`] directly
+    /// conflates them into "this package has no holes", which is a claim about
+    /// the package made from a fact about the extractor's version.
+    ///
+    /// This is the only thing that should read [`Decl::sorry`].
+    pub fn sorry_of(&self, decl: &Decl) -> SorryFact {
+        if self.schema_version < crate::SORRY_SCHEMA_VERSION {
+            return SorryFact::Unknown;
+        }
+        match decl.sorry {
+            None => SorryFact::Clean,
+            Some(SorryKind::Direct) => SorryFact::Direct,
+            Some(SorryKind::Transitive) => SorryFact::Transitive,
+        }
+    }
+}
+
+/// [`ModuleFile::sorry_of`]'s answer: the two claims of doc-gen4 #270, plus the
+/// two ways of not making one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SorryFact {
+    /// The file predates schema 5. Nothing is known — in particular this is
+    /// **not** [`SorryFact::Clean`].
+    Unknown,
+    /// Schema 5 or newer, and the writer said nothing: no `sorry`.
+    Clean,
+    /// This declaration's own statement or proof mentions `sorryAx`.
+    Direct,
+    /// It does not, but something it depends on does.
+    Transitive,
+}
+
 /// A module-level docstring (`/-! ... -/`).
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -194,6 +232,34 @@ pub struct Decl {
     /// Schema 4, instances only.
     #[serde(default)]
     pub inst_types: Vec<String>,
+    /// Schema 5 (doc-gen4 #270): whether this declaration is a hole, and whose.
+    ///
+    /// **Read it through [`ModuleFile::sorry_of`], not directly.** The writer
+    /// omits the key when neither value applies, so `None` means "no `sorry`" —
+    /// but only in a file that says `schemaVersion` 5, and a schema-4 file has
+    /// no key to omit. On its own this field cannot tell the two apart.
+    #[serde(default)]
+    pub sorry: Option<SorryKind>,
+}
+
+/// Which of doc-gen4 #270's two claims a declaration makes.
+///
+/// They are **different claims** and a reader treats them differently, so this
+/// is two values rather than a flag: `Direct` is a hole in this declaration,
+/// `Transitive` is a hole somewhere underneath it. A declaration that is both is
+/// `Direct` — the stronger claim, and the one that is acted on.
+///
+/// What the IR deliberately does *not* carry is the axiom set. Every
+/// Mathlib-dependent declaration transitively uses `Classical.choice` /
+/// `propext` / `Quot.sound`, so the full list is a large field with almost no
+/// information in it (`docs/plans/feature-sweep.md` §6 決定 2).
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum SorryKind {
+    /// This declaration's own statement or proof mentions `sorryAx`.
+    Direct,
+    /// It does not, but something it depends on does.
+    Transitive,
 }
 
 /// A structure field, constructor or parent, as listed under a declaration.

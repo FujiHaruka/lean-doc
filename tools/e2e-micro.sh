@@ -24,7 +24,7 @@
 #   rendering nothing: an inductive's constructors were missing from their page
 #   while the search index still linked to them.
 #
-# THE FIVE GATES
+# THE GATES
 #   1 ONE COMMAND    `litedoc4 build` over the fixture writes a site, and
 #                    `tools/site-gate.sh` finds it internally consistent:
 #                    0 dead links, 0 external resources, and the search index
@@ -41,6 +41,11 @@
 #                    site.
 #   5 WORK           how much the two runs *did*, read out of
 #                    `litedoc4-build.json`'s `work` record.
+#   6 ONE EDIT       what a one-declaration edit costs, and that the tree it
+#                    leaves is what a whole render of its own IR writes.
+#   7 SORRY          the three shapes of doc-gen4 #270 — a direct `sorry`, a
+#                    declaration that only depends on one, and neither — come
+#                    out of the extractor as three different answers, by name.
 #
 # WHY GATE 5 EXISTS, AND WHY IT IS NOT A STOPWATCH
 #   This project's product is speed and it had no regression gate at all. It
@@ -82,7 +87,7 @@ while [ $# -gt 0 ]; do
     --out) OUT="$2"; shift 2 ;;
     --extractor) EXTRACTOR="$2"; shift 2 ;;
     --keep) KEEP=1; shift ;;
-    -h|--help) sed -n '1,72p' "$0"; exit 0 ;;
+    -h|--help) sed -n '1,73p' "$0"; exit 0 ;;
     *) echo "unknown flag: $1" >&2; exit 2 ;;
   esac
 done
@@ -100,10 +105,10 @@ fi
 
 say() { printf '\n=== %s\n' "$1"; }
 
-say "1/7 build the fixture package (Lean core only)"
+say "1/10 build the fixture package (Lean core only)"
 (cd "$FIXTURE" && "$LAKE" build)
 
-say "2/7 build the extractor inside the fixture's environment"
+say "2/10 build the extractor inside the fixture's environment"
 # The extractor is `import Lean` and nothing else, which is what lets it be
 # built against a package that has no Mathlib. `-rdynamic` is load-bearing:
 # `importModules (loadExts := true)` resolves symbols in the running executable
@@ -128,7 +133,7 @@ if [ -z "$EXTRACTOR" ]; then
   fi
 fi
 
-say "3/8 GATE 1 — one command"
+say "3/10 GATE 1 — one command"
 rm -rf "$OUT/first"
 "$LITEDOC4" build --root "$FIXTURE" --lib Micro --out "$OUT/first" \
   --extractor-bin "$EXTRACTOR" | tee "$OUT/first.log"
@@ -147,7 +152,7 @@ cp -R "$OUT/first/site" "$OUT/first-snapshot"
 # was learned from — a copy taken afterwards is a copy of the wrong run.
 cp "$OUT/first/litedoc4-build.json" "$OUT/first-build.json"
 
-say "4/8 GATE 2 — the second run changes nothing"
+say "4/10 GATE 2 — the second run changes nothing"
 "$LITEDOC4" build --root "$FIXTURE" --lib Micro --out "$OUT/first" \
   --extractor-bin "$EXTRACTOR" | tee "$OUT/second.log"
 
@@ -163,7 +168,7 @@ if ! grep -qE 'incremental|0 module\(s\)|nothing to' "$OUT/second.log"; then
   sed -n '1,20p' "$OUT/second.log" >&2
 fi
 
-say "5/8 GATE 3 — a second full build is byte identical"
+say "5/10 GATE 3 — a second full build is byte identical"
 rm -rf "$OUT/again"
 "$LITEDOC4" build --root "$FIXTURE" --lib Micro --out "$OUT/again" \
   --extractor-bin "$EXTRACTOR" >"$OUT/again.log"
@@ -177,7 +182,7 @@ if ! diff -r "$OUT/first/ir" "$OUT/again/ir"; then
   exit 1
 fi
 
-say "6/8 GATE 4 — --jobs does not change the output"
+say "6/10 GATE 4 — --jobs does not change the output"
 # The extractor splits declarations across threads inside one environment
 # (approach.md §5.1). That the IR comes out identical was measured once at stage
 # 7d; that the *site* does has never been checked, and a parallel step that
@@ -195,7 +200,7 @@ if ! diff -r "$OUT/first/site" "$OUT/jobs4/site"; then
   exit 1
 fi
 
-say "7/8 GATE 5 — the work, as integers"
+say "7/10 GATE 5 — the work, as integers"
 # Four markers: the first full build (snapshotted before the second run
 # overwrote it), the incremental run over an unchanged world, and the two other
 # full builds. Python because this repository's other gates use it and because a
@@ -304,7 +309,78 @@ if problems:
     sys.exit(1)
 PY
 
-say "8/9 GATE 6 — one edited module does not re-render the package"
+say "8/10 GATE 7 — the three sorry shapes are three different answers"
+# doc-gen4 #270 asks for two claims and not one: a declaration that uses `sorry`
+# itself, and a declaration that merely depends on such a one. `Micro/Sorry.lean`
+# holds one of each plus a control, and **this is the only place the extractor's
+# answer meets a real Lean environment**: `sorry` is a property of the elaborated
+# term, so a hand-written IR fixture can check what the renderer does with the
+# key but never that the extractor put the right value there.
+#
+# Reads the IR rather than the site on purpose — bundle B is extraction and IR
+# only, and no page shows this yet.
+python3 - "$OUT/first/ir" <<'PY'
+import json
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+index = json.loads((root / "index.json").read_text(encoding="utf-8"))
+
+# `sorry` absent means "no sorry" **because the file says schema 5**. In a
+# schema-4 file the key could not exist at all, so the same absence would mean
+# "nobody was asked" — reading one as the other is the whole reason
+# litedoc4-ir's MIN_SCHEMA_VERSION moved with the writer.
+if index.get("schemaVersion") != 5:
+    sys.exit(f"{root}/index.json: schemaVersion is {index.get('schemaVersion')!r}, not 5")
+
+expected = {
+    "Micro.Sorry.sorryHole": "direct",
+    "Micro.Sorry.usesHole": "transitive",
+    "Micro.Sorry.noHole": None,
+}
+found = {}
+for entry in index["modules"]:
+    module = json.loads((root / entry["file"]).read_text(encoding="utf-8"))
+    if module.get("schemaVersion") != 5:
+        sys.exit(f"{entry['file']}: schemaVersion is {module.get('schemaVersion')!r}, not 5")
+    for decl in module["declarations"]:
+        found[decl["name"]] = decl.get("sorry")
+
+problems = []
+checked = 0
+for name, want in sorted(expected.items()):
+    if name not in found:
+        problems.append(f"{name} is not in the IR at all — the fixture lost a shape")
+        continue
+    checked += 1
+    got = found[name]
+    if got != want:
+        problems.append(f"{name}: sorry is {got!r}, expected {want!r}")
+
+# The count, not the absence of complaints. An expectation that never ran
+# reports nothing, and this script's own history is of gates that passed by not
+# looking (see "GATE ITSELF WAS BROKEN" in e2e/README.md).
+if checked != len(expected):
+    problems.append(f"{checked} of {len(expected)} shapes were actually compared")
+
+# `noHole` shows the key can be absent for one declaration; this shows it is not
+# being sprayed over the package. A classifier that answers "transitive" to
+# everything passes the two positive expectations above and fails here.
+strays = sorted(name for name, value in found.items() if value is not None and name not in expected)
+if strays:
+    problems.append(f"{len(strays)} other declaration(s) claim a sorry: {', '.join(strays[:5])}")
+
+if problems:
+    for problem in problems:
+        print(f"GATE 7 FAIL  {problem}", file=sys.stderr)
+    sys.exit(1)
+
+print(f"sorry        {checked} shapes compared over {len(found)} declarations: " +
+      ", ".join(f"{name.rpartition('.')[2]}={found[name]}" for name in sorted(expected)))
+PY
+
+say "9/10 GATE 6 — one edited module does not re-render the package"
 # The question the other five cannot ask. GATE 2 asks what an *unchanged* world
 # costs; this asks what a one-declaration edit costs, which is the shape a user
 # actually produces and the one where the dependency map used to force every page
@@ -387,7 +463,7 @@ fi
 # the same answer.
 "$HERE/onemod-gate.sh" "$OUT/first/litedoc4-build.json" "$OUT/first/work/serve.out"
 
-say "9/9 summary"
+say "10/10 summary"
 printf 'site files : %s\n' "$(find "$OUT/first/site" -type f | wc -l | tr -d ' ')"
 printf 'ir files   : %s\n' "$(find "$OUT/first/ir" -type f | wc -l | tr -d ' ')"
 printf 'out        : %s\n' "$OUT"

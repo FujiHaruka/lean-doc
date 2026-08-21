@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds litedoc4's extractor (Extract.lean, IR schema 4) into a native binary
+# Builds litedoc4's extractor (Extract.lean, IR schema 5) into a native binary
 # under `build/`.
 #
 # Moved from `experiments/stage7d/build.sh` in M4-a. **The shape is unchanged**

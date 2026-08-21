@@ -1433,7 +1433,7 @@ impl FakeRepo {
         fs::create_dir_all(&ir).expect("creatable");
         fs::write(
             ir.join("index.json"),
-            json!({"schemaVersion": 4, "generator": "lean-doc/experiments/stage4b"}).to_string(),
+            json!({"schemaVersion": 5, "generator": "lean-doc/experiments/stage4b"}).to_string(),
         )
         .expect("writable");
         for module in modules {

@@ -797,7 +797,7 @@ mod tests {
     }
 
     const MODULE_JSON: &str = r#"{
-        "schemaVersion": 4,
+        "schemaVersion": 5,
         "module": "Pkg.Two",
         "imports": [],
         "moduleDocs": [],
@@ -822,7 +822,7 @@ mod tests {
     }"#;
 
     fn module() -> ModuleFile {
-        serde_json::from_str(MODULE_JSON).expect("the literal is schema 4")
+        serde_json::from_str(MODULE_JSON).expect("the literal is schema 5")
     }
 
     /// The page's scan list is declaration-range order with the private names
@@ -835,10 +835,10 @@ mod tests {
     #[test]
     fn a_reference_fills_a_gap_and_a_declaration_overwrites() {
         let dep: DepMap = serde_json::from_str(
-            r#"{"schemaVersion": 4, "package": "Dep",
+            r#"{"schemaVersion": 5, "package": "Dep",
                 "declarations": {"Dep.shared": "Dep.Other", "Pkg.Two.a": "Dep.Stale"}}"#,
         )
-        .expect("the literal is schema 4");
+        .expect("the literal is schema 5");
         let mut builder = NameIndex::builder();
         builder.dep_map(&dep).module(&module());
         let index = builder.build(LinkIndex::default(), ExternalLinks::default());

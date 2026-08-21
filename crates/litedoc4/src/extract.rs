@@ -5,7 +5,7 @@
 //! lines, frozen), which did three things; this does two of them:
 //!
 //! 1. start the Lean extractor **inside the target package** through `lake env`,
-//!    with the six flags that spell "IR schema 4";
+//!    with the six flags that spell "IR schema 5";
 //! 2. fold the extractor's events JSONL into a single timings object;
 //! 3. ~~send the request to a resident extractor instead (`--serve-dir`)~~ —
 //!    residency arrived in **M4-c** and it is **`litedoc4 incremental --serve`**,
@@ -42,7 +42,7 @@
 //! The six extraction flags — `--equations --refs --write-ir --tagged-code
 //! --jobs N --ir-dir <dir>` (`extract-once.sh:63-64`) — are not configurable
 //! except for `--jobs` and `--ir-dir`. Four of them *are* the IR the rest of the
-//! product reads: `--tagged-code` is what makes it schema 4, `--refs` is what
+//! product reads: `--tagged-code` is what makes it schema 5, `--refs` is what
 //! fills the reference arrays that the link resolution and `ownership` both
 //! consume, and `--write-ir` is the point. A run with any of them off produces a
 //! tree that parses and renders wrongly, which is the worst failure shape this
@@ -62,7 +62,7 @@ use crate::{Failure, USAGE, usage};
 /// the same whichever of the two produced it.
 pub(crate) const EXIT_EXTRACTOR: u8 = 4;
 
-/// The six flags that spell "IR schema 4", minus the two the caller chooses.
+/// The six flags that spell "IR schema 5", minus the two the caller chooses.
 pub(crate) const FIXED_FLAGS: [&str; 4] = ["--equations", "--refs", "--write-ir", "--tagged-code"];
 
 /// `litedoc4 extract`.

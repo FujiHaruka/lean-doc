@@ -87,7 +87,7 @@ fn base_world() -> Vec<ModuleSpec> {
     ]
 }
 
-/// One declaration, with every schema-4 key `litedoc4_ir` requires.
+/// One declaration, with every schema-5 key `litedoc4_ir` requires.
 fn decl(name: &str, doc: Option<&str>) -> Value {
     json!({
         "name": name, "kind": "def", "modifiers": [], "binders": [], "implicits": [],
@@ -115,7 +115,7 @@ fn write_world(root: &Path, world: &[ModuleSpec]) {
             .map(|name| decl(name, module.doc.as_deref()))
             .collect();
         let body = serde_json::to_string(&json!({
-            "schemaVersion": 4,
+            "schemaVersion": 5,
             "module": module.name,
             "imports": module.imports,
             "moduleDocs": [],
@@ -243,7 +243,7 @@ done < "$MODULES"
   printf '"generator":"fake-extractor","hashAlgorithm":"lean-string-hash-64/hex16",'
   printf '"leanVersion":"4.31.0","moduleCount":%s,"modules":[' "$n"
   cat "$ENTRIES"
-  printf '],"schemaVersion":4}'
+  printf '],"schemaVersion":5}'
 } > "$IRDIR/index.json"
 rm -f "$ENTRIES"
 # `--corrupt <Module>`: an IR file the renderer cannot read. The extraction
@@ -611,7 +611,7 @@ fn the_ledger_names_the_tree_that_now_exists() {
         MODULES.len(),
     );
     assert_eq!(ledger["extractKey"]["irGenerator"], json!("fake-extractor"));
-    assert_eq!(ledger["extractKey"]["irSchemaVersion"], json!("4"));
+    assert_eq!(ledger["extractKey"]["irSchemaVersion"], json!("5"));
     assert_eq!(ledger["renderKey"]["sourceUrl"], json!(URL));
 
     // `ledger check` over the same tree is the independent statement of the
@@ -763,7 +763,7 @@ fn write_dependency(live: &Live) -> PathBuf {
     // The IR the fake extractor copies: `Dep.elsewhere` is a name this package
     // refers to, so it is what the table is asked about.
     let slice =
-        br#"{"schemaVersion":4,"package":"Dep","declarations":{"Dep.elsewhere":"Dep.Home"}}"#;
+        br#"{"schemaVersion":5,"package":"Dep","declarations":{"Dep.elsewhere":"Dep.Home"}}"#;
     write(&live.world.join("ir/deps/Dep.json"), slice);
     write(
         &live.world.join("ir/deps-index.json"),

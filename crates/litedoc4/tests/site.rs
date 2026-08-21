@@ -521,7 +521,7 @@ fn tree(root: &Path) -> std::collections::BTreeMap<PathBuf, Vec<u8>> {
     files
 }
 
-/// A declaration with every schema-4 key `litedoc4_ir` requires — the same
+/// A declaration with every schema-5 key `litedoc4_ir` requires — the same
 /// shape `litedoc4-global/tests/state_and_delta.rs` writes.
 fn decl(name: &str, kind: &str, doc: Option<&str>) -> Value {
     json!({
@@ -587,7 +587,7 @@ fn synthetic_ir(root: &Path) {
     for (module, hash, imports, decls) in &modules {
         let file = format!("modules/{module}.json");
         let body = serde_json::to_string(&json!({
-            "schemaVersion": 4,
+            "schemaVersion": 5,
             "module": module,
             "imports": imports,
             "moduleDocs": [],
@@ -608,7 +608,7 @@ fn synthetic_ir(root: &Path) {
 
     let map = json!({ "Dep.elsewhere": "Dep.Home" });
     let body = serde_json::to_string(&json!({
-        "schemaVersion": 4, "package": "Dep", "declarations": map,
+        "schemaVersion": 5, "package": "Dep", "declarations": map,
     }))
     .expect("serialises");
     write(&root.join("deps/Dep.json"), body.as_bytes());
@@ -626,7 +626,7 @@ fn synthetic_ir(root: &Path) {
         "leanVersion": "4.31.0",
         "moduleCount": modules.len(),
         "modules": entries,
-        "schemaVersion": 4,
+        "schemaVersion": 5,
     });
     write(
         &root.join("index.json"),

@@ -2089,7 +2089,7 @@ impl FakeIr {
 
     fn module(&self, name: &str, imports: &[&str], refs: &[(&str, &str)]) {
         let body = json!({
-            "schemaVersion": 4,
+            "schemaVersion": 5,
             "module": name,
             "imports": imports,
             "moduleDocs": [],
@@ -2123,7 +2123,7 @@ impl FakeIr {
     fn finish(&self) {
         let entries = self.entries.borrow().clone();
         let index = json!({
-            "schemaVersion": 4,
+            "schemaVersion": 5,
             "generator": "litedoc4/tests",
             "leanVersion": "v4.31.0",
             "hashAlgorithm": "lean-string-hash-64/hex16",
@@ -2181,7 +2181,7 @@ impl FakeIr {
     }
 }
 
-/// One declaration with every key the schema-4 reader requires.
+/// One declaration with every key the schema-5 reader requires.
 fn decl(name: &str, refs: &[(&str, &str)]) -> Value {
     json!({
         "name": name,
