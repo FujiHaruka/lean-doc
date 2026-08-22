@@ -112,7 +112,14 @@ pub const EXTRACTOR_ID: &str = "litedoc4 extractor v3";
 /// every page up to date and **leave the old bytes in place** — a site half of
 /// whose pages have mathematics and half of which do not, reported as "0 pages
 /// rendered" and therefore as success.
-pub const RENDERER_ID: &str = "litedoc4 renderer v3";
+///
+/// **v3 -> v4 (residual-sweep R3)**: a docstring that names a module by the
+/// `.lidx`'s unescaped spelling — `Dep-Aux.Basic` for `«Dep-Aux».Basic` — now
+/// links, where it used to render as a bare code span
+/// (`NameIndex::module_for_unescaped`). Only a package with a quoted module
+/// component can see it, and the IR does not move when it does, so this bump is
+/// the only thing that makes such a site re-render.
+pub const RENDERER_ID: &str = "litedoc4 renderer v4";
 
 /// The olean files a module can have, in the order they are hashed.
 pub const OLEAN_SUFFIXES: [&str; 3] = [".olean", ".olean.server", ".olean.private"];

@@ -338,3 +338,64 @@ cold 側の罰則は既存実測で **5.2〜11.9 倍**。
 **2 件とも「製品が落ちた」ように見えて、壊れていたのは入力の作り方。**
 CLAUDE.md「両方向で同時に落ちる差分は、対象ではなく比較器を疑う」の、
 比較器ではなく**自分が用意した入力**を疑う版。
+
+
+## 5. R3 の判断 — `.lidx` の綴りを解決させた【決定 2026-08-22、ユーザー判断】
+
+### 何が起きていたか — 写像に無かったのではない
+
+§3 が出した非対称 (`Dep-Aux.Basic` だけリンクしない) の原因を追ったら、
+**その文字列は引かれてすらいなかった**。`nameToLink` の 1 行目が
+`is_name_lit(s)` で、`Dep-Aux.Basic` は **`-` が `isIdRest` でないので名前リテラルではない**。
+
+    is_name_lit("«Dep-Aux».Basic")  = true   → branch 3 が答える
+    is_name_lit("Dep-Aux.Basic")    = false  → 1 行目で None
+
+`is_name_lit` は doc-gen4 の `isNameLit` の転写で、**あらゆる code span の入口**。
+緩めれば何が名前かの定義が全体で動く。**緩めずに、弾かれた側に逆引きを足した。**
+
+### 実装 — `NameIndex::module_for_unescaped`
+
+非エスケープ綴り → モジュール名の写像。**クエリを escape する方式は取らない** —
+unescape は単射でなく、`«Dep-Aux».Basic` と `«Dep-Aux.Basic»` は**どちらも**
+`Dep-Aux.Basic` に潰れる。写像なら**衝突がビルド時に見えて項目を落とせる**
+(`module_for_source_path` の「2 件一致は None」と同じ規則)。
+
+**バイト不動である理由は場所である**: 足したのは `is_name_lit` が偽の側だけで、
+そこは**無条件に `None` を返していた**。今日リンクになる語は全部名前リテラルなので
+この経路に来ない。
+
+| | |
+|---|---|
+| `cargo test --workspace` | **36 バイナリ / 437 passed / 0 failed / 21 ignored** (凍結フィクスチャ全件不動) |
+| `tools/e2e-micro.sh` | **ok** (版固定できない側は 3 綴りとも従来どおりリンクしない) |
+| `tools/pinned-dep-gate.sh` | **ok** — 3 綴りとも同じ blob URL |
+| `RENDERER_ID` | **v3 → v4** |
+
+    «Dep-Aux».Basic      https://example.invalid/micro-dep/blob/<rev>/Dep-Aux/Basic.lean
+    Dep-Aux.Basic        https://example.invalid/micro-dep/blob/<rev>/Dep-Aux/Basic.lean
+    Dep-Aux/Basic.lean   https://example.invalid/micro-dep/blob/<rev>/Dep-Aux/Basic.lean
+
+### 実装中に 1 回踏んだ — `known_modules` は綴りが混ざっている【実測】
+
+最初の版は「実在モジュールが既にその綴りを持つなら写像に入れない」というガードを置いた
+(`modules.contains(&spelling)`)。根拠は「その文字列は名前リテラルだから branch 3 が答える、
+だからここは到達しない」。
+
+**そのガードで、写像は書いた当のフィクスチャで空になった。**
+デバッグ出力:
+
+    DBG unescaped={} modules_with_quote=["«Dep-Aux».Basic"]
+
+**`known_modules` は綴りの混合物**だった — IR が `«Dep-Aux».Basic` を入れ、
+`.lidx` の `@` 節が**同じモジュールの** `Dep-Aux.Basic` を入れる。
+**集合に居ることと、branch 3 で到達できることは別の問い**で、
+バイトが動くかを決めるのは後者だけ。ガードは `is_name_lit(&spelling)` に直した。
+
+**「到達可能性」を「集合の要素であること」で近似したのが誤り。**
+CLAUDE.md「入力の同一性を『パス』で判定しない」と同型 —
+**判定に使った性質が、主張したい性質とずれていた**。
+
+**単体テストは最初から通っていた** (フィクスチャを `module_name` で直に与えるので
+`.lidx` 由来の綴りが入らない)。**捕まえたのは実物のフィクスチャを通した実走だけ** —
+§3 でゲートを作っておいたことがそのまま効いた。

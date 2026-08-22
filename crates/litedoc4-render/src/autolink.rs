@@ -252,6 +252,11 @@ pub struct NameIndex {
     /// a page has to be in `page_modules` to be linked to.
     every_module_has_a_page: bool,
     external: ExternalLinks,
+    /// The **unescaped** spelling of a known module, back to the module — the
+    /// `.lidx`'s spelling of a name the IR quotes. See
+    /// [`NameIndex::module_for_unescaped`] for why it is a separate map and why
+    /// it is usually empty.
+    unescaped_modules: HashMap<String, String>,
 }
 
 impl NameIndex {
@@ -298,6 +303,53 @@ impl NameIndex {
     #[must_use]
     pub fn has_page(&self, module: &str) -> bool {
         self.every_module_has_a_page || self.page_modules.contains(module)
+    }
+
+    /// The module an **unescaped** module name spells, or `None` when nothing
+    /// or more than one thing answers to it.
+    ///
+    /// # Why this exists
+    ///
+    /// A module component that is not an identifier is quoted, and the two
+    /// sides of this codebase disagree about whether to write the quotes: the
+    /// IR and a page's import list say `«Dep-Aux».Basic`, the `.lidx` says
+    /// `Dep-Aux.Basic`. A docstring that names the module the second way used
+    /// to get no link at all — not because the map lacked it, but because
+    /// `Dep-Aux.Basic` **is not a Lean name literal** ([`is_name_lit`] stops at
+    /// the `-`), so it never reached a lookup. Meanwhile a *source path*
+    /// spelling of the same module resolved, because
+    /// [`NameIndex::module_for_source_path`] escapes before it looks up.
+    ///
+    /// **The same question was being answered two ways** — CLAUDE.md's "judgment
+    /// in one place". This is the third place it is asked and the one that used
+    /// to have no answer 【実測 2026-08-22 →
+    /// `benchmarks/results/residual-sweep-2026-08-22.txt` §3】.
+    ///
+    /// # Why a map and not `escape_module` on the query
+    ///
+    /// Because unescaping is not injective and escaping is not its inverse.
+    /// `«Dep-Aux».Basic` and `«Dep-Aux.Basic»` both unescape to
+    /// `Dep-Aux.Basic`, and no rule applied to the query can tell which was
+    /// meant. Built as a map, the collision is **visible at build time** and the
+    /// entry is dropped: two answers is `None`, the same rule
+    /// [`NameIndex::module_for_source_path`] states — a link to the wrong page
+    /// is worse than no link.
+    ///
+    /// # Why it is usually empty
+    ///
+    /// Only a module with a quoted component has a spelling different from its
+    /// own name, and one whose spelling is still a **name literal** is left out
+    /// as well: that string takes the ordinary branches, so answering here could
+    /// only move a byte that already renders. Mathlib contributes **0 entries**
+    /// to this map 【実測: 8,169 modules】.
+    ///
+    /// Note that the spelling being in `known_modules` does **not** disqualify
+    /// it — the `.lidx` puts unescaped spellings there itself, so that set holds
+    /// both spellings of the same module and membership says nothing about which
+    /// branch can reach the word.
+    #[must_use]
+    pub fn module_for_unescaped(&self, spelling: &str) -> Option<&str> {
+        self.unescaped_modules.get(spelling).map(String::as_str)
     }
 
     /// The module a **source path** written in a docstring names, or `None`
@@ -595,6 +647,33 @@ impl NameIndexBuilder {
                 modules.insert(module.to_owned());
             }
         }
+        // `None` marks a spelling two modules answer to; it is dropped rather
+        // than resolved to either (see `NameIndex::module_for_unescaped`).
+        let mut unescaped: HashMap<String, Option<String>> = HashMap::new();
+        for module in &modules {
+            let spelling = litedoc4_ir::module_components(module).join(".");
+            // Nothing to add when the module has no quoted component, and
+            // nothing may be added when the spelling is a **name literal**:
+            // that string takes the ordinary branches, and this map is only
+            // ever consulted for a word they refuse.
+            //
+            // **The test is `is_name_lit`, not `modules.contains`**【実測
+            // 2026-08-22】. The first version asked whether a known module
+            // already answered to the spelling, on the reasoning that such a
+            // string would be reached by branch 3 — and the map came out
+            // **empty on the very fixture it was written for**. `known_modules`
+            // is a *mixture of spellings*: the IR contributes `«Dep-Aux».Basic`
+            // and the `.lidx`'s `@` section contributes `Dep-Aux.Basic` for the
+            // same module. Being in that set is not the same question as being
+            // reachable, and only the second one is about bytes moving.
+            if spelling == *module || is_name_lit(&spelling) {
+                continue;
+            }
+            unescaped
+                .entry(spelling)
+                .and_modify(|slot| *slot = None)
+                .or_insert_with(|| Some(module.clone()));
+        }
         NameIndex {
             known,
             links,
@@ -602,6 +681,10 @@ impl NameIndexBuilder {
             page_modules,
             every_module_has_a_page,
             external,
+            unescaped_modules: unescaped
+                .into_iter()
+                .filter_map(|(spelling, module)| module.map(|m| (spelling, m)))
+                .collect(),
         }
     }
 }
@@ -684,7 +767,13 @@ impl LinkResolver for PageLinks<'_> {
     /// in `succ`, which is a wrong link where there was going to be none.
     fn name_to_link(&self, s: &str) -> Option<String> {
         if !is_name_lit(s) {
-            return None;
+            // **The only place the unescaped spelling is consulted, and that is
+            // what makes this change byte-neutral**: every branch below is
+            // reached only by a name literal, and this arm returned `None`
+            // unconditionally until 2026-08-22. A word that renders as a link
+            // today is a name literal and cannot arrive here.
+            let module = self.index.module_for_unescaped(s)?;
+            return self.index.link_to(self.root, module, None);
         }
         if !s.starts_with(PRIVATE_PREFIX)
             && let Some(module) = self.index.module_of(s)
@@ -878,6 +967,71 @@ mod tests {
 
     fn resolve(index: &NameIndex, decl_names: &[&str], s: &str) -> Option<String> {
         PageLinks::new(index, "../", decl_names).name_to_link(s)
+    }
+
+    /// The `.lidx`'s spelling of a quoted module resolves — and stops resolving
+    /// the moment two modules answer to it.
+    ///
+    /// **Both halves are the point.** The first is the behaviour the measurement
+    /// asked for 【実測 2026-08-22】: `Dep-Aux.Basic` is how the `.lidx` writes
+    /// `«Dep-Aux».Basic`, and it used to get no link because it is not a name
+    /// literal. The second is why this is a map rather than an `escape` on the
+    /// query: `«Dep-Aux.Basic»` is a *different* module with the same unescaped
+    /// spelling, and no rule applied to the query can choose between them.
+    #[test]
+    fn the_unescaped_spelling_of_a_module_resolves_unless_it_is_ambiguous() {
+        let mut builder = NameIndex::builder();
+        builder
+            .module_name("«Dep-Aux».Basic")
+            .module_name("Plain.M");
+        let index = builder.build(LinkIndex::default(), ExternalLinks::default());
+
+        assert_eq!(
+            index.module_for_unescaped("Dep-Aux.Basic"),
+            Some("«Dep-Aux».Basic")
+        );
+        assert_eq!(
+            resolve(&index, &[], "Dep-Aux.Basic").as_deref(),
+            Some("../Dep-Aux/Basic.html"),
+            "the .lidx spelling reaches the same page as the IR spelling"
+        );
+        // A module with nothing quoted contributes no entry: its own name is
+        // its spelling, and that name is a name literal.
+        assert_eq!(index.module_for_unescaped("Plain.M"), None);
+
+        let mut ambiguous = NameIndex::builder();
+        ambiguous
+            .module_name("«Dep-Aux».Basic")
+            .module_name("«Dep-Aux.Basic»");
+        let index = ambiguous.build(LinkIndex::default(), ExternalLinks::default());
+        assert_eq!(
+            index.module_for_unescaped("Dep-Aux.Basic"),
+            None,
+            "two modules answer to it, so neither does"
+        );
+        assert_eq!(resolve(&index, &[], "Dep-Aux.Basic"), None);
+    }
+
+    /// A spelling a **real module** owns is not taken over by this map.
+    ///
+    /// `A.B` is a name literal, so it takes the ordinary branches; letting the
+    /// map answer for it would be the one way this change could move a byte.
+    #[test]
+    fn a_real_module_keeps_its_own_spelling() {
+        let mut builder = NameIndex::builder();
+        builder.module_name("«A».B").module_name("A.B");
+        let index = builder.build(LinkIndex::default(), ExternalLinks::default());
+
+        assert_eq!(
+            index.module_for_unescaped("A.B"),
+            None,
+            "`A.B` is a name literal, so branch 3 owns it and this map stays out"
+        );
+        assert_eq!(
+            resolve(&index, &[], "A.B").as_deref(),
+            Some("../A/B.html"),
+            "branch 3 answers, as it did before this map existed"
+        );
     }
 
     /// The `.lidx` the branch tests share: one dependency declaration, with a

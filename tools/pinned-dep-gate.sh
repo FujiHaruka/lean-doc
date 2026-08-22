@@ -11,6 +11,11 @@
 # have to agree about where they point. `e2e/README.md` said so and called the
 # instance missing.
 #
+# **Building it is what showed that they did not agree.** `Dep-Aux.Basic` — the
+# `.lidx`\'s spelling — resolved nowhere, and only a *pinnable* dependency can
+# make that visible: with an unpinnable one all three spellings render as plain
+# text, so they agree by accident.
+#
 # It was not missing for want of hardware. The same `e2e/micro-dep` is the
 # fixture; only the **wiring** changes, which is what makes the comparison worth
 # anything — the modules, the docstrings and the toolchain are identical to the
@@ -184,27 +189,28 @@ for spelling in ("«Dep-Aux».Basic", "Dep-Aux/Basic.lean"):
 if "«" in html.split("<body")[0] + "".join(re.findall(r'href="([^"]*)"', html)):
     problems.append("a href still carries a guillemet")
 
-# **Pinned as the current answer, not asserted as the right one.** The `.lidx`
-# spells module names unescaped and the IR does not; `module_for_source_path`
-# unescapes before it looks up and the name resolver does not, so `Dep-Aux.Basic`
-# is the one of the three that does not become a link. Whether it should is a
-# specification question (docs/plans/residual-sweep.md R3), not something this
-# gate is entitled to decide — what it is entitled to do is fail when the answer
-# changes without anyone saying so.
-if linked("Dep-Aux.Basic"):
+# **The third spelling, and all three at the same URL**【決定 2026-08-22、
+# ユーザー判断】. The `.lidx` writes module names unescaped and the IR does not,
+# so `Dep-Aux.Basic` is a third way to name the same module. It used to get no
+# link at all — not because the map lacked it, but because it is not a Lean name
+# literal and never reached a lookup. `NameIndex::module_for_unescaped` is the
+# answer, and what is asserted here is that the three *agree*, not merely that
+# each of them resolves.
+hrefs = set(linked("Dep-Aux.Basic"))
+if not hrefs:
     problems.append(
-        "Dep-Aux.Basic now resolves. That may well be an improvement, but it is a "
-        "change of behaviour with a decision behind it: update this gate and "
-        "docs/plans/residual-sweep.md R3 in the same commit"
+        "Dep-Aux.Basic: no link. This is the .lidx's spelling of a module a pinnable "
+        "dependency owns, and it resolves since residual-sweep R3 — see "
+        "NameIndex::module_for_unescaped"
     )
-if "<code>Dep-Aux.Basic</code>" not in html:
-    problems.append("the unescaped spelling is not on the page — the fixture stopped exercising this")
+elif hrefs != {want}:
+    problems.append(f"Dep-Aux.Basic: links to {sorted(hrefs)}, wanted {want}")
 
 for problem in problems:
     print(f"  FAIL  {problem}")
 raise SystemExit(1 if problems else 0)
 PY
-[ "$FAILED" -eq 0 ] && echo "  ok  blob URLs carry no guillemets; 2 of 3 spellings resolve, to the same URL"
+[ "$FAILED" -eq 0 ] && echo "  ok  blob URLs carry no guillemets; all 3 spellings resolve, to the same URL"
 
 say "6/6 GATE 3 — the site is still closed over itself"
 "$HERE/site-gate.sh" "$OUT/site/site" || FAILED=$((FAILED + 1))
