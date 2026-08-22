@@ -2,9 +2,10 @@
 
 ## State
 
-- Branch: **`main`** / clean / **`285f56b`** まで push 済み
-- **`docs/plans/residual-sweep.md` の R1・R2・R3・R4 が入り、R5 は保留**【ユーザー判断】
-- `cargo test --workspace` = **36 バイナリ / 435 passed / 0 failed / 21 ignored**
+- Branch: **`main`** / clean / **`7ac9538`** まで push 済み
+- **`docs/plans/residual-sweep.md` は全項目が決着した** — R1〜R4 が入り、R5 は保留、
+  R3 の仕様判断は「解決させる」で実装済【いずれもユーザー判断】
+- `cargo test --workspace` = **36 バイナリ / 437 passed / 0 failed / 21 ignored**
 - `cargo fmt --check` / `cargo clippy --workspace --all-targets -- -D warnings` /
   `cargo doc` (RUSTDOCFLAGS=-D warnings) / `tools/provenance-gate.sh` /
   `tools/corpus-gate.sh --verify-list` すべて緑
@@ -28,8 +29,10 @@
 | 修正 | rustdoc: `#[cfg(test)]` へは intra-doc link を張れない | `370740e` |
 | **R5** | 保留の判断と、覆われている範囲の書き直し | `cbe203f` `c9fcc66` |
 | **R4** | Mathlib 全体 8,169 モジュールを実測、小 RAM は外挿 | `285f56b` |
+| 決定 | 未検証の残り 1 件はやらない | `1eebd45` |
+| **R3 判断** | `.lidx` の綴りを解決させ、`RENDERER_ID` を v4 に上げた | `7a904dd` |
 
-数字はすべて `benchmarks/results/residual-sweep-2026-08-22.txt` (§1〜§4)。
+数字はすべて `benchmarks/results/residual-sweep-2026-08-22.txt` (§1〜§5)。
 
 ### 効くようになったもの
 
@@ -68,7 +71,7 @@ R5 と未検証の残り 1 件は「やらない」、R3 の仕様判断は「�
 
 - `docs/plans/residual-sweep.md` — §2 Approach が「主張は、それを決めるものと同じ場所に置く」。
   各 R に「結果」が入っている
-- `benchmarks/results/residual-sweep-2026-08-22.txt` — §1〜§4。**落とし方の表**が各節にある
+- `benchmarks/results/residual-sweep-2026-08-22.txt` — §1〜§5。**落とし方の表**が各節にある
 - `e2e/README.md` の「その実物を作った」節 — R3 の測定結果と、`file://` を使って
   ハーネスが自分で dead link を作った件
 
