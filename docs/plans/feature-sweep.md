@@ -90,6 +90,30 @@ GitLab は `/-/blob/`、Gitea はまた別で、推測すると全宣言の全�
    (`tests/oracle/dump-html-linked.lean`、HEAD にある) を回して取り直す**、
    こちらの出力で上書きしない。
 
+## 3.5 束 C は終わった【2026-08-22】
+
+数字とレビューは `benchmarks/results/bundle-c-2026-08-22.txt`。**完了条件 §5 の 6 項目すべて満たした。**
+
+- **再凍結は 2 ファイル**。`docgen4-expected.json` は 327 件中 5 件 (すべて C-1 の数式)、
+  `page-parts-expected.json` は 187 件全部 (C-2 の `Used by` + 元々 byte 比較ではなかった)。
+  他の 5 つの `*-expected.json` は 1 バイトも動いていない。
+  **`page-parts` は比較を byte 比較に強化した** — 凍結値がこちらの出力になった以上、
+  `Content` への還元は情報を落とすだけ。`header` は**プロトタイプのまま**にした。
+- **再生成手段は `LITEDOC4_BLESS=1`**。変えた case を全部印字し、
+  編集前の round-trip を検査し、**冪等であることを主張する**。
+- **`MIN_SCHEMA_VERSION` 4 → 5**【ユーザー判断】。埋め込み IR **62 ファイル**を
+  一度きりの文字列置換で移行した (外側の JSON を 1 バイトも動かさない)。
+- **増分の整数は 1 つも動いていない** — 1 宣言追加はいまも「1 抽出 / 1 描画」。
+- **遅くなったのは render + global だけで +5.3%**、full の壁時計には出ない
+  (抽出が 96%)。**README の壁時計は書き換えていない** — 1 回の値で
+  6 回の中央値を上書きしないため。
+- README は数式と `litedoc4.toml` を最終状態だけで書いた。「No」の 1 つ目が消えた。
+
+**残件は 1 つ**: `crates/litedoc4-global/tests/state_and_delta.rs` の
+`the_state_file_is_the_prototypes_bytes` が固定する 861,999 B が C-2 で動いた。
+432 モジュールの corpus がこの機材に無く測り直せていない (テストは `#[ignore]` で
+fixture 不在なら byte 比較の手前で落ちるので嘘はついていない)。
+
 ## 4. 項目別
 
 ### A-1 (b) 依存宣言のリンク先を選べるようにする
@@ -602,10 +626,10 @@ Mathlib 依存パッケージの docstring は数式を含む。
 - `e2e/micro/litedoc4.toml` と `e2e/micro/docs/index.md` を置いた —
   **何も設定していないパッケージでは 4 経路が自明に一致してしまう**ため。
 
-### C-4 フィクスチャの再凍結
+### C-4 フィクスチャの再凍結【2026-08-22 完了】
 
-§3【決定 1】の 3 手順。**束 C の最後に 1 回だけ。**
-`LITEDOC4_BLESS=1` の再生成手段を HEAD に置き、差分を全件レビューし、PROVENANCE.md を直す。
+§3【決定 1】の 3 手順 + `MIN_SCHEMA_VERSION`。**束 C の最後に 1 回だけ。**
+結果は §3.5、数字は `benchmarks/results/bundle-c-2026-08-22.txt`。
 
 ## 5. 順序と完了条件
 

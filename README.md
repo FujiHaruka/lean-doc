@@ -15,11 +15,11 @@ Live example: <https://fujiharuka.github.io/information-theory/> — 422 modules
 **Yes**, if doc-gen4 is too slow for your CI and your package lives on GitHub and is on Lean
 4.31.x through 4.33.x. Any Lean 4 package works — the payoff just scales with how large your dependencies are
 next to your own code, and Mathlib is as large as that gets. You get a module tree, search,
-instance lists, "Imported by", hyperlinked signatures, and a dark theme.
+instance lists, "Imported by", "Used by" (within your package), typeset math, hyperlinked
+signatures, and a dark theme.
 
 **No**, if:
 
-- **your docstrings need typeset math** — `$…$` is rendered as plain text; no MathJax, no KaTeX
 - **you want to search dependency declarations** — search covers your package only
 - **you are on a Lean newer than 4.33.0** — only 4.31.0, 4.32.2 and 4.33.0 have been built
   (measured 2026-08-18, `benchmarks/results/lean-433-fix-2026-08-18.txt`). The extractor is
@@ -33,6 +33,46 @@ out of Lean code, so pass `--lib` by hand; used as a Lake dependency (below) it 
 
 Already hosting doc-gen4 output? Page paths (`Foo/Bar.html`) and declaration anchors
 (`#Foo.bar`) keep doc-gen4's shape, so existing links into your own docs survive.
+
+## Math in docstrings
+
+`$…$` and `$$…$$` become MathML **while the site is built**. Nothing is loaded in the browser to
+draw them — no MathJax, no KaTeX, no math web font — because every current browser lays MathML
+out itself.
+
+A formula the converter cannot read is written back as its own source, exactly as doc-gen4 leaves
+every formula, and the build says how many:
+
+```
+render  math spans kept as LaTeX 3
+work    extract 422 / render 422 / math-fallback 3 / …
+```
+
+The line is printed even when it is zero, because a page whose formulas silently stayed `$…$` is
+still a valid page. On Mathlib's own docstrings **2,113 of 2,123 formulas convert** (measured
+2026-08-22, [`benchmarks/results/mathml-2026-08-22.txt`](benchmarks/results/mathml-2026-08-22.txt));
+the ten that do not use commands the converter does not implement — `\colim`, `\dotsc`, `\cr` —
+or are LaTeX no parser accepts.
+
+## Configuring the site
+
+`litedoc4.toml` next to your `lakefile`, both keys optional:
+
+```toml
+title = "MyPkg"          # the top bar, and the second half of every page's <title>
+index = "docs/index.md"  # Markdown to put at the top of the site's index page
+```
+
+Without it the title is the name your modules share (`Foo.*` → `Foo`), which is what a reader
+types to import your package.
+
+It is a file rather than a flag on purpose: `build`, `site`, `render` and `global` all write HTML,
+and a flag left off one of them would make two of them disagree about what the site is called. A
+file in the package is read by whichever of them is pointed at the package.
+
+A malformed file, an unknown key, or an `index` naming a file that is not there **stops the
+build**. Carrying on with the derived title would be a site that quietly ignored what you asked
+for.
 
 ## Speed
 

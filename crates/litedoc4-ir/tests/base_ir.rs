@@ -488,9 +488,10 @@ fn decl_with_attrs_json(attrs: &str) -> String {
 
 /// Both wire shapes parse, and the schema-4 one comes out **name-only**.
 ///
-/// The reader has to take a string, because `MIN_SCHEMA_VERSION` is still 4 and
-/// because curated schema-4 IR is frozen as *test input* inside
-/// `litedoc4-global/tests/data/global-expected.json`. What it must not do is
+/// The reader still takes a string, though `MIN_SCHEMA_VERSION` moved to 5 in
+/// feature-sweep C-4 and no fixture feeds it one any more: the shape is what a
+/// v0.1.x release wrote, and answering "name, no value" beats a serde error at a
+/// depth that names a path rather than a module. What it must not do is
 /// split that string on a space to invent a value: the boundary is a fact about
 /// the attribute (`deprecated`'s value has spaces in it) that only the extractor
 /// has, so a schema-4 file carries a name and an empty value — and says so.
