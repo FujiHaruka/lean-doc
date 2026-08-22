@@ -114,10 +114,10 @@ fi
 
 say() { printf '\n=== %s\n' "$1"; }
 
-say "1/12 build the fixture package (Lean core only)"
+say "1/15 build the fixture package (Lean core only)"
 (cd "$FIXTURE" && "$LAKE" build)
 
-say "2/12 build the extractor inside the fixture's environment"
+say "2/15 build the extractor inside the fixture's environment"
 # The extractor is `import Lean` and nothing else, which is what lets it be
 # built against a package that has no Mathlib. `-rdynamic` is load-bearing:
 # `importModules (loadExts := true)` resolves symbols in the running executable
@@ -142,7 +142,7 @@ if [ -z "$EXTRACTOR" ]; then
   fi
 fi
 
-say "3/12 GATE 1 — one command"
+say "3/15 GATE 1 — one command"
 rm -rf "$OUT/first"
 "$LITEDOC4" build --root "$FIXTURE" --lib Micro --out "$OUT/first" \
   --extractor-bin "$EXTRACTOR" | tee "$OUT/first.log"
@@ -161,7 +161,7 @@ cp -R "$OUT/first/site" "$OUT/first-snapshot"
 # was learned from — a copy taken afterwards is a copy of the wrong run.
 cp "$OUT/first/litedoc4-build.json" "$OUT/first-build.json"
 
-say "4/12 GATE 2 — the second run changes nothing"
+say "4/15 GATE 2 — the second run changes nothing"
 "$LITEDOC4" build --root "$FIXTURE" --lib Micro --out "$OUT/first" \
   --extractor-bin "$EXTRACTOR" | tee "$OUT/second.log"
 
@@ -177,7 +177,7 @@ if ! grep -qE 'incremental|0 module\(s\)|nothing to' "$OUT/second.log"; then
   sed -n '1,20p' "$OUT/second.log" >&2
 fi
 
-say "5/12 GATE 3 — a second full build is byte identical"
+say "5/15 GATE 3 — a second full build is byte identical"
 rm -rf "$OUT/again"
 "$LITEDOC4" build --root "$FIXTURE" --lib Micro --out "$OUT/again" \
   --extractor-bin "$EXTRACTOR" >"$OUT/again.log"
@@ -191,7 +191,7 @@ if ! diff -r "$OUT/first/ir" "$OUT/again/ir"; then
   exit 1
 fi
 
-say "6/12 GATE 4 — --jobs does not change the output"
+say "6/15 GATE 4 — --jobs does not change the output"
 # The extractor splits declarations across threads inside one environment
 # (approach.md §5.1). That the IR comes out identical was measured once at stage
 # 7d; that the *site* does has never been checked, and a parallel step that
@@ -209,7 +209,7 @@ if ! diff -r "$OUT/first/site" "$OUT/jobs4/site"; then
   exit 1
 fi
 
-say "7/12 GATE 5 — the work, as integers"
+say "7/15 GATE 5 — the work, as integers"
 # Four markers: the first full build (snapshotted before the second run
 # overwrote it), the incremental run over an unchanged world, and the two other
 # full builds. Python because this repository's other gates use it and because a
@@ -318,7 +318,7 @@ if problems:
     sys.exit(1)
 PY
 
-say "8/12 GATE 7 — the three sorry shapes are three different answers"
+say "8/15 GATE 7 — the three sorry shapes are three different answers"
 # doc-gen4 #270 asks for two claims and not one: a declaration that uses `sorry`
 # itself, and a declaration that merely depends on such a one. `Micro/Sorry.lean`
 # holds one of each plus a control, and **this is the only place the extractor's
@@ -389,7 +389,7 @@ print(f"sorry        {checked} shapes compared over {len(found)} declarations: "
       ", ".join(f"{name.rpartition('.')[2]}={found[name]}" for name in sorted(expected)))
 PY
 
-say "9/12 GATE 8 — attributes arrive split into name and value"
+say "9/15 GATE 8 — attributes arrive split into name and value"
 # Schema 5 carries each attribute as a two-element `[name, value]` array where
 # schema 4 carried one concatenated string (`docs/plans/feature-sweep.md` B-2).
 # The split is made in the extractor because that is the only side that knows
@@ -535,7 +535,7 @@ print(f"attrs        {checked} declarations compared, {sum(counts.values())} pai
       f"{len(counts)} attribute name(s), {valued} with a value")
 PY
 
-say "10/12 GATE 9 — the origin of a realized declaration, and the three ways of not having one"
+say "10/15 GATE 9 — the origin of a realized declaration, and the three ways of not having one"
 # `docs/plans/b0-generated-decls.md` measured that Lean gives a declaration it
 # realizes from an attribute the position of **the attribute token**, and that no
 # rule over `(line, col)` gets from there to the parent: in a 144-group Mathlib
@@ -727,7 +727,108 @@ print(f"generated    {checked} declarations compared, {len(claimed)} realized by
       f"{len(before)} sort before their origin")
 PY
 
-say "11/12 GATE 6 — one edited module does not re-render the package"
+say "11/15 GATE 10 — docstring math becomes MathML, and unreadable math does not"
+# `docs/plans/feature-sweep.md` C-1. Five assertions over `Micro/Math.html` plus
+# one over the run's marker, and that last one is what the others cannot make:
+#
+#   the count            `work.mathFallbacks` is **1**, and one is the number
+#                        `Micro/Math.lean` was written to produce. A fallback
+#                        leaves a *valid page* — no byte count, no page count and
+#                        no exit code moves when a formula fails — so without
+#                        this number a run that converted nothing would look
+#                        exactly like a run that converted everything.
+#
+#   conversion happened  three inline `<math>` and one `<math display="block">`.
+#                        Exact, not "at least one": a renderer emitting a
+#                        `<math>` per character would pass a lower bound.
+#
+#   the fallback is the source  `$\colim_k F(k)$` is on the page, dollars and
+#                        all — what doc-gen4 emits for every span. A page whose
+#                        mathematics failed is no worse than doc-gen4's page.
+#
+#   nothing is half-escaped  no `<` that opens no tag and no `&` that opens no
+#                        entity, inside the `<math>` elements. This is the defect
+#                        that decided the crate: `pulldown-latex` writes
+#                        `<mo><</mo>` for `$a < b$` (61 of Mathlib's 2,123
+#                        spans) and `math-core` does not. Swap the dependency
+#                        back and this line is what says so.
+#
+#   the dollars are gone where it worked  `$a &lt; b$` must **not** be on the
+#                        page. It is the fallback's spelling for the escape
+#                        case, and finding it would mean conversion silently
+#                        stopped while `mathFallbacks` stayed at 1.
+python3 - "$OUT/first/site/Micro/Math.html" "$OUT/first-build.json" <<'MATHPY'
+import json
+import re
+import sys
+
+page_path, marker_path = sys.argv[1:3]
+page = open(page_path, encoding="utf-8").read()
+with open(marker_path) as handle:
+    work = json.load(handle)["work"]
+problems = []
+
+
+def want(label, got, expected):
+    if got != expected:
+        problems.append(f"{label}: {got}, expected {expected}")
+
+
+# Read by name out of the record the run wrote. A missing key exits here rather
+# than defaulting to a number that would pass — a gate that looks for a key that
+# is not there checks nothing at all, and has done exactly that in this
+# repository before (CLAUDE.md, 2026-08-18).
+if "mathFallbacks" not in work:
+    sys.exit("GATE 10 FAIL  the marker has no work.mathFallbacks")
+want("work.mathFallbacks", work["mathFallbacks"], 1)
+
+want("inline <math>", len(re.findall(r"<math>", page)), 3)
+want('<math display="block">', len(re.findall(r'<math display="block">', page)), 1)
+want("merror elements", page.count("<merror"), 0)
+
+if "$\\colim_k F(k)$" not in page:
+    problems.append("the unconvertible span is not on the page as its own source")
+if "$a &lt; b$" in page:
+    problems.append("`$a < b$` was written back as LaTeX — it is supposed to convert")
+
+strays = []
+for formula in re.findall(r"<math[^>]*>.*?</math>", page, re.S):
+    for hit in re.finditer(r"<(?![/a-zA-Z])", formula):
+        strays.append(("<", formula[max(0, hit.start() - 20):hit.start() + 20]))
+    for hit in re.finditer(r"&(?![a-zA-Z]+;|#[0-9]+;|#x[0-9a-fA-F]+;)", formula):
+        strays.append(("&", formula[max(0, hit.start() - 20):hit.start() + 20]))
+if strays:
+    problems.append(
+        f"{len(strays)} character(s) of markup are unescaped inside <math>: "
+        + "; ".join(f"{c} near {ctx!r}" for c, ctx in strays[:3])
+    )
+
+if problems:
+    for problem in problems:
+        print(f"GATE 10 FAIL  {problem}", file=sys.stderr)
+    sys.exit(1)
+
+print(f"math         {len(re.findall(r'<math', page))} formula(s) rendered, "
+      f"{work['mathFallbacks']} kept as LaTeX, {len(strays)} unescaped character(s)")
+MATHPY
+
+say "12/15 GATE 11 — every reverse reference agrees with the IR, both ways"
+# `docs/plans/feature-sweep.md` C-2 / doc-gen4 #77. The script is its own file
+# because it is worth running against the measurement target too, where the
+# numbers are 849 targets over 10,163 edges 【実測 2026-08-22】 rather than the
+# fixture's handful. Its heading says what it asserts and why both directions
+# are needed.
+"$HERE/usedby-gate.sh" --ir "$OUT/first/ir" --site "$OUT/first/site"
+
+say "13/15 GATE 12 — litedoc4.toml reaches every command that writes HTML"
+# `docs/plans/feature-sweep.md` C-3【決定 3】. The fixture carries a
+# `litedoc4.toml` on purpose: with no file the four commands agree trivially and
+# a gate that can only pass is not a gate. The script says what it compares and
+# why the counts are asserted.
+"$HERE/config-gate.sh" --root "$FIXTURE" --ir "$OUT/first/ir" --built "$OUT/first/site" \
+  --link-index "$OUT/first/link-index.lidx" --out "$OUT/config"
+
+say "14/15 GATE 6 — one edited module does not re-render the package"
 # The question the other five cannot ask. GATE 2 asks what an *unchanged* world
 # costs; this asks what a one-declaration edit costs, which is the shape a user
 # actually produces and the one where the dependency map used to force every page
@@ -810,7 +911,7 @@ fi
 # the same answer.
 "$HERE/onemod-gate.sh" "$OUT/first/litedoc4-build.json" "$OUT/first/work/serve.out"
 
-say "12/12 summary"
+say "15/15 summary"
 printf 'site files : %s\n' "$(find "$OUT/first/site" -type f | wc -l | tr -d ' ')"
 printf 'ir files   : %s\n' "$(find "$OUT/first/ir" -type f | wc -l | tr -d ' ')"
 printf 'out        : %s\n' "$OUT"

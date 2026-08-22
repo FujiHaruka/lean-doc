@@ -39,6 +39,7 @@ use std::path::{Path, PathBuf};
 use litedoc4_ir::IrTree;
 
 use crate::autolink::NameIndex;
+use crate::config::SiteConfig;
 use crate::decl::UnplaceableName;
 use crate::external::ExternalLinks;
 use crate::frame::SiteMeta;
@@ -109,6 +110,14 @@ pub struct RenderOptions<'a> {
     /// because the two mean the same thing here and one of them cannot be
     /// misread as "the default".
     pub external_links: &'a ExternalLinks,
+    /// What `<root>/litedoc4.toml` said, already read (feature-sweep C-3).
+    ///
+    /// A borrow rather than a path because **resolving it is not this
+    /// function's job**: three commands render, and if each read the file for
+    /// itself there would be three places that decide what "root" means. The
+    /// binary reads it once (`litedoc4::site_config`) and hands the answer to
+    /// whichever half is about to run.
+    pub config: &'a SiteConfig,
     /// The dependency closure's `name -> module` map.
     ///
     /// `None` is a decision, not a default: without it 150 of the target
@@ -139,6 +148,14 @@ pub struct RenderSummary {
     pub link_index_entries: usize,
     pub known_modules: usize,
     pub bytes_written: u64,
+    /// Math spans that could not be converted to MathML and were written back
+    /// as their LaTeX source ([`crate::RenderedPage::math_failures`]).
+    ///
+    /// Zero is the number to expect: the target package's three spans and
+    /// 99.58% of Mathlib's 2,123 convert 【実測 2026-08-22 →
+    /// `benchmarks/results/mathml-2026-08-22.txt`】. A non-zero value is a
+    /// docstring to look at, not a bug in the build.
+    pub math_failures: usize,
 }
 
 /// Reads the IR, builds the maps, and writes one page per wanted module.
@@ -169,7 +186,13 @@ pub fn render_site(options: &RenderOptions<'_>) -> Result<RenderSummary, Error> 
     let suppressed = Suppressed::of_site(&modules);
     // Over **every** module of the IR, not the subset being rendered: an
     // incremental round that re-renders one page must not retitle the site.
-    let site = SiteMeta::of_modules(modules.iter().map(|module| module.module.as_str()));
+    // The intro is `index.html`'s and `litedoc4-global` renders it; a module
+    // page carries only the title.
+    let site = SiteMeta::of(
+        options.config,
+        None,
+        modules.iter().map(|module| module.module.as_str()),
+    );
 
     let mut summary = RenderSummary {
         modules_in_ir: modules.len(),
@@ -185,12 +208,14 @@ pub fn render_site(options: &RenderOptions<'_>) -> Result<RenderSummary, Error> 
         if !options.only.contains(&module.module) {
             continue;
         }
-        let html = page_html(module, &index, source_url, &suppressed, &site).map_err(|source| {
+        let page = page_html(module, &index, source_url, &suppressed, &site).map_err(|source| {
             Error::Unplaceable {
                 module: module.module.clone(),
                 source,
             }
         })?;
+        let html = page.html;
+        summary.math_failures += page.math_failures;
         let path = options.pages.join(page_path(&module.module));
         if let Some(dir) = path.parent() {
             fs::create_dir_all(dir).map_err(|source| Error::Io {

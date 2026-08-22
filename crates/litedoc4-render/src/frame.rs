@@ -34,6 +34,7 @@
 
 use crate::autolink::NameIndex;
 use crate::break_within;
+use crate::config::SiteConfig;
 use crate::escape::escape_html_into;
 use crate::order::cmp_name;
 
@@ -41,16 +42,24 @@ use crate::order::cmp_name;
 /// `litedoc4 build` fills it from the package it was pointed at.
 #[derive(Clone, Copy, Debug)]
 pub struct SiteMeta<'a> {
-    /// Shown in the top bar and after the module name in `<title>`. The
-    /// package's root module, or `"Documentation"` when nothing better is
-    /// known.
+    /// Shown in the top bar and after the module name in `<title>`.
+    /// `litedoc4.toml`'s `title`, else the package's root module, else
+    /// `"Documentation"`.
     pub title: &'a str,
+    /// `litedoc4.toml`'s `index`, **already rendered to HTML**.
+    ///
+    /// Reaches the site's index page and nothing else — a module page is about
+    /// its module. Carried here rather than passed alongside because the title
+    /// and this come from one file and are decided together
+    /// ([`SiteMeta::of`]); two carriers is two things to forget.
+    pub intro: Option<&'a str>,
 }
 
 impl Default for SiteMeta<'_> {
     fn default() -> Self {
         Self {
             title: "Documentation",
+            intro: None,
         }
     }
 }
@@ -74,8 +83,35 @@ impl<'a> SiteMeta<'a> {
             .into_iter()
             .map(|module| litedoc4_ir::module_components(module).into_iter().next());
         match roots.next().flatten() {
-            Some(head) if roots.all(|root| root == Some(head)) => Self { title: head },
+            Some(head) if roots.all(|root| root == Some(head)) => Self {
+                title: head,
+                intro: None,
+            },
             _ => Self::default(),
+        }
+    }
+
+    /// [`SiteMeta::of_modules`], with whatever the package configured on top.
+    ///
+    /// **This is the one place the two sources are combined** (feature-sweep
+    /// C-3【決定 3】). Every command that renders calls it with the same
+    /// [`SiteConfig`], so "the three commands agree" is a property of one
+    /// function rather than of three call sites that have to be kept in step —
+    /// which is the failure a `--title` flag would have had.
+    ///
+    /// `intro` is the rendered `index` Markdown; the caller renders it, because
+    /// this crate's docstring renderer takes a link resolver and the answer to
+    /// "does this name have a page" is not a fact about the site's title.
+    #[must_use]
+    pub fn of(
+        config: &'a SiteConfig,
+        intro: Option<&'a str>,
+        modules: impl IntoIterator<Item = &'a str>,
+    ) -> Self {
+        let derived = Self::of_modules(modules);
+        Self {
+            title: config.title.as_deref().unwrap_or(derived.title),
+            intro,
         }
     }
 }
@@ -359,7 +395,14 @@ mod tests {
     /// The whole point of M8: a page asks its own directory for everything.
     #[test]
     fn the_head_names_no_other_host() {
-        let head = head_html("Foo.Bar", ".././", &SiteMeta { title: "Pkg" });
+        let head = head_html(
+            "Foo.Bar",
+            ".././",
+            &SiteMeta {
+                title: "Pkg",
+                intro: None,
+            },
+        );
         assert!(!head.contains("//cdn"), "{head}");
         assert!(!head.contains("http"), "{head}");
         assert!(head.contains("href=\".././style.css\""), "{head}");
@@ -411,13 +454,27 @@ mod tests {
 
     #[test]
     fn the_title_does_not_repeat_itself_on_the_root_module() {
-        let head = head_html("Pkg", "./", &SiteMeta { title: "Pkg" });
+        let head = head_html(
+            "Pkg",
+            "./",
+            &SiteMeta {
+                title: "Pkg",
+                intro: None,
+            },
+        );
         assert!(head.contains("<title>Pkg</title>"), "{head}");
     }
 
     #[test]
     fn the_head_escapes_the_module_name() {
-        let head = head_html("A\"B", "./", &SiteMeta { title: "S" });
+        let head = head_html(
+            "A\"B",
+            "./",
+            &SiteMeta {
+                title: "S",
+                intro: None,
+            },
+        );
         assert!(head.contains("<title>A&quot;B · S</title>"), "{head}");
     }
 

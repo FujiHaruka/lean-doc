@@ -1,0 +1,176 @@
+# 束 C 完了時の実測 — 再凍結と、対象 422 モジュールでの測り直し
+
+日付      2026-08-22
+機材      Apple M1 (8 core) / 16 GB / macOS 26.0 / APFS
+Rust      1.97.1 / Lean v4.31.0
+対象      /Users/haruka/dev/lean-projects (InformationTheory, 422 モジュール, 4,584 宣言)
+暖機      olean warm。full は 1 回、no-op は full の直後、1 宣言追加は watch-gate 1 回
+計画      docs/plans/feature-sweep.md C-4 / §5 完了条件 5
+
+
+## 1. フィクスチャの再凍結【C-4 手順 1〜3】
+
+### 何を、どちらに切り替えたか
+
+| フィクスチャ | 変更 | 何件 |
+|---|---|---|
+| `litedoc4-md/tests/data/docgen4-expected.json` | doc-gen4 の出力 → **こちらの出力** | 327 件中 **5 件**が書き換わった |
+| `litedoc4-render/tests/data/page-parts-expected.json` | プロトタイプの出力 → **こちらの出力** | 187 件中 **187 件** |
+| `litedoc4-md/tests/data/ts-docstring-expected.json` | **変更なし** | 比較相手が上のファイルなので、そちらの再凍結で緑になった |
+| `litedoc4-render/tests/data/docgen4-linked-expected.json` | **変更なし** | 数式を 1 つも含まない (計画 §3 手順 3 の別扱い) |
+| `litedoc4-render/tests/data/{ts,autolink,fragment,pages}-expected.json` | **変更なし** | 束 C が触る出力を持たない |
+
+【決定、ユーザー判断 2026-08-22】`docgen4-expected.json` も**こちらの出力で再凍結した**。
+生成器 (`tests/oracle/gen-docgen4-expected.ts`) は HEAD に在り、322 件は今も doc-gen4 と
+byte 一致しているので「宣言済み乖離 5 件」として残す案もあったが、計画 §3【決定 1】の
+「役割を 1 回だけ切り替える」に従った。**失うもの**: `cargo test` は
+「CommonMark の dialect が動いていない」を主張しなくなる。オラクルは回せるままなので、
+その主張は意図的に確認する対象になった。両 `PROVENANCE.md` に書いた。
+
+### 再生成手段 (HEAD に置いた)
+
+    LITEDOC4_BLESS=1 cargo test -p litedoc4-md     --test docgen4
+    LITEDOC4_BLESS=1 cargo test -p litedoc4-render --test page_parts
+
+**3 つの性質を持たせた** — どれも「差分をレビューする」を実際に可能にするためのもの:
+
+1. **変えた case を全部印字する。** どちらのファイルも 1 行 (220 KB / 840 KB) なので、
+   `git diff` はレビューではない。§3 が要求する「どの項目のどの変更で変わったか」は
+   この出力から読む。
+2. **編集前に round-trip を検査して、合わなければ走らない。** 再直列化がキー順や
+   エスケープを動かすなら、全値の綴りが変わって本当の変更が埋もれる。
+3. **冪等。2 回目は 0 件で、バイトも動かない** (両方で確認)。
+
+`page_parts` の bless は加えて **`header` が動いていないことを検査してから書く** —
+束 C は宣言の head も signature も触らないので、動いていたら再生成ではなく調査の対象。
+
+### 差分レビュー (全件)
+
+`docgen4-expected.json` の 5 件、すべて **C-1** (数式 → MathML):
+
+    curated: inline math                  <p>$x^2$</p>
+                                       -> <p><math><msup><mi>x</mi><mn>2</mn></msup></math></p>
+    curated: display math                 <p>$$\sum_i x_i$$</p>
+                                       -> <p><math display="block"><munder>…
+    curated: math with markdown inside    <p>$a_*b*_c$</p>
+                                       -> <p><math><msub><mi>a</mi><mo>∗</mo></msub>…
+    html: escapes in math                 <p>$a &lt; b$</p><p>$$a &amp; b$$</p>
+                                       -> <p><math><mi>a</mi><mo>&lt;</mo><mi>b</mi></math></p>
+                                          <p>$$a &amp; b$$</p>
+    html: table, markup in cells          表のセル内の $e$ が <math> になった
+
+**4 件目は片方だけ変わっている**のが読みどころ: `$a < b$` は MathML になり、
+`$$a & b$$` は**ならずに残った**。環境の外の `&` は math-core が受け付けないので、
+これは C-1 のフォールバックが実際に効いている 1 件。
+
+`docgen4-expected.json` の他の 322 件、および `cases` 以外のすべてのキーは不変
+(スクリプトで全件突き合わせて確認)。
+
+`page-parts-expected.json` は 187 件全部。**理由は 2 つ重なっている**:
+
+- **C-2**: 全宣言の末尾に `Used by` の空 `<details>` が付いた
+- **元々 byte 比較ではなかった**: 凍結値はプロトタイプの markup (`div.decl` +
+  `div.gh_link`) で、こちらは `section.decl[data-kind]` + header 内の source link
+  (M8-b)。テストは `Content` (id / href / stub / 語) に落として比べていた
+
+そこで**比較を byte 比較に強化した**。`Content` は 2 つの異なる markup の間を
+橋渡しするためのもので、同じものの間では情報を落とすだけ。`Content` は
+「標本が縮んでいないか」を数えるためだけに残した。
+`header` は**プロトタイプのまま**で、`Content::matches_head` による比較も M8-b の
+宣言済み差分もそのまま。`the_sample_reaches_every_shape` の 19 個のプローブは
+プロトタイプのクラス名からこちらのクラス名へ**翻訳**した (形は同じもの)。
+**1 個だけ消した** — 「改行で終わる属性ブロック」はプロトタイプ唯一の
+非 flatten 要素を指していて、こちらは全部 flatten するので探すものが無い。
+
+### `MIN_SCHEMA_VERSION` 4 → 5【C-4 手順 4、ユーザー判断】
+
+床を上げると 2 つのフィクスチャに**入力として**埋まった schema 4 の IR が弾かれ、
+7 本のテストが落ちた (`litedoc4-global tests/global.rs` 4 本、
+`litedoc4-render tests/pages.rs` 3 本)。**一度きりの機械的移行**で通した:
+
+    埋め込み IR の `\"schemaVersion\":4` を `\"schemaVersion\":5` に文字列置換
+      crates/litedoc4-global/tests/data/global-expected.json   30 ファイル
+      crates/litedoc4-render/tests/data/pages-expected.json     32 ファイル
+      合計 62
+
+**再直列化ではなく文字列置換**にしたのは、外側の JSON を 1 バイトも動かさないため
+(動かすと bless の round-trip 保証が失われる)。移行スクリプトは
+(a) 置換前後で長さが変わらないこと、(b) トークンを取り除いた両者が一致すること、
+(c) 置換後も JSON として読めること、を検査した。
+
+床を上げて何が変わるか: **古い `litedoc4` が残した IR ツリーが名前で拒否される** —
+新しいキーが無いまま半分の内容が欠けたサイトを描くのではなく。実際には
+`extract_key` が `irSchemaVersion` を含むので `build` 経路では全再抽出になり、
+この床に当たるのは `render` / `site` を古い IR に直接向けたときだけ。
+
+
+## 2. 対象 422 モジュールでの測り直し【完了条件 5】
+
+### 整数 (判定に使うのはこちら)
+
+| | full | 1 宣言追加 | no-op |
+|---|---:|---:|---:|
+| modules extracted | 422 | **1** | 0 |
+| pages rendered | 422 | **1** | 0 |
+| extractor requests | 1 | 1 | 0 |
+| global cache | 0 hit / 422 miss | 422 hit / 0 miss | 422 hit / 0 miss |
+| IR module reads | 844 (2.00 full pass) | 1268 (3.00) | 422 (1.00) |
+| **math fallbacks** | **0** | **0** | **0** |
+
+**束 C は増分の整数を 1 つも動かしていない。** 1 宣言追加はいまも
+「1 モジュール抽出 / 1 ページ描画」で、`tools/watch-gate.sh` の 12 検査すべて緑。
+
+`math fallbacks 0` は対象の 3 つの数式がすべて変換できていること。
+
+### 壁時計 (報告のみ。判定に使わない)
+
+    full        24.93 s   (/usr/bin/time real 25.00)
+    1 宣言追加   3.669 s   (watch-gate が印字、1 回)
+    no-op        0.268 s   (real 0.31)
+
+README が載せている値は full **24.5 s** / rebuild **4.35 s** (6 回の中央値、
+3.96–6.22 s に散る) / no-op **0.31 s**。
+
+**この 3 つは中央値を取り直していないので、README の数字を書き換えない。**
+full の 24.93 s は 1 回の値で、24.5 s との差 (+1.8%) はこのワークロードの
+run-to-run 変動より小さい。1 宣言追加の 3.669 s も 1 回で、README の
+分布 (3.96–6.22) の下に出ているが、**1 回の値で 6 回の中央値を上書きしない**。
+
+**束 C が遅くしたことは別に測ってある** — 抽出を含まない
+render + global だけを同じ IR に対して 5 回ずつ回した比較で、
+total warm 中央値 **0.4421 → 0.4656 s (+5.3%)**
+(`benchmarks/results/usedby-2026-08-22.txt` §4)。full の 24.93 s のうち
+render + global は 2% 程度なので、**full の壁時計にはこの差が出ない**。
+遅くなった内訳は global +18% (逆引きの組み立て + state 838 KB → 1.31 MB +
+730 KB の JSON) と render +3% (4,584 個の空 `<details>`)。
+
+
+## 3. ゲートとテスト、全部【完了条件 1〜4】
+
+    cargo test --workspace --no-fail-fast   36 バイナリ緑 / 0 失敗
+    cargo fmt --all --check                 緑
+    cargo clippy --workspace --all-targets -- -D warnings   緑
+    cargo doc (RUSTDOCFLAGS=-D warnings -A rustdoc::private_intra_doc_links)  緑
+    cargo machete                           緑
+    cargo deny check                        緑
+    tools/assets-gate.sh                    緑 (biome / tsc / vitest 48 / vite)
+    tools/corpus-gate.sh --verify-list      緑 (21 tests)
+    tools/provenance-gate.sh                緑 (31 claims)
+    tools/e2e-micro.sh                      緑 (15 段、GATE 1〜12)
+    tools/browser-gate.sh                   緑
+    tools/watch-gate.sh                     緑 (12 検査)
+    tools/usedby-gate.sh (対象)             緑 (849 target / 10,163 edge、両方向)
+
+**束 C で足したゲートは 5 本、どれも一度落としてから通した** (記録は
+それぞれの項目のレポート §5〜6):
+
+    e2e GATE 10  数式 → MathML と、読めない式の $…$ 残り
+    e2e GATE 11  逆引きの両方向 (tools/usedby-gate.sh)
+    e2e GATE 12  4 経路が同じ題名と index (tools/config-gate.sh、3 通りの盲検)
+    browser 8b   MathML をブラウザが実際に描いている (幅を持つ)
+    browser 4b   Used by が開いた時に埋まる
+
+**走った本数の突き合わせ**: e2e-micro は `say "N/15"` を 15 回印字して
+`E2E MICRO: ok` で終わる。watch-gate は「12 check(s), 0 failed」と本数を印字する。
+usedby-gate は比較した辺の本数 (10,163) を印字し、**0 件なら落ちる**。
+config-gate は比較したページ数 (10 x 3 コマンド) を印字し、**設定が空なら落ちる**。

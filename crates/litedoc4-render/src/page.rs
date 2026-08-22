@@ -149,7 +149,7 @@ pub fn page_html(
     source_url: &str,
     suppressed: &Suppressed,
     site: &SiteMeta<'_>,
-) -> Result<String, UnplaceableName> {
+) -> Result<RenderedPage, UnplaceableName> {
     let root = page_root(&module.module);
     let module_url = module_source_url(source_url, &module.module);
     // `nameToLink?`'s last resort walks this list, which is *not* the IR's
@@ -196,7 +196,26 @@ pub fn page_html(
     out.push_str(&module_meta_html(&root, &module.imports, index));
     out.push_str(&main);
     out.push_str("</main></div></body></html>");
-    Ok(out)
+    Ok(RenderedPage {
+        html: out,
+        math_failures: docs.math_failures(),
+    })
+}
+
+/// What [`page_html`] produced, and the one thing it noticed on the way.
+///
+/// The count is here rather than in a log line because the fallback it counts
+/// is **invisible in the output**: a math span that could not be converted is
+/// emitted as `$…$`, which is a legal page. Without a number reaching
+/// [`crate::RenderSummary`], a build where every formula failed and a build
+/// where none did print the same thing (`docs/plans/feature-sweep.md` C-1).
+#[derive(Debug)]
+pub struct RenderedPage {
+    /// The page.
+    pub html: String,
+    /// Math spans that fell back to their LaTeX source
+    /// ([`litedoc4_md::Renderer::math_failures`]).
+    pub math_failures: usize,
 }
 
 /// Where a module's page goes under the site root: its components as
@@ -369,7 +388,8 @@ mod tests {
             &Suppressed::default(),
             &site,
         )
-        .expect("every name in the fixture is placeable");
+        .expect("every name in the fixture is placeable")
+        .html;
         assert!(
             html.starts_with("<!DOCTYPE html><html lang=\"en\"><head>"),
             "{html}"

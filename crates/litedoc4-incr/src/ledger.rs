@@ -103,7 +103,16 @@ pub const EXTRACTOR_ID: &str = "litedoc4 extractor v3";
 /// a v2 one are not comparable — a ledger written before the key existed has no
 /// value for it, and "the key is absent" would otherwise be read as "the map did
 /// not move" for every page rendered without one.
-pub const RENDERER_ID: &str = "litedoc4 renderer v2";
+///
+/// **v2 -> v3 (feature-sweep bundle C)**: three changes to what a page holds,
+/// none of which any other key can see. `$…$` became MathML (C-1), every
+/// declaration gained a `Used by` block (C-2), and the site's title can now come
+/// from `litedoc4.toml` (C-3). The IR did not move for any of them, so without
+/// this bump an incremental build over a site rendered by a v2 binary would find
+/// every page up to date and **leave the old bytes in place** — a site half of
+/// whose pages have mathematics and half of which do not, reported as "0 pages
+/// rendered" and therefore as success.
+pub const RENDERER_ID: &str = "litedoc4 renderer v3";
 
 /// The olean files a module can have, in the order they are hashed.
 pub const OLEAN_SUFFIXES: [&str; 3] = [".olean", ".olean.server", ".olean.private"];

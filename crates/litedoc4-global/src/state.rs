@@ -65,7 +65,11 @@ pub const STATE_VERSION: u64 = 1;
 /// entry reused for a module would leave that module's instances out of
 /// `search-index.bin` — a wrong artifact nobody reports, which is precisely
 /// what this string exists to prevent.
-pub const STATE_DERIVATION: &str = "litedoc4-global facts v2";
+///
+/// **v3 is feature-sweep C-2**: [`ModuleFacts::refs`] joined it, and a v2 entry
+/// reused for a module would leave every declaration of that module out of
+/// `declarations/used-by.json` — the same failure one artifact over.
+pub const STATE_DERIVATION: &str = "litedoc4-global facts v3";
 
 /// The facts a previous run left behind, already checked against this run's
 /// index.
@@ -237,6 +241,8 @@ impl Serialize for Modules<'_> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use super::*;
     use litedoc4_ir::IndexEntry;
 
@@ -250,6 +256,7 @@ mod tests {
             instances: Vec::new(),
             tokens: Vec::new(),
             instances_for: Vec::new(),
+            refs: BTreeMap::new(),
         }
     }
 

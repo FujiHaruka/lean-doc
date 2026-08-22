@@ -85,6 +85,15 @@ pub fn index_html(site: &SiteMeta<'_>, modules: &[(&str, String)], declarations:
          against.</p></div>",
     );
 
+    // `litedoc4.toml`'s `index`, rendered (feature-sweep C-3 / doc-gen4 #43).
+    // **Between the lede and the counts**: it is what the package wants said
+    // about itself, and the counts are what this tool has to say about it.
+    if let Some(intro) = site.intro {
+        body.push_str("<div class=\"intro doc\">");
+        body.push_str(intro);
+        body.push_str("</div>");
+    }
+
     body.push_str("<dl class=\"stats\"><div><dt>Modules</dt><dd>");
     body.push_str(&grouped(modules.len()));
     body.push_str("</dd></div><div><dt>Declarations</dt><dd>");
@@ -230,7 +239,10 @@ mod tests {
     use super::*;
 
     fn site() -> SiteMeta<'static> {
-        SiteMeta { title: "Pkg" }
+        SiteMeta {
+            title: "Pkg",
+            intro: None,
+        }
     }
 
     #[test]

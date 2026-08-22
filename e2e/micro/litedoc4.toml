@@ -1,0 +1,7 @@
+# What this package says about its own site (`docs/plans/feature-sweep.md` C-3).
+#
+# It is here so that `tools/config-gate.sh` has a package that configures
+# something: with no file at all the four commands that write HTML agree
+# trivially, and a gate that can only pass is not a gate.
+title = "Micro Fixture"
+index = "docs/index.md"

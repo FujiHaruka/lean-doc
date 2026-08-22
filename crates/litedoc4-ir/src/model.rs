@@ -447,10 +447,15 @@ pub enum SorryKind {
 ///
 /// Schema 4 wrote one concatenated string per attribute, `"deprecated Foo"`,
 /// and **that file still parses**: a bare string arrives here as a name with an
-/// empty [`Attr::value`]. It has to, because
-/// [`crate::MIN_SCHEMA_VERSION`] is still 4 and because curated schema-4 IR is
-/// frozen inside `litedoc4-global/tests/data/global-expected.json` **as test
-/// input**, where hand-editing it is the thing C-4's procedure exists to avoid.
+/// empty [`Attr::value`].
+///
+/// It no longer *has* to — [`crate::MIN_SCHEMA_VERSION`] moved to 5 in
+/// feature-sweep C-4 and the curated IR that was schema 4 was migrated with it,
+/// so nothing in this tree feeds a bare string here any more. It is kept because
+/// **`serde` is not the only reader of these bytes**: an `attrs` array written
+/// by a schema-4 extractor is what a v0.1.x release produced, and answering
+/// "name, no value" is a better failure than refusing to parse at a depth where
+/// the error names a serde path rather than a module.
 ///
 /// # What the reader must not do
 ///

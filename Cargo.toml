@@ -56,6 +56,35 @@ serde = { version = "1", features = ["derive"] }
 # explicitly pre-sorted arrays and their bytes depend on insertion order.
 # See docs/implementation-plan.md §7.
 serde_json = { version = "1", features = ["preserve_order"] }
+# LaTeX to MathML, used by `litedoc4-md` only (`src/math.rs`).
+#
+# WHY THIS ONE AND NOT `pulldown-latex`
+#   `docs/plans/feature-sweep.md` 決定 4 named `pulldown-latex`, whose closure is
+#   one crate. Measuring it decided otherwise: it escapes `<` and `&` inside
+#   `\text{…}` and **nowhere else**, so `$a < b$` — the most ordinary formula
+#   there is — comes out as `<mo><</mo>`. 61 of Mathlib's 2,123 math spans
+#   (2.9%) carry markup a browser has to guess at 【実測 2026-08-22 →
+#   benchmarks/results/mathml-2026-08-22.txt】. `math-core` writes 0.
+#
+#   It costs eighteen crates (phf, strum, stable-arena and their closure) against
+#   `pulldown-latex`'s one, which is the largest single addition this workspace
+#   has made. It is taken deliberately: correct markup is not a thing to hand-fix
+#   downstream, and a post-escaper over another crate's output is a second place
+#   where "is this a tag" gets decided.
+#
+# `default-features = false` turns off nothing today — the crate's features are
+# `serde` and `ariadne`, both off by default — and says so if that changes.
+math-core = { version = "0.7.0", default-features = false }
+# `litedoc4.toml`, the per-package site configuration (feature-sweep C-3).
+#
+# `basic-toml` and not `toml`: the latter brings `toml_parser`, `serde_spanned`,
+# `toml_datetime` and **two** versions of `winnow`; this one's whole dependency
+# is `serde`, which is already here. What it costs is TOML 0.5's surface rather
+# than 1.0's — no mixed-type arrays, fewer datetime spellings — and the config
+# it parses is two string keys, so the difference is not reachable from it. A
+# file that uses something it does not know is a **parse error the build
+# reports**, not a value quietly ignored.
+basic-toml = "0.1.10"
 
 # ---------------------------------------------------------------------- lints
 #

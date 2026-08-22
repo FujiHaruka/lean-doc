@@ -7,9 +7,20 @@
 #   one machine. `tools/provenance-gate.sh` covers the attributions *we* wrote;
 #   this covers the tree we pull in.
 #
-#   The dependency list is deliberately small — anyhow, serde, serde_json, sha2,
+#   The dependency list was deliberately small — anyhow, serde, serde_json, sha2,
 #   cc and their transitive closure — because the whole build is `cargo build`
 #   with no network at runtime (README「インストール」).
+#
+#   **It stopped being small on 2026-08-22**【決定、ユーザー判断】: `math-core`
+#   and its closure took the workspace from 30 crates to 48. It was chosen over
+#   `pulldown-latex` (one crate) because `pulldown-latex` writes `<mo><</mo>`
+#   for `$a < b$` — unescaped markup in 2.9% of Mathlib's math spans 【実測 →
+#   benchmarks/results/mathml-2026-08-22.txt】. The whole closure is
+#   MIT / Apache-2.0 / Unlicense-OR-MIT, so nothing below moved.
+#
+#   What this does **not** cover is whether NOTICE names every MIT-only crate
+#   that ends up in the binary. `cargo deny` checks the allow list and nothing
+#   else; docs/provenance.md §8 carries that as an open verification item.
 
 [graph]
 all-features = true

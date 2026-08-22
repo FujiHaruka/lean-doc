@@ -17,6 +17,10 @@ litedoc4-md = { path = "../litedoc4-md" }
 # feature is litedoc4-incr's and matters there, not at this size; it is named
 # here too only so a build of this crate alone picks the same implementation.
 sha2 = { version = "0.10", features = ["asm"] }
+# `litedoc4.toml` (`src/config.rs`, feature-sweep C-3). The root `Cargo.toml`
+# says why it is this crate and not `toml`.
+basic-toml = { workspace = true }
+serde = { workspace = true }
 
 [dev-dependencies]
 serde = { workspace = true }

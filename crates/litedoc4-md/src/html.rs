@@ -42,9 +42,12 @@
 //! `"\n\n"` — which is what [`Renderer::docstring`] appends. Anything else would
 //! be a feature this milestone has no oracle for.
 
+use std::cell::Cell;
+
 use crate::ast::{AttrText, Block, Document, Li, Text};
 use crate::escape::escape_html_into;
 use crate::gc::{is_p_z_c, is_z_c};
+use crate::math::to_mathml;
 use crate::parse::parse;
 
 /// `nameToLink?` — whether a name mentioned in a docstring has a page, and
@@ -107,6 +110,14 @@ impl LinkResolver for NoLinks {
 pub struct Renderer<'a> {
     root: &'a str,
     links: &'a dyn LinkResolver,
+    /// How many `$…$` spans this renderer could not convert
+    /// ([`Renderer::math_failures`]).
+    ///
+    /// A `Cell` because every rendering method takes `&self` — the alternative
+    /// was threading a counter through nine of them. It makes `Renderer` not
+    /// `Sync`, which costs nothing: one is built per page
+    /// (`litedoc4_render::PageLinks::renderer`) and never shared.
+    math_failures: Cell<usize>,
 }
 
 impl<'a> Renderer<'a> {
@@ -114,7 +125,23 @@ impl<'a> Renderer<'a> {
     /// `links`.
     #[must_use]
     pub const fn new(root: &'a str, links: &'a dyn LinkResolver) -> Self {
-        Self { root, links }
+        Self {
+            root,
+            links,
+            math_failures: Cell::new(0),
+        }
+    }
+
+    /// How many math spans this renderer fell back on since it was built.
+    ///
+    /// The fallback is silent in the page — it emits the dollars and the source,
+    /// which is what doc-gen4 emits always — so this is the only place a build
+    /// can learn that a docstring's mathematics did not come out as
+    /// mathematics. `litedoc4 build` prints it
+    /// (`docs/plans/feature-sweep.md` C-1).
+    #[must_use]
+    pub fn math_failures(&self) -> usize {
+        self.math_failures.get()
     }
 
     /// `docStringToHtml` (`DocString.lean:383-402`): parse, then render.
@@ -365,16 +392,8 @@ impl<'a> Renderer<'a> {
                 out.push_str("</code>");
             }
             // The dollars are `Html.raw`; MathJax reads them in the browser.
-            Text::LatexMath(parts) => {
-                out.push('$');
-                escape_html_into(out, &parts.concat());
-                out.push('$');
-            }
-            Text::LatexMathDisplay(parts) => {
-                out.push_str("$$");
-                escape_html_into(out, &parts.concat());
-                out.push_str("$$");
-            }
+            Text::LatexMath(parts) => self.math_into(out, &parts.concat(), false),
+            Text::LatexMathDisplay(parts) => self.math_into(out, &parts.concat(), true),
             Text::WikiLink { target, children } => {
                 out.push_str("<x-wikilink data-target=\"");
                 escape_html_into(out, &attr_text_to_string(target));
@@ -383,6 +402,27 @@ impl<'a> Renderer<'a> {
                 out.push_str("</x-wikilink>");
             }
         }
+    }
+
+    /// One math span: the MathML, or the dollars and the source when the LaTeX
+    /// does not parse.
+    ///
+    /// The fallback is **byte for byte what this renderer emitted before C-1**
+    /// and what doc-gen4 emits for every span — so a page whose mathematics
+    /// could not be converted is no worse than a doc-gen4 page, and a reader
+    /// with MathJax loaded from elsewhere still sees it. What is lost is
+    /// silence, which is why [`Renderer::math_failures`] counts.
+    fn math_into(&self, out: &mut String, latex: &str, display: bool) {
+        if let Some(mathml) = to_mathml(latex, display) {
+            // `Html.raw`: the MathML is markup, and escaping it would print it.
+            out.push_str(&mathml);
+            return;
+        }
+        self.math_failures.set(self.math_failures.get() + 1);
+        let delimiter = if display { "$$" } else { "$" };
+        out.push_str(delimiter);
+        escape_html_into(out, latex);
+        out.push_str(delimiter);
     }
 
     fn wrap_into(&self, out: &mut String, tag: &str, texts: &[Text], in_link: bool) {
@@ -588,6 +628,24 @@ mod tests {
 
     fn render(md: &str) -> String {
         Renderer::new("../", &NoLinks).docstring(md)
+    }
+
+    #[test]
+    fn math_becomes_mathml_and_a_failure_keeps_the_dollars() {
+        let renderer = Renderer::new("../", &NoLinks);
+        let good = renderer.docstring("$x^2$ and $$\\sum_i x_i$$");
+        // Inline math carries no `display` attribute: `inline` is MathML's
+        // default and writing it would be bytes that mean nothing.
+        assert!(good.contains("<math><msup>"), "{good}");
+        assert!(good.contains("<math display=\"block\">"), "{good}");
+        assert!(!good.contains('$'), "{good}");
+        assert_eq!(renderer.math_failures(), 0);
+
+        // `\colim` is not a command this parser has, so the page keeps what the
+        // docstring wrote — escaped, exactly as before C-1.
+        let bad = renderer.docstring("$a < \\colim_k F$");
+        assert!(bad.contains("$a &lt; \\colim_k F$"), "{bad}");
+        assert_eq!(renderer.math_failures(), 1, "the fallback is counted");
     }
 
     #[test]

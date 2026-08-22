@@ -102,7 +102,7 @@ usage: litedoc4 build  --root <repo> --out <dir> [--link-index <file>]
                        (--link-index <file> | --no-link-index)
                        [--root <repo>] [--lake <path>] [--deps-docs-map <file>]
                        [--only <Module>]... [--only-from <file>]
-       litedoc4 global --ir <dir> --out <dir> [--state <dir>]
+       litedoc4 global --ir <dir> --out <dir> [--state <dir>] [--root <repo>]
                        [--before <map.json>] [--print-set <file>]
                        [--delta-json <file>] [--timings <file>]
        litedoc4 ledger build --modules <file> --target <repo> --out <ledger.json>
@@ -134,12 +134,16 @@ usage: litedoc4 build  --root <repo> --out <dir> [--link-index <file>]
   --root         (`build`, `modules`) the Lean package: the sources are globbed
                  under it, its oleans are hashed, `lake env` runs inside it, and
                  for `build` its git HEAD is where --source-url comes from.
-                 (`site`, `render`, `incremental`, `ledger`) optional, and
-                 only for the dependency link map: with it, every link into a
-                 dependency is that package's version-pinned GitHub blob URL,
-                 read out of its lake-manifest.json plus `lean --githash`
-                 (M7-c); without it those links stay relative to pages this
-                 site does not write. It is **not** --target: that names the
+                 (`site`, `render`, `global`, `incremental`, `ledger`)
+                 optional, and for two things. One is the dependency link map:
+                 with it, every link into a dependency is that package's
+                 version-pinned GitHub blob URL, read out of its
+                 lake-manifest.json plus `lean --githash` (M7-c); without it
+                 those links stay relative to pages this site does not write.
+                 The other is <root>/litedoc4.toml, which sets the site's title
+                 and the Markdown on its index page — the same file for every
+                 command, so the four that write HTML cannot disagree about
+                 what the package is called. It is **not** --target: that names the
                  tree whose oleans are hashed. A ledger and the run it licenses
                  have to agree about this flag, or the render key moves and
                  every page is re-rendered. `build` has one by construction, so
@@ -790,6 +794,7 @@ fn site(args: &[String]) -> Result<(), Failure> {
         resolve_external_links(root.as_deref(), lake.as_deref()),
         deps_docs_map.as_deref(),
     )?;
+    let config = site_config(root.as_deref())?;
     let site = generate_site(
         &ir,
         &out,
@@ -797,6 +802,7 @@ fn site(args: &[String]) -> Result<(), Failure> {
         &external,
         link_index.as_deref(),
         state.as_deref(),
+        &config,
     )?;
     let (rendered, derived) = (&site.rendered, &site.derived);
 
@@ -856,6 +862,7 @@ fn generate_site(
     external_links: &litedoc4_render::ExternalLinks,
     link_index: Option<&std::path::Path>,
     state: Option<&std::path::Path>,
+    config: &litedoc4_render::SiteConfig,
 ) -> Result<Site, Failure> {
     let started = Instant::now();
     let rendered = render_site(&RenderOptions {
@@ -864,6 +871,7 @@ fn generate_site(
         source_url,
         external_links,
         link_index,
+        config,
         // Not a parameter. See `site`'s own documentation.
         only: &ModuleSet::All,
     })
@@ -872,6 +880,7 @@ fn generate_site(
 
     let mut options = GlobalOptions::new(ir, out);
     options.state = state;
+    options.config = config;
     let derived = build_global(&options).map_err(|e| Failure::Failed(e.to_string()))?;
     let total = started.elapsed();
 
@@ -894,6 +903,18 @@ fn generate_site(
 ///
 /// `lead` is what each line starts with: empty for `render`, which has one
 /// stage, and the stage's name for `site`, which has two.
+/// `<root>/litedoc4.toml`, read **here and nowhere else in this binary**.
+///
+/// Feature-sweep C-3【決定 3】. Four commands put HTML on disk (`build`,
+/// `site`, `render`, `global`) and every one of them has to end up with the
+/// same title, so the file is read in one function and the value is handed on.
+/// The alternative — each command calling `SiteConfig::read` for itself — is
+/// four places that decide what "the package root" means, which is the shape
+/// the rejected `--title` flag had.
+fn site_config(root: Option<&std::path::Path>) -> Result<litedoc4_render::SiteConfig, Failure> {
+    litedoc4_render::SiteConfig::read(root).map_err(|e| Failure::Failed(e.to_string()))
+}
+
 fn print_render_summary(lead: &str, summary: &RenderSummary) {
     println!(
         "{lead}modules {}/{}  declarations {}/{} ({} suppressed)  module docs {}  bytes {}",
@@ -909,6 +930,11 @@ fn print_render_summary(lead: &str, summary: &RenderSummary) {
         "{lead}known {}  link index {}  known modules {}",
         summary.known_entries, summary.link_index_entries, summary.known_modules,
     );
+    // Printed even when it is zero. The thing it reports is a *silent* fallback
+    // — a formula that stayed `$…$` still renders a valid page — so a line that
+    // appears only on failure is indistinguishable from a line that stopped
+    // being printed (CLAUDE.md「skip で緑を返さない」).
+    println!("{lead}math spans kept as LaTeX {}", summary.math_failures);
 }
 
 /// The whole-package derivation's counts, including the delta when there is one.
@@ -966,6 +992,11 @@ fn global(args: &[String]) -> Result<(), Failure> {
     let mut print_set: Option<PathBuf> = None;
     let mut delta_json: Option<PathBuf> = None;
     let mut timings: Option<PathBuf> = None;
+    // `--root` is here for one reason: this command writes `index.html`, and
+    // `litedoc4.toml` decides what is on it (feature-sweep C-3). Without it,
+    // `litedoc4 global` and `litedoc4 site` would put different titles on the
+    // same package — which is exactly the disagreement 決定 3 refuses.
+    let mut root: Option<PathBuf> = None;
 
     let mut rest = args.iter();
     while let Some(arg) = rest.next() {
@@ -978,6 +1009,7 @@ fn global(args: &[String]) -> Result<(), Failure> {
         match arg.as_str() {
             "--ir" => ir = Some(value("--ir")?.into()),
             "--out" => out = Some(value("--out")?.into()),
+            "--root" => root = Some(value("--root")?.into()),
             "--state" => state = Some(value("--state")?.into()),
             "--before" => before = Some(value("--before")?.into()),
             "--print-set" => print_set = Some(value("--print-set")?.into()),
@@ -997,7 +1029,9 @@ fn global(args: &[String]) -> Result<(), Failure> {
     let Some(out) = out else {
         return usage("--out is required");
     };
+    let config = site_config(root.as_deref())?;
     let mut options = GlobalOptions::new(&ir, &out);
+    options.config = &config;
     options.state = state.as_deref();
     options.before = before.as_deref();
     options.print_set = print_set.as_deref();
@@ -1642,12 +1676,14 @@ fn render(args: &[String]) -> Result<(), Failure> {
         resolve_external_links(root.as_deref(), lake.as_deref()),
         deps_docs_map.as_deref(),
     )?;
+    let config = site_config(root.as_deref())?;
     let summary = render_site(&RenderOptions {
         ir: &ir,
         pages: &pages,
         source_url: &source_url,
         external_links: &external,
         link_index: link_index.as_deref(),
+        config: &config,
         only: &only,
     })
     .map_err(|e| Failure::Failed(e.to_string()))?;

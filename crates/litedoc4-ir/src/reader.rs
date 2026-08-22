@@ -21,18 +21,25 @@ use crate::model::{DepMap, DepMapEntry, Index, IndexEntry, ModuleFile};
 /// index and no member binders / docstrings / origin, so a schema-3 IR cannot
 /// produce a byte-identical page.
 ///
-/// **It did not move to 5 with the writer**, and the reason is worth stating
-/// because the reverse looks obvious. Schema 5 adds `sorry`, whose *absent* key
-/// means "no `sorry`" — a meaning a schema-4 file cannot carry, since there the
-/// key could not exist. Raising the floor is one way to keep the two apart;
-/// [`crate::ModuleFile::sorry_of`] is the other, and it is the one taken here,
-/// because raising the floor would mean hand-editing the curated schema-4 IR
-/// frozen inside `litedoc4-global/tests/data/global-expected.json` — the
-/// fixtures' re-freeze is a step of its own with a procedure of its own
-/// (`docs/plans/feature-sweep.md` §3 決定 1 / C-4), not something to do in
-/// passing. Nothing reads [`crate::Decl::sorry`] without going through
-/// `sorry_of`, so no consumer can conflate the two states in the meantime.
-pub const MIN_SCHEMA_VERSION: u32 = 4;
+/// **It moved to 5 in feature-sweep C-4** (`docs/plans/feature-sweep.md`), and
+/// what that buys is one meaning per absence. Schema 5 adds `sorry`,
+/// `selectionRange` and `generated`, and for each of them an *absent* key says
+/// something — "no `sorry`", "not realized by an attribute" — that a schema-4
+/// file cannot say, because there the key could not exist. While the floor was
+/// 4 the two states had to be kept apart at every read;
+/// [`crate::ModuleFile::sorry_of`] is what did it, and it is still the only way
+/// [`crate::Decl::sorry`] is read.
+///
+/// It stayed at 4 through B-1 because raising it meant migrating the curated
+/// schema-4 IR embedded in two fixtures, and a fixture is not something to edit
+/// in passing. C-4 is the step that migrates fixtures, so it is the step that
+/// raised this 【決定 2026-08-22、ユーザー判断】.
+///
+/// The reader that enforces this is [`read_module_file`], so what a low number
+/// costs a consumer is concrete: an IR tree left behind by an older `litedoc4`
+/// is **refused by name** rather than rendered into a site whose pages are
+/// missing the half of their content the newer keys carry.
+pub const MIN_SCHEMA_VERSION: u32 = 5;
 
 /// The first schema whose module files carry [`crate::Decl::sorry`].
 ///

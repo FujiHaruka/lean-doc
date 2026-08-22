@@ -28,6 +28,16 @@ export interface InstancesFile {
 }
 
 /**
+ * `declarations/used-by.json`: for each declaration this package documents,
+ * the declarations of this package that mention it.
+ *
+ * A name with no users is **absent**, not an empty array — the file is the
+ * largest of the four and 81% of the target package's declarations have no
+ * users 【実測 2026-08-22】.
+ */
+export type UsedByFile = Readonly<Record<string, readonly string[]>>;
+
+/**
  * What the previous query matched, in file order.
  *
  * Kept so that a query extending it can be answered from these rather than from

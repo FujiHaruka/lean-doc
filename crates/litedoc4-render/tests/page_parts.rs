@@ -363,16 +363,138 @@ fn the_corpus_numbers_are_what_was_measured() {
 }
 
 /// The comparison this file exists for, over the committed sample: every
-/// declaration block says what the prototype's said.
+/// declaration block says what the fixture's says.
+///
+/// **The fixture was the prototype's output until 2026-08-22 and is this
+/// renderer's now** (`docs/plans/feature-sweep.md` §3【決定 1】/ C-4).
+/// Feature-sweep C-2 gives every declaration a `Used by` block, so all 187 of
+/// these cases gained a stub the prototype could not have had — the role of
+/// this file changed **once**, deliberately, and `bless` below is what makes the
+/// next change a regeneration rather than a decision.
+///
+/// `tests/data/PROVENANCE.md` asked for exactly this: "replace the fixture with
+/// a regression test against our own output and say in the test name that the
+/// oracle was lost". The name says it.
 ///
 /// See the file heading for what "says" is reduced to. The header half is
 /// compared separately from the block, because the fixture records it
 /// separately and because it is the one place the *content* really did move —
 /// M8-b put the source link in the head, where the prototype had it in a
-/// `div.gh_link` above the block.
+/// `div.gh_link` above the block. **The header half is not blessed**: nothing in
+/// bundle C touches a declaration's head or signature, and a regenerator that
+/// rewrote it too would have hidden that.
+/// Where two strings first differ, with a window either side.
+///
+/// The blocks are kilobytes long and a failure that printed both of them whole
+/// would be unreadable, which is the same thing as unreported.
+fn first_difference(want: &str, got: &str) -> String {
+    let at = want
+        .bytes()
+        .zip(got.bytes())
+        .position(|(a, b)| a != b)
+        .unwrap_or_else(|| want.len().min(got.len()));
+    let window = |text: &str| -> String {
+        let start = text.floor_char_boundary(at.saturating_sub(40));
+        let end = text.floor_char_boundary((at + 90).min(text.len()));
+        text[start..end].to_owned()
+    };
+    format!(
+        "byte {at} of {} (frozen) / {} (here)\n  frozen: …{}…\n  here:   …{}…",
+        want.len(),
+        got.len(),
+        window(want),
+        window(got)
+    )
+}
+
+/// Rewrites `tests/data/page-parts-expected.json` from this renderer's output,
+/// and **prints every case it changed**.
+///
+/// `LITEDOC4_BLESS=1 cargo test -p litedoc4-render --test page_parts`
+///
+/// The printing is the point: the fixture is one 840 KB line, so `git diff` of
+/// it is not a review. What `docs/plans/feature-sweep.md` §3 asks for — *what
+/// changed and because of which item* — is read out of this output.
+///
+/// **Only `html` is rewritten.** `header` is the same fixture's record of the
+/// head and signature, and bundle C does not touch either; blessing it as well
+/// would have made that unfalsifiable.
+///
+/// It is **idempotent, and asserts that it is** — twice: the file must
+/// re-serialise to itself *before* any edit (or every value would arrive with a
+/// different spelling and the real change would be lost among them), and what is
+/// written must round-trip.
+fn bless(e: &Expected) {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/data/page-parts-expected.json");
+    let original = std::fs::read_to_string(&path).expect("the fixture is readable");
+    let mut document: serde_json::Value =
+        serde_json::from_str(&original).expect("the fixture is JSON");
+    let round_trip = serde_json::to_string(&document).expect("it came from JSON") + "\n";
+    assert_eq!(
+        round_trip, original,
+        "re-serialising the fixture does not reproduce it; blessing would rewrite \
+         the whole file and no diff of it could be reviewed"
+    );
+
+    let cases = document
+        .get_mut("cases")
+        .and_then(serde_json::Value::as_array_mut)
+        .expect("the fixture has cases");
+    let mut changed = 0usize;
+    let mut head_moved = Vec::new();
+    for (case, value) in e.cases.iter().zip(cases.iter_mut()) {
+        if Content::of(&case.header)
+            .matches_head(&Content::of(&case.head_and_signature()))
+            .is_err()
+        {
+            head_moved.push(case.what.clone());
+        }
+        let got = case.render().expect("every case renders");
+        if got == case.html {
+            continue;
+        }
+        changed += 1;
+        println!(
+            "bless {}\n  {} B -> {} B",
+            case.what,
+            case.html.len(),
+            got.len()
+        );
+        value["html"] = serde_json::Value::String(got);
+    }
+    assert!(
+        head_moved.is_empty(),
+        "the head or signature moved on {} case(s), which no item of bundle C does — \
+         look at that before regenerating: {:?}",
+        head_moved.len(),
+        &head_moved[..head_moved.len().min(5)]
+    );
+    let updated = serde_json::to_string(&document).expect("values are strings") + "\n";
+    std::fs::write(&path, &updated).expect("the fixture is writable");
+    println!(
+        "bless: {changed} of {} case(s) rewritten in {}",
+        e.cases.len(),
+        path.display()
+    );
+    assert_eq!(
+        serde_json::to_string(
+            &serde_json::from_str::<serde_json::Value>(&updated).expect("what was written is JSON")
+        )
+        .expect("round trip")
+            + "\n",
+        updated,
+        "the file this wrote does not round-trip"
+    );
+}
+
 #[test]
-fn carries_the_same_content_as_the_prototype_on_every_case() {
+fn carries_the_same_content_as_the_frozen_output() {
     let e = expected();
+    if std::env::var("LITEDOC4_BLESS").is_ok_and(|value| value == "1") {
+        bless(&e);
+        return;
+    }
     let mut failures = Vec::new();
     let mut compared = 0usize;
     let (mut ids, mut hrefs, mut stubs, mut words) = (0usize, 0usize, 0usize, 0usize);
@@ -386,10 +508,20 @@ fn carries_the_same_content_as_the_prototype_on_every_case() {
         }
         match case.render() {
             Ok(html) => {
-                let want = Content::of(&case.html);
-                if let Err(why) = want.matches(&Content::of(&html)) {
-                    failures.push(format!("{}: {why}", case.what));
+                // **Byte for byte, now that both sides are ours.** `Content` was
+                // the bridge between two different markups — the prototype wrote
+                // `div.decl` where this writes `section.decl[data-kind]` — and a
+                // bridge between a thing and itself only loses information. The
+                // counters below still come from `Content`, because what they
+                // guard is that the *sample* has not shrunk.
+                if html != case.html {
+                    failures.push(format!(
+                        "{}: {}",
+                        case.what,
+                        first_difference(&case.html, &html)
+                    ));
                 }
+                let want = Content::of(&case.html);
                 ids += want.ids.len();
                 hrefs += want.hrefs.len();
                 stubs += want.stubs.len();
@@ -401,16 +533,20 @@ fn carries_the_same_content_as_the_prototype_on_every_case() {
     }
     assert!(
         failures.is_empty(),
-        "{} of {} cases differ from the prototype:\n{}",
+        "{} of {} cases differ from the frozen output:\n{}\n\n\
+         If the change is intended, regenerate with:\n    \
+         LITEDOC4_BLESS=1 cargo test -p litedoc4-render --test page_parts",
         failures.len(),
         e.cases.len(),
         failures.join("\n")
     );
     assert_eq!(compared, e.cases.len(), "a case did not render at all");
-    // A `Content` that came out empty on both sides would pass every assertion
-    // above, and an extractor that stopped finding attributes is exactly the
-    // way this comparison would rot. 【実測 2026-08-16 over the committed
-    // sample: 220 anchors, 1,011 links, 30 stubs, 4,587 words】
+    // The sample's size, so that a fixture regenerated from a renderer that had
+    // stopped emitting things cannot pass by being uniformly empty.
+    // 【実測 2026-08-16 over the prototype's markup: 220 anchors, 1,011 links,
+    // 30 stubs, 4,587 words. The numbers moved when C-4 re-froze the fixture on
+    // this renderer's own output — the bounds below are the floor, not the
+    // measurement.】
     eprintln!("compared {ids} anchors, {hrefs} links, {stubs} stubs, {words} words");
     assert!(
         ids > 200 && hrefs > 900 && stubs > 25 && words > 4_000,
@@ -631,8 +767,18 @@ fn the_curated_cases_cover_what_the_package_does_not() {
 /// The sample has to keep reaching every shape, or the comparison above decays
 /// into one that a renderer emitting only headers would pass.
 ///
-/// Every assertion here reads the **fixture's own bytes**, which came from the
-/// prototype, rather than anything this crate produced.
+/// Every assertion here reads the **fixture's own bytes**. Until 2026-08-22
+/// those were the prototype's and the probes below named its classes
+/// (`div.decl_header`, `ul.structure_fields`, `span.impl_arg`); C-4 re-froze the
+/// file on this renderer's output, so they name this renderer's. **The shapes
+/// they stand for are the same ones** — that is what makes this a translation of
+/// the test rather than a weakening of it, and every probe still has to match at
+/// least one case or the sample lost that shape.
+///
+/// One probe did not survive the translation and is gone rather than reworded:
+/// "an attribute block ending in a newline". It stood for the prototype's one
+/// unflattened element, and this renderer flattens everything — there is no
+/// newline anywhere in a declaration block to look for.
 #[test]
 fn the_sample_reaches_every_shape() {
     let e = expected();
@@ -640,15 +786,13 @@ fn the_sample_reaches_every_shape() {
         assert!(e.cases.iter().any(p), "no case with {what}");
     };
 
-    // The one element at this level that is not flattened, and therefore the
-    // one whose trailing newline is part of it.
-    any("an attribute block ending in a newline", &|c| {
-        c.html.contains("</div>\n<div class=\"decl_header\">")
+    any("an attribute block before the signature", &|c| {
+        c.html.contains("<div class=\"attrs\">@[")
     });
     any("more than one attribute", &|c| {
-        c.html.contains("<div class=\"attributes\">@[")
+        c.html.contains("<div class=\"attrs\">@[")
             && c.html
-                .split("<div class=\"attributes\">@[")
+                .split("<div class=\"attrs\">@[")
                 .nth(1)
                 .is_some_and(|s| s[..s.find(']').unwrap_or(0)].contains(", "))
     });
@@ -660,46 +804,48 @@ fn the_sample_reaches_every_shape() {
             .contains("One or more equations did not get rendered")
     });
     any("an instances-for stub", &|c| {
-        c.html.contains("class=\"instances-for-list\"")
+        c.html.contains("data-fill=\"instances-for\"")
     });
     any("a class instances stub", &|c| {
-        c.html.contains("<ul id=\"instances-list-")
+        c.html.contains("data-fill=\"instances\"")
+    });
+    // C-2's own shape, on every declaration whatever its kind.
+    any("a used-by stub", &|c| {
+        c.html.contains("data-fill=\"used-by\"")
     });
     any("an extends clause", &|c| {
-        c.html
-            .contains("<span class=\"decl_extends\">extends</span> ")
+        c.html.contains("<span class=\"extends\">extends</span> ")
     });
     any("two parents joined by a comma", &|c| {
         c.html.contains("</span>, <span id=\"")
     });
     any("a members table in `mk` form", &|c| {
-        c.html.contains("<ul class=\"structure_fields\" id=\"")
+        c.html.contains("<ul class=\"fields\" id=\"") && !c.html.contains("class=\"ctor-note\"")
     });
-    any("a members table in `structure_ext` form", &|c| {
-        c.html.contains("<ul class=\"structure_ext\">")
+    any("a members table whose constructor is not `mk`", &|c| {
+        c.html.contains("class=\"ctor-note\"")
     });
     any("a direct field", &|c| {
-        c.html.contains("\" class=\"structure_field\">")
+        c.html.contains("\" class=\"field\">")
     });
     any("a field docstring", &|c| {
-        c.html.contains("<div class=\"structure_field_doc\">")
+        c.html.contains("class=\"field-doc\"")
     });
     any("an inherited field without an id", &|c| {
-        c.html
-            .contains("<li class=\"structure_field inherited_field\">")
+        c.html.contains("<li class=\"field inherited\">")
     });
     any("an inherited field with an id", &|c| {
-        c.html
-            .contains("\" class=\"structure_field inherited_field\">")
+        c.html.contains("\" class=\"field inherited\">")
     });
     any("an implicit binder", &|c| {
-        c.html.contains("<span class=\"impl_arg\">")
+        c.html.contains("<span class=\"binder implicit\">")
     });
     any("a docstring", &|c| c.html.contains("<p>"));
     any("a name that needs escaping", &|c| {
-        c.html.contains("<div class=\"decl\" id=\"")
-            && c.html[c.html.find("id=\"").unwrap_or(0)..].starts_with("id=\"A&lt;B&amp;C")
+        c.html
+            .starts_with("<section class=\"decl\" id=\"A&lt;B&amp;C")
     });
+
     // An unlinkable constant in a signature, which is a `span.fn` and not an
     // anchor. Every block has at least the header's own `break_within` link, so
     // "no anchor at all" is not a shape a declaration can have.
@@ -707,13 +853,14 @@ fn the_sample_reaches_every_shape() {
         c.html.contains("<span class=\"fn\">")
     });
 
-    // Every CSS class `cssKind` can produce, since it is a second mapping next
-    // to `kindDescription` and collapsing the two is the obvious mistake.
+    // Every kind `cssKind` can produce, since it is a second mapping next to
+    // `kindDescription` and collapsing the two is the obvious mistake. It is an
+    // attribute here and was a class in the prototype's markup.
     let classes: BTreeSet<&str> = e
         .cases
         .iter()
         .filter_map(|c| {
-            let at = c.html.find("\"><div class=\"")? + 14;
+            let at = c.html.find("data-kind=\"")? + 11;
             let end = c.html[at..].find('"')? + at;
             Some(&c.html[at..end])
         })
@@ -729,7 +876,10 @@ fn the_sample_reaches_every_shape() {
         "inductive",
         "opaque",
     ] {
-        assert!(classes.contains(want), "no `div.{want}`; got {classes:?}");
+        assert!(
+            classes.contains(want),
+            "no `data-kind={want}`; got {classes:?}"
+        );
     }
     assert!(
         !classes.contains("definition") && !classes.contains("class_inductive"),

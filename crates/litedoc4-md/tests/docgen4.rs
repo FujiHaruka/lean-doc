@@ -171,13 +171,34 @@ fn the_fixture_is_doc_gen4s_own_output() {
     assert_eq!(e.crashes_doc_gen4.len(), 2);
 }
 
+/// Every case comes out the way the fixture says it does.
+///
+/// **The fixture was doc-gen4's output until 2026-08-22 and is this renderer's
+/// now** (`docs/plans/feature-sweep.md` §3【決定 1】/ C-4). Feature-sweep C-1
+/// converts `$…$` to MathML at build time, which doc-gen4 does not do, so five
+/// of these 327 cases could never agree with it again — and a comparison that
+/// is right about 322 cases and wrong about 5 by design is a comparison nobody
+/// reads after the first time. The role changed **once**, deliberately, with the
+/// regenerator below put in the tree so that the next change does not need a
+/// decision at all.
+///
+/// What is lost is stated rather than hidden: this no longer says "the dialect
+/// did not move". `tests/oracle/gen-docgen4-expected.ts` still runs and still
+/// produces doc-gen4's answers, so that claim can be re-checked deliberately;
+/// it is simply not what `cargo test` asserts.
 #[test]
-fn every_case_matches_doc_gen4() {
+fn every_case_matches_the_frozen_output() {
     let e = expected();
+    if bless_requested() {
+        bless(&e);
+        return;
+    }
     let failures: Vec<String> = e.cases.iter().filter_map(check).collect();
     assert!(
         failures.is_empty(),
-        "{} of {} cases disagree with doc-gen4:\n{}",
+        "{} of {} cases differ from the frozen output:\n{}\n\n\
+         If the change is intended, regenerate with:\n    \
+         LITEDOC4_BLESS=1 cargo test -p litedoc4-md --test docgen4",
         failures.len(),
         e.cases.len(),
         failures
@@ -186,6 +207,78 @@ fn every_case_matches_doc_gen4() {
             .cloned()
             .collect::<Vec<_>>()
             .join("\n")
+    );
+}
+
+/// `LITEDOC4_BLESS=1` — rewrite the fixture instead of comparing against it.
+fn bless_requested() -> bool {
+    std::env::var("LITEDOC4_BLESS").is_ok_and(|value| value == "1")
+}
+
+/// Rewrites `tests/data/docgen4-expected.json` from this renderer's output, and
+/// **prints every case it changed**.
+///
+/// The printing is the point. A regenerator that silently rewrites a file turns
+/// "review the diff" into a diff of one 220 KB line, which is not a review. The
+/// procedure `docs/plans/feature-sweep.md` §3 asks for — *what changed and
+/// because of which item* — is read out of this output.
+///
+/// It is **idempotent, and asserts that it is**: a second run must change
+/// nothing and leave the bytes alone. That is what makes "the file this writes
+/// is the file the test reads" a checked statement rather than a hope, and it
+/// catches the failure where re-serialising moves key order or escaping and
+/// every future diff is the whole file.
+fn bless(e: &Expected) {
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/docgen4-expected.json");
+    let original = std::fs::read_to_string(&path).expect("the fixture is readable");
+    let mut document: serde_json::Value =
+        serde_json::from_str(&original).expect("the fixture is JSON");
+
+    // The round trip **before** any edit: if this is not the byte the file
+    // holds, every value below would arrive with a different spelling and the
+    // change this run is about would be invisible among them.
+    let round_trip = serde_json::to_string(&document).expect("it came from JSON") + "\n";
+    assert_eq!(
+        round_trip, original,
+        "re-serialising the fixture does not reproduce it; blessing would rewrite \
+         the whole file and no diff of it could be reviewed"
+    );
+
+    let cases = document
+        .get_mut("cases")
+        .and_then(serde_json::Value::as_array_mut)
+        .expect("the fixture has cases");
+    let mut changed = 0usize;
+    for (case, value) in e.cases.iter().zip(cases.iter_mut()) {
+        let got = Renderer::new(&case.root, &NoLinks).docstring(&case.md);
+        if got == case.html {
+            continue;
+        }
+        changed += 1;
+        println!(
+            "bless {}\n  was: {}\n  now: {}",
+            case.what,
+            show(&case.html),
+            show(&got)
+        );
+        value["html"] = serde_json::Value::String(got);
+    }
+    let updated = serde_json::to_string(&document).expect("values are strings") + "\n";
+    std::fs::write(&path, &updated).expect("the fixture is writable");
+    println!(
+        "bless: {changed} of {} case(s) rewritten in {}",
+        e.cases.len(),
+        path.display()
+    );
+    assert_eq!(
+        serde_json::to_string(
+            &serde_json::from_str::<serde_json::Value>(&updated).expect("what was written is JSON")
+        )
+        .expect("round trip")
+            + "\n",
+        updated,
+        "the file this wrote does not round-trip"
     );
 }
 

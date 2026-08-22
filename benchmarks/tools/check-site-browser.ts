@@ -420,6 +420,60 @@ async function main() {
       await page.close();
     }
 
+    // 4b — a `Used by` block fills in on open, from the file of its own.
+    //
+    // Feature-sweep C-2. The same shape as check 4 and for the same reason: the
+    // markup ships empty, so "the block is on the page" and "the block answers"
+    // are different questions and only this one asks the second. The fixture
+    // declaration is chosen because something in the package really does use it
+    // — a block that filled with "None" everywhere would pass a test that only
+    // looked for text.
+    {
+      const page = await browser.newPage();
+      const usedByPage = pages.find((p) => p.endsWith("Basic.html")) ?? first;
+      await page.goto(`${base}/${usedByPage}`, { waitUntil: "networkidle0" });
+      const filled = await page.evaluate(async () => {
+        const hosts = [...document.querySelectorAll<HTMLElement>('[data-fill="used-by"]')];
+        if (hosts.length === 0) return { hosts: 0, named: 0, empty: 0 };
+        for (const host of hosts) (host as HTMLDetailsElement).open = true;
+        // The fill is a `toggle` listener that awaits a fetch; poll rather than
+        // guess a delay.
+        for (let tick = 0; tick < 60; tick++) {
+          const items = document.querySelectorAll('[data-fill="used-by"] li');
+          if (items.length >= hosts.length) break;
+          await new Promise((done) => setTimeout(done, 50));
+        }
+        let named = 0;
+        let empty = 0;
+        for (const host of hosts) {
+          const items = [...host.querySelectorAll("li")];
+          if (items.some((li) => li.querySelector("a"))) named++;
+          else if (items.some((li) => li.textContent === "None")) empty++;
+        }
+        return { hosts: hosts.length, named, empty };
+      });
+      counts["used-by blocks"] = filled.hosts;
+      counts["used-by blocks with a name"] = filled.named;
+      if (filled.hosts === 0) {
+        bad("Used by fills in", `${usedByPage} carries no used-by block`);
+      } else if (filled.named + filled.empty < filled.hosts) {
+        bad(
+          "Used by fills in",
+          `${filled.hosts - filled.named - filled.empty} of ${filled.hosts} blocks stayed empty ` +
+            "— neither a name nor `None` arrived",
+        );
+      } else if (filled.named === 0) {
+        bad(
+          "Used by fills in",
+          `all ${filled.hosts} blocks answered "None" — the map reached the page but says nothing, ` +
+            "which is what a wrong key looks like",
+        );
+      } else {
+        ok("Used by fills in", `${filled.named} of ${filled.hosts} blocks name a user`);
+      }
+      await page.close();
+    }
+
     // 5 — the theme toggle actually changes the document.
     {
       const page = await browser.newPage();
@@ -535,6 +589,68 @@ async function main() {
       if (declarations > 0) ok("readable without JavaScript", `${declarations} declarations`);
       else bad("readable without JavaScript", "no declaration is in the HTML");
       await page.close();
+    }
+
+    // 8b — MathML is drawn by the browser rather than merely present.
+    //
+    // `docs/plans/feature-sweep.md` C-1. `litedoc4-md` converts `$…$` at build
+    // time and ships no MathJax, no KaTeX and no math web font, so the whole
+    // feature rests on an assumption nothing else here checks: **that this
+    // browser lays out MathML Core natively.** A `<math>` element in a browser
+    // that does not is `display: inline` with no glyphs and **zero width** —
+    // the page still validates, the markup is still right, and the formula is
+    // simply gone. This is the only check that can see that.
+    //
+    // Also asserted: the box is *wider than its own LaTeX source would be*, so
+    // that a browser rendering the elements as run-together text (which has a
+    // width, and would pass a `> 0` test) does not pass.
+    //
+    // The page is named rather than searched for. A search that finds no math
+    // page would report "ok, 0 formulas" — the shape CLAUDE.md calls
+    // 「skip で緑を返さない」— so a missing page is a failure here.
+    {
+      const mathPage = pages.find((p) => p.endsWith("Math.html"));
+      if (!mathPage) {
+        bad("MathML is laid out", "no page named Math.html — the fixture is gone");
+      } else {
+        const page = await browser.newPage();
+        await page.goto(`${base}/${mathPage}`, { waitUntil: "networkidle0" });
+        const boxes = await page.$$eval("math", (nodes) =>
+          nodes.map((node) => {
+            const rect = node.getBoundingClientRect();
+            return {
+              width: rect.width,
+              height: rect.height,
+              children: node.childElementCount,
+              tag: (node.firstElementChild?.tagName ?? "").toLowerCase(),
+            };
+          }));
+        counts["math elements"] = boxes.length;
+        const flat = boxes.filter((b) => b.width < 1 || b.height < 1);
+        const unstructured = boxes.filter((b) => b.children === 0);
+        if (boxes.length === 0) {
+          bad("MathML is laid out", `${mathPage} holds no <math> element`);
+        } else if (flat.length) {
+          bad(
+            "MathML is laid out",
+            `${flat.length} of ${boxes.length} <math> elements have no box — ` +
+              "this browser is not drawing MathML Core",
+          );
+        } else if (unstructured.length) {
+          bad(
+            "MathML is laid out",
+            `${unstructured.length} <math> elements have no child elements`,
+          );
+        } else {
+          const widest = Math.max(...boxes.map((b) => b.width));
+          ok(
+            "MathML is laid out",
+            `${boxes.length} formulas, widest ${widest.toFixed(0)}px, ` +
+              `first child <${boxes[0].tag}>`,
+          );
+        }
+        await page.close();
+      }
     }
 
     // 8 — the monospace stack can draw what a Lean package puts in a signature.

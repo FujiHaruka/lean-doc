@@ -20,6 +20,7 @@ NOTICE : md4c
 NOTICE : MD4Lean
 NOTICE : Unicode Basic
 NOTICE : V8
+NOTICE : math-core
 NOTICE : Böving
 # §4(b) at the level of the work, not just the file (provenance.md §1.1).
 #
@@ -50,6 +51,12 @@ crates/litedoc4-md/src/parse.rs : MD4Lean
 crates/litedoc4-md/src/ffi.rs : md4c
 crates/litedoc4-md/src/gc.rs : Unicode
 crates/litedoc4-global/src/v8_gc.rs : V8
+# math-core (MIT): the CSS its MathML needs, reproduced in §15b of the sheet.
+# Two claims, because the file already carries doc-gen4's name and a gate that
+# only looked for "MIT" would be satisfied by the wrong paragraph.
+crates/litedoc4-render/assets/style.css : math-core
+crates/litedoc4-render/assets/style.css : Charles Edward Gagnon
+crates/litedoc4-md/src/math.rs : math-core
 
 # --- generated fixtures whose origin has to stay recoverable --------------
 # These are program output, not copied source, but "由来の記録は等しく要る —
