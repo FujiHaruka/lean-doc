@@ -54,7 +54,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::PathBuf;
 
-use litedoc4_global::{ARTIFACT_PATHS, GlobalOptions, ModuleFacts, State, build_global, facts_for};
+use litedoc4_global::{
+    ARTIFACT_PATHS, GlobalOptions, ModuleFacts, PROTOTYPE_FACT_KEYS, State, build_global, facts_for,
+};
 use litedoc4_ir::IrTree;
 use serde::{Deserialize, Serialize};
 
@@ -358,6 +360,45 @@ fn every_fact_case_reproduces_the_prototypes_facts() {
         let got = Facts::from(&ModuleFacts::of(&module, &case.content_hash));
         assert_eq!(got, case.facts, "{}", case.what);
     }
+}
+
+/// [`Facts`] is the prototype's seven keys and no others.
+///
+/// **This shim is one of two transcriptions of that list**【判断 2026-08-22】.
+/// The other is `tests/state_and_delta.rs`'s comparison with the prototype's
+/// state file, and the two have different failure modes: this one *projects*
+/// onto the seven, so a new [`ModuleFacts`] field is invisible to it and it
+/// stays true; that one stated the *difference* and C-2's `ModuleFacts::refs`
+/// made it false in silence, because it needs a corpus this machine no longer
+/// has. Neither is the source any more — both are checked against
+/// [`PROTOTYPE_FACT_KEYS`], which is where the prototype's key order is now
+/// written down once.
+///
+/// Checked through `serde_json` rather than by reading the struct because it is
+/// the *serialised* order that is load-bearing: `#[serde(rename_all)]` and any
+/// future `rename` are part of the claim.
+#[test]
+fn the_shim_is_the_prototypes_keys() {
+    let facts = Facts {
+        module: String::new(),
+        content_hash: String::new(),
+        imports: Vec::new(),
+        tactics: 0,
+        decls: Vec::new(),
+        instances: Vec::new(),
+        tokens: Vec::new(),
+    };
+    let value = serde_json::to_value(&facts).expect("the shim serialises");
+    let keys: Vec<&str> = value
+        .as_object()
+        .expect("a struct is an object")
+        .keys()
+        .map(String::as_str)
+        .collect();
+    assert_eq!(
+        keys, PROTOTYPE_FACT_KEYS,
+        "the digest shim and the prototype's key order have parted company"
+    );
 }
 
 /// The branch plan §5 says to transcribe rather than fix, pinned from both

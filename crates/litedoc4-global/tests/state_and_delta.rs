@@ -40,8 +40,9 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
 use litedoc4_global::{
-    ARTIFACT_PATHS, Delta, GlobalOptions, GlobalSummary, ModuleFacts, STATE_DERIVATION, STATE_FILE,
-    STATE_VERSION, State, autolink_tokens, build_global, facts_for, v8_gc,
+    ARTIFACT_PATHS, Delta, GlobalOptions, GlobalSummary, ModuleFacts, PROTOTYPE_FACT_KEYS,
+    STATE_DERIVATION, STATE_FILE, STATE_VERSION, State, autolink_tokens, build_global, facts_for,
+    v8_gc,
 };
 use litedoc4_ir::{Index, IrTree};
 use serde::Deserialize;
@@ -1112,8 +1113,12 @@ fn the_seven_states_agree_over_the_real_corpus() {
 /// prototype's seven keys are re-serialised here through [`PrototypeFacts`] —
 /// the same trick `tests/global.rs` uses for its digest — and *that* is compared
 /// byte for byte. The two assertions after it are what keep the shim honest: the
-/// file that was actually written has to be these bytes with the new key added,
-/// in that order, for every module.
+/// file that was actually written has to *start* with these bytes' keys, in this
+/// order, and agree on every one of them, for every module. **It does not name
+/// the keys that follow** — that is HEAD's shape, it is asserted where HEAD is
+/// ([`litedoc4_global::PROTOTYPE_FACT_KEYS`]), and naming it here is what went
+/// stale: this test cannot run on this machine, so C-2's `refs` falsified a
+/// hand-written "plus one appended key" without a single failure anywhere.
 ///
 /// The derivation string differs on purpose, so that neither implementation can
 /// read the other's cache; the prototype's is substituted before the comparison
@@ -1149,20 +1154,28 @@ fn the_state_file_is_the_prototypes_bytes() {
     let summary = build_global(&options).expect("the corpus builds");
     let got = fs::read_to_string(state.join(STATE_FILE)).expect("the state was written");
     assert_eq!(got.len(), summary.state_bytes);
-    // 【実測 2026-08-16】the v1 file was 841,947 B; `instancesFor` on 432
-    // modules costs 20,052 B, of which 432 x 17 is the empty key itself.
+    // **The total is not pinned, on purpose**【判断 2026-08-22】. `got.len()` is
+    // a joint property of HEAD and of whichever corpus `LITEDOC4_IR` names, so a
+    // bare integer cannot say which of the two moved when it fails — and one of
+    // them has moved: feature-sweep C-2 added `ModuleFacts::refs`, worth
+    // 472,440 B on the 422-module IR this machine can still produce 【実測
+    // 2026-08-22 → `benchmarks/results/usedby-2026-08-22.txt` §3】, on a state
+    // file that was 838 KB.
     //
-    // **STALE, and knowingly so.** feature-sweep C-2 added `ModuleFacts::refs`,
-    // which on the 422-module IR this machine can still produce costs 472,440 B
-    // 【実測 2026-08-22 → `benchmarks/results/usedby-2026-08-22.txt` §3】. The
-    // 432-module corpus this number was taken on is gone from here
-    // (`/private/tmp/lean-doc-relay/w7h/base-ir`) and the target package no
-    // longer has 432 modules, so it cannot be re-measured — and inventing a
-    // number would be worse than leaving this one. It is not a silent lie: the
-    // test is `#[ignore]`d and panics at the `LITEDOC4_PROTOTYPE_STATE` read
-    // above, several lines before it reaches here, whenever the fixture is
-    // absent. Whoever restores the corpus re-measures this line first.
-    assert_eq!(got.len(), 861_999);
+    // The numbers the pin used to carry keep their conditions instead of their
+    // assert: the v1 file was **841,947 B** and `instancesFor` on the
+    // **432-module** corpus cost **20,052 B**, of which 432 x 17 is the empty
+    // key itself — **861,999 B** in total 【実測 2026-08-16】. That corpus is
+    // gone from here (`/private/tmp/lean-doc-relay/w7h/base-ir`) and the target
+    // package no longer has 432 modules, so the `refs` term of the sum has no
+    // measurement, and inventing one would be worse than having none.
+    //
+    // What stays asserted is what the corpus does not decide: the file is
+    // self-consistent with the summary (above), the prototype's half of it is
+    // pinned by `shim.len()` (below), and every module's entry starts with the
+    // prototype's keys and agrees on all seven. A restorer who re-measures the
+    // total puts it in `benchmarks/results/`, which is where a number that only
+    // means something together with its conditions belongs.
 
     // The prototype's shape, from the facts the file above was built from.
     let tree = IrTree::open(&ir).expect("the corpus opens");
@@ -1178,6 +1191,20 @@ fn the_state_file_is_the_prototypes_bytes() {
     })
     .expect("the shim serialises");
     assert_eq!(shim.len(), 841_947);
+    // `PrototypeFacts` is the second transcription of the prototype's seven
+    // keys (`tests/global.rs`'s `Facts` is the first). Neither is the source:
+    // both are checked against it, so a change to one cannot quietly disagree
+    // with the other.
+    assert_eq!(
+        serde_json::from_str::<Value>(&shim).expect("the shim is JSON")["modules"]
+            .as_object()
+            .and_then(|modules| modules.values().next())
+            .and_then(Value::as_object)
+            .map(|facts| facts.keys().map(String::as_str).collect::<Vec<_>>())
+            .expect("the shim has at least one module"),
+        PROTOTYPE_FACT_KEYS,
+        "PrototypeFacts is no longer the prototype's keys"
+    );
 
     let want = String::from_utf8(want)
         .expect("the state is UTF-8")
@@ -1205,13 +1232,11 @@ fn the_state_file_is_the_prototypes_bytes() {
     for (module, entry) in written_modules {
         let entry = entry.as_object().expect("one module's facts");
         let shimmed = shimmed_modules[module].as_object().expect("the same");
-        let mut expected: Vec<&String> = shimmed.keys().collect();
-        let new_key = "instancesFor".to_owned();
-        expected.push(&new_key);
-        assert_eq!(
-            entry.keys().collect::<Vec<_>>(),
-            expected,
-            "{module}: the new key is not the prototype's keys with one appended"
+        let keys: Vec<&str> = entry.keys().map(String::as_str).collect();
+        let prototype: Vec<&str> = shimmed.keys().map(String::as_str).collect();
+        assert!(
+            keys.starts_with(&prototype),
+            "{module}: the state file's keys do not start with the prototype's — {keys:?}"
         );
         for (key, value) in shimmed {
             assert_eq!(&entry[key], value, "{module}.{key}");

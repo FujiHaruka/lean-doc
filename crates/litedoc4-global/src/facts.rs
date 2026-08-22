@@ -41,14 +41,44 @@ use std::collections::{BTreeMap, HashSet};
 use litedoc4_ir::{Decl, ModuleFile, SpanKind, cmp_utf16};
 use serde::{Deserialize, Serialize};
 
+/// The seven keys the frozen prototype's `factsOf` emits, in its order.
+///
+/// **Single-sourced on purpose**【判断 2026-08-22】. Two tests transcribe this
+/// list, and they transcribe it in two different *shapes*:
+///
+/// | | shape | when [`ModuleFacts`] grows a field |
+/// |---|---|---|
+/// | `tests/global.rs`'s digest shim | a **projection** onto these keys | invisible; stays true |
+/// | `tests/state_and_delta.rs` | stated the **difference** — "these, plus one appended key" | **silently false** |
+///
+/// The second one was a hand-written difference inside a test that needs a
+/// 432-module corpus this machine no longer has, so when
+/// [`ModuleFacts::refs`] arrived (`docs/plans/feature-sweep.md` C-2) it became
+/// wrong and nothing could notice. The difference is not written down anywhere
+/// any more: what is asserted is that the serialised key list *starts* with
+/// this, which [`tests::the_prototypes_keys_come_first`] checks with no corpus,
+/// no state file and no fixture — so every field added from here on is covered
+/// without an edit.
+pub const PROTOTYPE_FACT_KEYS: [&str; 7] = [
+    "module",
+    "contentHash",
+    "imports",
+    "tactics",
+    "decls",
+    "instances",
+    "tokens",
+];
+
 /// One module's contribution to the whole-package artifacts and to the map
 /// delta.
 ///
 /// **The field order below is the state file's bytes** — `crate::state` writes
 /// this struct straight out, and `JSON.stringify` of the prototype's object
-/// literal emits `module` / `contentHash` / `imports` / `tactics` / `decls` /
-/// `instances` / `tokens`. Reordering the fields rewrites a file that is
-/// compared with the prototype's byte for byte.
+/// literal emits [`PROTOTYPE_FACT_KEYS`]. Reordering the fields rewrites a file
+/// that is compared with the prototype's byte for byte, and **every field this
+/// struct has that the prototype does not has to come after all seven** — that
+/// is what lets the two files still be compared entry by entry, and it is
+/// asserted rather than commented ([`tests::the_prototypes_keys_come_first`]).
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModuleFacts {
@@ -422,6 +452,50 @@ fn is_js_space(c: char) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The prototype's seven keys come first, whatever this struct grows.
+    ///
+    /// **Machine-zero-dependency, on purpose**【判断 2026-08-22】: the claim is
+    /// about this struct's serialisation and nothing else, so it belongs beside
+    /// the struct rather than inside a corpus test. It used to be stated in
+    /// `tests/state_and_delta.rs` as "the prototype's keys plus one appended
+    /// key" — a hand-written difference, inside a test that cannot run here —
+    /// and [`ModuleFacts::refs`] made it false without a single failure
+    /// anywhere. Stating the *prefix* instead means no future field needs an
+    /// edit to stay covered.
+    ///
+    /// `serde_json`'s `preserve_order` is what makes the key order readable at
+    /// all; it is a workspace feature this crate already depends on for the
+    /// artifacts (`src/artifacts.rs`).
+    #[test]
+    fn the_prototypes_keys_come_first() {
+        let facts = ModuleFacts {
+            module: String::new(),
+            content_hash: String::new(),
+            imports: Vec::new(),
+            tactics: 0,
+            decls: Vec::new(),
+            instances: Vec::new(),
+            tokens: Vec::new(),
+            instances_for: Vec::new(),
+            refs: BTreeMap::new(),
+        };
+        let value = serde_json::to_value(&facts).expect("the facts serialise");
+        let object = value.as_object().expect("a struct is an object");
+        let keys: Vec<&str> = object.keys().map(String::as_str).collect();
+        assert!(
+            keys.len() >= PROTOTYPE_FACT_KEYS.len(),
+            "ModuleFacts has fewer keys ({keys:?}) than the prototype's seven: a field the \
+             comparison in tests/state_and_delta.rs rests on has been removed, not added"
+        );
+        assert_eq!(
+            &keys[..PROTOTYPE_FACT_KEYS.len()],
+            &PROTOTYPE_FACT_KEYS[..],
+            "a field was added or reordered in front of the prototype's seven. The state file is \
+             then no longer the prototype's keys followed by ours, and the entry-by-entry \
+             comparison in tests/state_and_delta.rs compares the wrong things"
+        );
+    }
 
     /// The shapes the scanner has to get right that the corpus has few of. The
     /// authority for every expectation here is the fixture, not this file; these

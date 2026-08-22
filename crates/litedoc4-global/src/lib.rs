@@ -68,6 +68,8 @@ pub mod v8_gc;
 
 pub use artifacts::{ARTIFACT_PATHS, Artifacts, Counts, page_path};
 pub use delta::{Delta, DeltaTimings, Witness};
-pub use facts::{ModuleFacts, autolink_tokens, head_const, is_token_separator};
+pub use facts::{
+    ModuleFacts, PROTOTYPE_FACT_KEYS, autolink_tokens, head_const, is_token_separator,
+};
 pub use site::{Error, FactsRun, GlobalOptions, GlobalSummary, build_global, facts_for};
 pub use state::{STATE_DERIVATION, STATE_FILE, STATE_VERSION, State};
