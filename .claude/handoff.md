@@ -15,10 +15,25 @@
 
 ## Relay control
 
-- Mode: ON
+- Mode: **DONE**
 - Goal: **達成した。** `docs/plans/feature-sweep.md` の 8 項目を束 A → B → C で完遂。
 - Leg: 2 / cap 8
-- Stop-on: **completion** — この goal では止まってよい
+- Stop-on: **completion で終端した**
+
+**この連鎖は 2 度切れている。記録として残す**【2026-08-22】:
+
+- **leg 1 が後続を一度も起こさなかった。** `dabd2de` から `d0538b4` まで 10 commit のあいだ
+  `Leg: 1` のままで、`relay-launch-leg.sh` が走った痕跡も tmux セッションも無い。
+  束 A と束 B は 1 leg でやり切られている。
+- **leg 2 (このセッション) は `/relay` ではなく `/carryon` で起こされ**、
+  `## Relay control` の `Mode: ON` をデータとして読んで `Skill(relay)` を呼ばなかった。
+  結果、C-4 の直前で **carryon 停止条件 #3 (context 圧迫) をそのまま適用して停止した** —
+  relay では**終端してはいけない唯一の条件**で、refresh (自分で次 leg を起こす) に
+  読み替えるべきだった。ユーザーが手で再開させて C-4 が入った。
+
+**直したのは carryon 側**【ユーザー判断 2026-08-22】 — `.claude/skills/carryon/SKILL.md`
+の step 2 に「`## Relay control` があり `Mode: ON` なら先に `Skill(relay)` を呼ぶ」を足した。
+`/relay` で起こされたかどうかに依らず override が載る。
 - Progress ledger:
   - r1: **束 A** = A-1 `baab197`+`7ef9488`、A-2 `19ffb9f` / **B-0** `419061c` /
     **束 B** = B-1 `8318e6c`、B-2 `4e79978`、B-3 `82c049a` / 版 0.2.0 `e591562`
