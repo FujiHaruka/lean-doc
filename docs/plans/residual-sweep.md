@@ -140,10 +140,24 @@ docstring が同じ依存モジュールを 3 通りに綴ったとき、**2 つ
 - [ ] 現況確認 — 何を「より大きい」と取るか、既存の計測条件は何か
 - [ ] CI で回す (**main を赤くせずに取るには branch push + `gh workflow run`**)
 
-### R5 — 他人のリポジトリから `uses:` される
+### R5 — 他人のリポジトリから `uses:` される — **保留のまま**【決定 2026-08-22、ユーザー判断】
 
-- [ ] **新しい public リポジトリを作る必要がある = 外向きで不可逆。ユーザー承認を取る**
-- [ ] 承認後、`uses: FujiHaruka/litedoc4@<tag>` する最小リポジトリで実走
+**検証用の public リポジトリは作らない。** 潰すには `uses: FujiHaruka/litedoc4@<tag>` する
+別リポジトリが要り、それは外向きで不可逆な作成にあたる。
+
+**まず現況を確認したら、覆われている範囲は思っていたより広かった**
+(CLAUDE.md「項目を潰す前にまず現況を確認する」):
+
+| | |
+|---|---|
+| 覆われている | `ci-action.yml` の `published` job が **`uses: FujiHaruka/litedoc4@main`** を実行している。**GitHub が `_actions/` へ checkout する実チャネルそのもの**で、`uses: ./` では通らない経路。`released` job は tag 固定で release バイナリ経路も見ている |
+| 覆われていない | **`GITHUB_WORKSPACE` が litedoc4 自身の checkout であること**。`published` は litedoc4 を checkout して `root: e2e/micro` を指す。だから `action.yml` の中で **litedoc4 のファイルが workspace に在ることに暗黙に依存している箇所**があっても通ってしまう (`hashFiles()` の glob、相対パス、`--lib` の見つけ方) |
+
+**つまり残っているのは「別リポジトリを作ること」ではなく「workspace を他人の木にすること」。**
+それは **既存の public な Lean パッケージを `actions/checkout` で workspace に入れる**だけで
+作れる (`repository:` を指定する) — **新しいリポジトリの作成は要らない**。
+`batteries` は Mathlib 非依存で、この木では既に第 2 対象として実走した実績がある
+(`benchmarks/results/batteries-2026-08-17.txt`)。→ **R5' として下に切り出す**
 
 ## 4. 撤退ライン
 

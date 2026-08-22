@@ -81,6 +81,10 @@
   パッケージも要らなかった。**恐れていた壊れ方は無く**、代わりに**仕様の判断が 1 件**
   出た (3 綴りのうち `.lidx` の綴りだけ解決しない →
   [`plans/residual-sweep.md`](plans/residual-sweep.md) R3)。**残り 2 件。**
+  → **「他人のリポジトリから `uses:` される」は保留を続ける**【決定 2026-08-22、ユーザー判断】 —
+  潰すには検証用の public リポジトリを新設することになり、それはしない。
+  **覆われている経路と覆われていない経路の切り分けは
+  [`plans/residual-sweep.md`](plans/residual-sweep.md) R5** に書いた。
 
 - **U5 は「未検証」を「既知の欠陥」に変え、その欠陥は同じ日に閉じた**【実測 2026-08-18 →
   [`../benchmarks/results/lean-version-2026-08-18.txt`](../benchmarks/results/lean-version-2026-08-18.txt)
