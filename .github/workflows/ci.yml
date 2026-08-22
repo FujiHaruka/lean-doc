@@ -241,6 +241,15 @@ jobs:
       - name: End to end
         run: tools/e2e-micro.sh --out "$RUNNER_TEMP/e2e" --keep
 
+      # The other half of the same fixture: `e2e/micro-dep` required by *git*
+      # with a real 40-hex rev instead of by path. Only the wiring differs, so
+      # pinnability is the only variable — and it is the variable that decides
+      # whether a dependency's modules get blob URLs at all. Offline: the gate
+      # builds the git repository itself and rewrites the remote with git's
+      # `insteadOf`, so the manifest still carries an https URL.
+      - name: Pinnable dependency with guillemet modules
+        run: tools/pinned-dep-gate.sh --out "$RUNNER_TEMP/pinned"
+
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x

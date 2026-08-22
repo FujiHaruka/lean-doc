@@ -134,3 +134,76 @@ covered の判定は `licence =~ /Apache-2\.0/ && licence !~ / AND /`。
 **ゲート自身が該当していた**。`|| true` を 2 箇所に付けて直し、理由をコメントに残した。
 
 **この欠陥は「一度落とす」をやらなければ出なかった** — 緑の側では発火しない枝である。
+
+
+## 3. R3 — ギュメ付きモジュールを持つ「版固定できる依存」
+
+### 作り方 — 新しいパッケージもネットワークも要らなかった
+
+未検証項目の本文は「**どれも『作れば測れる』もので、機材が無いのではない**」。
+**額面どおりだった。** 既存の `e2e/micro-dep` (ギュメ付きの lib root `«Dep-Aux»` を持ち、
+`e2e/micro` が path で require している) を**そのまま git リポジトリにして**、
+require を差し替えるだけで版固定できる側に落ちる。
+
+    e2e/micro-dep → git init (固定 author/committer/date) → 40 桁 rev
+    e2e/micro の [[require]] を path から git + rev へ
+    lake update → manifest entry が type: git になる
+
+**モジュールも docstring も toolchain も同一で、動く変数は版固定可能性だけ。**
+rev は `e2e/micro-dep` の内容の関数 (同じ手順を 2 回回して同一 —
+`12d40c1a6c5921da6cdb29fbd57fdee273071ab4`)。ただしゲートは**この値を pin しない** —
+自分で作った rev を manifest から読み戻して突き合わせる。
+
+### ネットワーク無しで https の URL を manifest に載せる
+
+`git` の `insteadOf` を `GIT_CONFIG_COUNT` 経由で渡す。Lake は
+`https://example.invalid/micro-dep` を clone しているつもりで、実際には
+`file://<work>/dep` から取る。**manifest に残るのは https の方**。
+
+**最初は素直に `file://` を require に書いて、それで一度落ちた**【実測】:
+
+    DEAD internal links : 5 (1 distinct destinations, 1 pages)
+       5  Micro/file:/private/tmp/.../dep/blob/<rev>/Dep-Aux/Basic.lean
+
+`site-gate.sh` が `file:` を外部スキームと認識せず、`Micro/` からの相対リンクとして
+解決していた。**製品の欠陥と区別がつかない形の、ハーネスの欠陥。**
+CLAUDE.md「両方向で同時に落ちる差分は、対象ではなく比較器を疑う」の変種で、
+**疑うべきは自分が作った入力の方だった**。
+
+### 測った結果【実測 2026-08-22】
+
+対象: `e2e/micro` (10 モジュール / 92 宣言) + `«micro-dep»` (git, rev 40 桁)
+
+| | 結果 |
+|---|---|
+| blob URL | `https://example.invalid/micro-dep/blob/<rev>/Dep-Aux/Basic.lean` |
+| **ギュメの扱い** | **URL から落ちている** (`«Dep-Aux»` → `Dep-Aux/`)。href に `«` は 1 つも無い |
+| dead internal links | **0** (internal 296 / external 225) |
+| site-gate 全体 | **ok** (9 種すべて 0 failed) |
+| `«Dep-Aux».Basic` (IR の綴り) | **リンクする** (2 箇所: import リストと docstring) |
+| `Dep-Aux/Basic.lean` (source path) | **リンクする。同じ URL** |
+| `Dep-Aux.Basic` (`.lidx` の綴り) | **リンクしない** |
+
+**恐れていた壊れ方は無かった。** 版固定できる依存のギュメ付きモジュールへの
+blob URL は正しく組める。
+
+### 残ったのは欠陥ではなく仕様の判断 1 件
+
+3 綴りのうち `.lidx` の綴りだけ解決しない。**これは「同じ問いに答える経路が 2 本ある」形**で、
+`module_for_source_path` は escape してから引き、名前解決器は引かない。
+どちらが正しいかは測定では決まらない (unescape は一般には曖昧 — `«A».«B»` の
+unescape は実在しうる `A.B` と衝突する)。→ `docs/plans/residual-sweep.md` R3。
+
+ゲートは**今の答えを pin している**ので、解決するようになったら落ちて、
+判断とゲートを同じコミットで動かすことを要求する。
+
+### 落として通した【実測】
+
+| 落とし方 | 出た結果 |
+|---|---|
+| path require のまま (= 版固定できない側) | `lake update` が段 2 で落ちる (exit 1) |
+| `lake update` 後に rev を `main` へ書き換える | `FAIL rev is 'main', not 40 hex digits` → **以降を実行せず終了** |
+| 期待する blob URL を別ホストにする | `FAIL «Dep-Aux».Basic: links to [...], wanted ...` × 2 |
+
+2 つ目の早期終了は意図的 — **shape が違えば以降の assert は「版固定できない側」を
+検査して通ってしまう**ので、そこで止める (CLAUDE.md「『測った』の前に『測れる状態か』」)。

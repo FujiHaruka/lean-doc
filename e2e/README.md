@@ -11,6 +11,7 @@
 ```
 cargo build --bin litedoc4
 tools/e2e-micro.sh          # micro/  — 宣言の形
+tools/pinned-dep-gate.sh    # micro/ + micro-dep/ — 版固定できる依存 (git require に差し替える)
 tools/lake-package-gate.sh  # consumer/ — Lake の配線
 tools/lake-download-gate.sh # consumer/ — Release からバイナリを取る経路 (要ネットワーク)
 ```
@@ -106,9 +107,36 @@ curated な単体テストは**手で書いた IR** でこれらの分岐に到�
 | `Dep-Aux/Basic.lean` (source path) | **する** — `module_for_source_path` が escape してから引くので |
 
 **修正後は 3 綴りとも「リンクを張らない」に落ちる** (依存であって版固定できないので、それが正しい)。
-つまり**この綴り差が出力に出るのは、版固定できる依存がギュメ付きモジュールを持つときだけ**で、
-その実物はまだ無い → 未検証のまま残している 3 件の 1 つ
-([`../docs/plans/unverified-sweep.md`](../docs/plans/unverified-sweep.md) §1)。
+つまり**この綴り差が出力に出るのは、版固定できる依存がギュメ付きモジュールを持つときだけ**。
+
+### その実物を作った — `tools/pinned-dep-gate.sh`【実測 2026-08-22】
+
+**フィクスチャは同じ `micro-dep` で、変えたのは配線だけ**。path require を git require に
+差し替えると manifest entry が `type: git` + 40 桁 rev になり、版固定できる側に落ちる。
+**モジュールも docstring も toolchain も同一なので、動く変数は版固定可能性だけ**。
+
+ネットワークは要らない: ゲートが `e2e/micro-dep` から git リポジトリを作り、
+git の `insteadOf` で remote を書き換える。**manifest には https の URL が残る** —
+`file://` を入れると `site-gate.sh` がそれを**内部リンクと判定して dead link 5 本**を出し、
+**製品の失敗と見分けがつかない**【実測: 最初にこれを踏んだ】。
+
+測った結果:
+
+| | |
+|---|---|
+| blob URL | `https://…/micro-dep/blob/<rev>/Dep-Aux/Basic.lean` — **ギュメは落ちている** |
+| dead internal links | **0** |
+| `«Dep-Aux».Basic` (IR の綴り) | **リンクする** |
+| `Dep-Aux/Basic.lean` (source path) | **リンクする。上と同じ URL** |
+| `Dep-Aux.Basic` (`.lidx` の綴り) | **リンクしない** |
+
+**恐れていた壊れ方は無かった** — 版固定できる依存でギュメ付きモジュールへの blob URL は
+正しく組める。**残ったのは 3 綴りのうち 1 つだけが解決しないという非対称**で、これは
+測定ではなく**仕様の判断**。`module_for_source_path` は escape してから引き、
+名前解決器は引かない — **同じ問い (「これはどのモジュールか」) に答える経路が 2 本あって
+答えが違う**。判断は `docs/plans/residual-sweep.md` R3 に置いてある。
+ゲートは**今の答えを pin している**ので、解決するようになったら落ちる。
+
 **番号ではなく名前で指すこと** — README の一覧は `e744f79` で消えており、
 番号参照はそれより先に腐っていた。
 

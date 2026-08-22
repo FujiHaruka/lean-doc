@@ -74,6 +74,13 @@
   **残る 3 件**: 他人のリポジトリから `uses:` される / ギュメ付きモジュールを持つ
   「版固定できる依存」/ より大きいパッケージ・RAM の小さいランナー。
   **どれも「作れば測れる」もので、機材が無いのではない。**
+  → **うち「版固定できる依存」は 2026-08-22 に作って測った**【実測 →
+  [`../benchmarks/results/residual-sweep-2026-08-22.txt`](../benchmarks/results/residual-sweep-2026-08-22.txt) §3、
+  ゲートは `tools/pinned-dep-gate.sh`】。**「作れば測れる」は額面どおりだった** —
+  既存フィクスチャの配線を path から git に替えるだけで、ネットワークも新しい
+  パッケージも要らなかった。**恐れていた壊れ方は無く**、代わりに**仕様の判断が 1 件**
+  出た (3 綴りのうち `.lidx` の綴りだけ解決しない →
+  [`plans/residual-sweep.md`](plans/residual-sweep.md) R3)。**残り 2 件。**
 
 - **U5 は「未検証」を「既知の欠陥」に変え、その欠陥は同じ日に閉じた**【実測 2026-08-18 →
   [`../benchmarks/results/lean-version-2026-08-18.txt`](../benchmarks/results/lean-version-2026-08-18.txt)
