@@ -56,7 +56,7 @@ use serde::{Deserialize, Serialize};
 /// [`ModuleFacts::refs`] arrived (`docs/plans/feature-sweep.md` C-2) it became
 /// wrong and nothing could notice. The difference is not written down anywhere
 /// any more: what is asserted is that the serialised key list *starts* with
-/// this, which [`tests::the_prototypes_keys_come_first`] checks with no corpus,
+/// this, which `tests::the_prototypes_keys_come_first` checks with no corpus,
 /// no state file and no fixture — so every field added from here on is covered
 /// without an edit.
 pub const PROTOTYPE_FACT_KEYS: [&str; 7] = [
@@ -78,7 +78,7 @@ pub const PROTOTYPE_FACT_KEYS: [&str; 7] = [
 /// that is compared with the prototype's byte for byte, and **every field this
 /// struct has that the prototype does not has to come after all seven** — that
 /// is what lets the two files still be compared entry by entry, and it is
-/// asserted rather than commented ([`tests::the_prototypes_keys_come_first`]).
+/// asserted rather than commented (`tests::the_prototypes_keys_come_first`).
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModuleFacts {
