@@ -189,3 +189,102 @@ The following file holds V8's `\p{Z}\p{C}` answers, enumerated code point by
 code point rather than copied from its sources:
 
     crates/litedoc4-global/src/v8_gc.rs
+
+================================================================================
+Rust crates whose licence does not offer Apache-2.0
+================================================================================
+
+litedoc4 is Apache-2.0, and most of its dependency closure is dual-licensed
+"MIT OR Apache-2.0": taking the Apache-2.0 option puts those crates under terms
+LICENSE and this file already carry, which is why they are not listed here. The
+crates below offer no such choice, so their own notices are reproduced.
+
+This list is derived rather than curated. `tools/provenance-gate.sh` rebuilds it
+from `cargo tree` over every target `release.yml` ships and fails if this section
+and that closure disagree in either direction, so a new dependency cannot arrive
+without its notice and a dropped one cannot leave a stale entry behind.
+
+It covers the whole normal dependency closure, including crates that only run at
+compile time. A proc-macro's own code is not linked into the binary, but the code
+it generates is derived from it, and a notice printed for one crate too many
+costs a paragraph while a missing one is an unmet obligation.
+
+    generic-array                 Copyright (c) 2015 Bartłomiej Kamiński
+    math-core                     Copyright (c) 2024 Hiromu Sugiura, Thomas MK
+    math-core-renderer-internal   Copyright (c) 2024 Hiromu Sugiura, Thomas MK
+    memchr                        Copyright (c) 2015 Andrew Gallant
+    phf                           Copyright (c) 2014-2022 Steven Fackler, Yuki Okushi
+    phf_generator                 Copyright (c) 2014-2022 Steven Fackler, Yuki Okushi
+    phf_macros                    Copyright (c) 2014-2022 Steven Fackler, Yuki Okushi
+    phf_shared                    Copyright (c) 2014-2022 Steven Fackler, Yuki Okushi
+    sha2-asm                      Copyright (c) 2020 RustCrypto Developers
+                                  Copyright (c) 2017 Project Nayuki, Artyom Pavlov
+    strum                         Copyright (c) 2019 Peter Glotfelty
+    strum_macros                  Copyright (c) 2019 Peter Glotfelty
+    unicode-ident                 Copyright (c) 2015 The Rust Project Developers
+    zmij                          Copyright (c) David Tolnay
+
+All of the above are licensed under the MIT License:
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+
+`unicode-ident` is the one entry above whose licence is not a choice: it is
+"(MIT OR Apache-2.0) AND Unicode-3.0", so the Unicode terms apply on top of
+whichever of the first two is taken. Its tables are derived from Unicode
+character data:
+
+    UNICODE LICENSE V3
+
+    COPYRIGHT AND PERMISSION NOTICE
+
+    Copyright © 1991-2023 Unicode, Inc.
+
+    NOTICE TO USER: Carefully read the following legal agreement. BY
+    DOWNLOADING, INSTALLING, COPYING OR OTHERWISE USING DATA FILES, AND/OR
+    SOFTWARE, YOU UNEQUIVOCALLY ACCEPT, AND AGREE TO BE BOUND BY, ALL OF THE
+    TERMS AND CONDITIONS OF THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT
+    DOWNLOAD, INSTALL, COPY, DISTRIBUTE OR USE THE DATA FILES OR SOFTWARE.
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of data files and any associated documentation (the "Data Files") or
+    software and any associated documentation (the "Software") to deal in the
+    Data Files or Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, and/or sell
+    copies of the Data Files or Software, and to permit persons to whom the
+    Data Files or Software are furnished to do so, provided that either (a)
+    this copyright and permission notice appear with all copies of the Data
+    Files or Software, or (b) this copyright and permission notice appear in
+    associated Documentation.
+
+    THE DATA FILES AND SOFTWARE ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+    KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF
+    THIRD PARTY RIGHTS.
+
+    IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN THIS NOTICE
+    BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSEQUENTIAL DAMAGES,
+    OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+    WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+    ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THE DATA
+    FILES OR SOFTWARE.
+
+    Except as contained in this notice, the name of a copyright holder shall
+    not be used in advertising or otherwise to promote the sale, use or other
+    dealings in these Data Files or Software without prior written
+    authorization of the copyright holder.

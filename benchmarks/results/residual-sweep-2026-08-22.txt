@@ -1,0 +1,136 @@
+# 残件掃き R1 / R2 の実測 — 凍結テストの主張の置き場所と、NOTICE の網羅
+
+日付      2026-08-22
+機材      Apple M1 (8 core) / 16 GB / macOS 26.0 / APFS
+Rust      1.97.1
+対象      無し (R1 も R2 も機材ゼロ依存。計測対象リポジトリは触っていない)
+計画      docs/plans/residual-sweep.md §3
+
+
+## 1. R1 — prototype の 7 キーを 1 箇所に集めた
+
+### 何が壊れていたか
+
+`crates/litedoc4-global/tests/state_and_delta.rs` の
+`the_state_file_is_the_prototypes_bytes` が、書かれた state ファイルの
+1 モジュールぶんのキー列を **「prototype の 7 キー + `instancesFor` 1 個」** と
+主張していた。feature-sweep C-2 が `ModuleFacts::refs` を足したので、HEAD では
+**9 キー**。この assert は偽で、**誰も気づかなかった**。
+
+気づけなかった理由は「凍結テストだから」だけではない。**同じ 7 キーの転写が 2 本あり、
+形が違った**:
+
+| | 形 | フィールドが増えたとき |
+|---|---|---|
+| `tests/global.rs::Facts` | **射影** — 7 キーだけを再直列化する | 見えない。壊れない |
+| `tests/state_and_delta.rs` | **差分** — 「7 キー + 手書きの追加リスト」 | 腐る。しかも凍結なので黙って腐る |
+
+CLAUDE.md「判断は 1 箇所に集める。同じ問いに答える経路が 2 本あると、片方だけ直る」の
+実例で、実際に射影の側だけが生き残った。
+
+### 直した形
+
+1. `litedoc4_global::PROTOTYPE_FACT_KEYS` (7 キー) を置いた。転写 2 本はこれを参照する。
+2. **構造の主張を機材ゼロ依存のテストへ移した** — `facts.rs` の
+   `tests::the_prototypes_keys_come_first`。「直列化キー列は 7 キーで**始まる**」は
+   `ModuleFacts` の値 1 つで決まり、corpus も prototype state も要らない。
+   **`#[ignore]` ではない。今日から走る。**
+3. 凍結テスト側の手書き追加リストを消し、`starts_with` にした。**腐る場所が無くなった** —
+   以後どのフィールドが増えても編集は要らない。
+4. `tests/global.rs` に `the_shim_is_the_prototypes_keys` を足し、射影が単一の
+   定義と一致していることを検査する。
+
+### 落として通した【実測】
+
+| 落とし方 | 出た結果 |
+|---|---|
+| `ModuleFacts` の `instances_for` を `module` の前に移す | `the_prototypes_keys_come_first` が FAILED。`left: ["instancesFor", "module", ...]` |
+| `tests/global.rs::Facts` の `module` と `content_hash` を入れ替える | `the_shim_is_the_prototypes_keys` が FAILED。`left: ["contentHash", "module", ...]` |
+
+**この 2 つはどちらも、直す前は何も落とさなかった失敗である。**
+
+### 数の pin をやめた 1 件
+
+`assert_eq!(got.len(), 861_999)` を消した。`got.len()` は **HEAD と
+`LITEDOC4_IR` が指す corpus の積**で、裸の整数では落ちたときにどちらが動いたか
+言えない。**そして片方は既に動いている** (C-2 の `refs`)。
+数字は条件ごとコメントに残した:
+
+- v1 ファイル **841,947 B**、`instancesFor` が **432 モジュール**で **20,052 B**、
+  合計 **861,999 B**【実測 2026-08-16】
+- `refs` は **422 モジュールの IR で 472,440 B**【実測 2026-08-22 →
+  `usedby-2026-08-22.txt` §3】。**432 モジュールでの値は無い** — その corpus は
+  この機材に無く、対象パッケージも 432 モジュールではない
+
+残した assert は corpus が決めないもの: `got.len() == summary.state_bytes` /
+`shim.len() == 841_947` / 各モジュールが 7 キーで始まり 7 キーとも一致すること。
+
+### 緑
+
+`cargo test --workspace` = **36 バイナリ / 435 passed / 0 failed / 21 ignored**。
+`cargo fmt --check` / `cargo clippy --workspace --all-targets -- -D warnings` ともに緑。
+
+
+## 2. R2 — NOTICE が closure を網羅していなかった
+
+### 抜けていた件数【実測】
+
+`docs/provenance.md` §8 が 2026-08-22 に起票した未検証項目。**実際に抜けていた。**
+
+編集前の NOTICE に対して `tools/provenance-gate.sh` を回した結果 (exit 1):
+
+    NO NOTICE     generic-array
+    NO NOTICE     math-core
+    NO NOTICE     math-core-renderer-internal
+    NO NOTICE     memchr
+    NO NOTICE     phf
+    NO NOTICE     phf_generator
+    NO NOTICE     phf_macros
+    NO NOTICE     phf_shared
+    NO NOTICE     sha2-asm
+    NO NOTICE     strum
+    NO NOTICE     strum_macros
+    NO NOTICE     unicode-ident
+    NO NOTICE     zmij
+
+**13 件。起票時の見積り (`strum` / `strum_macros` / `phf` 系 /
+`math-core-renderer-internal` = 6 件) は過小だった。** 見落としていたのは:
+
+- **`generic-array` (MIT)** — `sha2` → `digest` → `block-buffer` 経由。**バイナリに入る**
+- **`zmij` (MIT)** — `serde_json` 経由。**バイナリに入る**
+- **`memchr` (`Unlicense OR MIT`)** — 「MIT 単独」ではないが Apache では払えない
+- **`unicode-ident` (`(MIT OR Apache-2.0) AND Unicode-3.0`)** — 同上。`AND` が効く
+- **`sha2-asm` (MIT)**
+- **`math-core`** — 独立した節はあったが**導出セクションには居なかった**
+
+**「MIT 単独」という言葉が判定として弱かった**のが見積りを外した原因で、
+判定は「**Apache-2.0 単独では満たせないか**」に言い換えた (→ `provenance.md` §7)。
+
+### 判定の形
+
+対象は `release.yml` の matrix から読む (**`x86_64-unknown-linux-musl` と
+`aarch64-apple-darwin` の 2 つ**)。2 つの closure の差は `libc`
+(`MIT OR Apache-2.0`) 1 件だけだが、**片方だけ見て網羅を主張するのは
+黙った狭め**なので両方取る。
+
+covered の判定は `licence =~ /Apache-2\.0/ && licence !~ / AND /`。
+**例外リストは持たない。**
+
+### 落として通した【実測】
+
+| 落とし方 | 出た結果 |
+|---|---|
+| 編集前の NOTICE (= 起票時の状態) | `NO NOTICE` × 13、exit 1 |
+| 実在しない `not-a-crate` を足す | `STALE ENTRY not-a-crate ...`、exit 1 |
+| `strum` の行を消す | `NO NOTICE strum ...`、exit 1 |
+
+### 最初の落とし方でゲート自身の欠陥が出た【実測】
+
+編集前の NOTICE に対する 1 回目、ゲートは **`files: ok (31 claims)` だけ印字して
+黙って終了した**。原因は `grep` が 0 件で 1 を返し、`set -e` が
+コマンド置換ごとスクリプトを殺していたこと。**終了コードは非ゼロなので CI は
+赤くなるが、何が壊れたかは 1 行も出ない** — CLAUDE.md
+「落ちたときに何が壊れたか 1 行で言えないゲートは足さない」に、
+**ゲート自身が該当していた**。`|| true` を 2 箇所に付けて直し、理由をコメントに残した。
+
+**この欠陥は「一度落とす」をやらなければ出なかった** — 緑の側では発火しない枝である。

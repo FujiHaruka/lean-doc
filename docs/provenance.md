@@ -272,11 +272,36 @@ Released under Apache 2.0 license as described in the file LICENSE. / Authors: H
 「バイナリに入るか」。`serde` や `sha2` を載せていないのは基準の抜けではなく、
 **Apache-2.0 / MIT-OR-Apache-2.0 のデュアルライセンスで Apache 側を選べば
 §4 の義務が LICENSE と NOTICE で既に満たされている**ため。MIT 単独のものは
-選択肢が無いので個別に載る。`math-core` の推移的依存 18 件のうち
-**MIT 単独は `strum` / `strum_macros` / `phf` 系 / `math-core-renderer-internal`**
-で、これらは**コードとして持ち込んでいない**が同じくバイナリに入る。
-**未処理** — `cargo deny` はライセンスの許可判定しかしておらず、
-notice の網羅は見ていない。→ §8 に検証項目として置いた。
+選択肢が無いので個別に載る。
+
+**同じ日にこの基準を 2 点で言い直した**【判断 2026-08-22】。結論は変わらないが、
+**ゲートにできる形**にするために必要だった:
+
+1. **「バイナリに入るか」→「normal 依存の closure に居るか」に広げた。**
+   proc-macro クレート自身のコードはバイナリに入らないが、**それが生成した
+   コードは入り、生成物は元のテンプレートの派生**である。どこで線を引くかは
+   クレートごとの判断になり、**判断が要る基準はゲートにできない**。
+   広げた側の代償は `unicode-ident` の Unicode-3.0 告知 1 ブロックだけで、
+   **1 件多く載せる代償は段落 1 つ、1 件落とす代償は未履行の義務**。
+2. **「MIT 単独」→「Apache-2.0 単独では満たせない」に言い換えた。**
+   実際の closure には `Unlicense OR MIT` (`memchr`) と
+   `(MIT OR Apache-2.0) AND Unicode-3.0` (`unicode-ident`) が居て、
+   どちらも「MIT 単独」ではないが **LICENSE と NOTICE だけでは払えない**。
+
+**この判定は `tools/provenance-gate.sh` の後半が持つ**【2026-08-22】。
+`release.yml` の matrix から対象を読み、`cargo tree -e normal` の closure と
+NOTICE の導出セクションを**両方向で**突き合わせる。**例外リストは持たない** —
+持てば 2 件目の乖離を黙って飲む (CLAUDE.md)。
+
+**起票時に実際に抜けていたのは 13 件**【実測 2026-08-22 →
+`benchmarks/results/residual-sweep-2026-08-22.txt` §2】: `generic-array` /
+`math-core` / `math-core-renderer-internal` / `memchr` / `phf` / `phf_generator` /
+`phf_macros` / `phf_shared` / `sha2-asm` / `strum` / `strum_macros` /
+`unicode-ident` / `zmij`。**このうち `generic-array` と `zmij` は proc-macro 経由ではなく、
+`sha2` と `serde_json` の推移的依存として実際にバイナリに入る** — 起票時の見積り
+(`strum` / `phf` 系 / `math-core-renderer-internal`) は**過小だった**。
+`math-core` は独立した節を持っていたが**導出セクションには居なかった**ので、
+ゲートから見れば欠落である (載せる場所を 1 つに決めた結果)。
 
 `gc.rs` / `v8_gc.rs` は**プログラムの出力**であって元のソースではない。
 `tests/data/docgen4-*.json` も同じ性質。ソースの複製とは扱いが違うが、
@@ -296,10 +321,13 @@ notice の網羅は見ていない。→ §8 に検証項目として置いた�
   **撤去の理由は方針であって法務ではない。**
 - **`benchmarks/doc-gen4-instrumentation.patch` を配布した場合。** context 187 行が
   doc-gen4 のソース逐語なので、patch 単体で §4(a)(c) が発動する
-- **【未検証、2026-08-22 起票】NOTICE が「バイナリに入る MIT 単独クレート」を
-  網羅していない。** §7 の表に書いたとおり、載せる基準は「バイナリに入るか」に決めたが、
-  実際に載っているのは**コードを持ち込んだ 5 件と `math-core` だけ**で、
-  `strum` / `phf` 系のような MIT 単独の推移的依存は載っていない。
-  `cargo deny` は許可リストとの照合しかしないので**この抜けは緑のまま通る**。
-  潰し方は「closure のライセンスを列挙して MIT 単独を抽出する」ゲートを 1 本足すこと。
-  **「たぶん大丈夫」と読まない** — 依存が 30 から 48 に増えた直後の状態である
+- **~~【未検証、2026-08-22 起票】NOTICE が「バイナリに入る MIT 単独クレート」を
+  網羅していない~~ → 決着した (2026-08-22、同日)。** 網羅していなかった。
+  **13 件**で、内訳と、起票時の見積りがなぜ過小だったかは §7 末尾。
+  `tools/provenance-gate.sh` の後半がこれを両方向で見るようになり、
+  **一覧は導出であって手書きではない** — 手書きの一覧は依存が動いた瞬間に
+  黙って腐るので、この問いには使えない形である。
+  **ゲート自身も一度落として通した**。**最初の落とし方でゲートの欠陥が出た** —
+  `grep` が 0 件を返して `set -e` に殺され、**何も印字せずに非ゼロ終了**していた
+  (CLAUDE.md「落ちたときに何が壊れたか 1 行で言えないゲートは足さない」の、
+  ゲート自身が該当していた版)
